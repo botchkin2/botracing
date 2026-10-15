@@ -371,3 +371,10 @@ test('a pre-release suffix is the same version, so it is never "newer" than its 
   assert.equal(updateWaitingOf(file('0.1.12-rc.1'), '0.1.12'), null);
   assert.equal(updateWaitingOf(file('0.1.12-rc.1'), '0.1.11'), '0.1.12-rc.1');
 });
+
+test('the heal count rides the beat only once a heal happened', () => {
+  assert.equal('healed' in heartbeatDoc({...input, nowMs}), false);
+  const doc = heartbeatDoc({...input, watch: {...input.watch, healed: 2}, nowMs});
+  assert.equal(doc.healed, 2);
+  assert.notEqual(beatKey(doc), beatKey(heartbeatDoc({...input, nowMs})));
+});

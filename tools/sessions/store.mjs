@@ -32,6 +32,7 @@ import {planBlock} from './planBlock.mjs';
 import {stampNewer, withKept} from './versionKey.mjs';
 import {captureExtractPath} from './captureExtract.mjs';
 import {guardedWriter} from './docShape.mjs';
+import {healPlan} from './heal.mjs';
 import {packState} from './layoutBoundaries.mjs';
 import {trafficMedians} from '../../src/analysis/traffic.ts';
 import {lapTrafficFrom} from './lapTraffic.mjs';
@@ -176,9 +177,12 @@ export function adminBackend({db, bucket}) {
       const found = await db
         .collection('laps')
         .where('sessionId', '==', sessionId)
-        .select()
+        .select('supersededBy')
         .get();
-      return found.docs.map(doc => doc.id);
+      // Not a replaced lap (heal.mjs): the leftover cleanup keeps tombstones.
+      return found.docs
+        .filter(doc => !doc.get('supersededBy'))
+        .map(doc => doc.id);
     },
     async fileMd5(dest) {
       try {
@@ -288,6 +292,55 @@ export function keepNewerLive(session, stored, log = () => {}) {
   }
 }
 
+// The heal's writes for a session being rebuilt over its live copy (heal.mjs).
+async function healOps(backend, before, out, log) {
+  const {session} = out;
+  const ids = (before?.recordingIds ?? []).filter(
+    id => !out.recordings.some(r => r.id === id),
+  );
+  if (ids.length === 0) return null;
+  const stored = (
+    await Promise.all(
+      ids.map(async id => ({id, ...(await backend.getDoc('recordings', id))})),
+    )
+  ).filter(r => r.recordedAt);
+  const laps = (
+    await Promise.all(
+      (
+        await backend.sessionLapIds(session.id)
+      ).map(async id => ({
+        id,
+        ...(await backend.getDoc('laps', id)),
+      })),
+    )
+  ).map(l => ({id: l.id, recordingId: l.recordingId}));
+  const plan = healPlan({
+    stored,
+    built: out.recordings,
+    laps,
+    nowIso: new Date().toISOString(),
+    defect: out.healDefect,
+  });
+  // A stretch the build lacks is the only copy: it stays in the session.
+  session.recordingIds = [...session.recordingIds, ...plan.kept];
+  log(
+    `  heal: ${
+      Object.keys(plan.replaced).length
+    } recording(s) replaced (${Object.entries(plan.replaced)
+      .map(([a, b]) => `${a} -> ${b}`)
+      .join(', ')}), ${plan.lapsSuperseded} lap(s) hidden, ${
+      plan.kept.length
+    } stretch(es) kept (${plan.kept.join(', ')})`,
+  );
+  const kept = new Set(plan.kept);
+  return {
+    ops: plan.ops,
+    protectedLapIds: laps
+      .filter(l => kept.has(l.recordingId) || l.recordingId in plan.replaced)
+      .map(l => l.id),
+  };
+}
+
 async function uploadSession(backend, out, {log = () => {}} = {}) {
   const {session} = out;
 
@@ -302,7 +355,6 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     log('  skipped: the stored session was analysed under newer rules');
     return {skipped: 'newer'};
   }
-
 
   // The field file already in the bucket (the capture is gone after 14 days,
   // the uploaded file is not). A failure is a log line and null: the next
@@ -519,6 +571,13 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     ops.push({op: 'set', coll: 'recordings', id: rec.id, data: rec});
   for (const lap of out.laps)
     ops.push({op: 'set', coll: 'laps', id: lap.id, data: lap});
+  // A game-file build that replaces a live copy of the same drive in place
+  // (heal.mjs): the stored recordings it covers, and their laps, are
+  // tombstoned in the same batch; a stretch it lacks stays.
+  const healed = out.healDefect
+    ? await healOps(backend, before, out, log)
+    : null;
+  if (healed) ops.push(...healed.ops);
   // Merge: the track doc also holds fields other tools write (the georef,
   // centerline, edges, corner names). A new corner map replaces only its own.
   if (out.track) {
@@ -536,6 +595,9 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
 
   // A re-run can produce fewer laps (a file that was still growing). Drop leftovers.
   const keep = new Set(out.laps.map(lap => lap.id));
+  // The heal's own: the kept stretch's laps stay, the replaced ones are
+  // tombstoned by the ops above and must not also be deleted as leftovers.
+  for (const id of healed?.protectedLapIds ?? []) keep.add(id);
   let dropped = 0;
   for (const id of await backend.sessionLapIds(session.id)) {
     if (!keep.has(id)) {

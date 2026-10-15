@@ -189,6 +189,8 @@ export async function listLaps(
       const lap = doc.data();
       // Second guard behind the query: never another owner's lap.
       if (lap.ownerId !== owner) continue;
+      // A lap a heal replaced (supersededBy) is hidden, kept for restore.
+      if (lap.supersededBy) continue;
       laps.push(toAppLap(lap, byId.get(lap.sessionId)));
     }
   }
@@ -356,7 +358,7 @@ export async function readSessionLaps(
   if (snap.empty) return (await readSession(owner, id)) ? {items: []} : null;
   const items = snap.docs
     .map(doc => doc.data())
-    .filter(lap => lap.ownerId === owner)
+    .filter(lap => lap.ownerId === owner && !lap.supersededBy)
     // A session can span recordings; lap numbers restart per recording.
     .sort(
       (a, b) =>

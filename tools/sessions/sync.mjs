@@ -52,6 +52,7 @@ import {describeCheck} from './irCapture.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {captureExtract} from './captureExtract.mjs';
+import {adoptLiveIds} from './heal.mjs';
 import {liveCover, readLiveIndex} from './liveSession.mjs';
 import {usableLiveIndex} from './brokenWheels.mjs';
 import {makeBuilder} from './buildSession.mjs';
@@ -410,6 +411,15 @@ async function main() {
     return !cover;
   });
   const sessions = group(files);
+  // A drive whose live capture is defective (brokenWheels.mjs) is rebuilt from
+  // its game file under the live session's id (heal.mjs, thread 74 step 1).
+  for (const s of adoptLiveIds(
+    sessions,
+    readLiveIndex(work),
+    liveIndex,
+    liveCover,
+  ))
+    log(`  ${s.id}: the game file replaces the live copy in place`);
   log(`${files.length} recordings in ${sessions.length} sessions (${folder})`);
 
   if (flag('--list')) {
@@ -670,6 +680,7 @@ async function processSession(
   if (out.session.consistency?.overview) {
     lines.push(`  ${out.session.consistency.overview}`);
   }
+  out.healDefect = s.healDefect ?? null;
   if (local) lines.push(`  -> ${writeLocal(out)}`);
   else {
     await store.upload(out, {log: line => lines.push(line)});

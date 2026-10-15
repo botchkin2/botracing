@@ -175,7 +175,10 @@ export function analyzeFromArchive({
       // pressure and temperatures, and the wheels changed in the stop that
       // ended during it (tyres.mjs); null without the channels. The lap after
       // a change is the first on new tyres (consistency's cold-tyres rule).
-      tyres: lap.tyres,
+      // A stretch kept from a defective capture (heal.mjs) has no tyres.
+      tyres: recordings[lap.rec].info.defects?.includes('mergedWheels')
+        ? null
+        : lap.tyres,
       tyreCarcassC: lap.tyreCarcassC,
       courseYellowSec: lap.courseYellowSec,
       compound: lap.compound,

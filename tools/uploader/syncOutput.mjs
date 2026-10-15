@@ -29,6 +29,9 @@ export function newSyncResult() {
     failureOf: {},
     done: 0,
     failed: 0,
+    // Stored recordings a game-file build replaced in place ("  heal: N
+    // recording(s) replaced ...", store.mjs): the heartbeat counts them.
+    healed: 0,
     errors: [],
     // The first line of an uncaught error ("RangeError: Maximum call stack
     // size exceeded"), or null: what a sync that died before its closing line
@@ -79,6 +82,8 @@ export function readSyncLine(result, line) {
       : skip[2];
     result.unreadable.push({name: skip[1], why: why || skip[2]});
   }
+  const heal = line.match(/^ {2}heal: (\d+) recording\(s\) replaced/);
+  if (heal) result.healed += +heal[1];
   const waiting = line.match(/^(\d+) file\(s\) still being written/);
   if (waiting) result.waiting = +waiting[1];
   const fold = readSurfaceProgress(line);

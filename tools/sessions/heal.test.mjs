@@ -1,0 +1,148 @@
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+
+import {adoptLiveIds, healPlan, DEFECT} from './heal.mjs';
+import {liveCover} from './liveSession.mjs';
+import {createStore} from './store.mjs';
+import {memoryStore} from '../golden/memoryStore.mjs';
+
+const T0 = Date.parse('2026-10-15T00:35:00Z');
+const at = s => new Date(T0 + s * 1000).toISOString();
+
+test('a stored recording is replaced only when the build has one within 2 s; the unmatched one stays', () => {
+  // bearing #5659 / 1edfb967: a live session of 2 stretches, a game file of 1.
+  const plan = healPlan({
+    stored: [
+      {id: 'L0', recordedAt: at(0)},
+      {id: 'L1', recordedAt: at(3000)},
+    ],
+    built: [{id: 'B0', recordedAt: at(1.5)}],
+    laps: [
+      {id: 'l0', recordingId: 'L0'},
+      {id: 'l1', recordingId: 'L1'},
+    ],
+    nowIso: 'now',
+    defect: DEFECT,
+  });
+  assert.deepEqual(plan.replaced, {L0: 'B0'});
+  assert.deepEqual(plan.kept, ['L1']);
+  assert.equal(plan.lapsSuperseded, 1);
+  const byId = Object.fromEntries(
+    plan.ops.map(o => [`${o.coll}/${o.id}`, o.data]),
+  );
+  assert.equal(byId['recordings/L0'].supersededBy, 'B0');
+  assert.equal(byId['laps/l0'].supersededBy, 'B0');
+  assert.equal(byId['laps/l1'], undefined);
+  assert.deepEqual(byId['recordings/L1'], {defects: [DEFECT]});
+});
+
+test('2.5 s apart is not the same stretch; one build recording replaces one stored', () => {
+  const plan = healPlan({
+    stored: [
+      {id: 'L0', recordedAt: at(0)},
+      {id: 'L1', recordedAt: at(1)},
+    ],
+    built: [{id: 'B0', recordedAt: at(0.5)}],
+    laps: [],
+    nowIso: 'now',
+  });
+  assert.deepEqual(plan.replaced, {L0: 'B0'});
+  assert.deepEqual(plan.kept, ['L1']);
+  assert.equal(
+    plan.ops.length,
+    1,
+    'no defect named: the kept stretch is not marked',
+  );
+  const far = healPlan({
+    stored: [{id: 'L0', recordedAt: at(0)}],
+    built: [{id: 'B0', recordedAt: at(2.5)}],
+    laps: [],
+    nowIso: 'now',
+  });
+  assert.deepEqual(far.kept, ['L0']);
+});
+
+test('the game-file session takes the live id only for a defective capture, and only when unambiguous', () => {
+  const full = {
+    'cap#0': {
+      sessionId: 'LIVE',
+      sim: 'lmu',
+      layout: 'Sil',
+      startMs: T0,
+      endMs: T0 + 600_000,
+    },
+  };
+  const session = id => ({
+    id,
+    files: [{info: {sim: 'lmu', layout: 'Sil', recordedAt: at(1)}}],
+  });
+  const a = session('hash1');
+  assert.deepEqual(adoptLiveIds([a], full, {}, liveCover), [a]);
+  assert.equal(a.id, 'LIVE');
+  assert.equal(a.healDefect, DEFECT);
+  // A usable capture covers the file instead: no adoption.
+  const b = session('hash2');
+  assert.deepEqual(adoptLiveIds([b], full, full, liveCover), []);
+  assert.equal(b.id, 'hash2');
+  // Two game-file sessions claiming one live id: neither adopts.
+  const c = session('c');
+  const d = session('d');
+  assert.deepEqual(adoptLiveIds([c, d], full, {}, liveCover), []);
+});
+
+test('the upload tombstones what it replaces, keeps the lone stretch and its laps, and hides both from the leftover cleanup', async () => {
+  const db = memoryStore({
+    'sessions/S': {id: 'S', recordingIds: ['L0', 'L1'], archiveParts: 4},
+    'recordings/L0': {id: 'L0', recordedAt: at(0)},
+    'recordings/L1': {id: 'L1', recordedAt: at(3000)},
+    'laps/l0': {id: 'l0', sessionId: 'S', recordingId: 'L0'},
+    'laps/l1': {id: 'l1', sessionId: 'S', recordingId: 'L1'},
+  });
+  const out = {
+    session: {
+      id: 'S',
+      ownerId: 'o',
+      recordingIds: ['B0'],
+      analysis: {v: 1, blocks: {}},
+    },
+    recordings: [{id: 'B0', recordedAt: at(1)}],
+    laps: [{id: 'b0', sessionId: 'S', recordingId: 'B0'}],
+    traces: [],
+    files: [],
+    band: null,
+    track: null,
+    boundaries: null,
+    healDefect: DEFECT,
+  };
+  const lines = [];
+  await createStore({
+    ...db,
+    deleteFile: async () => {},
+    listFiles: async () => [],
+  }).upload(out, {log: l => lines.push(l)});
+  assert.deepEqual(db.docs.get('sessions/S').recordingIds, ['B0', 'L1']);
+  assert.equal(db.docs.get('recordings/L0').supersededBy, 'B0');
+  assert.equal(db.docs.get('laps/l0').supersededBy, 'B0');
+  assert.ok(db.docs.has('laps/l1'), 'the kept stretch keeps its laps');
+  assert.equal(db.docs.get('laps/l1').supersededBy, undefined);
+  assert.deepEqual(db.docs.get('recordings/L1').defects, [DEFECT]);
+  assert.ok(db.docs.has('laps/b0'));
+  assert.ok(
+    lines.some(l => l.includes('heal: 1 recording(s) replaced (L0 -> B0)')),
+    lines.join('\n'),
+  );
+  // A later upload (the cloud's analysis) does not delete the tombstone.
+  await createStore({
+    ...db,
+    deleteFile: async () => {},
+    listFiles: async () => [],
+  }).upload({
+    ...out,
+    healDefect: null,
+    session: {...out.session, recordingIds: ['B0', 'L1']},
+  });
+  assert.ok(
+    db.docs.has('laps/l0'),
+    'a tombstoned lap survives a later cleanup',
+  );
+});
