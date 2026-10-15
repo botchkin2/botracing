@@ -36,7 +36,10 @@ $deadline = (Get-Date).AddSeconds(30)
 while ((Trays) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }
 if (Trays) { Fail "the tray did not quit before the lock" }
 Remove-Item $installLog -ErrorAction SilentlyContinue
-$before = (Get-Item $exe).LastWriteTimeUtc
+# NSIS stamps a file with its build time, so reinstalling the same build keeps
+# the time: an old stamp here is what shows the install really wrote it.
+$before = [datetime]::new(2000, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)
+(Get-Item $exe).LastWriteTimeUtc = $before
 
 # Hold the exe with no sharing for HoldS seconds, from another process, and
 # start the installer only once the hold is taken.
@@ -51,13 +54,16 @@ $holder = Start-Job -ArgumentList $exe, $HoldS, $taken -ScriptBlock {
 }
 $deadline = (Get-Date).AddSeconds(15)
 while (-not (Test-Path $taken) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 50 }
-if (-not (Test-Path $taken)) { Receive-Job $holder; Fail "the lock was never taken" }
+if (-not (Test-Path $taken)) { Receive-Job $holder -ErrorAction SilentlyContinue; Fail "the lock was never taken" }
 
 $t0 = Get-Date
 $p = Start-Process -FilePath $Installer -ArgumentList "/S" -Wait -PassThru
 $secs = ((Get-Date) - $t0).TotalSeconds
 Wait-Job $holder | Out-Null
-Receive-Job $holder
+# Without the installer's own wait, Tauri's Restart Manager step ends the
+# holder (seen on main's hooks): that is a finding, not a script error.
+if ($holder.State -ne 'Completed') { Write-Host "the holder was ended before it let go ($($holder.State))" }
+Receive-Job $holder -ErrorAction SilentlyContinue
 if ($p.ExitCode -ne 0) { Fail "install under the lock exit code $($p.ExitCode) after $([int]$secs) s" }
 if ((Get-Item $exe).LastWriteTimeUtc -le $before) { Fail "the exe was not replaced" }
 $wait = Select-String -Path $installLog -Pattern 'waited (\d+) ms for the exe to be writable' -ErrorAction SilentlyContinue | Select-Object -First 1
