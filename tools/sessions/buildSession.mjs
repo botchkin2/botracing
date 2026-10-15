@@ -142,10 +142,11 @@ export function makeBuilder({
         : raceLengthFor(captureRoot, span);
     // The game's track-limit rulings for his laps, from the results file it
     // wrote when the session ended (lmuResults.mjs); LMU only, null with no file.
+    // `resultsForSpan` answers {absent: why} with no file: the input is null.
     const results =
       foldOnly || sim !== 'lmu'
         ? null
-        : resultsForSpan(span, first.driver, first.sessionType);
+        : resultsInput(resultsForSpan(span, first.driver, first.sessionType));
     const out = analyzeFromArchive({
       ownerId,
       sessionId: s.id,
@@ -188,7 +189,7 @@ export function makeBuilder({
       }),
       // The game's rulings, kept in the store for analysis on open
       // (resultsInput.mjs); null with no results file.
-      resultsInput: resultsInput(results),
+      resultsInput: results,
       capturesUsed,
       files,
     };
