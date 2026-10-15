@@ -6,7 +6,12 @@ import {WHEELS} from '@/src/analysis/tyres';
 import {heatCell, space, useTheme} from '@/src/design';
 import {Pressable, Text} from '@/src/ui';
 
-import {type HeatStrip, readoutText, scalePosition} from '../heatStrips';
+import {
+  defaultColumn,
+  type HeatStrip,
+  readoutText,
+  scalePosition,
+} from '../heatStrips';
 
 const ROW_H = 14;
 const ROW_GAP = 2;
@@ -41,7 +46,9 @@ export function HeatStrips({
 
 function Strip({strip, width}: {strip: HeatStrip; width: number}) {
   const {color} = useTheme();
-  const [picked, setPicked] = useState<number | null>(null);
+  // undefined: no tap yet, so the readout is on the best lap; null: cleared.
+  const [tapped, setTapped] = useState<number | null | undefined>(undefined);
+  const picked = tapped === undefined ? defaultColumn(strip) : tapped;
   const plotRef = useRef<View>(null);
   const {meter, columns, stintStarts} = strip;
   // Zero before the card has measured itself: nothing to draw yet.
@@ -84,7 +91,10 @@ function Strip({strip, width}: {strip: HeatStrip; width: number}) {
             const pageX = e.nativeEvent.pageX;
             plotRef.current?.measure((_x, _y, _w, _h, left) => {
               const i = columnAt(pageX - left);
-              setPicked(p => (i === p ? null : i));
+              setTapped(t => {
+                const shown = t === undefined ? defaultColumn(strip) : t;
+                return i === shown ? null : i;
+              });
             });
           }}>
           <Svg width={plotW} height={plotH + MARK_H + 2}>

@@ -117,6 +117,16 @@ export function buildHeatStrips(
   return strips;
 }
 
+/**
+ * The column the readout shows before any tap: the best lap's, so its four
+ * values are readable without a tap and the strip shows the shape around it
+ * (plank #5612); null when the strip has no best lap.
+ */
+export function defaultColumn(strip: HeatStrip): number | null {
+  const i = strip.columns.findIndex(c => c.best);
+  return i >= 0 ? i : null;
+}
+
 /** "L28 · FL 71.9 · FR 72.3 · RL 71.2 · RR 71.8 °C": what a tapped column reads. */
 export function readoutText(strip: HeatStrip, column: HeatColumn): string {
   const parts = WHEELS.map(w => {

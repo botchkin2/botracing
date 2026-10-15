@@ -4,6 +4,7 @@ import type {Lap} from '@/src/data/sessions';
 
 import {
   buildHeatStrips,
+  defaultColumn,
   heatMetersFor,
   readoutText,
   scalePosition,
@@ -85,6 +86,16 @@ describe('buildHeatStrips', () => {
     expect(scalePosition(rubber, 10)).toBe(0);
     expect(scalePosition(rubber, 130)).toBe(1);
     expect(scalePosition(rubber, null)).toBeNull();
+  });
+
+  it('opens the readout on the best lap, and on nothing when the strip has none', () => {
+    const [withBest] = buildHeatStrips(laps, 'l4', 'lmu');
+    expect(defaultColumn(withBest)).toBe(3);
+    expect(
+      readoutText(withBest, withBest.columns[defaultColumn(withBest)!]),
+    ).toBe('L4 · FL 71.0 · FR 72.0 · RL 70.0 · RR 71.0 °C');
+    const [noBest] = buildHeatStrips(laps, null, 'lmu');
+    expect(defaultColumn(noBest)).toBeNull();
   });
 
   it('has its own fixed ends per sim, from his data, and an unknown sim reads as LMU', () => {
