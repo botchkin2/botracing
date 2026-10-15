@@ -1,50 +1,43 @@
 // Tyre heat strips (pit-wall thread 73, row 1f): one strip per meter, a row per
-// wheel and a column per lap, coloured on a FIXED physical scale so two
-// sessions compare. Numbers and units only: no bands, no cause (we do not
-// know a car's window, and a lap's tyre temperature is not separable from its
-// fuel load or wear). Pure.
+// wheel and a column per lap, coloured on THE SESSION'S OWN range so a race's
+// few degrees of drift can be seen (a fixed scale flattened them to 0.09 of the
+// ramp: Botkin, "how are these useful? there is no variation", plank #5644).
+// The legend prints both ends as numbers, so a reader knows the colours are this
+// session's: that is the price of not comparing sessions by colour. Numbers and
+// units only: no bands, no cause (we do not know a car's window, and a lap's
+// tyre temperature is not separable from its fuel load or wear). Pure.
 import {WHEELS, type Wheel} from '@/src/analysis/tyres';
 import type {Lap} from '@/src/data/sessions';
 import {oneDecimal} from '@/src/design';
 
 export type HeatMeterKey = 'rubber' | 'pressure';
 
-export type HeatMeter = {
+/** What a meter is; its ends are the session's (`HeatMeter`). */
+type HeatMeterSpec = {
   key: HeatMeterKey;
   title: string;
   unit: string;
-  /** The ends of the fixed scale, in `unit`: the same in every session. */
-  min: number;
-  max: number;
+  /**
+   * The least span of the scale, in `unit`. A session that barely moves does
+   * not turn into a rainbow of noise: its range is centred and widened to this.
+   */
+  minSpan: number;
 };
 
 /**
  * Rubber: the outer layer's median over the lap, as the Tires card's axle line
  * reads it. Pressure: the lap's median hot pressure.
- *
- * The ends are fixed per sim and come from Botkin's own data, not one race
- * (pit-wall thread 73, plank #5608): the p2 and p98 of every wheel on the
- * laps from the third lap of a stint on, rounded out to 5, by
- * `tools/dev/tyreScale.mjs` over a local analysis of his sessions on
- * 2026-10-15.
- *   LMU, 23 sessions (1,028 rubber and 1,026 pressure readings): rubber
- *     p2 51.1 / p98 82.9 C, hot pressure p2 144.6 / p98 173.4 kPa.
- *   iRacing, 2 sessions (28 readings, a small sample: provisional): rubber
- *     p2 35.0 / p98 65.2 C, hot pressure p2 158.6 / p98 181.4 kPa.
- * A session outside the ends clamps to the end colour, and the legend prints
- * the ends. Re-derive when the sample grows.
  */
-const LMU_METERS: readonly HeatMeter[] = [
-  {key: 'rubber', title: 'Rubber temperature', unit: '°C', min: 50, max: 85},
-  {key: 'pressure', title: 'Hot pressure', unit: 'kPa', min: 145, max: 175},
-];
-const IRACING_METERS: readonly HeatMeter[] = [
-  {key: 'rubber', title: 'Rubber temperature', unit: '°C', min: 35, max: 70},
-  {key: 'pressure', title: 'Hot pressure', unit: 'kPa', min: 155, max: 185},
+const SPECS: readonly HeatMeterSpec[] = [
+  {key: 'rubber', title: 'Rubber temperature', unit: '°C', minSpan: 6},
+  {key: 'pressure', title: 'Hot pressure', unit: 'kPa', minSpan: 6},
 ];
 
-export const heatMetersFor = (sim: string): readonly HeatMeter[] =>
-  sim === 'iracing' ? IRACING_METERS : LMU_METERS;
+export type HeatMeter = Omit<HeatMeterSpec, 'minSpan'> & {
+  /** The ends of this session's scale, in `unit`. */
+  min: number;
+  max: number;
+};
 
 export type HeatColumn = {
   lapId: string;
@@ -66,7 +59,7 @@ export type HeatStrip = {
 
 /** Where a value sits on its meter's scale, 0 to 1; null for no reading. */
 export function scalePosition(
-  meter: HeatMeter,
+  meter: Pick<HeatMeter, 'min' | 'max'>,
   v: number | null,
 ): number | null {
   if (v == null || !Number.isFinite(v)) return null;
@@ -87,19 +80,43 @@ const readingOf = (
   };
 };
 
+/**
+ * The session's own ends for a meter: the least and most of every wheel's
+ * reading over the green laps (a pit, cut or out lap is not the range), the
+ * four wheels together so a front-to-rear difference is on the scale. Falls
+ * back to every lap with a reading when no lap is green. Widened to `minSpan`
+ * around its middle.
+ */
+export function sessionRange(
+  spec: Pick<HeatMeterSpec, 'minSpan'>,
+  columns: {green: boolean; values: Record<Wheel, number | null>}[],
+): {min: number; max: number} {
+  const green = columns.filter(c => c.green);
+  const used = green.length > 0 ? green : columns;
+  const all = used.flatMap(c =>
+    WHEELS.map(w => c.values[w]).filter((v): v is number => v != null),
+  );
+  const lo = Math.min(...all);
+  const hi = Math.max(...all);
+  if (hi - lo >= spec.minSpan) return {min: lo, max: hi};
+  const middle = (lo + hi) / 2;
+  return {min: middle - spec.minSpan / 2, max: middle + spec.minSpan / 2};
+}
+
 /** Both strips over every lap that has a reading; none when no lap does. */
 export function buildHeatStrips(
   laps: Lap[],
   bestLapId: string | null,
-  sim: string,
 ): HeatStrip[] {
   const ordered = [...laps].sort((a, b) => a.lapIndex - b.lapIndex);
   const strips: HeatStrip[] = [];
-  for (const meter of heatMetersFor(sim)) {
+  for (const {minSpan, ...spec} of SPECS) {
     const columns: HeatColumn[] = [];
+    const green: boolean[] = [];
     for (const lap of ordered) {
-      const values = readingOf(lap, meter.key);
+      const values = readingOf(lap, spec.key);
       if (!values || WHEELS.every(w => values[w] == null)) continue;
+      green.push(lap.fuel?.green === true);
       columns.push({
         lapId: lap.id,
         label: `L${lap.lapIndex}`,
@@ -109,10 +126,14 @@ export function buildHeatStrips(
       });
     }
     if (columns.length === 0) continue;
+    const range = sessionRange(
+      {minSpan},
+      columns.map((c, i) => ({green: green[i], values: c.values})),
+    );
     const stintStarts = columns
       .map((c, i) => (i > 0 && c.stint !== columns[i - 1].stint ? i : -1))
       .filter(i => i >= 0);
-    strips.push({meter, columns, stintStarts});
+    strips.push({meter: {...spec, ...range}, columns, stintStarts});
   }
   return strips;
 }
