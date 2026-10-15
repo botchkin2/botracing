@@ -19,15 +19,31 @@ export type HeatMeter = {
 
 /**
  * Rubber: the outer layer's median over the lap, as the Tires card's axle line
- * reads it. Pressure: the lap's median hot pressure. The ends are fixed, from
- * the one race measured (Silverstone 2026-10-15, 31 laps: rubber 46-79 C, hot
- * pressure 144-171 kPa) with room either side; a session outside them clamps
- * to the end colour, and the legend prints the ends.
+ * reads it. Pressure: the lap's median hot pressure.
+ *
+ * The ends are fixed per sim and come from Botkin's own data, not one race
+ * (pit-wall thread 73, plank #5608): the p2 and p98 of every wheel on the
+ * laps from the third lap of a stint on, rounded out to 5, by
+ * `tools/dev/tyreScale.mjs` over a local analysis of his sessions on
+ * 2026-10-15.
+ *   LMU, 23 sessions (1,028 rubber and 1,026 pressure readings): rubber
+ *     p2 51.1 / p98 82.9 C, hot pressure p2 144.6 / p98 173.4 kPa.
+ *   iRacing, 2 sessions (28 readings, a small sample: provisional): rubber
+ *     p2 35.0 / p98 65.2 C, hot pressure p2 158.6 / p98 181.4 kPa.
+ * A session outside the ends clamps to the end colour, and the legend prints
+ * the ends. Re-derive when the sample grows.
  */
-export const HEAT_METERS: readonly HeatMeter[] = [
-  {key: 'rubber', title: 'Rubber temperature', unit: '°C', min: 40, max: 90},
-  {key: 'pressure', title: 'Hot pressure', unit: 'kPa', min: 140, max: 190},
+const LMU_METERS: readonly HeatMeter[] = [
+  {key: 'rubber', title: 'Rubber temperature', unit: '°C', min: 50, max: 85},
+  {key: 'pressure', title: 'Hot pressure', unit: 'kPa', min: 145, max: 175},
 ];
+const IRACING_METERS: readonly HeatMeter[] = [
+  {key: 'rubber', title: 'Rubber temperature', unit: '°C', min: 35, max: 70},
+  {key: 'pressure', title: 'Hot pressure', unit: 'kPa', min: 155, max: 185},
+];
+
+export const heatMetersFor = (sim: string): readonly HeatMeter[] =>
+  sim === 'iracing' ? IRACING_METERS : LMU_METERS;
 
 export type HeatColumn = {
   lapId: string;
@@ -74,10 +90,11 @@ const readingOf = (
 export function buildHeatStrips(
   laps: Lap[],
   bestLapId: string | null,
+  sim: string,
 ): HeatStrip[] {
   const ordered = [...laps].sort((a, b) => a.lapIndex - b.lapIndex);
   const strips: HeatStrip[] = [];
-  for (const meter of HEAT_METERS) {
+  for (const meter of heatMetersFor(sim)) {
     const columns: HeatColumn[] = [];
     for (const lap of ordered) {
       const values = readingOf(lap, meter.key);
