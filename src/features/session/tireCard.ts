@@ -8,6 +8,8 @@ import type {Lap, SessionDetail} from '@/src/data/sessions';
 
 import {median} from '@/src/analysis/setStats';
 
+import {buildHeatStrips, type HeatStrip} from './heatStrips';
+
 /** A trend of wear per lap needs this many green laps (round 7 1C b). */
 export const MIN_TREND_LAPS = 5;
 
@@ -151,7 +153,7 @@ export type StintTires = {
 
 export type TiresCard =
   | {kind: 'absent'}
-  | {kind: 'stints'; stints: StintTires[]};
+  | {kind: 'stints'; stints: StintTires[]; heat: HeatStrip[]};
 
 const lapLabel = (l: Lap) => `L${l.lapIndex}`;
 
@@ -470,7 +472,7 @@ function stintTires(
 
 /** The card, or `absent` when no lap in the session carries tyre facts. */
 export function buildTiresCard(
-  session: Pick<SessionDetail, 'stints' | 'sim'>,
+  session: Pick<SessionDetail, 'stints' | 'sim' | 'bestLapId'>,
   laps: Lap[],
 ): TiresCard {
   const nums = session.stints.length
@@ -487,5 +489,11 @@ export function buildTiresCard(
     );
     if (s) stints.push(s);
   }
-  return stints.length ? {kind: 'stints', stints} : {kind: 'absent'};
+  return stints.length
+    ? {
+        kind: 'stints',
+        stints,
+        heat: buildHeatStrips(laps, session.bestLapId),
+      }
+    : {kind: 'absent'};
 }

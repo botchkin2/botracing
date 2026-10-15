@@ -10,6 +10,7 @@ import {
   limitText,
   planLinkText,
   planMatchesLimit,
+  planRaceText,
   raceLaps,
   verdictText,
 } from './fuelUse';
@@ -69,10 +70,47 @@ const stintOf = (
 ) => use.map(u => lap(stint, u, timeS, over));
 
 describe('buildFuelUse', () => {
-  it('is only for practice', () => {
+  it('is for practice and race, never qualifying', () => {
     const laps = stintOf(1, [2.4, 2.41, 2.39, 2.4]);
-    expect(buildFuelUse(session({sessionType: 'R'}), laps)).toBeNull();
     expect(buildFuelUse(session({sessionType: 'Q'}), laps)).toBeNull();
+    expect(buildFuelUse(session({sessionType: 'P'}), laps)?.race).toBe(false);
+    expect(buildFuelUse(session({sessionType: 'R'}), laps)?.race).toBe(true);
+  });
+
+  it('a race stint reads against stint 1: signed deltas, no laps per load (the plan owns it)', () => {
+    // Silverstone 10-15 shape (thread 73): about -0.18 L/lap, -0.25 % VE/lap, -0.14 s.
+    const laps = [
+      ...stintOf(1, [3.47, 3.45, 3.5, 3.48, 3.46, 3.47], 121.56),
+      ...stintOf(2, [3.29, 3.27, 3.31, 3.3, 3.28, 3.29], 121.42),
+    ];
+    const fu = buildFuelUse(session({sessionType: 'R'}), laps)!;
+    expect(fu.stints[0].vsFirst).toBeNull();
+    const v = fu.stints[1].vsFirst!;
+    expect(v.against).toBe(1);
+    expect(v.fuelL).toBeCloseTo(-0.18, 2);
+    expect(v.timeS).toBeCloseTo(-0.14, 2);
+    const rows = fuelUseRows(fu);
+    expect(rows[0].lines.join('|')).not.toMatch(/vs stint/);
+    expect(rows[1].lines).toContain(
+      'vs stint 1: −0.18 L/lap · −0.26 % VE/lap · −0.14 s',
+    );
+    for (const row of rows)
+      expect(row.lines.join('|')).not.toMatch(/One load|laps of fuel/);
+    // The plan's race length is the plan card's, not this one's.
+    expect(
+      planRaceText(fu, {kind: 'min', value: 60}, '60 min', null),
+    ).toBeNull();
+  });
+
+  it('a practice keeps its laps per load and shows the stint against stint 1 too', () => {
+    const laps = [
+      ...stintOf(1, [2.4, 2.42, 2.38, 2.41, 2.39, 2.4], 81),
+      ...stintOf(2, [2.2, 2.21, 2.19, 2.2, 2.22, 2.18], 82.3),
+    ];
+    const fu = buildFuelUse(session(), laps)!;
+    const rows = fuelUseRows(fu);
+    expect(rows[1].lines.some(l => l.startsWith('One load:'))).toBe(true);
+    expect(rows[1].lines.some(l => l.startsWith('vs stint 1:'))).toBe(true);
   });
 
   it('is null with no green lap', () => {

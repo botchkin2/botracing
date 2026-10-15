@@ -499,3 +499,16 @@ export function cornerCell(d: number): {bg: string; fg: string} {
     ? {bg: oklchHex(0.4 + 0.12 * t, 0.1 + 0.1 * t, 25), fg: '#f2f4f6'}
     : {bg: oklchHex(0.62 + 0.2 * t, 0.1 + 0.07 * t, 150), fg: '#0d0f12'};
 }
+
+// --- heat strips (pit-wall thread 73, row 1f) ---------------------------------
+
+/**
+ * One sequential ramp for a meter on a fixed physical scale: dark slate at the
+ * low end to pale cyan at the high end, t in 0..1. A single hue on purpose:
+ * red and green already mean slower and faster, and a temperature is neither.
+ * The strip's legend prints the numbers each end stands for.
+ */
+export function heatCell(t: number): string {
+  const x = Math.min(1, Math.max(0, t));
+  return oklchHex(0.3 + 0.58 * x, 0.025 + 0.09 * x, 230);
+}
