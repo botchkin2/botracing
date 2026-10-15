@@ -92,7 +92,7 @@ describe('buildFuelUse', () => {
     const rows = fuelUseRows(fu);
     expect(rows[0].lines.join('|')).not.toMatch(/vs stint/);
     expect(rows[1].lines).toContain(
-      'vs stint 1: −0.18 L/lap · −0.26 % VE/lap · −0.14 s',
+      'vs stint 1: −0.18 L/lap · −0.26 % VE/lap · −0.140 s',
     );
     for (const row of rows)
       expect(row.lines.join('|')).not.toMatch(/One load|laps of fuel/);

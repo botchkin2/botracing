@@ -206,7 +206,8 @@ export function vsFirstText(v: NonNullable<FuelUseStint['vsFirst']>): string {
   return [
     `${formatGap(v.fuelL, 2)} L/lap`,
     v.vePct != null && `${formatGap(v.vePct, 2)} % VE/lap`,
-    `${formatGap(v.timeS, 2)} s`,
+    // Time gaps are 3 decimals app-wide (CODE_STANDARDS §4).
+    `${formatGap(v.timeS)} s`,
   ]
     .filter(Boolean)
     .join(' · ');

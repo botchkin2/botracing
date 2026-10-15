@@ -5,6 +5,7 @@
 // fuel load or wear). Pure.
 import {WHEELS, type Wheel} from '@/src/analysis/tyres';
 import type {Lap} from '@/src/data/sessions';
+import {oneDecimal} from '@/src/design';
 
 export type HeatMeterKey = 'rubber' | 'pressure';
 
@@ -120,7 +121,7 @@ export function buildHeatStrips(
 export function readoutText(strip: HeatStrip, column: HeatColumn): string {
   const parts = WHEELS.map(w => {
     const v = column.values[w];
-    return `${w} ${v == null ? '—' : v.toFixed(1)}`;
+    return `${w} ${v == null ? '—' : oneDecimal(v)}`;
   });
   return `${column.label} · ${parts.join(' · ')} ${strip.meter.unit}`;
 }
