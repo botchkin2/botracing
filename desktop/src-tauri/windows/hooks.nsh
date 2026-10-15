@@ -11,9 +11,8 @@
 ;              that folder: %LOCALAPPDATA%\lap-capture is raw race data shared
 ;              with the Python tools and is never touched.
 ;
-; An update run by the tray ($UpdateMode = 1) keeps everything: a person's
-; data, settings and sign-in stay. The tray is already quitting (it started
-; this installer), so the installer only waits for it to be gone.
+; An update run by the tray ($UpdateMode = 1) keeps everything: the tray has
+; already stopped itself, and a person's data, settings and sign-in stay.
 
 !define BOTRACING_RUN_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
 !define BOTRACING_APPROVED_KEY "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
@@ -22,28 +21,15 @@
 ; `botracing.exe --quit` goes to the running tray through its single-instance
 ; hold, or, when the tray is in another session or window station, through the
 ; quit-request file in its data folder (quit_request.rs), which its poll loop
-; reads every 5 s. It stops the watcher and both recorders, then exits.
+; reads every 5 s. It stops the watcher and both recorders, then exits. Wait up
+; to 15 s, and count only this user's trays (another user's is not ours to wait for).
 !macro BOTRACING_QUIT_TRAY
   Push $0
   Push $1
+  Push $2
   nsExec::ExecToStack '"$INSTDIR\${MAINBINARYNAME}.exe" --quit'
   Pop $0
   Pop $1
-  Pop $1
-  Pop $0
-  !insertmacro BOTRACING_WAIT_TRAY_GONE
-!macroend
-
-; Waits up to 15 s until this user's tray is gone (another user's is not ours
-; to wait for). An update needs it too: the tray starts the installer and then
-; exits, and an installer that wrote first met "Error opening file for writing:
-; ...\botracing.exe" (update rehearsal, 1 run in 5; pit wall thread 71). A tray
-; still running after 15 s is written to install.log and the install goes on
-; into NSIS's own Retry dialog: nothing here ever ends a process.
-!macro BOTRACING_WAIT_TRAY_GONE
-  Push $0
-  Push $1
-  Push $2
   StrCpy $2 0
   ${Do}
     nsExec::ExecToStack 'cmd /c tasklist /FI "IMAGENAME eq ${MAINBINARYNAME}.exe" /FI "USERNAME eq %USERNAME%" /NH | find /I "${MAINBINARYNAME}.exe"'
@@ -59,61 +45,9 @@
     ${EndIf}
     Sleep 500
   ${Loop}
-  ${If} $2 > 0
-    CreateDirectory "${BOTRACING_DATA}"
-    FileOpen $1 "${BOTRACING_DATA}\install.log" a
-    FileSeek $1 0 END
-    ${If} $0 = 0
-      FileWrite $1 "tray still running after 15 s (update mode $UpdateMode)$\r$\n"
-    ${Else}
-      IntOp $2 $2 * 500
-      FileWrite $1 "waited $2 ms for the tray to exit (update mode $UpdateMode)$\r$\n"
-    ${EndIf}
-    FileClose $1
-  ${EndIf}
-  ; Gone from the process list is not the same as free: in the rehearsal the
-  ; write still failed after the tray was gone (pit wall thread 71). Wait,
-  ; again up to 15 s, until the exe opens for writing; opening it changes
-  ; nothing.
-  StrCpy $2 0
-  ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
-    ${Do}
-      ClearErrors
-      FileOpen $0 "$INSTDIR\${MAINBINARYNAME}.exe" a
-      ${IfNot} ${Errors}
-        FileClose $0
-        ${Break}
-      ${EndIf}
-      IntOp $2 $2 + 1
-      ${If} $2 >= 30
-        ${Break}
-      ${EndIf}
-      Sleep 500
-    ${Loop}
-  ${EndIf}
-  ${If} $2 > 0
-    CreateDirectory "${BOTRACING_DATA}"
-    FileOpen $1 "${BOTRACING_DATA}\install.log" a
-    FileSeek $1 0 END
-    IntOp $2 $2 * 500
-    FileWrite $1 "waited $2 ms for the exe to be writable (update mode $UpdateMode)$\r$\n"
-    FileClose $1
-  ${EndIf}
   Pop $2
   Pop $1
   Pop $0
-!macroend
-
-; Which hook ran and with what command line, so a rehearsal failure says
-; whether the installer knew it was an update (pit wall thread 71).
-!macro BOTRACING_LOG_HOOK NAME
-  Push $1
-  CreateDirectory "${BOTRACING_DATA}"
-  FileOpen $1 "${BOTRACING_DATA}\install.log" a
-  FileSeek $1 0 END
-  FileWrite $1 "${NAME}: update mode [$UpdateMode], command line [$CMDLINE]$\r$\n"
-  FileClose $1
-  Pop $1
 !macroend
 
 ; Ends and deletes one old logon task if it is there. Absent is not an error;
@@ -154,11 +88,8 @@
 !macroend
 
 !macro NSIS_HOOK_PREINSTALL
-  !insertmacro BOTRACING_LOG_HOOK "preinstall"
   ${If} $UpdateMode <> 1
     !insertmacro BOTRACING_QUIT_TRAY
-  ${Else}
-    !insertmacro BOTRACING_WAIT_TRAY_GONE
   ${EndIf}
   !insertmacro BOTRACING_REMOVE_TASK "LapUploader"
   !insertmacro BOTRACING_REMOVE_TASK "LapRecorder"
@@ -168,11 +99,8 @@
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
-  !insertmacro BOTRACING_LOG_HOOK "preuninstall"
   ${If} $UpdateMode <> 1
     !insertmacro BOTRACING_QUIT_TRAY
-  ${Else}
-    !insertmacro BOTRACING_WAIT_TRAY_GONE
   ${EndIf}
 !macroend
 
