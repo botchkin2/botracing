@@ -49,6 +49,7 @@ import {
 } from '../../src/analysis/classLaps.ts';
 import {FINISH_VERSION} from '../../src/analysis/raceResult.ts';
 import {RACE_LENGTH_VERSION} from './raceLength.mjs';
+import {DELETING_OUTCOMES} from './resultsInput.mjs';
 import {SLICE_FORMAT, SLICE_FRAME_VERSION} from './cornerSlices.mjs';
 import {
   CORNER_BOUNDARIES_VERSION,
@@ -118,6 +119,9 @@ export const blockVersions = {
   iracingSectors: 1,
   // Which laps are slow (src/analysis/paceEvents.ts replaced the median cut): every session re-analyses once.
   slowLaps: 1,
+  // The game's track-limit rulings per lap and the INV from its results file
+  // (resultsInput.mjs): a session read stale re-analyses once on open.
+  trackLimits: 1,
 };
 
 const GRID_M = 5;
@@ -548,7 +552,42 @@ function lapDistance(rec, i0, i1) {
   return out;
 }
 
-function analyzeLap(rec, seg, pits, flags, visitFacts) {
+/**
+ * The game's rulings that fall in one lap (a strike's `et` is on the lap
+ * clock), each with where it happened: the lap distance at, and how far past
+ * the track edge, the path got in the 5 s before the strike (the game rules a
+ * moment after the excursion: 1.5 to 3.9 s, plank #5583). Null width and
+ * place without the path and edge channels (iRacing).
+ */
+export function lapStrikes(results, s, seg, i0, i1, dist) {
+  return results.strikes
+    .filter(k => k.et >= seg.start && k.et < seg.end)
+    .map(k => {
+      let widthM = null;
+      let atM = null;
+      if (s.path_lateral_m && s.track_edge_m) {
+        for (let i = i0; i <= i1; i++) {
+          if (s.t[i] < k.et - 5 || s.t[i] > k.et) continue;
+          const past =
+            Math.abs(s.path_lateral_m[i]) - Math.abs(s.track_edge_m[i]);
+          if (widthM == null || past > widthM) {
+            widthM = past;
+            atM = dist[i - i0];
+          }
+        }
+      }
+      return {
+        et: round(k.et, 1),
+        atM: atM == null ? null : round(atM, 0),
+        widthM: widthM == null ? null : round(widthM, 2),
+        points: k.points,
+        outcome: k.outcome,
+        ruling: k.ruling,
+      };
+    });
+}
+
+function analyzeLap(rec, seg, pits, flags, visitFacts, results = null) {
   const {s, events} = rec;
   const [i0, i1] = lapTicks(rec, seg);
   const dist = lapDistance(rec, i0, i1);
@@ -600,8 +639,20 @@ function analyzeLap(rec, seg, pits, flags, visitFacts) {
   // the pit lane closes with -1 too, and is no track-limits call (spring #5422).
   const endsAtCrossing = seg.end < s.t[s.t.length - 1] - 0.5;
   const endTime = lapTimeEventNear(events.lap_time, seg.end);
-  const invalid =
+  const timeInvalid =
     !pitlane && endsAtCrossing && endTime != null && endTime <= 0;
+  // The game's results file, when there is one, is what deleted the lap: a
+  // strike of a deleting ruling in it (resultsInput.mjs). The lap time is the
+  // stand-in until the file exists, and where they disagree the file wins and
+  // the disagreement is counted on the session (thread 70 #5592).
+  const trackLimits = results
+    ? lapStrikes(results, s, seg, i0, i1, dist)
+    : undefined;
+  const resultsInvalid =
+    trackLimits?.some(k => DELETING_OUTCOMES.has(k.outcome)) && !pitlane;
+  const invalid = results ? !!resultsInvalid : timeInvalid;
+  const invalidFrom = results ? 'results' : timeInvalid ? 'lapTime' : undefined;
+  const invalidDisagrees = results ? !!resultsInvalid !== timeInvalid : false;
 
   return {
     lapNumber: seg.lapNumber,
@@ -616,6 +667,9 @@ function analyzeLap(rec, seg, pits, flags, visitFacts) {
     lapTime: round(timed ? gameLapTime : seg.end - seg.start, 3),
     timed,
     invalid,
+    invalidFrom,
+    invalidDisagrees,
+    trackLimits,
     partial: why !== null,
     partialWhy: why,
     pitlane,
@@ -965,6 +1019,7 @@ export function analyzeSession(
     splitFiles = false,
     catalogOnly = false,
     steerRightSign = 1,
+    results = null,
   } = {},
 ) {
   const laps = [];
@@ -1013,7 +1068,7 @@ export function analyzeSession(
     for (const a of assigned.filter(row => row.r === r)) {
       const seg = segs[a.si];
       seg.partial = a.partial || seg.partial;
-      const lap = analyzeLap(rec, seg, pits, flags[r], visitFacts);
+      const lap = analyzeLap(rec, seg, pits, flags[r], visitFacts, results);
       lap.lapNumber = a.lapNumber;
       lap.endedInReset = seg.resetAt != null;
       lap.afterReset = (first && reset) || resetBefore;

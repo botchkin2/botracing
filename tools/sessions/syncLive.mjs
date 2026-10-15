@@ -112,9 +112,15 @@ export async function syncLive({
         recordings: samplesOf,
       });
     } catch (e) {
-      inputs = {field: null, fieldText: null, fieldReason: e.message, extract: null};
+      inputs = {
+        field: null,
+        fieldText: null,
+        fieldReason: e.message,
+        extract: null,
+      };
     }
-    if (!inputs.field) log(`live: ${session.id} field: none (${inputs.fieldReason})`);
+    if (!inputs.field)
+      log(`live: ${session.id} field: none (${inputs.fieldReason})`);
     const out = {
       session: liveSessionDoc({
         ownerId,
@@ -129,6 +135,7 @@ export async function syncLive({
       field: inputs.field,
       fieldText: inputs.fieldText,
       captureExtract: inputs.extract,
+      resultsInput: inputs.resultsInput,
     };
     log(`live: ${session.id} ${out.session.lapCount} laps`);
     await store.uploadLive(out, {log});

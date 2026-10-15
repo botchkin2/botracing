@@ -33,6 +33,17 @@ export function slugId(sim, name) {
   return `${sim}-${adapterOf(sim).slug(name)}`;
 }
 
+/** The session's track-limit totals from its laps (analyze.mjs) and the stored input. */
+export function trackLimitsOf(laps, results) {
+  const strikes = laps.flatMap(lap => lap.trackLimits ?? []);
+  return {
+    strikes: strikes.length,
+    points: strikes.reduce((n, k) => n + k.points, 0),
+    unplaced: results.unplaced,
+    disagreements: laps.filter(lap => lap.invalidDisagrees).length,
+  };
+}
+
 /**
  * @param {object} input
  * @param {string} input.ownerId
@@ -45,6 +56,8 @@ export function slugId(sim, name) {
  * @param {boolean} [input.foldOnly]     analyse for the boundary fold, no docs
  * @param {object|null} input.damage     the car's damage series, null without one
  * @param {{minutes: number}|null} input.raceLength
+ * @param {{strikes: object[], unplaced: number, deletedLaps: number[]}|null} input.results
+ *   the game's track-limit rulings for the player (resultsInput.mjs), null without its results file
  * @param {{series: string|null, eventId: string|null}} input.event
  * @param {(lite: {t: Float64Array, lapDist: Float64Array}[]) => {field: object|null, meta?: object, reason?: string}} input.fieldFor
  *   the field around the player, given each loaded recording's clock and lap distance
@@ -59,6 +72,7 @@ export function analyzeFromArchive({
   foldOnly = false,
   damage,
   raceLength,
+  results = null,
   event,
   fieldFor,
 }) {
@@ -80,6 +94,7 @@ export function analyzeFromArchive({
     splitFiles: sim === 'iracing',
     catalogOnly,
     steerRightSign: adapter.steerRightSign,
+    results,
   });
   if (foldOnly) return {a};
   // variant is for display; the layout key stays the id (iRacing's is a number
@@ -140,8 +155,14 @@ export function analyzeFromArchive({
       gameLapTime: lap.gameLapTime,
       durationSec: lap.durationSec,
       timed: lap.timed,
-      // The game gave this lap -1 at its closing line (a real crossing).
+      // The game deleted this lap: a strike of a deleting ruling in its results
+      // file (invalidFrom 'results'), else -1 at its closing line (a real
+      // crossing; invalidFrom 'lapTime', or absent when the lap is not invalid).
       invalid: lap.invalid,
+      invalidFrom: lap.invalidFrom,
+      // The game's rulings that fell in the lap, with where (analyze.mjs
+      // lapStrikes); absent without a results file.
+      trackLimits: lap.trackLimits,
       partial: lap.partial,
       // 'grid' (the parked car and the roll to the line), 'file' (cut by a
       // recording boundary), or null.
@@ -250,6 +271,10 @@ export function analyzeFromArchive({
     sessionClock: first.sessionClock,
     weather: first.weather,
     race: raceLength,
+    // The game's rulings over the session: how many, their points, how many
+    // could not be placed on a lap of his, and how many laps the results file and
+    // the lap time disagree on; absent without a results file.
+    trackLimits: results ? trackLimitsOf(a.laps, results) : undefined,
     series: event.series,
     eventId: event.eventId,
     startedAt: first.recordedAt,

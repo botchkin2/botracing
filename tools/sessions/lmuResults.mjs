@@ -20,7 +20,7 @@
 // "Our driver" is matched by name from the recording (the game file's
 // DriverName, the capture's playerName), never by the file's isPlayer, which
 // marks every human in an online session. Names are never stored.
-import {existsSync, readdirSync, readFileSync} from 'node:fs';
+import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs';
 import {resolve} from 'node:path';
 
 export const defaultResultsFolder =
@@ -175,6 +175,27 @@ export function strikesOf(xml, driverName) {
 }
 
 /**
+ * `resultsFor` for a session's wall-clock window in ms ({startMs, endMs}, as
+ * sync.mjs spanOf): what the builders and the live path hold. The layout name
+ * is not asked: the time window and the file's write time already pick the one
+ * session, and the game file's layout name is not always the results file's.
+ */
+export function resultsForSpan(
+  span,
+  driverName,
+  folder = defaultResultsFolder,
+) {
+  return resultsFor({
+    span: {
+      startedAt: new Date(span.startMs).toISOString(),
+      endedAt: new Date(span.endMs).toISOString(),
+    },
+    driverName,
+    folder,
+  });
+}
+
+/**
  * The strikes of one driver in the session a recording belongs to, or
  * {absent: reason}. span is {startedAt, endedAt} (ISO, the recording's wall
  * clock); trackCourse is the game's layout name when known ('' skips the check).
@@ -192,6 +213,10 @@ export function resultsFor({
   let best = null;
   for (const name of readdirSync(folder)) {
     if (!name.endsWith('.xml')) continue;
+    // The game writes a file when its session ends, so one older than the
+    // recording's start cannot be its session: skipped unread (the live path
+    // asks at every lap, and the folder holds hundreds of files).
+    if (statSync(resolve(folder, name)).mtimeMs < from - 60_000) continue;
     const xml = readFileSync(resolve(folder, name), 'utf8');
     const file = parseResults(xml);
     if (file.startedAtMs == null) continue;
