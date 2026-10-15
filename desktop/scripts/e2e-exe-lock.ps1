@@ -66,6 +66,7 @@ if ($holder.State -ne 'Completed') { Write-Host "the holder was ended before it 
 Receive-Job $holder -ErrorAction SilentlyContinue
 if ($p.ExitCode -ne 0) { Fail "install under the lock exit code $($p.ExitCode) after $([int]$secs) s" }
 if ((Get-Item $exe).LastWriteTimeUtc -le $before) { Fail "the exe was not replaced" }
+if (-not (Test-Path $installLog)) { Fail "no install.log: the installer never waited for the exe" }
 $wait = Select-String -Path $installLog -Pattern 'waited (\d+) ms for the exe to be writable' -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $wait) { Fail "install.log has no 'waited N ms for the exe to be writable'" }
 $ms = [int]$wait.Matches[0].Groups[1].Value
