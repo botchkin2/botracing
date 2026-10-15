@@ -99,6 +99,8 @@ function cleanProblems(v: unknown): Json {
 const HEARTBEAT_FIELDS: Record<string, (v: unknown) => boolean> = {
   label: v => str(v, LABEL_MAX),
   version: v => str(v, 32),
+  // The version of a downloaded update the tray holds ready to install.
+  updateWaiting: v => str(v, 32),
   lmuFound: v => typeof v === 'boolean',
   state: v => typeof v === 'string' && HEARTBEAT_STATES.includes(v),
   lastUploadAt: when,

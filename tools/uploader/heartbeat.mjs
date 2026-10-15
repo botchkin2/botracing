@@ -58,6 +58,32 @@ export function simsDoc(entries, syncingSim = null, progress = null) {
   );
 }
 
+/** x.y.z as numbers, or null. */
+const semver = v => {
+  const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(v ?? ''));
+  return m ? m.slice(1).map(Number) : null;
+};
+
+/**
+ * The version of an update the tray has downloaded and is holding, from the
+ * text of its update-waiting.json ({version}), or null. Only a version higher
+ * than the running tray's counts: a file left by an update that did install,
+ * or a tray that crashed with the slot full, can never show a banner.
+ */
+export function updateWaitingOf(fileText, runningVersion) {
+  let version;
+  try {
+    version = JSON.parse(fileText)?.version;
+  } catch {
+    return null;
+  }
+  const [waiting, running] = [semver(version), semver(runningVersion)];
+  if (!waiting || !running) return null;
+  for (let i = 0; i < 3; i++)
+    if (waiting[i] !== running[i]) return waiting[i] > running[i] ? version : null;
+  return null;
+}
+
 // watch: the watcher's own state. recorder: tools/capture's status.json, or
 // null when there is none. sims: simsDoc() of each sim.
 export function heartbeatDoc({
@@ -74,6 +100,7 @@ export function heartbeatDoc({
   recorder,
   retryAtMs = null,
   problems = [],
+  updateWaiting = null,
   nowMs,
 }) {
   return {
@@ -103,6 +130,9 @@ export function heartbeatDoc({
     disk: {captureBytes: recorder?.captureBytes ?? 0, freeBytes},
     recorder: recorderBlock(recorder, nowMs),
     problems,
+    // The newer tray the tray holds ready to install; the key is absent with
+    // none (updateWaitingOf), so a tray with no update sends what it always did.
+    ...(updateWaiting ? {updateWaiting} : {}),
   };
 }
 
@@ -208,6 +238,7 @@ export function beatKey(doc) {
     doc.retryAt,
     doc.recorder?.state,
     doc.recorder?.layoutOk,
+    doc.updateWaiting ?? null,
     Object.entries(doc.sims ?? {}).map(([id, s]) => [
       id,
       s.queue,
