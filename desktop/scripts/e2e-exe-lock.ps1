@@ -1,0 +1,67 @@
+# The installer's last guard, proven by construction (pit wall thread 71,
+# plank #5643): botracing.exe is held open with no sharing for 3 s, the way the
+# exe stayed unwritable for a moment after the tray exited in the update
+# rehearsal, and the installer must wait for it (hooks.nsh,
+# BOTRACING_WAIT_TRAY_GONE: "waited N ms for the exe to be writable") instead of
+# stopping on "Error opening file for writing". CI ONLY: it installs BotRacing
+# for the current user.
+#
+#   ./desktop/scripts/e2e-exe-lock.ps1 -Installer <N setup.exe> [-HoldS 3]
+#
+# Exits 1 with "EXE LOCK E2E FAILED: ..." when the install fails, the exe was
+# not replaced, or install.log shows no wait of at least HoldS - 1 s.
+param(
+  [Parameter(Mandatory = $true)][string]$Installer,
+  [int]$HoldS = 3
+)
+$ErrorActionPreference = "Stop"
+if ($env:GITHUB_ACTIONS -ne 'true') { throw "e2e-exe-lock.ps1 runs only on a CI runner (GITHUB_ACTIONS=true)" }
+$app = "BotRacing"
+$data = Join-Path $env:LOCALAPPDATA $app
+$exe = Join-Path $data "botracing.exe"
+$installLog = Join-Path $data "install.log"
+function Fail($message) {
+  Write-Host "EXE LOCK E2E FAILED: $message"
+  if (Test-Path $installLog) { Write-Host "-- install.log"; Get-Content $installLog -Tail 20 }
+  exit 1
+}
+function Trays { @(Get-Process -Name $app -ErrorAction SilentlyContinue) }
+
+# An install to lock, and no tray holding it.
+$p = Start-Process -FilePath $Installer -ArgumentList "/S" -Wait -PassThru
+if ($p.ExitCode -ne 0) { Fail "first install exit code $($p.ExitCode)" }
+if (-not (Test-Path $exe)) { Fail "no $exe after the first install" }
+if (Trays) { & $exe --quit | Out-Null }
+$deadline = (Get-Date).AddSeconds(30)
+while ((Trays) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }
+if (Trays) { Fail "the tray did not quit before the lock" }
+Remove-Item $installLog -ErrorAction SilentlyContinue
+$before = (Get-Item $exe).LastWriteTimeUtc
+
+# Hold the exe with no sharing for HoldS seconds, from another process, and
+# start the installer only once the hold is taken.
+$taken = Join-Path $env:RUNNER_TEMP "exe-lock-taken"
+Remove-Item $taken -ErrorAction SilentlyContinue
+$holder = Start-Job -ArgumentList $exe, $HoldS, $taken -ScriptBlock {
+  param($path, $secs, $flag)
+  $fs = [IO.File]::Open($path, 'Open', 'Read', 'None')
+  Set-Content $flag "taken"
+  Start-Sleep -Seconds $secs
+  $fs.Close()
+}
+$deadline = (Get-Date).AddSeconds(15)
+while (-not (Test-Path $taken) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 50 }
+if (-not (Test-Path $taken)) { Receive-Job $holder; Fail "the lock was never taken" }
+
+$t0 = Get-Date
+$p = Start-Process -FilePath $Installer -ArgumentList "/S" -Wait -PassThru
+$secs = ((Get-Date) - $t0).TotalSeconds
+Wait-Job $holder | Out-Null
+Receive-Job $holder
+if ($p.ExitCode -ne 0) { Fail "install under the lock exit code $($p.ExitCode) after $([int]$secs) s" }
+if ((Get-Item $exe).LastWriteTimeUtc -le $before) { Fail "the exe was not replaced" }
+$wait = Select-String -Path $installLog -Pattern 'waited (\d+) ms for the exe to be writable' -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $wait) { Fail "install.log has no 'waited N ms for the exe to be writable'" }
+$ms = [int]$wait.Matches[0].Groups[1].Value
+if ($ms -lt ($HoldS - 1) * 1000) { Fail "the installer waited only $ms ms for a $HoldS s hold" }
+Write-Host "EXE LOCK E2E OK: held $HoldS s, the installer waited $ms ms and replaced the exe ($([math]::Round($secs, 1)) s)."
