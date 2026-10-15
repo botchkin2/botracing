@@ -310,10 +310,17 @@ const lapLabel = (lap: Lap) => `L${lap.lapIndex}`;
 const timeOrDash = (t: number | null) => (t == null ? '—' : formatLapTime(t));
 const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v));
 
+/** The outcomes that delete the lap they land in (tools/sessions/resultsInput.mjs). */
+const DELETING: ReadonlySet<string> = new Set([
+  'warning',
+  'invalidCut',
+  'invalidOff',
+]);
+
 /** "Invalid", and the game's words for the strike that deleted the lap when its results file has one. */
 function invalidWhy(lap: Lap): string {
   const ruling = lap.trackLimits?.find(
-    k => k.outcome !== 'none' && k.ruling,
+    k => DELETING.has(k.outcome) && k.ruling,
   )?.ruling;
   return ruling ? `Invalid · ${ruling}` : 'Invalid';
 }

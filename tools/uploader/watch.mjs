@@ -64,6 +64,7 @@ import {
   liveClosed,
   liveRetryDelayMs,
   liveWake,
+  resultsDue,
   retryDelayMin,
 } from './trigger.mjs';
 import {floorOf} from '../sessions/syncState.mjs';
@@ -297,6 +298,33 @@ function runLive(sim, sessionDir) {
     });
   });
 }
+
+// The game's results for live-uploaded sessions (sync.mjs --results-live): the
+// game writes its file when a session ends, after the last live run. Idle
+// priority; --run names this tray start (resultsBacklog.mjs).
+function runResults(sim) {
+  return new Promise(done => {
+    const child = spawn(
+      process.execPath,
+      [syncScript, ...syncArgsOf(sim), '--results-live', '--run', startedAtIso],
+      {windowsHide: true},
+    );
+    try {
+      setPriority(child.pid, constants.priority.PRIORITY_LOW);
+    } catch {
+      // Priority is a courtesy.
+    }
+    const onData = chunk => {
+      for (const line of String(chunk).split(/\r?\n/).filter(Boolean))
+        log(`  results | ${line}`);
+    };
+    child.stdout.setEncoding('utf8').on('data', onData);
+    child.stderr.setEncoding('utf8').on('data', onData);
+    child.on('close', code => done({code}));
+  });
+}
+const startedAtIso = new Date().toISOString();
+let lastResultsMs = null;
 
 // The wait between ticks. The recorders' status files are read every
 // LIVE_POLL_MS (small files) and a new lap on disk, or a recorder that starts
@@ -569,6 +597,18 @@ async function main() {
           liveRetryAtMs = delay == null ? null : Date.now() + delay;
           live.dir = recorder.sessionDir;
           save();
+        }
+      }
+      // The game's results for sessions that just ended (trigger.mjs resultsDue).
+      {
+        const nowMs = Date.now();
+        const liveEnds = LIVE_SIMS.flatMap(sim =>
+          Object.values(readLiveIndex(workOf(sim))).map(e => e.endMs),
+        );
+        if (resultsDue({liveEnds, nowMs, lastRunMs: lastResultsMs})) {
+          lastResultsMs = nowMs;
+          for (const sim of LIVE_SIMS.filter(s => s.id === 'lmu'))
+            await runResults(sim);
         }
       }
       for (const sim of SIMS) {

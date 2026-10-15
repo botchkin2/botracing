@@ -116,3 +116,23 @@ export function liveClosed(dir, recorder) {
   if (!recorder) return false;
   return recorder.sessionDir !== dir || recorder.state !== 'recording';
 }
+
+/**
+ * Whether the watcher should look for the game's results file now (sync.mjs
+ * --results-live): on its first tick of a tray start, and every
+ * RESULTS_EVERY_MS while a live session ended within windowMs, because the game
+ * writes the file when the session ends, after the last live run
+ * (resultsBacklog.mjs). `liveEnds` are the live index's session end times.
+ */
+export const RESULTS_EVERY_MS = 60_000;
+export const RESULTS_WINDOW_MS = 30 * 60_000;
+export function resultsDue({
+  liveEnds,
+  nowMs,
+  lastRunMs,
+  windowMs = RESULTS_WINDOW_MS,
+}) {
+  if (lastRunMs == null) return true;
+  if (nowMs - lastRunMs < RESULTS_EVERY_MS) return false;
+  return liveEnds.some(end => nowMs - end <= windowMs);
+}

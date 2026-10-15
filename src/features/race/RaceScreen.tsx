@@ -3,8 +3,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {onPitLane} from '@/src/analysis/pitLane';
-import {type LaneZoom, laneWindow, raceLanes} from '@/src/analysis/raceLanes';
+import {type LaneZoom, raceLanes} from '@/src/analysis/raceLanes';
 import {carsAt} from '@/src/analysis/raceState';
 import {fieldClasses} from '@/src/analysis/fieldClasses';
 import {carLapsOf} from '@/src/analysis/carLaps';
@@ -272,10 +271,6 @@ function RaceView({
     clock.toggle();
   };
   // Built once per field, like the clock: it walks every update and car.
-  const meIndex = useMemo(
-    () => prep.field.cars.findIndex(c => c.player),
-    [prep.field],
-  );
   const lanes = useMemo(
     () => raceLanes(prep.field, data.clock),
     [prep.field, data.clock],

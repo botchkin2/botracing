@@ -147,6 +147,9 @@ export async function syncLive({
         sessionId: session.id,
         sim: f.info.sim,
         layout: f.info.layout,
+        // The results backlog looks for the game's file by these.
+        driver: f.info.driver,
+        sessionType: f.info.sessionType,
         ...f.span,
       };
     writeLiveIndex(work, index);

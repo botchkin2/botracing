@@ -2,10 +2,12 @@
 // DELETING_RESOLUTIONS in tools/sessions/lmuResults.mjs (pit-wall thread 70,
 // #5632 and #5634). Re-run it when LMU changes its rules.
 //
-//   node tools/dev/trackLimitsTable.mjs [<results folder>] [--driver "<name>"]
+//   node tools/dev/trackLimitsTable.mjs --driver "<name>" [<results folder>]
 //
-// The folder defaults to LMU's UserData\Log\Results; the driver to "Michael
-// Botkin". For each session type (P, Q, R from the file name) and Resolution:
+// The folder defaults to LMU's UserData\Log\Results; the driver, as the game
+// names him in the files, is required. It reads the XML itself, not through
+// parseResults, because that keeps only the Resolutions the reader knows and
+// this table exists to show a new one. For each session type (P, Q, R from the file name) and Resolution:
 // how many of his strikes land in a lap that reads `--.----` (deleted) and how
 // many in a timed one. A lap n is [et_n, et_n+1): `et` is the lap's start
 // (et[n+1] - et[n] is lap n's time, checked first and printed). Left out: lap 1,
@@ -23,7 +25,11 @@ const flag = name => {
   const i = args.indexOf(name);
   return i < 0 ? null : args[i + 1];
 };
-const driverName = flag('--driver') ?? 'Michael Botkin';
+const driverName = flag('--driver');
+if (!driverName) {
+  console.error('--driver "<name>" is required');
+  process.exit(2);
+}
 const dir =
   args.find((a, i) => !a.startsWith('--') && args[i - 1] !== '--driver') ??
   defaultResultsFolder;
