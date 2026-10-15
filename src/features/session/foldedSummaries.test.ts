@@ -19,7 +19,7 @@ describe('tiresSummary', () => {
   });
 
   it('names the last stint, the one the card opens on', () => {
-    const card = {kind: 'stints', stints: [stint(1), stint(2)]} as TiresCard;
+    const card = {kind: 'stints', stints: [stint(1), stint(2)], heat: []} as TiresCard;
     expect(tiresSummary(card)).toBe('Stint 2 · L1–L10 · 8 green laps');
   });
 });

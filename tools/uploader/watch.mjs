@@ -39,6 +39,7 @@ import {adapter, telemetryFolder} from '../sessions/sims.mjs';
 import {
   beatKey,
   heartbeatDoc,
+  updateWaitingOf,
   simsDoc,
   hostIdOf,
   idleState,
@@ -131,6 +132,14 @@ function log(line) {
     // No log yet.
   }
   appendFileSync(logPath, `${new Date().toISOString()} ${line}\n`);
+}
+
+function readText(path) {
+  try {
+    return readFileSync(path, 'utf8');
+  } catch {
+    return '';
+  }
 }
 
 function readJson(path, fallback) {
@@ -465,6 +474,8 @@ async function main() {
       recorder,
       retryAtMs: earliestOf(all.map(a => earliestRetryMs(a.st.retries ?? {}))),
       problems: problemsOf({sims: all.map(a => a.st), recorder, nowMs}),
+      // The tray writes this file when an update is downloaded (update.rs).
+      updateWaiting: updateWaitingOf(readText(resolve(home, 'update-waiting.json')), ver),
       nowMs,
     });
     const key = beatKey(doc);

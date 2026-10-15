@@ -4,3 +4,4 @@ export {startAuthSession} from './authSession';
 export {useAuthStore} from './authStore';
 export {authHeaders, reportUnauthorized} from '../data/tokenSource';
 export {useSignIn} from './useSignIn';
+export {trayRestart} from './trayRestart';

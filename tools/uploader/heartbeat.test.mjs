@@ -10,6 +10,7 @@ import {
   MAX_PROBLEMS,
   problemsOf,
   scrub,
+  updateWaitingOf,
 } from './heartbeat.mjs';
 import {mutate, payload} from '../../contract/payloads.mjs';
 
@@ -344,4 +345,29 @@ test('problems: a recording the sync could not read is named by its file', () =>
     problemsOf({sims: [{retries: {}}], recorder: null, nowMs}),
     [],
   );
+});
+
+test('an update waiting counts only when it is newer than the running tray (stale files never show a banner)', () => {
+  const file = v => JSON.stringify({version: v});
+  assert.equal(updateWaitingOf(file('0.1.12'), '0.1.11'), '0.1.12');
+  assert.equal(updateWaitingOf(file('0.2.0'), '0.1.11'), '0.2.0');
+  assert.equal(updateWaitingOf(file('0.1.11'), '0.1.11'), null);
+  assert.equal(updateWaitingOf(file('0.1.10'), '0.1.11'), null);
+  assert.equal(updateWaitingOf(file('0.1.12'), 'a1b2c3d'), null, 'a checkout reports a commit, not a version');
+  assert.equal(updateWaitingOf('', '0.1.11'), null);
+  assert.equal(updateWaitingOf('not json', '0.1.11'), null);
+  assert.equal(updateWaitingOf(JSON.stringify({}), '0.1.11'), null);
+});
+
+test('the beat carries updateWaiting only when there is one', () => {
+  const base = {hostId: 'h', label: 'PC', version: '0.1.11', lmuFound: false, state: 'idle', watch: {}, queue: 0, freeBytes: 1, recorder: null, nowMs: 0};
+  assert.equal('updateWaiting' in heartbeatDoc(base), false);
+  assert.equal(heartbeatDoc({...base, updateWaiting: '0.1.12'}).updateWaiting, '0.1.12');
+  assert.notEqual(beatKey(heartbeatDoc(base)), beatKey(heartbeatDoc({...base, updateWaiting: '0.1.12'})));
+});
+
+test('a pre-release suffix is the same version, so it is never "newer" than its release', () => {
+  const file = v => JSON.stringify({version: v});
+  assert.equal(updateWaitingOf(file('0.1.12-rc.1'), '0.1.12'), null);
+  assert.equal(updateWaitingOf(file('0.1.12-rc.1'), '0.1.11'), '0.1.12-rc.1');
 });

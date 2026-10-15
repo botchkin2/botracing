@@ -300,6 +300,18 @@ fn quit_tray_async(app: &tauri::AppHandle, on_quit: OnQuit) {
     log.note("callback returned");
 }
 
+/// The app banner's "Restart": the menu's "Restart to update", for the window.
+pub fn restart_to_update(app: &tauri::AppHandle) -> Result<(), String> {
+    let waiting = app
+        .try_state::<update::Slot>()
+        .is_some_and(|slot| slot.lock().unwrap().is_some());
+    if !waiting {
+        return Err("no update is waiting".into());
+    }
+    quit_tray_async(app, OnQuit::InstallWaitingUpdate);
+    Ok(())
+}
+
 /// The tray icon's id, so a quit can take it away itself (quit_tray).
 const TRAY_ID: &str = "tray";
 
@@ -446,7 +458,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             viewer::tray_uid,
             viewer::viewer_token,
-            viewer::sign_out
+            viewer::sign_out,
+            viewer::restart_to_update
         ])
         .setup(|app| {
             let paths = Arc::new(sidecar::paths(&app.path().resource_dir()?));
@@ -575,6 +588,7 @@ fn main() {
                     app.handle().clone(),
                     paths.token_file(),
                     paths.data.join("update"),
+                    sidecar::uploader_home(&paths.data),
                     update_slot.clone(),
                 );
             }

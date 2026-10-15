@@ -18,7 +18,7 @@ import {
 import '@/src/setup/reanimated';
 import {holdSplashForUpdate, startOtaUpdates} from '@/src/setup/ota';
 
-import {AuthGate, startAuthSession} from '@/src/auth';
+import {AuthGate, startAuthSession, trayRestart} from '@/src/auth';
 import {
   ThemeProvider as AppThemeProvider,
   useAppFonts,
@@ -34,6 +34,7 @@ import {analysing} from '@/src/data/sessions';
 import {BottomBar, WorkingLine} from '@/src/ui';
 import {queryClient} from '@/src/utils/queryClient';
 import {DesktopChrome} from '@/src/workspace/DesktopChrome';
+import {UpdateBanner} from '@/src/workspace/UpdateBanner';
 import {usePlanCombo} from '@/src/workspace/usePlanCombo';
 import {useWorkspaceGo} from '@/src/workspace/useWorkspaceGo';
 
@@ -86,6 +87,8 @@ function Navigation() {
     },
   };
   const {isDesktop} = useLayout();
+  // Set only inside the tray's own window; the banner then has a Restart.
+  const restart = typeof window === 'undefined' ? null : trayRestart(window);
   const stack = (
     <Stack
       screenOptions={{
@@ -97,6 +100,7 @@ function Navigation() {
   return (
     <ThemeProvider value={navTheme}>
       <View style={[styles.root, {backgroundColor: color.bg}]}>
+        <UpdateBanner restart={restart} />
         {isDesktop && <DesktopChrome />}
         <View style={styles.root}>
           {isDesktop ? stack : <PhoneFrame>{stack}</PhoneFrame>}
