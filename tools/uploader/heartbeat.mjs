@@ -4,6 +4,8 @@
 
 import {createHash} from 'node:crypto';
 
+import {compareVersions} from '../../src/data/uploaders/version.ts';
+
 // The endpoint is public (the app has no sign-in), so the doc carries no
 // machine name or user paths: a short hash as id, a label from config.
 export function hostIdOf(machineName) {
@@ -58,12 +60,6 @@ export function simsDoc(entries, syncingSim = null, progress = null) {
   );
 }
 
-/** x.y.z as numbers, or null. */
-const semver = v => {
-  const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(v ?? ''));
-  return m ? m.slice(1).map(Number) : null;
-};
-
 /**
  * The version of an update the tray has downloaded and is holding, from the
  * text of its update-waiting.json ({version}), or null. Only a version higher
@@ -77,11 +73,10 @@ export function updateWaitingOf(fileText, runningVersion) {
   } catch {
     return null;
   }
-  const [waiting, running] = [semver(version), semver(runningVersion)];
-  if (!waiting || !running) return null;
-  for (let i = 0; i < 3; i++)
-    if (waiting[i] !== running[i]) return waiting[i] > running[i] ? version : null;
-  return null;
+  // The one place the rule is written: the app only shows what this sends.
+  const newer =
+    typeof version === 'string' ? compareVersions(version, runningVersion) : null;
+  return newer != null && newer > 0 ? version : null;
 }
 
 // watch: the watcher's own state. recorder: tools/capture's status.json, or

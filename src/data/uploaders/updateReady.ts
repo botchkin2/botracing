@@ -17,8 +17,9 @@ export type UpdateReady = {
 
 /**
  * The highest waiting version among the PCs seen in the last 10 minutes, or
- * null. A version that is not newer than the PC's own tray is ignored, so a
- * stale report can never show a banner.
+ * null. The watcher sends `updateWaiting` only when it is newer than the
+ * tray running it (tools/uploader/heartbeat.mjs `updateWaitingOf`, the one
+ * place that rule is written), so this does not check it again.
  */
 export function updateReady(
   pcs: Uploader[] | undefined,
@@ -29,8 +30,6 @@ export function updateReady(
   for (const u of pcs ?? []) {
     const seen = u.lastSeenAt != null && nowMs - u.lastSeenAt <= SEEN_MS;
     if (!seen || !u.updateWaiting) continue;
-    const newer = compareVersions(u.updateWaiting, u.version);
-    if (newer == null || newer <= 0) continue;
     if (best == null || (compareVersions(u.updateWaiting, best) ?? 0) > 0)
       best = u.updateWaiting;
   }

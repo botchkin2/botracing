@@ -365,3 +365,9 @@ test('the beat carries updateWaiting only when there is one', () => {
   assert.equal(heartbeatDoc({...base, updateWaiting: '0.1.12'}).updateWaiting, '0.1.12');
   assert.notEqual(beatKey(heartbeatDoc(base)), beatKey(heartbeatDoc({...base, updateWaiting: '0.1.12'})));
 });
+
+test('a pre-release suffix is the same version, so it is never "newer" than its release', () => {
+  const file = v => JSON.stringify({version: v});
+  assert.equal(updateWaitingOf(file('0.1.12-rc.1'), '0.1.12'), null);
+  assert.equal(updateWaitingOf(file('0.1.12-rc.1'), '0.1.11'), '0.1.12-rc.1');
+});

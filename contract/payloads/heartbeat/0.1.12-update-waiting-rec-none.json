@@ -1,10 +1,10 @@
 {
  "hostId": "deadbeef",
  "label": "Test PC",
- "version": "0.1.11",
+ "version": "0.1.12",
  "lmuFound": true,
  "state": "waiting-for-game",
- "lastUploadAt": "2026-10-15T02:32:31.458Z",
+ "lastUploadAt": "2026-10-15T02:39:13.602Z",
  "lastSessionId": "aaaaaaaaaaaaaaaa",
  "queue": 0,
  "progress": null,
@@ -22,9 +22,9 @@
  "lastError": null,
  "disk": {
   "captureBytes": 0,
-  "freeBytes": 414866161664
+  "freeBytes": 418311516160
  },
  "recorder": null,
  "problems": [],
- "updateWaiting": "0.1.12"
+ "updateWaiting": "0.1.13"
 }

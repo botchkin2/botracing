@@ -36,13 +36,10 @@ describe('updateReady', () => {
     expect(updateReady(undefined, NOW, true)).toBeNull();
   });
 
-  it('ignores a PC not seen for 10 minutes, and a version that is not newer than its tray', () => {
+  it('ignores a PC not seen for 10 minutes', () => {
     expect(
       updateReady([pc({updateWaiting: '0.1.12', lastSeenAt: NOW - 11 * 60_000})], NOW, true),
     ).toBeNull();
-    expect(updateReady([pc({updateWaiting: '0.1.11'})], NOW, true)).toBeNull();
-    expect(updateReady([pc({updateWaiting: '0.1.10'})], NOW, true)).toBeNull();
-    expect(updateReady([pc({updateWaiting: 'abc', version: 'def'})], NOW, true)).toBeNull();
   });
 
   it('with several PCs takes the highest waiting version', () => {
