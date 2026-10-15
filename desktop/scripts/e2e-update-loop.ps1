@@ -8,8 +8,10 @@
 # Each run's whole output goes to <Out>/run-<i>.log. The
 # runner is reset before each run (installer, tray and test server ended, the
 # install and its data removed) so every run starts clean. <Out>/summary.txt counts the
-# failures by the wait that timed out ("UPDATE E2E FAILED: ..."). Exits 1 when
-# any run failed.
+# failures by the wait that timed out ("UPDATE E2E FAILED: ..."), and the runs in
+# which the installer waited for the exiting tray (install.log, hooks.nsh
+# BOTRACING_WAIT_TRAY_GONE), so a green loop shows the race it would have lost.
+# Exits 1 when any run failed.
 param(
   [Parameter(Mandatory = $true)][int]$Runs,
   [Parameter(Mandatory = $true)][string]$Old,
@@ -40,6 +42,7 @@ function Reset-Runner {
 }
 
 $failures = @{}
+$waited = @()
 $started = Get-Date
 for ($i = 1; $i -le $Runs; $i++) {
   # Clean before every run: a passing run's uninstall keeps the data folder
@@ -50,6 +53,10 @@ for ($i = 1; $i -le $Runs; $i++) {
   & pwsh -NoProfile -File (Join-Path $PSScriptRoot "e2e-update.ps1") -Old $Old -New $New -Signature $Signature -Version $Version -Port $Port *> $log
   $code = $LASTEXITCODE
   $secs = [int]((Get-Date) - $t0).TotalSeconds
+  # Read before the next reset removes the data folder.
+  $wait = Select-String -Path (Join-Path $data "install.log") -Pattern '^(waited \d+ ms|tray still running).*' -ErrorAction SilentlyContinue |
+    ForEach-Object { $_.Line }
+  if ($wait) { $waited += "run $($i): $($wait -join '; ')"; Write-Host ("run {0}: installer {1}" -f $i, ($wait -join '; ')) }
   if ($code -eq 0) {
     Write-Host ("run {0}: ok ({1}s)" -f $i, $secs)
     Remove-Item $log
@@ -66,6 +73,8 @@ for ($i = 1; $i -le $Runs; $i++) {
 $failed = ($failures.Values | Measure-Object -Sum).Sum
 $summary = @("runs: $Runs, failed: $([int]$failed), minutes: $([int]((Get-Date) - $started).TotalMinutes)")
 foreach ($k in $failures.Keys) { $summary += "$($failures[$k]) x $k" }
+$summary += "installer waited for the tray in $($waited.Count) runs"
+$summary += $waited
 $summary | Set-Content (Join-Path $Out "summary.txt")
 $summary | ForEach-Object { Write-Host $_ }
 if ($failed) { exit 1 }
