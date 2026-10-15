@@ -113,7 +113,7 @@ After the game exits (and on a timer), the watcher runs `sync.mjs` per sim:
 - **Replay gate (CI, `contract-replay`):** the golden live capture replayed through the real watcher into the emulators; asserts every lap's rows exist with nobody opening the session, the heartbeats are accepted, and (with #619) the field exists.
 - **Parity diff (CI, sidepod):** the golden pair built through flow A and flow B; fails on any difference outside a short reviewed allow-list.
 - **Recorder (cargo):** layout, columns and probe tests; the four-wheel tests above.
-- **Release gate:** the installed tray's own node and uploader replay a capture against production as seat-test (`release-tray.yml` live job). Each lap must reach the app and the open screen within 60 s of the line (`liveE2E.mjs --max-lap-s`; Botkin 2026-10-15), and the Sessions list within 75 s.
+- **Release gate:** the installed tray's own node and uploader replay a capture against production as seat-test (`release-tray.yml` live job). Each lap must reach the app and the open screen within 30 s of the line (`liveE2E.mjs --max-lap-s`; Botkin 2026-10-15), and the Sessions list within 75 s.
 
 ## Feature set
 
