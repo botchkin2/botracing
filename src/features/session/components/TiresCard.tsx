@@ -11,6 +11,7 @@ import {
   type TiresCard as TiresCardModel,
 } from '../tireCard';
 import {AxleLines} from './AxleLines';
+import {HeatStrips} from './HeatStrips';
 import {CoolDown} from './CoolDown';
 import {TireGrid} from './TireGrid';
 import {TreadZones} from './TreadZones';
@@ -47,6 +48,9 @@ export function TiresCard({
   return (
     <View style={styles.card}>
       {titled ? <Text variant='label'>Tires</Text> : null}
+      {card.heat.length > 0 ? (
+        <HeatStrips strips={card.heat} width={width} />
+      ) : null}
       {card.stints.length > 1 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <Segment

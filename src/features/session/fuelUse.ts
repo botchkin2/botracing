@@ -1,4 +1,4 @@
-// The practice view (pit-wall thread 36, #1115/#1203/#1204/#1205): fuel use per
+// The practice and race view (pit-wall thread 36 and 73, #1115/#1203/#1204/#1205): fuel use per
 // lap against lap time, by stint. It shows numbers and how they were measured,
 // never a fit, a correlation or a cost per litre: in real practices the use
 // varies 3-8 % and the sign of any trend flips between sessions (thread 36
@@ -6,7 +6,7 @@
 // than the laps inside each stint do (camber, #1205).
 import {sameLimit} from '@/src/analysis/fuelHistory';
 import type {Lap, SessionDetail} from '@/src/data/sessions';
-import {formatLapTime, oneDecimal} from '@/src/design';
+import {formatGap, formatLapTime, oneDecimal} from '@/src/design';
 import {iqr, median} from '@/src/analysis/setStats';
 import {MIN_GREEN_LAPS} from '@/src/analysis/fuelPlan';
 
@@ -37,6 +37,17 @@ export type FuelUseStint = {
   medianTimeS: number | null;
   /** How many laps one full load lasts at this stint's use, at the session's fill limit. */
   loadLaps: {fuel: number | null; ve: number | null};
+  /**
+   * This stint's medians against the first stint's (this minus that): what a
+   * fuel save cost. Null for the first stint and for a stint without a median.
+   */
+  vsFirst: {
+    /** The stint it is against. */
+    against: number;
+    fuelL: number;
+    vePct: number | null;
+    timeS: number;
+  } | null;
 };
 
 export type FuelUseVerdict =
@@ -48,6 +59,8 @@ export type FuelUseVerdict =
   | {kind: 'same'; lowL: number; highL: number};
 
 export type FuelUse = {
+  /** A race: the plan owns laps per load, so the card does not print it (thread 73 #5596). */
+  race: boolean;
   points: FuelUsePoint[];
   stints: FuelUseStint[];
   verdict: FuelUseVerdict;
@@ -73,12 +86,12 @@ export function greenLaps(laps: Lap[]): Lap[] {
   );
 }
 
-/** Null for anything but a practice with green laps. */
+/** Null for a qualifying and for a session with no green lap. */
 export function buildFuelUse(
   session: Pick<SessionDetail, 'sessionType' | 'fuel'>,
   laps: Lap[],
 ): FuelUse | null {
-  if (session.sessionType !== 'P') return null;
+  if (session.sessionType === 'Q') return null;
   // Only the fill limit is a limit: a practice that started part-full has a
   // start level, and the tank is not what the event allows (camber, #158).
   const limitL = session.fuel?.fillLimitL ?? null;
@@ -118,8 +131,25 @@ export function buildFuelUse(
           medianFuelL != null && limitL != null ? limitL / medianFuelL : null,
         ve: medianVePct != null ? 100 / medianVePct : null,
       },
+      vsFirst: null,
     };
   });
+  const first = stints.find(
+    s => s.medianFuelL != null && s.medianTimeS != null,
+  );
+  for (const s of stints) {
+    if (!first || s === first || s.medianFuelL == null || s.medianTimeS == null)
+      continue;
+    s.vsFirst = {
+      against: first.n,
+      fuelL: s.medianFuelL - (first.medianFuelL as number),
+      vePct:
+        s.medianVePct != null && first.medianVePct != null
+          ? s.medianVePct - first.medianVePct
+          : null,
+      timeS: s.medianTimeS - (first.medianTimeS as number),
+    };
+  }
 
   const eligible = stints.filter(s => s.medianFuelL != null);
   let verdict: FuelUseVerdict;
@@ -137,6 +167,7 @@ export function buildFuelUse(
         : {kind: 'same', lowL, highL};
   }
   return {
+    race: session.sessionType === 'R',
     points,
     stints,
     verdict,
@@ -170,6 +201,18 @@ export function planMatchesLimit(
 
 const litres = (v: number, digits = 2) => `${v.toFixed(digits)} L`;
 
+/** "−0.18 L/lap · −0.25 % VE/lap · −0.14 s": signed, true minus, the stint against the first. */
+export function vsFirstText(v: NonNullable<FuelUseStint['vsFirst']>): string {
+  return [
+    `${formatGap(v.fuelL, 2)} L/lap`,
+    v.vePct != null && `${formatGap(v.vePct, 2)} % VE/lap`,
+    // Time gaps are 3 decimals app-wide (CODE_STANDARDS §4).
+    `${formatGap(v.timeS)} s`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 export type FuelUseRow = {
   key: string;
   title: string;
@@ -196,15 +239,22 @@ export function fuelUseRows(fu: FuelUse): FuelUseRow[] {
       s.medianVePct != null && `${oneDecimal(s.medianVePct)} % VE/lap`,
       s.medianTimeS != null && formatLapTime(s.medianTimeS),
     ].filter(Boolean);
-    const load = [
-      s.loadLaps.fuel != null && `${s.loadLaps.fuel.toFixed(1)} laps of fuel`,
-      s.loadLaps.ve != null && `${s.loadLaps.ve.toFixed(1)} laps of VE`,
-    ].filter(Boolean);
+    // A race: the plan owns laps per load (one owner per fact).
+    const load = fu.race
+      ? []
+      : [
+          s.loadLaps.fuel != null &&
+            `${s.loadLaps.fuel.toFixed(1)} laps of fuel`,
+          s.loadLaps.ve != null && `${s.loadLaps.ve.toFixed(1)} laps of VE`,
+        ].filter(Boolean);
     return {
       key: String(s.n),
       title,
       lines: [
         use.join(' · '),
+        ...(s.vsFirst
+          ? [`vs stint ${s.vsFirst.against}: ${vsFirstText(s.vsFirst)}`]
+          : []),
         ...(load.length ? [`One load: ${load.join(' · ')}`] : []),
       ],
       counts: s.laps > 0,
@@ -266,6 +316,8 @@ export function planRaceText(
   lengthText: string,
   planLimitL: number | null,
 ): string | null {
+  // A race has its own plan card (planVsRace): one owner for the race length.
+  if (fu.race) return null;
   // Without a preset the plan runs at the last session's limit; only a
   // preset's own limit can differ, and then it has to match.
   if (planLimitL != null && !planMatchesLimit(fu.limitL, planLimitL))

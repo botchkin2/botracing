@@ -43,7 +43,7 @@ const lap = (
 });
 
 const stints = (laps: Lap[], sim = 'lmu') => {
-  const card = buildTiresCard({stints: [], sim}, laps);
+  const card = buildTiresCard({stints: [], sim, bestLapId: null}, laps);
   if (card.kind !== 'stints') throw new Error('no stints');
   return card.stints;
 };
@@ -52,7 +52,7 @@ const one = (laps: Lap[], sim = 'lmu'): StintTires => stints(laps, sim)[0];
 describe('buildTiresCard', () => {
   it('is absent when no lap carries tyre facts', () => {
     const laps = [lap(1, 99, {tyres: null}), lap(2, 98, {tyres: null})];
-    expect(buildTiresCard({stints: [], sim: 'lmu'}, laps)).toEqual({
+    expect(buildTiresCard({stints: [], sim: 'lmu', bestLapId: null}, laps)).toEqual({
       kind: 'absent',
     });
   });
