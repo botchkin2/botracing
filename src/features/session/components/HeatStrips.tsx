@@ -1,10 +1,10 @@
-import {useState} from 'react';
+import {useRef, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 import Svg, {Rect} from 'react-native-svg';
 
 import {WHEELS} from '@/src/analysis/tyres';
 import {heatCell, space, useTheme} from '@/src/design';
-import {Text} from '@/src/ui';
+import {Pressable, Text} from '@/src/ui';
 
 import {type HeatStrip, readoutText, scalePosition} from '../heatStrips';
 
@@ -42,14 +42,23 @@ export function HeatStrips({
 function Strip({strip, width}: {strip: HeatStrip; width: number}) {
   const {color} = useTheme();
   const [picked, setPicked] = useState<number | null>(null);
+  const plotRef = useRef<View>(null);
   const {meter, columns, stintStarts} = strip;
-  const plotW = width - LABEL_W;
+  // Zero before the card has measured itself: nothing to draw yet.
+  const plotW = Math.max(0, width - LABEL_W);
+  if (plotW === 0) return null;
   const cellW = Math.max(
     3,
     (plotW - stintStarts.length * STINT_GAP) / columns.length,
   );
   const xOf = (i: number) =>
     i * cellW + stintStarts.filter(s => s <= i).length * STINT_GAP;
+  // The column under a tap, from the tap's x inside the strip.
+  const columnAt = (x: number) => {
+    let hit = 0;
+    for (let i = 0; i < columns.length; i++) if (x >= xOf(i)) hit = i;
+    return hit;
+  };
   const plotH = WHEELS.length * (ROW_H + ROW_GAP) - ROW_GAP;
   const bestAt = columns.findIndex(c => c.best);
   return (
@@ -67,54 +76,55 @@ function Strip({strip, width}: {strip: HeatStrip; width: number}) {
             </Text>
           ))}
         </View>
-        <Svg width={plotW} height={plotH + MARK_H + 2}>
-          {columns.map((c, i) =>
-            WHEELS.map((w, r) => {
-              const t = scalePosition(meter, c.values[w]);
-              return (
-                <Rect
-                  key={`${c.lapId}${w}`}
-                  x={xOf(i)}
-                  y={r * (ROW_H + ROW_GAP)}
-                  width={Math.max(1, cellW - 1)}
-                  height={ROW_H}
-                  fill={t == null ? color.line : heatCell(t)}
-                />
-              );
-            }),
-          )}
-          {columns.map((c, i) => (
-            <Rect
-              key={c.lapId}
-              x={xOf(i)}
-              y={0}
-              width={cellW}
-              height={plotH}
-              fill='transparent'
-              onPress={() => setPicked(i === picked ? null : i)}
-            />
-          ))}
-          {bestAt >= 0 ? (
-            <Rect
-              x={xOf(bestAt)}
-              y={plotH + 2}
-              width={Math.max(1, cellW - 1)}
-              height={MARK_H}
-              fill={color.best}
-            />
-          ) : null}
-          {picked != null ? (
-            <Rect
-              x={xOf(picked)}
-              y={0}
-              width={Math.max(1, cellW - 1)}
-              height={plotH}
-              fill='none'
-              stroke={color.text}
-              strokeWidth={1}
-            />
-          ) : null}
-        </Svg>
+        <Pressable
+          accessibilityLabel={`${meter.title}: tap a lap`}
+          ref={plotRef}
+          onPress={e => {
+            // pageX, not locationX: the target of the tap is a rect inside the strip.
+            const pageX = e.nativeEvent.pageX;
+            plotRef.current?.measure((_x, _y, _w, _h, left) => {
+              const i = columnAt(pageX - left);
+              setPicked(p => (i === p ? null : i));
+            });
+          }}>
+          <Svg width={plotW} height={plotH + MARK_H + 2}>
+            {columns.map((c, i) =>
+              WHEELS.map((w, r) => {
+                const t = scalePosition(meter, c.values[w]);
+                return (
+                  <Rect
+                    key={`${c.lapId}${w}`}
+                    x={xOf(i)}
+                    y={r * (ROW_H + ROW_GAP)}
+                    width={Math.max(1, cellW - 1)}
+                    height={ROW_H}
+                    fill={t == null ? color.line : heatCell(t)}
+                  />
+                );
+              }),
+            )}
+            {bestAt >= 0 ? (
+              <Rect
+                x={xOf(bestAt)}
+                y={plotH + 2}
+                width={Math.max(1, cellW - 1)}
+                height={MARK_H}
+                fill={color.best}
+              />
+            ) : null}
+            {picked != null ? (
+              <Rect
+                x={xOf(picked)}
+                y={0}
+                width={Math.max(1, cellW - 1)}
+                height={plotH}
+                fill='none'
+                stroke={color.text}
+                strokeWidth={1}
+              />
+            ) : null}
+          </Svg>
+        </Pressable>
       </View>
       <Legend meter={strip} width={width} />
       <Text variant='dataSmall' tone='textSecondary'>

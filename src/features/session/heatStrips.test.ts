@@ -78,10 +78,10 @@ describe('buildHeatStrips', () => {
 
   it('puts a value on a fixed scale, the same for every session, and clamps outside it', () => {
     const rubber = HEAT_METERS[0];
-    expect(scalePosition(rubber, 50)).toBe(0);
-    expect(scalePosition(rubber, 100)).toBe(1);
-    expect(scalePosition(rubber, 75)).toBe(0.5);
-    expect(scalePosition(rubber, 20)).toBe(0);
+    expect(scalePosition(rubber, 40)).toBe(0);
+    expect(scalePosition(rubber, 90)).toBe(1);
+    expect(scalePosition(rubber, 65)).toBe(0.5);
+    expect(scalePosition(rubber, 10)).toBe(0);
     expect(scalePosition(rubber, 130)).toBe(1);
     expect(scalePosition(rubber, null)).toBeNull();
   });

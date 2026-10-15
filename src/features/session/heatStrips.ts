@@ -18,13 +18,15 @@ export type HeatMeter = {
 };
 
 /**
- * Rubber: the outer layer's median over the lap, as the Tires card's axle
- * line reads it; 50 to 100 C spans a cold out-lap to the hottest tread the
- * card scales (TREAD_BAR_MAX_C). Pressure: the lap's median hot pressure.
+ * Rubber: the outer layer's median over the lap, as the Tires card's axle line
+ * reads it. Pressure: the lap's median hot pressure. The ends are fixed, from
+ * the one race measured (Silverstone 2026-10-15, 31 laps: rubber 46-79 C, hot
+ * pressure 144-171 kPa) with room either side; a session outside them clamps
+ * to the end colour, and the legend prints the ends.
  */
 export const HEAT_METERS: readonly HeatMeter[] = [
-  {key: 'rubber', title: 'Rubber temperature', unit: '°C', min: 50, max: 100},
-  {key: 'pressure', title: 'Hot pressure', unit: 'kPa', min: 150, max: 190},
+  {key: 'rubber', title: 'Rubber temperature', unit: '°C', min: 40, max: 90},
+  {key: 'pressure', title: 'Hot pressure', unit: 'kPa', min: 140, max: 190},
 ];
 
 export type HeatColumn = {
