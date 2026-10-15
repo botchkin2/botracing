@@ -71,9 +71,49 @@
     ${EndIf}
     FileClose $1
   ${EndIf}
+  ; Gone from the process list is not the same as free: in the rehearsal the
+  ; write still failed after the tray was gone (pit wall thread 71). Wait,
+  ; again up to 15 s, until the exe opens for writing; opening it changes
+  ; nothing.
+  StrCpy $2 0
+  ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
+    ${Do}
+      ClearErrors
+      FileOpen $0 "$INSTDIR\${MAINBINARYNAME}.exe" a
+      ${IfNot} ${Errors}
+        FileClose $0
+        ${Break}
+      ${EndIf}
+      IntOp $2 $2 + 1
+      ${If} $2 >= 30
+        ${Break}
+      ${EndIf}
+      Sleep 500
+    ${Loop}
+  ${EndIf}
+  ${If} $2 > 0
+    CreateDirectory "${BOTRACING_DATA}"
+    FileOpen $1 "${BOTRACING_DATA}\install.log" a
+    FileSeek $1 0 END
+    IntOp $2 $2 * 500
+    FileWrite $1 "waited $2 ms for the exe to be writable (update mode $UpdateMode)$\r$\n"
+    FileClose $1
+  ${EndIf}
   Pop $2
   Pop $1
   Pop $0
+!macroend
+
+; Which hook ran and with what command line, so a rehearsal failure says
+; whether the installer knew it was an update (pit wall thread 71).
+!macro BOTRACING_LOG_HOOK NAME
+  Push $1
+  CreateDirectory "${BOTRACING_DATA}"
+  FileOpen $1 "${BOTRACING_DATA}\install.log" a
+  FileSeek $1 0 END
+  FileWrite $1 "${NAME}: update mode [$UpdateMode], command line [$CMDLINE]$\r$\n"
+  FileClose $1
+  Pop $1
 !macroend
 
 ; Ends and deletes one old logon task if it is there. Absent is not an error;
@@ -114,6 +154,7 @@
 !macroend
 
 !macro NSIS_HOOK_PREINSTALL
+  !insertmacro BOTRACING_LOG_HOOK "preinstall"
   ${If} $UpdateMode <> 1
     !insertmacro BOTRACING_QUIT_TRAY
   ${Else}
@@ -127,6 +168,7 @@
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
+  !insertmacro BOTRACING_LOG_HOOK "preuninstall"
   ${If} $UpdateMode <> 1
     !insertmacro BOTRACING_QUIT_TRAY
   ${Else}

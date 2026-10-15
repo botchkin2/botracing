@@ -54,7 +54,7 @@ for ($i = 1; $i -le $Runs; $i++) {
   $code = $LASTEXITCODE
   $secs = [int]((Get-Date) - $t0).TotalSeconds
   # Read before the next reset removes the data folder.
-  $wait = Select-String -Path (Join-Path $data "install.log") -Pattern '^(waited \d+ ms|tray still running).*' -ErrorAction SilentlyContinue |
+  $wait = Select-String -Path (Join-Path $data "install.log") -Pattern '^(waited \d+ ms|tray still running|preinstall|preuninstall).*' -ErrorAction SilentlyContinue |
     ForEach-Object { $_.Line }
   if ($wait) { $waited += "run $($i): $($wait -join '; ')"; Write-Host ("run {0}: installer {1}" -f $i, ($wait -join '; ')) }
   if ($code -eq 0) {
