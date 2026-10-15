@@ -3,7 +3,7 @@ import {StyleSheet, View} from 'react-native';
 import Svg, {Rect} from 'react-native-svg';
 
 import {WHEELS} from '@/src/analysis/tyres';
-import {heatCell, space, useTheme} from '@/src/design';
+import {heatCell, oneDecimal, space, useTheme} from '@/src/design';
 import {Pressable, Text} from '@/src/ui';
 
 import {
@@ -150,7 +150,7 @@ function Legend({meter: strip, width}: {meter: HeatStrip; width: number}) {
   return (
     <View style={styles.legend}>
       <Text variant='dataSmall' tone='textMuted'>
-        {`${meter.min} ${meter.unit}`}
+        {`${oneDecimal(meter.min)} ${meter.unit}`}
       </Text>
       <Svg width={barW} height={8}>
         {Array.from({length: LEGEND_STEPS}, (_, i) => (
@@ -165,7 +165,7 @@ function Legend({meter: strip, width}: {meter: HeatStrip; width: number}) {
         ))}
       </Svg>
       <Text variant='dataSmall' tone='textMuted'>
-        {`${meter.max} ${meter.unit}`}
+        {`${oneDecimal(meter.max)} ${meter.unit}`}
       </Text>
     </View>
   );

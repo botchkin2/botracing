@@ -493,7 +493,7 @@ export function buildTiresCard(
     ? {
         kind: 'stints',
         stints,
-        heat: buildHeatStrips(laps, session.bestLapId, session.sim),
+        heat: buildHeatStrips(laps, session.bestLapId),
       }
     : {kind: 'absent'};
 }
