@@ -41,6 +41,7 @@ import {
   type LapMode,
   turnLabel,
 } from '@/src/design';
+import {strikeMarksOf, type StrikeMark} from './strikeMarks';
 import {tableReference} from './tableReference';
 import {buildTrackMarks, type TrackMarks} from '@/src/charts';
 
@@ -322,6 +323,8 @@ export type MapModel = {
   marks: TrackMarks;
   lines: (LapRef & {points: {x: number; y: number}[]})[];
   dots: (LapRef & {at: {x: number; y: number}})[];
+  /** The game's track-limit strikes on the selected laps, where each went furthest past the edge. */
+  strikes: StrikeMark[];
   /** Follow's position label, e.g. "T7–8 · T8 apex". */
   followPlace: string;
   /** Each section's apex distance and name, for the strip. */
@@ -1224,6 +1227,14 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
           geometry: followGeometry,
         },
       lines,
+      strikes: strikeMarksOf(
+        lapRefs,
+        id => input.laps.find(l => l.id === id),
+        (id, m) => {
+          const t = traces.get(id);
+          return t ? pointAt(t, m) : null;
+        },
+      ),
       dotsAt,
       sectionApexes: (map?.sections ?? []).map(s => ({
         n: s.n,

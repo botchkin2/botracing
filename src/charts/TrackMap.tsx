@@ -34,6 +34,9 @@ export type MapLine = {
 
 export type MapDot = {key: string; at: MapPoint; color: string};
 
+/** A track-limit strike: a ring where the car went furthest past the edge; tap reads it. */
+export type MapStrike = {key: string; at: MapPoint; color: string};
+
 /** A point on the reference line and its neighbours, for the band normal. */
 export type MapAnchor = {at: MapPoint; prev: MapPoint; next: MapPoint};
 
@@ -85,6 +88,9 @@ export function TrackMap({
   pitLane,
   lines,
   dots,
+  strikes,
+  pickedStrike,
+  onPressStrike,
   marks,
   openSection,
   onPressSection,
@@ -104,6 +110,10 @@ export function TrackMap({
   /** Drawn in order, reference last: it is also the band with no outline. */
   lines: MapLine[];
   dots: MapDot[];
+  strikes?: MapStrike[];
+  /** The strike whose readout is open, drawn filled. */
+  pickedStrike?: string | null;
+  onPressStrike?: (key: string) => void;
   marks: MapMarks;
   openSection: number | null;
   onPressSection: (n: number) => void;
@@ -466,6 +476,20 @@ export function TrackMap({
             bounds={{width, height}}
           />
         )}
+        {(strikes ?? []).map(s => {
+          const q = fit(s.at);
+          return (
+            <Circle
+              key={`strike${s.key}`}
+              cx={q.x}
+              cy={q.y}
+              r={6.5}
+              fill={pickedStrike === s.key ? s.color : 'none'}
+              stroke={s.color}
+              strokeWidth={2}
+            />
+          );
+        })}
         {dots.map(d => {
           const q = fit(d.at);
           return (
@@ -481,6 +505,19 @@ export function TrackMap({
           );
         })}
       </Svg>
+      {/* 44 pt hit targets over the strike rings: tap reads the strike. */}
+      {(strikes ?? []).map(s => {
+        const q = fit(s.at);
+        return (
+          <Pressable
+            key={`strikehit${s.key}`}
+            accessibilityRole='button'
+            accessibilityLabel='Track limit strike'
+            onPress={() => onPressStrike?.(s.key)}
+            style={[styles.hit, {left: q.x - HIT / 2, top: q.y - HIT / 2}]}
+          />
+        );
+      })}
       {/* 44 pt hit targets over the section labels: tap opens the section. */}
       {sectionLabels.map(s => (
         <Pressable
