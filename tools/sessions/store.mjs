@@ -31,6 +31,7 @@ import {keepVisits, raceAfterSync} from './keepCapture.mjs';
 import {planBlock} from './planBlock.mjs';
 import {stampNewer, withKept} from './versionKey.mjs';
 import {captureExtractPath} from './captureExtract.mjs';
+import {resultsInputPath} from './resultsInput.mjs';
 import {guardedWriter} from './docShape.mjs';
 import {healPlan} from './heal.mjs';
 import {LIVE_STAMP} from './liveSession.mjs';
@@ -455,6 +456,12 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
       JSON.stringify(out.captureExtract),
       'application/json',
     );
+  if (out.resultsInput)
+    await putGzip(
+      resultsInputPath(session.ownerId, session.id),
+      JSON.stringify(out.resultsInput),
+      'application/json',
+    );
   if (out.band) {
     await putGzip(
       session.band.path,
@@ -707,6 +714,14 @@ async function putLiveInputs(backend, out, session, log) {
         {contentType: 'application/json', gzip: true},
       ),
     );
+  if (out.resultsInput)
+    puts.push(
+      backend.putFile(
+        resultsInputPath(session.ownerId, session.id),
+        {body: Buffer.from(JSON.stringify(out.resultsInput))},
+        {contentType: 'application/json', gzip: true},
+      ),
+    );
   await Promise.all(puts);
 }
 
@@ -879,6 +894,15 @@ export function createStore(backend) {
         {body: Buffer.from(JSON.stringify(extract), 'utf8')},
         {contentType: 'application/json', gzip: true},
       ),
+    // A session's results input on its own (resultsInput.mjs): the sessions
+    // uploaded before the game's results were kept, and a live session at its
+    // close, when the game writes the file.
+    putResultsInput: (ownerId, sessionId, input) =>
+      backend.putFile(
+        resultsInputPath(ownerId, sessionId),
+        {body: Buffer.from(JSON.stringify(input), 'utf8')},
+        {contentType: 'application/json', gzip: true},
+      ),
   };
 }
 
@@ -890,6 +914,10 @@ export const updateEvents = items => admin().updateEvents(items);
 export const upload = (out, options) => admin().upload(out, options);
 export const putCaptureExtract = (ownerId, sessionId, extract) =>
   admin().putCaptureExtract(ownerId, sessionId, extract);
+export const putResultsInput = (ownerId, sessionId, input) =>
+  admin().putResultsInput(ownerId, sessionId, input);
+export const markStale = (sessionId, ownerId) =>
+  admin().markStale(sessionId, ownerId);
 export const getBoundaries = (trackId, db) =>
   createStore(adminBackend({db: db ?? connect().db})).getBoundaries(trackId);
 export const putBoundaries = (boundaries, db) =>

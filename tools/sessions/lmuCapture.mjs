@@ -84,7 +84,7 @@ const num = x => {
 };
 
 // rF2 session numbers: 0 test day, 1-4 practice, 5-8 qualifying, 9 warmup, 10-13 race.
-function sessionType(session) {
+export function sessionTypeOf(session) {
   if (session >= 10 && session <= 13) return 'Race';
   if (session >= 5 && session <= 8) return 'Qualify';
   if (session === 9) return 'Warmup';
@@ -228,7 +228,7 @@ function stretchInfo(meta, st) {
     driver: meta.playerName || '',
     recordedAt: new Date(Number(st.wall0)).toISOString(),
     sessionClock: clockOf(st.tod),
-    sessionType: sessionType(Number(meta.session ?? st.ses)),
+    sessionType: sessionTypeOf(Number(meta.session ?? st.ses)),
     // The recorder has the scoring track name, which is the .duckdb's layout
     // ("Daytona International Speedway Road Course"); the venue alone is not
     // in the capture.

@@ -118,6 +118,50 @@ describe('buildSessionModel', () => {
     expect(lapRow(r, 'L13').time).toBe('—');
   });
 
+  it('the games rulings in a lap are a LIM count, and a lap its results file deleted says in the games words why', () => {
+    const strike = (outcome: string, ruling: string, points: number) => ({
+      et: 100,
+      atM: 500,
+      widthM: 1.2,
+      points,
+      outcome,
+      ruling,
+    });
+    const raw = fixture.laps.map((l, i) =>
+      i === 12
+        ? {
+            ...l,
+            timed: false,
+            invalid: true,
+            invalidFrom: 'results',
+            comparable: false,
+            trackLimits: [
+              strike('warning', 'Warning', 0.25),
+              strike('none', 'No Further Action', 0),
+            ],
+          }
+        : i === 13
+        ? {...l, trackLimits: [strike('none', 'No Further Action', 0)]}
+        : i === 14
+        ? {...l, trackLimits: []}
+        : l,
+    );
+    const r = buildSessionModel(session, toLaps(raw), {
+      laps: [],
+      hl: raw[12].id,
+    });
+    expect(lapRow(r, 'L13').tags.map(t => t.code)).toEqual(['INV', 'LIM 2']);
+    expect(r.detail).toMatchObject({status: 'Excluded · Invalid · Warning'});
+    expect(lapRow(r, 'L14').tags.map(t => t.code)).toContain('LIM 1');
+    // A lap with no ruling, and a session with no results file, carry no LIM.
+    expect(lapRow(r, 'L15').tags.map(t => t.code)).not.toContain('LIM 0');
+    expect(
+      lapRow(r, 'L16')
+        .tags.map(t => t.code)
+        .join(' '),
+    ).not.toMatch(/LIM/);
+  });
+
   it('a pit or cut lap the game did not time is not INV', () => {
     const raw = fixture.laps.map((l, i) =>
       i === 12
@@ -146,11 +190,12 @@ describe('buildSessionModel', () => {
     expect(d.detail).toMatchObject({status: 'Excluded · Parked start'});
   });
 
-  it('tags pit, partial, slow, off-track and best laps', () => {
+  it('tags pit, partial, slow and best laps; the made-up OFF tag is gone', () => {
     expect(lapRow(m, 'L17').tags.map(t => t.code)).toContain('IN');
     expect(lapRow(m, 'L18').tags.map(t => t.code)).toContain('OUT');
     expect(lapRow(m, 'L22').tags.map(t => t.code)).toContain('PART');
-    expect(lapRow(m, 'L5').tags.map(t => t.code)).toEqual(['SLOW', 'OFF 14.8']);
+    // L5 went 14.8 s over loose surface by our own reading: no tag says so now.
+    expect(lapRow(m, 'L5').tags.map(t => t.code)).toEqual(['SLOW']);
     expect(lapRow(m, 'L21').tags[0]).toEqual({code: 'BEST', best: true});
   });
 
