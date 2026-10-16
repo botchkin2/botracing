@@ -21,6 +21,7 @@ const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
   invalidTimeS: null,
   trackLimits: null,
   offTrackS: 0,
+  coastS: null,
   hadImpact: false,
   sections: [],
   startStraight: null,

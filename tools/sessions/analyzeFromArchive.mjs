@@ -188,6 +188,8 @@ export function analyzeFromArchive({
       // The fastest recorded speed sample of the lap, and where.
       maxSpeedKmh: lap.maxSpeedKmh,
       maxSpeedAtM: lap.maxSpeedAtM,
+      // Seconds coasting (coast.mjs): the fuel card's lift-and-coast figure.
+      coastS: lap.coastS,
       sectors: lap.sectors,
       stint: lap.stint,
       comparable: lap.comparable,

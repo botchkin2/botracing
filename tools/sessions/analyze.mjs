@@ -58,6 +58,7 @@ import {
 } from './layoutBoundaries.mjs';
 import {sampleTicks} from './pedalPoints.mjs';
 import {freshTyres} from '../../src/analysis/tyres.ts';
+import {COAST_VERSION, coastSeconds} from './coast.mjs';
 import {CORNER_INPUTS_VERSION} from './cornerInputs.mjs';
 import {lapTyres, settleHotPressure, TYRES_VERSION} from './tyres.mjs';
 import {
@@ -94,6 +95,8 @@ const OFF_TRACK_SEC = 0.3;
 export const IN_FILE_RESET_VERSION = 1;
 
 export const blockVersions = {
+  // The lap doc's `coastS` (coast.mjs): every session re-analyses once.
+  coast: COAST_VERSION,
   tyres: TYRES_VERSION,
   traffic: TRAFFIC_VERSION,
   gridLap: GRID_LAP_VERSION,
@@ -769,6 +772,8 @@ function analyzeLap(rec, seg, pits, flags, visitFacts, results = null) {
     // 60). The CSV has no time column; the app's clock is row / traceHz.
     traceHz: rec.baseHz,
     ...topSpeed(s, i0, i1, dist),
+    // Seconds with both pedals off above 80 km/h (coast.mjs, thread 72).
+    coastS: coastSeconds(s, i0, i1),
   };
 }
 
