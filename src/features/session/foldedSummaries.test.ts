@@ -15,11 +15,18 @@ const stint = (n: number) =>
 
 describe('tiresSummary', () => {
   it('says there are no channels', () => {
-    expect(tiresSummary({kind: 'absent'})).toBe('No tire channels');
+    expect(tiresSummary({kind: 'absent', absentLaps: 0})).toBe(
+      'No tire channels',
+    );
   });
 
   it('names the last stint, the one the card opens on', () => {
-    const card = {kind: 'stints', stints: [stint(1), stint(2)], heat: []} as TiresCard;
+    const card = {
+      kind: 'stints',
+      stints: [stint(1), stint(2)],
+      heat: [],
+      absentLaps: 0,
+    } as TiresCard;
     expect(tiresSummary(card)).toBe('Stint 2 · L1–L10 · 8 green laps');
   });
 });

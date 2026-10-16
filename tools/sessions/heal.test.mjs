@@ -131,6 +131,15 @@ test('the upload tombstones what it replaces, keeps the lone stretch and its lap
     lines.some(l => l.includes('heal: 1 recording(s) replaced (L0 -> B0)')),
     lines.join('\n'),
   );
+  // A kept stretch needs the cloud to analyse it: the session reads stale, and says it was rebuilt.
+  assert.equal(db.docs.get('sessions/S').analysis.v, 0);
+  assert.deepEqual(
+    {
+      replaced: db.docs.get('sessions/S').rebuilt.replaced,
+      kept: db.docs.get('sessions/S').rebuilt.kept,
+    },
+    {replaced: 1, kept: 1},
+  );
   // A later upload (the cloud's analysis) does not delete the tombstone.
   await createStore({
     ...db,

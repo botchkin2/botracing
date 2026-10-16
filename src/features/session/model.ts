@@ -27,6 +27,7 @@ import {
 import {
   carLabel,
   dayMonthOf,
+  formatDayMonthTime,
   formatGap,
   formatLapTime,
   shortTrackName,
@@ -230,6 +231,8 @@ export type SessionScreenModel = {
   pitCard: PitCard | null;
   /** Per-wheel wear, pressure and rubber temperature by stint. */
   tires: TiresCard;
+  /** A heal replaced this session's live copy: its one header line and the detail a tap opens; null otherwise. */
+  rebuilt: {line: string; detail: string} | null;
   /** Practice with green laps only. */
   fuelUse: FuelUseCardModel | null;
   /** Races with a whole lap to end on. */
@@ -428,6 +431,26 @@ export function sectionTable(
       row('Best', s => s.bestS),
       row('IQR', s => s.spreadS),
     ],
+  };
+}
+
+/** "Rebuilt from the game file" and, on a tap, when and which stretches. */
+export function rebuiltOf(
+  session: Pick<SessionDetail, 'rebuilt'>,
+): {line: string; detail: string} | null {
+  const r = session.rebuilt;
+  if (!r) return null;
+  const n = (k: number, one: string, many: string) =>
+    `${k} ${k === 1 ? one : many}`;
+  return {
+    line: 'Rebuilt from the game file',
+    detail: [
+      formatDayMonthTime(new Date(r.atMs).toISOString()),
+      n(r.replaced, 'recording replaced', 'recordings replaced'),
+      r.kept > 0 ? n(r.kept, 'stretch kept', 'stretches kept') : null,
+    ]
+      .filter(Boolean)
+      .join(' · '),
   };
 }
 
@@ -671,6 +694,7 @@ export function buildSessionModel(
     ),
     pitCard,
     tires: buildTiresCard(session, laps),
+    rebuilt: rebuiltOf(session),
     fuelUse,
     planVsRace: raceFactsOfPlan(session, planKeyOf(session)),
   };

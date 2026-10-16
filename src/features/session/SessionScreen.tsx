@@ -46,6 +46,7 @@ import {LinkedScrollContext, useLinkedScroll} from './components/linkedScroll';
 import {OptimumLines} from './components/OptimumLines';
 import {SessionGrid} from './components/SessionGrid';
 import {ClassTableView} from './components/ClassTable';
+import {RebuiltLine} from './components/RebuiltLine';
 import {SessionHead} from './components/SessionHead';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
@@ -390,6 +391,7 @@ function SessionView({
       ) : (
         <SessionHead facts={model.facts} />
       )}
+      {model.rebuilt ? <RebuiltLine rebuilt={model.rebuilt} /> : null}
       {model.classTable ? <ClassTableView table={model.classTable} /> : null}
 
       {chartBlock(tableW)}

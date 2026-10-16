@@ -151,9 +151,19 @@ export type StintTires = {
   coolDown: CoolDownBlock;
 };
 
-export type TiresCard =
+export type TiresCard = (
   | {kind: 'absent'}
-  | {kind: 'stints'; stints: StintTires[]; heat: HeatStrip[]};
+  | {kind: 'stints'; stints: StintTires[]; heat: HeatStrip[]}
+) & {
+  /** Laps whose recording had bad wheel channels: no tyres, and the card says so. */
+  absentLaps: number;
+};
+
+/** The line under a card with such laps. */
+export const absentLapsNote = (n: number) =>
+  `No tyre data on ${n} lap${
+    n === 1 ? '' : 's'
+  } (recorder bug, fixed in 0.1.11)`;
 
 const lapLabel = (l: Lap) => `L${l.lapIndex}`;
 
@@ -489,11 +499,13 @@ export function buildTiresCard(
     );
     if (s) stints.push(s);
   }
+  const absentLaps = laps.filter(l => l.tyresAbsent).length;
   return stints.length
     ? {
         kind: 'stints',
         stints,
         heat: buildHeatStrips(laps, session.bestLapId),
+        absentLaps,
       }
-    : {kind: 'absent'};
+    : {kind: 'absent', absentLaps};
 }

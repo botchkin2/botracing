@@ -33,6 +33,7 @@ import {stampNewer, withKept} from './versionKey.mjs';
 import {captureExtractPath} from './captureExtract.mjs';
 import {guardedWriter} from './docShape.mjs';
 import {healPlan} from './heal.mjs';
+import {LIVE_STAMP} from './liveSession.mjs';
 import {packState} from './layoutBoundaries.mjs';
 import {trafficMedians} from '../../src/analysis/traffic.ts';
 import {lapTrafficFrom} from './lapTraffic.mjs';
@@ -279,6 +280,8 @@ function bringsNewRecordings(before, session) {
 // The window left is one read to one write; a lap landing in it is still
 // picked up by the next lap's run, or by an open. ISO times compare as text.
 export function keepNewerLive(session, stored, log = () => {}) {
+  // The cloud's analysis writes the whole session doc: the heal's note stays.
+  if (stored?.rebuilt && !session.rebuilt) session.rebuilt = stored.rebuilt;
   const storedLive = stored?.live?.updatedAt;
   if (
     typeof storedLive === 'string' &&
@@ -333,6 +336,16 @@ async function healOps(backend, before, out, log) {
     } stretch(es) kept (${plan.kept.join(', ')})`,
   );
   const kept = new Set(plan.kept);
+  // The session says it was rebuilt (its header line), and a kept stretch
+  // needs the cloud to analyse it again: the live stamp reads stale, so the
+  // next open runs every stored recording, the kept stretch's laps get their
+  // tyres withdrawn and the aggregates include them (plank #5676).
+  session.rebuilt = {
+    at: new Date().toISOString(),
+    replaced: Object.keys(plan.replaced).length,
+    kept: plan.kept.length,
+  };
+  if (plan.kept.length > 0) session.analysis = {...LIVE_STAMP};
   return {
     ops: plan.ops,
     protectedLapIds: laps
