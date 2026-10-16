@@ -41,3 +41,16 @@ test('a lap range is the samples after its first, so adjacent laps never count a
 test('no pedal channels: null, not zero', () => {
   assert.equal(coastSeconds({t: [0, 1], speed_kmh: [100, 100]}, 0, 1), null);
 });
+
+test('a dropped-frame gap is not coast: each sample owns at most 0.1 s', () => {
+  // 10 Hz rows, then a 2 s hole, then rows again, all off-pedal at speed.
+  const t = [0, 0.1, 0.2, 2.2, 2.3];
+  const s = {
+    t,
+    throttle_pct: t.map(() => 0),
+    brake_pct: t.map(() => 0),
+    speed_kmh: t.map(() => 200),
+  };
+  // Four samples after the first, each counted at most 0.1 s: 0.4, not 2.3.
+  assert.equal(coastSeconds(s, 0, 4), 0.4);
+});
