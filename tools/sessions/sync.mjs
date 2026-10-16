@@ -52,7 +52,7 @@ import {describeCheck} from './irCapture.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {captureExtract} from './captureExtract.mjs';
-import {adoptLiveIds, confirmAdoptions} from './heal.mjs';
+import {adoptLiveIds, confirmAdoptions, settleSupersedes} from './heal.mjs';
 import {liveCover, readLiveIndex} from './liveSession.mjs';
 import {usableLiveIndex} from './brokenWheels.mjs';
 import {makeBuilder} from './buildSession.mjs';
@@ -427,6 +427,14 @@ async function main() {
     ))
       log(`  ${s.id}: the game file replaces the live copy in place`);
   }
+  // A tombstone that failed after its healed upload is tried again here.
+  if (remoteStore && Object.keys(state.pendingSupersede ?? {}).length)
+    await settleSupersedes(
+      state.pendingSupersede,
+      (oldId, byId) =>
+        remoteStore.supersedeSession(oldId, byId, new Date().toISOString()),
+      log,
+    );
   log(`${files.length} recordings in ${sessions.length} sessions (${folder})`);
 
   if (flag('--list')) {
@@ -590,16 +598,15 @@ async function runPool(
           // the hash id is tombstoned, after the upload and its stale stamp
           // are written, so there is never a moment with no copy.
           if (s.hashId) {
-            const moved = await store.supersedeSession(
-              s.hashId,
-              s.id,
-              new Date().toISOString(),
-            );
+            (state.pendingSupersede ??= {})[s.hashId] = s.id;
             delete state.sessions[s.hashId];
-            if (moved)
-              log(
-                `  heal: ${s.hashId} replaced by ${s.id} (${moved.recordings} recording(s), ${moved.laps} lap(s) hidden)`,
-              );
+            saveState(state);
+            await settleSupersedes(
+              state.pendingSupersede,
+              (oldId, byId) =>
+                store.supersedeSession(oldId, byId, new Date().toISOString()),
+              log,
+            );
           }
           state.extracts ??= {};
           // Its extract, if the capture gave one, went up with it.

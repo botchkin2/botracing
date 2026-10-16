@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
-import {adoptLiveIds, confirmAdoptions, healPlan, DEFECT} from './heal.mjs';
+import {
+  adoptLiveIds,
+  confirmAdoptions,
+  healPlan,
+  settleSupersedes,
+  DEFECT,
+} from './heal.mjs';
 import {liveCover} from './liveSession.mjs';
 import {createStore} from './store.mjs';
 import {memoryStore} from '../golden/memoryStore.mjs';
@@ -218,4 +224,23 @@ test('the hand rebuild is tombstoned after the healed session is up, and nothing
   };
   assert.deepEqual(await store.upload(out), {skipped: 'superseded'});
   assert.equal(db.docs.get('sessions/H').supersededBy, 'L');
+});
+
+test('a tombstone that fails after the healed upload stays pending and goes through on the next sync', async () => {
+  const pending = {H1: 'L1', H2: 'L2'};
+  let fail = true;
+  const calls = [];
+  const supersede = async (oldId, byId) => {
+    calls.push(oldId);
+    if (oldId === 'H1' && fail) throw new Error('network');
+    return {recordings: 1, laps: 2};
+  };
+  const lines = [];
+  await settleSupersedes(pending, supersede, l => lines.push(l));
+  assert.deepEqual(pending, {H1: 'L1'}, 'only the failed one stays');
+  assert.ok(lines.some(l => l.includes('not hidden yet')));
+  fail = false;
+  await settleSupersedes(pending, supersede, () => {});
+  assert.deepEqual(pending, {});
+  assert.deepEqual(calls, ['H1', 'H2', 'H1']);
 });

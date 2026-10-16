@@ -134,3 +134,27 @@ export async function confirmAdoptions(adopted, exists) {
   }
   return standing;
 }
+
+/**
+ * The hand rebuilds waiting to be tombstoned (`pending`: {hashId: healedId},
+ * kept in the sync state). A failed tombstone stays pending and is tried again
+ * on the next sync (bearing #5693); one that went through, or whose session is
+ * already gone or superseded, is dropped. `supersede(oldId, byId)` is the
+ * store's, returning what it hid or null.
+ */
+export async function settleSupersedes(pending, supersede, log = () => {}) {
+  for (const [oldId, byId] of Object.entries(pending)) {
+    try {
+      const moved = await supersede(oldId, byId);
+      if (moved)
+        log(
+          `  heal: ${oldId} replaced by ${byId} (${moved.recordings} recording(s), ${moved.laps} lap(s) hidden)`,
+        );
+      delete pending[oldId];
+    } catch (e) {
+      log(
+        `  heal: ${oldId} not hidden yet, tried again next sync: ${e.message}`,
+      );
+    }
+  }
+}
