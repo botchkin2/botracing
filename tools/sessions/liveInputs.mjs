@@ -51,6 +51,8 @@ export function liveInputs({
   sessionId,
   files,
   recordings,
+  // The game's results folder; the parity gate points it at a fixture.
+  resultsFolder = undefined,
 }) {
   const root = dirname(captureDir);
   const span = spanOfLive(files);
@@ -66,7 +68,9 @@ export function liveInputs({
   // a lap during the drive finds none and the run at the close finds it.
   const results =
     first.sim === 'lmu'
-      ? resultsInput(resultsForSpan(span, first.driver, first.sessionType))
+      ? resultsInput(
+          resultsForSpan(span, first.driver, first.sessionType, resultsFolder),
+        )
       : null;
   if (first.sim !== 'lmu')
     return {

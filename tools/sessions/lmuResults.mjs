@@ -98,10 +98,18 @@ export function lapSpansOf(xml, driverName) {
     num: Number(m[1]),
     start: Number(attrsOf(m[2]).et),
   }));
-  return laps.map((l, i) => ({
-    ...l,
-    end: i + 1 < laps.length ? laps[i + 1].start : null,
-  }));
+  // A lap with no start (`et="--.---"`: the garage out-lap of a qualifying
+  // run, tonight's 62Q1) cannot hold a strike and is not a span; the lap before
+  // it has no known end.
+  return laps
+    .map((l, i) => ({
+      ...l,
+      end:
+        i + 1 < laps.length && Number.isFinite(laps[i + 1].start)
+          ? laps[i + 1].start
+          : null,
+    }))
+    .filter(l => Number.isFinite(l.start));
 }
 
 /** The lap a strike's `et` falls in, or null: after his laps, in the last lap, or in none (a re-report). */
@@ -215,10 +223,14 @@ export const WRITE_WINDOW_MS = 30 * 60_000;
  * #5638), not by the header's DateTime, which is the EVENT's start and the same
  * in a weekend's practice, qualifying and race files:
  *  1. the session letter in the file name (P, Q, R) is the recording's;
- *  2. of those, the first one written at or after the recording's end (within
- *     30 min): the game writes it when its session ends.
- * One older than the recording's end cannot be its session, so it is skipped
- * unread (the live path asks at every lap, and the folder holds hundreds).
+
+ *  2. of those, the first one written from the recording's start to 30 min
+ *     after its end: the game writes it when its session ends, which can be
+ *     minutes before the recording does (a race left running after the flag:
+ *     Road Atlanta 2 Oct, file written 7.5 min before the capture ended).
+ * One written before the recording began cannot be its session, so it is
+ * skipped unread (the live path asks at every lap, and the folder holds
+ * hundreds).
  * The header's start must still precede the recording's end, and the layout
  * name, when asked and in both, must agree.
  */
@@ -233,12 +245,13 @@ export function resultsFor({
   if (!existsSync(folder)) return {absent: 'no results folder'};
   const letter = typeLetter(sessionType);
   if (!letter) return {absent: 'no session type'};
+  const from = Date.parse(span.startedAt);
   const to = Date.parse(span.endedAt);
   let best = null;
   for (const name of readdirSync(folder)) {
     if (typeOfFile(name) !== letter) continue;
     const written = statSync(resolve(folder, name)).mtimeMs;
-    if (written < to - 60_000 || written > to + WRITE_WINDOW_MS) continue;
+    if (written < from || written > to + WRITE_WINDOW_MS) continue;
     if (best && written >= best.written) continue;
     const xml = readFileSync(resolve(folder, name), 'utf8');
     const file = parseResults(xml);

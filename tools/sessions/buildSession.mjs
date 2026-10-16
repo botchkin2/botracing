@@ -23,6 +23,8 @@ export function makeBuilder({
   catalogOnly,
   captureRoot,
   log,
+  // The game's results folder; the parity gate points it at a fixture.
+  resultsFolder = undefined,
 }) {
   // Every car's class in an iRacing session, from its .ibt (irClasses.mjs);
   // none when the file can't be read.
@@ -146,7 +148,14 @@ export function makeBuilder({
     const results =
       foldOnly || sim !== 'lmu'
         ? null
-        : resultsInput(resultsForSpan(span, first.driver, first.sessionType));
+        : resultsInput(
+            resultsForSpan(
+              span,
+              first.driver,
+              first.sessionType,
+              resultsFolder,
+            ),
+          );
     const out = analyzeFromArchive({
       ownerId,
       sessionId: s.id,

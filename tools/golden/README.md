@@ -60,6 +60,7 @@ capture's field `mDriverName` is empty and its `playerName` is `seat-test`).
   only, and `laps.first` / `laps.last` name a pair's first and last lap. An entry
   marked `gap` is a known missing feature or an open finding
   (`docs/SESSION_PIPELINE.md`) and is deleted when it is fixed or ruled on.
+- `results/<pair>.xml`: the game's results file for a pair (thread 70): his rows only, his name the placeholder `__DRIVER__` and no team, car or other driver, pinned by sha256 in `manifest.json` (`parityResults`). `parity.mjs` fills the name in per source (the capture's meta says who he is, the cut game file says seat-test) and writes the file where the game would have, so both paths read the same rulings; the manifest then expects `trackLimits` on the session and the laps (`checkSession`, `results: true`). Road Atlanta 3 Oct: five No Further Action strikes, two of them outside his laps.
 - `parity.test.mjs`: the rules everywhere; the pairs where `PARITY_PAIRS` names
   their folder. CI's `contract-replay` job fetches them (sha256-pinned in
   `.github/workflows/test.yml`) on any change to the tray, sessions, golden or

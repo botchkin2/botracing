@@ -319,3 +319,58 @@ test('a name is matched exactly: accents and a trailing space count, XML entitie
   assert.deepEqual(ets('Tom & Jerry'), [170]);
   assert.deepEqual(ets('Zoe Muller'), []);
 });
+
+test('a file written minutes before the recording ends is that session (Road Atlanta 2 Oct: the race left running after the flag), and one written before it began is not', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'results-'));
+  try {
+    const laps = [
+      [1, 7.1, 130],
+      [2, 137.1, null],
+      [3, 267.1, 130],
+    ];
+    for (const [name, written] of [
+      ['2026_10_02_20_58_14-47R1.xml', '2026-10-15T00:58:14Z'],
+      ['2026_10_02_18_00_00-10R1.xml', '2026-10-14T22:00:00Z'],
+    ]) {
+      const path = join(dir, name);
+      writeFileSync(path, file([row('Me', 1, 4, 150)], driver('Me', laps)));
+      utimesSync(path, new Date(written), new Date(written));
+    }
+    const found = resultsFor({
+      span: {
+        startedAt: '2026-10-15T00:12:24Z',
+        endedAt: '2026-10-15T01:05:45Z',
+      },
+      driverName: 'Me',
+      sessionType: 'Race',
+      folder: dir,
+    });
+    assert.deepEqual(
+      found.strikes.map(k => k.outcome),
+      ['warning'],
+    );
+  } finally {
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('a lap with no start time (the garage out-lap of a qualifying run) is no span, and the coverage starts at the first lap that has one (tonight, 62Q1)', () => {
+  const xml = file(
+    [row('Me', 2, 7, 200)],
+    `<Driver><Name>Me</Name>
+<Lap num="1" p="4" et="--.---" topspeed="241">--.----</Lap>
+<Lap num="2" p="4" et="175.02" s1="30.5">121.5</Lap>
+<Lap num="3" p="5" et="299.66" s1="29.5">120.1</Lap>
+</Driver>`,
+  );
+  assert.deepEqual(
+    lapSpansOf(xml, 'Me').map(s => [s.num, s.start, s.end]),
+    [
+      [2, 175.02, 299.66],
+      [3, 299.66, null],
+    ],
+  );
+  const r = strikesOf(xml, 'Me');
+  assert.equal(r.coveredFrom, 175.02);
+  assert.equal(r.strikes.length, 1);
+});
