@@ -24,6 +24,7 @@ import {catalogStamp} from './catalogStamp.mjs';
 import {isStale} from './versionKey.mjs';
 import {unpackState} from './layoutBoundaries.mjs';
 import {createStore} from './store.mjs';
+import {mapLimit} from './mapLimit.mjs';
 
 /**
  * Whether a stored session needs analysing again now: the rules it was made
@@ -114,13 +115,16 @@ export async function analyzeStored({
     // line (pit-wall thread 66): read back as one file through a glob, which
     // gives the same docs as the whole file.
     const parts = doc.archive.parts ?? null;
-    if (parts) {
-      for (const [i, part] of parts.entries()) {
+    // Side by side: one at a time, a 31-lap race spent 5.3 s here (pit wall
+    // thread 69 #5718).
+    if (parts)
+      await mapLimit(parts, 8, async (part, i) => {
         const n = String(i).padStart(3, '0');
-        await download(backend, part.samples, owner, join(workDir, `${id}.samples.${n}.parquet`));
-        await download(backend, part.events, owner, join(workDir, `${id}.events.${n}.parquet`));
-      }
-    }
+        await Promise.all([
+          download(backend, part.samples, owner, join(workDir, `${id}.samples.${n}.parquet`)),
+          download(backend, part.events, owner, join(workDir, `${id}.events.${n}.parquet`)),
+        ]);
+      });
     const samplesPath = join(workDir, `${id}.samples${parts ? '.*' : ''}.parquet`);
     const eventsPath = join(workDir, `${id}.events${parts ? '.*' : ''}.parquet`);
     if (!parts) {

@@ -211,7 +211,10 @@ times.
 HTTP from the tray, the same calls in the cloud).
 
 - **`upload`** (after an analysis): the session, its laps (laps the run did not
-  make are deleted), traces, slices, band, field file, capture extract.
+  make are deleted), traces, slices, band, field file, capture extract. A
+  trace is sent only when its md5 differs from the stored one, so a live
+  session's run doesn't rewrite the laps it already wrote; the cloud run
+  downloads a recording's parts eight at a time.
 - **`uploadLive`** (the tray, each lap): the parts no stored recording doc
   lists (md5), recording docs, the session doc merged. No lap docs, no
   analysis; what the last analysis wrote stays until the next one.

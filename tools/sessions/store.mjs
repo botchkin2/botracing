@@ -432,16 +432,22 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
       {contentType, gzip: true},
     );
 
+  // A finished lap's trace is the same bytes on every run (both stores gzip at
+  // level 9, which is deterministic), so only a trace whose md5 differs from
+  // the stored one is sent: a live session's runs no longer rewrite every lap
+  // they already wrote (lap 30 of a race: 10 of a 27 s run was the write;
+  // pit wall thread 69 #5718).
   let traces = 0;
-  const queue = [...out.traces];
-  const workers = Array.from({length: 8}, async () => {
-    for (let job = queue.shift(); job; job = queue.shift()) {
-      await putGzip(job.dest, job.csv(), 'text/csv');
-      traces++;
-    }
+  await mapLimit(out.traces, 8, async job => {
+    const text = job.csv();
+    const md5 = createHash('md5')
+      .update(gzipSync(Buffer.from(text, 'utf8'), {level: 9}))
+      .digest('base64');
+    if ((await backend.fileMd5(job.dest)) === md5) return;
+    await putGzip(job.dest, text, 'text/csv');
+    traces++;
   });
-  await Promise.all(workers);
-  log(`  traces ${traces}`);
+  log(`  traces ${traces} of ${out.traces.length} sent`);
 
   if (out.captureExtract)
     await putGzip(

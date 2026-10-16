@@ -209,3 +209,33 @@ test('the parts and the field go up side by side, and the docs only after all of
   await createStore(b).uploadLive(withField(3, 'aaaa11112222'));
   assert.ok(peak >= 3, `peak ${peak}`);
 });
+
+// A finished lap's trace is not sent again (pit wall thread 69 #5718): the
+// stores gzip at level 9, so the stored md5 is the md5 of these bytes.
+test('an analysis run sends only the traces whose content changed', async () => {
+  const {gzipSync} = await import('node:zlib');
+  const b = backend();
+  const sent = [];
+  b.putFile = async (dest, {body}, {gzip} = {}) => {
+    const bytes = gzip ? gzipSync(body, {level: 9}) : body;
+    b.files.set(dest, createHash('md5').update(bytes).digest('base64'));
+    sent.push(dest);
+  };
+  const store = createStore({...b, sessionLapIds: async () => [], deleteFile: async () => {}, listFiles: async () => []});
+  const run = csvs => ({
+    session: {id: 's1', ownerId: 'o', recordingIds: [], analysis: analysisStamp(17, {})},
+    recordings: [],
+    laps: [],
+    traces: csvs.map((text, i) => ({dest: `traces/s1/l${i}.csv.gz`, csv: () => text})),
+    files: [],
+    band: null,
+    track: null,
+    boundaries: null,
+  });
+  await store.upload(run(['lap 1', 'lap 2']));
+  assert.deepEqual(sent, ['traces/s1/l0.csv.gz', 'traces/s1/l1.csv.gz']);
+  sent.length = 0;
+  // The next lap lands: the two finished laps are the same bytes, one is new.
+  await store.upload(run(['lap 1', 'lap 2', 'lap 3']));
+  assert.deepEqual(sent, ['traces/s1/l2.csv.gz']);
+});
