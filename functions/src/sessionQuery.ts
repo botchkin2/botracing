@@ -110,8 +110,6 @@ export function listVersion(
  * a Firestore query on a missing field drops every doc that lacks it; a
  * superseded session stays readable by id for its link and a restore.
  */
-export function withoutSuperseded<T extends {supersededBy?: unknown}>(
-  docs: T[],
-): T[] {
-  return docs.filter(d => !d.supersededBy);
+export function withoutSuperseded<T extends object>(docs: T[]): T[] {
+  return docs.filter(d => !(d as {supersededBy?: unknown}).supersededBy);
 }
