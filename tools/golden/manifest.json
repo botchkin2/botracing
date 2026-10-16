@@ -127,5 +127,13 @@
         "bytes": 4583
       }
     }
+  },
+  "parityResults": {
+    "road-atlanta-2026-10-03-race": {
+      "why": "his Road Atlanta race rulings: the game's results file for the parity pair, his rows only, his name a placeholder (parity.mjs fills it per source)",
+      "file": "results/road-atlanta-2026-10-03-race.xml",
+      "sha256": "48e114629cbc57a86d8ef689df5a87ad835f1437d50cd7a57cdfe71a792d0ed1",
+      "bytes": 5207
+    }
   }
 }

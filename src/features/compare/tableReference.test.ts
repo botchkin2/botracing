@@ -139,7 +139,10 @@ describe('tableReference', () => {
     const f = {...rawLap('f', 2, 4, 14, 14), cornerBoundaries: {v: 1, rev: 0}};
     const all = toLaps([...stintLaps, f]);
     const ids = new Map(all.map(l => [l.id, l]));
-    for (const order of [['f', 'a'], ['a', 'f']]) {
+    for (const order of [
+      ['f', 'a'],
+      ['a', 'f'],
+    ]) {
       const r = tableReference({
         selected: order.map(id => ids.get(id)!),
         sessionLaps: all,

@@ -13,6 +13,8 @@ import * as duck from './duck.mjs';
 import {fieldFor} from './field.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
+import {resultsForSpan} from './lmuResults.mjs';
+import {resultsInput} from './resultsInput.mjs';
 
 /** The session's capture window, as sync.mjs spanOf: tracks and wall times. */
 export function spanOfLive(files) {
@@ -43,7 +45,15 @@ function liteOf(samplePaths) {
  * live capture's field needs the .ibt's classes (irField.mjs) and stays with
  * the game-file sync for now.
  */
-export function liveInputs({captureDir, ownerId, sessionId, files, recordings}) {
+export function liveInputs({
+  captureDir,
+  ownerId,
+  sessionId,
+  files,
+  recordings,
+  // The game's results folder; the parity gate points it at a fixture.
+  resultsFolder = undefined,
+}) {
   const root = dirname(captureDir);
   const span = spanOfLive(files);
   const first = files[0].info;
@@ -54,21 +64,52 @@ export function liveInputs({captureDir, ownerId, sessionId, files, recordings}) 
         ? raceLengthFor(root, span)
         : null,
   });
+  // The game's rulings: its results file exists once the session has ended, so
+  // a lap during the drive finds none and the run at the close finds it.
+  const results =
+    first.sim === 'lmu'
+      ? resultsInput(
+          resultsForSpan(span, first.driver, first.sessionType, resultsFolder),
+        )
+      : null;
   if (first.sim !== 'lmu')
-    return {field: null, fieldText: null, fieldReason: 'iRacing: from the game file', extract};
+    return {
+      field: null,
+      fieldText: null,
+      fieldReason: 'iRacing: from the game file',
+      extract,
+      resultsInput: results,
+    };
   const lite = recordings.map(r => liteOf(r.samplePaths)).filter(Boolean);
   if (lite.length === 0)
-    return {field: null, fieldText: null, fieldReason: 'no samples', extract};
+    return {
+      field: null,
+      fieldText: null,
+      fieldReason: 'no samples',
+      extract,
+      resultsInput: results,
+    };
   const out = fieldFor(root, span, lite);
   if (!out.field)
-    return {field: null, fieldText: null, fieldReason: out.reason, extract};
+    return {
+      field: null,
+      fieldText: null,
+      fieldReason: out.reason,
+      extract,
+      resultsInput: results,
+    };
   // Named by its content, as analyzeFromArchive.mjs does (pitlane #680).
   const fieldText = JSON.stringify(out.field);
   const hash = createHash('sha1').update(fieldText).digest('hex').slice(0, 12);
   return {
-    field: {path: `field/${ownerId}/${sessionId}/${hash}.json.gz`, hash, ...out.meta},
+    field: {
+      path: `field/${ownerId}/${sessionId}/${hash}.json.gz`,
+      hash,
+      ...out.meta,
+    },
     fieldText,
     fieldReason: null,
     extract,
+    resultsInput: results,
   };
 }

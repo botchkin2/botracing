@@ -12,7 +12,10 @@ const wheels = ['FL', 'FR', 'RL', 'RR'];
 // A lap that ran from line to line, so the game times it or invalidates it.
 const whole = lap => !lap.partial && !lap.pitIn && !lap.pitOut;
 
-export function checkSession({session, laps}, {otherCars = 0} = {}) {
+export function checkSession(
+  {session, laps},
+  {otherCars = 0, results = false} = {},
+) {
   const misses = [];
   const miss = (feature, detail) => misses.push(`${feature}: ${detail}`);
   if (!session) return ['session: missing'];
@@ -20,7 +23,10 @@ export function checkSession({session, laps}, {otherCars = 0} = {}) {
 
   for (const lap of laps) {
     if (whole(lap) && !lap.timed && lap.invalid !== true)
-      miss('lap time', `L${lap.lapNumber + 1} has neither a time nor the game's invalid flag`);
+      miss(
+        'lap time',
+        `L${lap.lapNumber + 1} has neither a time nor the game's invalid flag`,
+      );
     // The flag is the game's track-limits call, and only that: never a pit lap.
     if (lap.invalid === true && (lap.pitIn || lap.pitOut))
       miss('invalid', `L${lap.lapNumber + 1} is a pit lap flagged invalid`);
@@ -46,8 +52,18 @@ export function checkSession({session, laps}, {otherCars = 0} = {}) {
     if (!distinct) miss('tyres', 'all four wheels equal on every lap');
   }
 
+  // The game wrote a results file for the drive: its rulings are stored on the
+  // session and on every lap it covers (thread 70), whichever path built it.
+  if (results) {
+    if (!session.trackLimits)
+      miss('track limits', 'the game wrote a results file, none stored');
+    else if (!laps.some(l => Array.isArray(l.trackLimits)))
+      miss('track limits', 'no lap carries the game rulings');
+  }
+
   if (otherCars > 0) {
-    if (!session.field) miss('other cars', `the source had ${otherCars}, none stored`);
+    if (!session.field)
+      miss('other cars', `the source had ${otherCars}, none stored`);
     else if (session.field.cars < 2)
       miss('other cars', `${session.field.cars} car(s) stored`);
     if (!session.classLaps) miss('class laps', 'none with a field');

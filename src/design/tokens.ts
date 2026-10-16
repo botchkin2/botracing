@@ -26,7 +26,6 @@ const dark = {
   slower: '#ed4a49',
   // The off-track mark (Race lanes and map, D52): its own token, not `slower`,
   // which means a signed loss.
-  offTrack: '#ed4a49',
   median: '#3a4148',
   band: 'rgba(230,232,234,0.07)',
   track: '#262b31',
@@ -88,7 +87,6 @@ const light: ColorTokens = {
   best: '#7d40c8',
   faster: '#25984d',
   slower: '#b00a1d',
-  offTrack: '#b00a1d',
   median: '#c9cdd1',
   band: 'rgba(17,19,22,0.07)',
   track: '#d5d9dd',
@@ -145,11 +143,11 @@ export function hueOf(hex: string): number {
   return (h * 60 + 360) % 360;
 }
 
-/** The app's one-meaning colours (best, faster, slower, accent, off-track). A lap hue must not read as one of them. */
+/** The app's one-meaning colours (best, faster, slower, accent). A lap hue must not read as one of them. */
 export const RESERVED_HUE_GAP = 15;
 export function reservedHues(scheme: Scheme): number[] {
   const c = colors[scheme];
-  return [c.accent, c.best, c.faster, c.slower, c.offTrack].map(hueOf);
+  return [c.accent, c.best, c.faster, c.slower].map(hueOf);
 }
 const hueDistance = (a: number, b: number) => {
   const d = Math.abs(a - b) % 360;

@@ -52,6 +52,8 @@ import {describeCheck} from './irCapture.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {captureExtract} from './captureExtract.mjs';
+import {resultsForSpan} from './lmuResults.mjs';
+import {backlogCandidates, uploadResultsBacklog} from './resultsBacklog.mjs';
 import {adoptLiveIds, confirmAdoptions, settleSupersedes} from './heal.mjs';
 import {liveCover, readLiveIndex} from './liveSession.mjs';
 import {usableLiveIndex} from './brokenWheels.mjs';
@@ -389,6 +391,31 @@ function describeSession(s) {
   } | ${info.car} | ${s.files.length} file(s)`;
 }
 
+// This tray start, for resultsBacklog.mjs: a session with no results file is
+// looked at once per start after its retry window. The watcher passes its own.
+const resultsRun = arg('--run', new Date().toISOString());
+
+function keepResults(sessions, state, store, liveIndex) {
+  const nowMs = Date.now();
+  return uploadResultsBacklog({
+    candidates: backlogCandidates({
+      sessions,
+      state,
+      spanOf,
+      liveIndex,
+      captureRoot,
+    }),
+    state,
+    store,
+    ownerId,
+    resultsForSpan,
+    saveState: () => saveState(state),
+    log,
+    nowMs,
+    run: resultsRun,
+  });
+}
+
 async function main() {
   const state = readState();
   // A session uploaded for another account counts as new for this one.
@@ -396,6 +423,23 @@ async function main() {
   if (forgotten)
     log(`${forgotten} session(s) were uploaded for another account: new here`);
   if (!since && state.since) since = state.since;
+  // --results-live: the same, for the live-uploaded sessions only, without
+  // scanning the telemetry folder: cheap enough to run every minute while a
+  // session has just ended (watch.mjs).
+  if (flag('--results-live')) {
+    if (local || check) {
+      console.error('--results-live uploads; it needs --remote (or LAP_API).');
+      process.exit(2);
+    }
+    const liveStore = remoteStore ?? (await import('./store.mjs'));
+    await keepResults(
+      [],
+      state,
+      liveStore,
+      usableLiveIndex(readLiveIndex(work), captureRoot),
+    );
+    return;
+  }
   const scanned = scan(state);
   if (!check) saveState(state);
   // A drive live laps already uploaded (syncLive.mjs) is that session: its
@@ -442,6 +486,18 @@ async function main() {
     return;
   }
 
+  // --results: only the game's results for stored sessions that lack them
+  // (the watcher runs it once per tray start, resultsBacklog.mjs).
+  if (flag('--results')) {
+    if (local || check) {
+      console.error('--results uploads; it needs --remote (or LAP_API).');
+      process.exit(2);
+    }
+    const resultsStore = remoteStore ?? (await import('./store.mjs'));
+    await keepResults(sessions, state, resultsStore, liveIndex);
+    return;
+  }
+
   const eventWindows = adapter.readEventWindows({
     logFolder,
     cachePath: resolve(work, 'events.json'),
@@ -485,6 +541,7 @@ async function main() {
     todo = todo.filter(s => !skipIds.has(s.id));
   }
   if (!local && !check) await uploadCaptureBacklog(sessions, state, store);
+  if (!local && !check) await keepResults(sessions, state, store, liveIndex);
   if (!local && !check) await repairIracingArchives(sessions, state, store);
   // The watcher reads this line for the heartbeat's done/total.
   log(`to do ${todo.length}`);
@@ -611,6 +668,12 @@ async function runPool(
           state.extracts ??= {};
           // Its extract, if the capture gave one, went up with it.
           state.extracts[s.id] = 'with-session';
+          // Its results input went up with it only if the game had written a
+          // file; otherwise the backlog looks again (resultsBacklog.mjs).
+          if (r.resultsSent) {
+            state.resultsInputs ??= {};
+            state.resultsInputs[s.id] = 'with-session';
+          }
           saveState(state);
         }
       } else {
@@ -720,6 +783,7 @@ async function processSession(
     track: out.track,
     boundaries: out.boundaries,
     rev: out.boundariesRev,
+    resultsSent: Boolean(out.resultsInput),
   };
 }
 

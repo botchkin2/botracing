@@ -66,10 +66,10 @@ describe('orderTags', () => {
         {code: 'HIT'},
         {code: 'TOW 6.1 s'},
         {code: 'PASS +1'},
-        {code: 'OFF 2.0'},
+        {code: 'LIM 2'},
         {code: 'SLOW'},
       ]),
-    ).toEqual(['SLOW', 'TOW 6.1 s', 'BEST', 'OFF 2.0', 'HIT', 'PASS +1']);
+    ).toEqual(['SLOW', 'TOW 6.1 s', 'BEST', 'LIM 2', 'HIT', 'PASS +1']);
     expect(codes([{code: 'BLUE 2.0'}, {code: 'TRAF'}, {code: 'OUT'}])).toEqual([
       'OUT',
       'TRAF',
@@ -115,7 +115,7 @@ describe('TAG_KEY', () => {
       'SLOW',
       'TOW',
       'BEST',
-      'OFF',
+      'LIM',
       'HIT',
       'TRAF',
       'BLUE',

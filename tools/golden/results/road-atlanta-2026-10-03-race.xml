@@ -1,0 +1,33 @@
+<rFactorXML><RaceResults>
+<DateTime>1790985314</DateTime><TrackCourse>Michelin Raceway Road Atlanta</TrackCourse>
+<Stream>
+<TrackLimits Driver="__DRIVER__" ID="31" Lap="2" WarningPoints="0" CurrentPoints="0" Resolution="7" et="373.5">No Further Action</TrackLimits>
+<TrackLimits Driver="__DRIVER__" ID="31" Lap="7" WarningPoints="0" CurrentPoints="0" Resolution="7" et="774.0">No Further Action</TrackLimits>
+<TrackLimits Driver="__DRIVER__" ID="31" Lap="19" WarningPoints="0" CurrentPoints="0" Resolution="7" et="1792.7">No Further Action</TrackLimits>
+<TrackLimits Driver="__DRIVER__" ID="31" Lap="2" WarningPoints="0" CurrentPoints="0" Resolution="7" et="2234.6">No Further Action</TrackLimits>
+<TrackLimits Driver="__DRIVER__" ID="31" Lap="7" WarningPoints="0" CurrentPoints="0" Resolution="7" et="2545.6">No Further Action</TrackLimits>
+</Stream>
+<Driver><Name>__DRIVER__</Name>
+<Lap num="1" p="32" et="159.2425" s1="22.2973" s2="46.1149" s3="30.2392" topspeed="261.41" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">98.6514</Lap>
+<Lap num="2" p="27" et="257.8999" s1="10.9576" s2="44.1803" s3="29.4152" topspeed="262.63" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">84.5532</Lap>
+<Lap num="3" p="26" et="342.4600" s1="10.2432" s2="42.5983" s3="28.6889" topspeed="262.73" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">81.5305</Lap>
+<Lap num="4" p="25" et="423.9800" s1="10.1539" s2="42.2043" s3="28.4106" topspeed="263.51" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">80.7688</Lap>
+<Lap num="5" p="25" et="504.7600" s1="10.1653" s2="41.8532" s3="28.4730" topspeed="263.51" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">80.4914</Lap>
+<Lap num="6" p="25" et="585.2400" s1="10.1221" s2="42.1578" s3="28.4317" topspeed="263.09" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">80.7116</Lap>
+<Lap num="7" p="26" et="665.9600" s1="10.0479" s2="42.7412" s3="29.2260" topspeed="263.06" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">82.0151</Lap>
+<Lap num="8" p="25" et="747.9800" s1="10.2413" s2="43.4037" s3="28.5405" topspeed="263.51" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">82.1855</Lap>
+<Lap num="9" p="23" et="830.1599" s1="10.1035" s2="42.2586" s3="28.5064" topspeed="263.06" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">80.8685</Lap>
+<Lap num="10" p="23" et="911.0200" s1="10.6303" s2="42.2977" s3="28.6223" topspeed="263.51" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">81.5504</Lap>
+<Lap num="11" p="24" et="992.5801" s1="10.2688" s2="42.1099" s3="28.3986" topspeed="263.06" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">80.7772</Lap>
+<Lap num="12" p="24" et="1073.3601" s1="10.1357" s2="41.9122" s3="28.4799" topspeed="263.51" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">80.5278</Lap>
+<Lap num="13" p="23" et="1153.8799" s1="10.1749" s2="41.8367" s3="28.5973" topspeed="263.10" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">80.6089</Lap>
+<Lap num="14" p="22" et="1234.5000" s1="10.1439" s2="41.8411" s3="28.4115" topspeed="263.51" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">80.3965</Lap>
+<Lap num="15" p="22" et="1314.8799" s1="10.1350" s2="42.1938" s3="28.4016" topspeed="263.55" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">80.7305</Lap>
+<Lap num="16" p="23" et="1395.6201" s1="10.1962" s2="42.2395" s3="28.3998" topspeed="264.89" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">80.8354</Lap>
+<Lap num="17" p="23" et="1476.4600" s1="10.0685" s2="41.9603" s3="28.4414" topspeed="265.01" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">80.4702</Lap>
+<Lap num="18" p="23" et="1556.9199" s1="10.2423" s2="41.9342" s3="28.4789" topspeed="263.54" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">80.6554</Lap>
+<Lap num="19" p="22" et="1637.5801" s1="10.0647" s2="42.2867" s3="28.4858" topspeed="264.44" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">80.8373</Lap>
+<Lap num="20" p="21" et="1718.4199" s1="10.4020" s2="41.9786" s3="28.5745" topspeed="263.96" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">80.9551</Lap>
+<Lap num="21" p="21" et="1799.3799" s1="10.1686" s2="41.9635" s3="28.6770" topspeed="265.53" fcompound="0,Medium" rcompound="0,Medium" FL="0,Medium" FR="0,Medium" RL="0,Medium" RR="0,Medium">80.8091</Lap>
+</Driver>
+</RaceResults></rFactorXML>
