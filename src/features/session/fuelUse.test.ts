@@ -102,6 +102,39 @@ describe('buildFuelUse', () => {
     ).toBeNull();
   });
 
+  it('shows the coast seconds per lap per stint and against stint 1 (his race 32c9d386: about 10 s, then about 17 s)', () => {
+    const coasting = (laps: Lap[], s: number[]) =>
+      laps.map((l, i) => ({...l, coastS: s[i]}));
+    const laps = [
+      ...coasting(
+        stintOf(1, [3.47, 3.45, 3.5, 3.48, 3.46, 3.47], 121.56),
+        [9.8, 10.1, 10.4, 10.4, 10.9, 13],
+      ),
+      ...coasting(
+        stintOf(2, [3.29, 3.27, 3.31, 3.3, 3.28, 3.29], 121.42),
+        [12.3, 15, 16.5, 17, 19.2, 21.7],
+      ),
+    ];
+    const fu = buildFuelUse(session({sessionType: 'R'}), laps)!;
+    expect(fu.stints.map(s => s.medianCoastS)).toEqual([10.4, 16.75]);
+    expect(fu.stints[1].vsFirst!.coastS).toBeCloseTo(6.35, 5);
+    const rows = fuelUseRows(fu);
+    expect(rows[0].lines[0]).toContain('10.4 s coast/lap');
+    expect(rows[1].lines[0]).toContain('16.8 s coast/lap');
+    expect(rows[1].lines.join('|')).toContain('+6.4 s coast/lap');
+  });
+
+  it('gives no coast figure when the laps carry none (a session from before the resync)', () => {
+    const laps = [
+      ...stintOf(1, [3.47, 3.45, 3.5], 121.5),
+      ...stintOf(2, [3.29, 3.27, 3.31], 121.4),
+    ];
+    const fu = buildFuelUse(session({sessionType: 'R'}), laps)!;
+    expect(fu.stints.map(s => s.medianCoastS)).toEqual([null, null]);
+    expect(fu.stints[1].vsFirst!.coastS).toBeNull();
+    expect(fuelUseRows(fu).join('|')).not.toMatch(/coast/);
+  });
+
   it('a practice keeps its laps per load and shows the stint against stint 1 too', () => {
     const laps = [
       ...stintOf(1, [2.4, 2.42, 2.38, 2.41, 2.39, 2.4], 81),

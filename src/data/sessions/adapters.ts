@@ -566,6 +566,8 @@ export type Lap = {
    *  PR #68); absent before the resync, read as false. */
   endedInReset: boolean;
   offTrackS: number;
+  /** Seconds with throttle and brake both under 5 % above 80 km/h (tools/sessions/coast.mjs); null before the resync. */
+  coastS: number | null;
   /** Contact on this lap. LMU records a flag, not a magnitude. */
   hadImpact: boolean;
   /** Per-section facts in track order, precomputed by the uploader. */
@@ -1093,6 +1095,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     fuel: toLapFuel(raw.fuel),
     pitStop: toPitStop(raw.pitStop),
     tyres: toLapTyres(raw.tyres),
+    coastS: num(raw.coastS),
     tyresAbsent: str(raw.tyresAbsent) || null,
     newTyres: false,
     traceHz: num(raw.traceHz),

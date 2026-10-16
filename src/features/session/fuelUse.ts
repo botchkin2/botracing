@@ -35,6 +35,8 @@ export type FuelUseStint = {
   fuelIqrL: number | null;
   medianVePct: number | null;
   medianTimeS: number | null;
+  /** Median seconds a lap spends coasting (pit-wall thread 72); null under MIN_STINT_LAPS laps with the figure. */
+  medianCoastS: number | null;
   /** How many laps one full load lasts at this stint's use, at the session's fill limit. */
   loadLaps: {fuel: number | null; ve: number | null};
   /**
@@ -47,6 +49,7 @@ export type FuelUseStint = {
     fuelL: number;
     vePct: number | null;
     timeS: number;
+    coastS: number | null;
   } | null;
 };
 
@@ -119,12 +122,18 @@ export function buildFuelUse(
     const medianFuelL = enough ? median(fuel) : null;
     const medianVePct =
       enough && ve.length >= MIN_STINT_LAPS ? median(ve) : null;
+    const coast = inStint
+      .map(l => l.coastS)
+      .filter((v): v is number => v != null);
+    const medianCoastS =
+      enough && coast.length >= MIN_STINT_LAPS ? median(coast) : null;
     return {
       n,
       laps: inStint.length,
       medianFuelL,
       fuelIqrL: enough ? iqr(fuel) : null,
       medianVePct,
+      medianCoastS,
       medianTimeS: enough ? median(inStint.map(l => l.timeS as number)) : null,
       loadLaps: {
         fuel:
@@ -148,6 +157,10 @@ export function buildFuelUse(
           ? s.medianVePct - first.medianVePct
           : null,
       timeS: s.medianTimeS - (first.medianTimeS as number),
+      coastS:
+        s.medianCoastS != null && first.medianCoastS != null
+          ? s.medianCoastS - first.medianCoastS
+          : null,
     };
   }
 
@@ -208,6 +221,7 @@ export function vsFirstText(v: NonNullable<FuelUseStint['vsFirst']>): string {
     v.vePct != null && `${formatGap(v.vePct, 2)} % VE/lap`,
     // Time gaps are 3 decimals app-wide (CODE_STANDARDS §4).
     `${formatGap(v.timeS)} s`,
+    v.coastS != null && `${formatGap(v.coastS, 1)} s coast/lap`,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -238,6 +252,7 @@ export function fuelUseRows(fu: FuelUse): FuelUseRow[] {
       }`,
       s.medianVePct != null && `${oneDecimal(s.medianVePct)} % VE/lap`,
       s.medianTimeS != null && formatLapTime(s.medianTimeS),
+      s.medianCoastS != null && `${oneDecimal(s.medianCoastS)} s coast/lap`,
     ].filter(Boolean);
     // A race: the plan owns laps per load (one owner per fact).
     const load = fu.race
