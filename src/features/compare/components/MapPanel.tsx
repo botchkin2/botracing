@@ -69,8 +69,8 @@ export function MapPanel({
   const f = map.follow;
   const geometry = f?.geometry;
   // The strike whose readout is open (a tap on its ring); gone with its lap.
-  const [picked, setPicked] = useState<string | null>(null);
-  const pickedStrike = map.strikes.find(s => s.key === picked) ?? null;
+  const [picked, setPicked] = useState<string[]>([]);
+  const pickedStrikes = map.strikes.filter(s => picked.includes(s.key));
 
   // map.lines is rebuilt on every cursor move; its shown laps and their
   // styles only change with the selection. Key the Follow layers on that, so
@@ -163,8 +163,10 @@ export function MapPanel({
               at: s.at,
               color: lapStyle(s.selIndex, s.highlighted).color,
             }))}
-            pickedStrike={pickedStrike?.key ?? null}
-            onPressStrike={key => setPicked(picked === key ? null : key)}
+            pickedStrike={pickedStrikes.map(s => s.key)}
+            onPressStrike={keys =>
+              setPicked(keys.every(k => picked.includes(k)) ? [] : keys)
+            }
             marks={map.marks}
             openSection={openSection}
             onPressSection={onPressSection}
@@ -200,11 +202,17 @@ export function MapPanel({
           </Text>
         )}
       </View>
-      {mode === 'track' && pickedStrike ? (
-        <Text variant='dataSmall' tone='textMuted' style={styles.caption}>
-          {strikeText(pickedStrike)}
-        </Text>
-      ) : null}
+      {mode === 'track'
+        ? pickedStrikes.map(s => (
+            <Text
+              key={s.key}
+              variant='dataSmall'
+              tone='textMuted'
+              style={styles.caption}>
+              {strikeText(s)}
+            </Text>
+          ))
+        : null}
       {mode === 'track' && !map.realMap ? (
         <Text variant='dataSmall' tone='textMuted' style={styles.caption}>
           Driven line

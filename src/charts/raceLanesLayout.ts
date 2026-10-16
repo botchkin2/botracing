@@ -2,13 +2,7 @@
 // clipped to the window. Pure, so it is tested without a renderer.
 import type {RaceLanes, Span} from '@/src/analysis/raceLanes';
 
-export const LANE_ORDER = [
-  'pit',
-  'tow',
-  'battle',
-  'blue',
-  'pass',
-] as const;
+export const LANE_ORDER = ['pit', 'tow', 'battle', 'blue', 'pass'] as const;
 export type LaneKey = (typeof LANE_ORDER)[number];
 
 export const LANE_LABEL: Record<LaneKey, string> = {
