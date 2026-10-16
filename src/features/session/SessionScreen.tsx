@@ -392,7 +392,9 @@ function SessionView({
       ) : (
         <SessionHead facts={model.facts} />
       )}
-      {model.rebuilt ? <RebuiltLine rebuilt={model.rebuilt} /> : null}
+      {!layout.isDesktop && model.rebuilt ? (
+        <RebuiltLine rebuilt={model.rebuilt} />
+      ) : null}
       {model.classTable ? <ClassTableView table={model.classTable} /> : null}
 
       {chartBlock(tableW)}
