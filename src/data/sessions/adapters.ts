@@ -364,6 +364,10 @@ export type SessionDetail = SessionSummary & {
   trackVariant: string;
   /** Made under older analysis rules: opening it runs it again (analysisOnOpen.ts). */
   stale: boolean;
+  /** A game-file rebuild replaced the live copy of this session in place (heal.mjs); absent otherwise. */
+  rebuilt?: {atMs: number; replaced: number; kept: number} | null;
+  /** The healed session that replaced this one (heal.mjs); its link opens that one. Absent otherwise. */
+  supersededBy?: string | null;
   /**
    * Live laps (pit-wall thread 66): the tray uploads each lap while the game
    * runs (`liveAt`, live.ts). `archiveParts` counts the laps stored so far, so a
@@ -457,6 +461,14 @@ function toRaceLength(v: unknown): RaceLength | null {
   return minutes != null && minutes > 0 ? {minutes} : null;
 }
 
+function toRebuilt(v: unknown): SessionDetail['rebuilt'] {
+  const x = obj(v);
+  const atMs = Date.parse(str(x.at));
+  return Number.isFinite(atMs)
+    ? {atMs, replaced: num(x.replaced) ?? 0, kept: num(x.kept) ?? 0}
+    : null;
+}
+
 export function toSessionDetail(raw: RawSession): SessionDetail {
   const stints = Array.isArray(raw.stints) ? raw.stints : [];
   const consistencyStints = obj(raw.consistency).stints;
@@ -470,6 +482,8 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     ...toSessionSummary(raw),
     trackVariant: str(obj(raw.track).variant),
     stale: raw.stale === true,
+    rebuilt: toRebuilt(raw.rebuilt),
+    supersededBy: str(raw.supersededBy) || null,
     archiveParts: num(raw.archiveParts),
     liveAt: toLiveAt(raw.live),
     field: toFieldPointer(raw.field),
@@ -567,6 +581,8 @@ export type Lap = {
   pitStop: PitStop | null;
   /** Per-wheel tyre facts (tools/sessions/tyres.mjs); null before the resync or without the channels. */
   tyres: LapTyres | null;
+  /** Why this lap has no tyres when its recording's wheel channels are known bad (heal.mjs); absent otherwise. */
+  tyresAbsent?: string | null;
   /**
    * The first lap on new tyres (`freshTyres` in src/analysis/tyres.ts, from
    * the lap before): a pit stop that changed any wheel ended in it, or it
@@ -1077,6 +1093,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     fuel: toLapFuel(raw.fuel),
     pitStop: toPitStop(raw.pitStop),
     tyres: toLapTyres(raw.tyres),
+    tyresAbsent: str(raw.tyresAbsent) || null,
     newTyres: false,
     traceHz: num(raw.traceHz),
   }));

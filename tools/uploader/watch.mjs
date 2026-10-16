@@ -677,6 +677,7 @@ async function main() {
             watch.lastUploadAt = new Date().toISOString();
             watch.lastSessionId = r.stored[0] ?? watch.lastSessionId;
             watch.sessionsDone = (watch.sessionsDone ?? 0) + r.done;
+            watch.healed = (watch.healed ?? 0) + r.healed;
           }
           if (r.stoppedForGame) {
             // Not a failure: nothing to retry or report. The trigger still

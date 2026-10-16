@@ -46,6 +46,11 @@ export function trackLimitsOf(laps, results) {
   };
 }
 
+// A stretch kept from a defective capture (heal.mjs): its wheel columns are
+// one wheel four times, so its laps carry no tyres and say why.
+const TYRES_DEFECT_WHY = 'recorder 0.1.9-0.1.10 merged wheels';
+const tyresDefect = info => info?.defects?.includes('mergedWheels') ?? false;
+
 /**
  * @param {object} input
  * @param {string} input.ownerId
@@ -198,7 +203,11 @@ export function analyzeFromArchive({
       // pressure and temperatures, and the wheels changed in the stop that
       // ended during it (tyres.mjs); null without the channels. The lap after
       // a change is the first on new tyres (consistency's cold-tyres rule).
-      tyres: lap.tyres,
+      // A stretch kept from a defective capture (heal.mjs) has no tyres.
+      tyres: tyresDefect(recordings[lap.rec].info) ? null : lap.tyres,
+      ...(tyresDefect(recordings[lap.rec].info)
+        ? {tyresAbsent: TYRES_DEFECT_WHY}
+        : {}),
       tyreCarcassC: lap.tyreCarcassC,
       courseYellowSec: lap.courseYellowSec,
       compound: lap.compound,

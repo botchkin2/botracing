@@ -240,6 +240,15 @@ jobs:
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      # The installer's last guard by construction: botracing.exe held with no
+      # sharing for 3 s, and N must wait for it (hooks.nsh), not stop on
+      # "Error opening file for writing" (pit wall thread 71).
+      - name: Install N over a held botracing.exe
+        working-directory: .
+        run: |
+          ./desktop/scripts/e2e-exe-lock.ps1 -Installer (Join-Path $env:RUNNER_TEMP "rehearsal/$env:NEW-setup.exe")
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - uses: actions/upload-artifact@v7
         if: ${{ always() && inputs.rehearsals > 1 }}
         with:

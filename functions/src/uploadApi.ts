@@ -35,9 +35,13 @@ function firebaseDocs(): DocStore {
         .collection(collectionPath)
         .where('sessionId', '==', sessionId)
         .where('ownerId', '==', ownerKey)
-        .select()
+        .select('supersededBy')
         .get();
-      return snap.docs.map(doc => doc.id);
+      // A superseded lap (heal.mjs) is not the session's: the uploader's
+      // leftover cleanup must not see it, or it would delete the tombstone.
+      return snap.docs
+        .filter(doc => !doc.get('supersededBy'))
+        .map(doc => doc.id);
     },
     async commit(writes) {
       const batch = db.batch();

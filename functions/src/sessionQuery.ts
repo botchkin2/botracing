@@ -103,3 +103,13 @@ export function listVersion(
     .digest('hex')
     .slice(0, 16);
 }
+
+/**
+ * The sessions a list shows: not one a healed session replaced
+ * (tools/sessions/heal.mjs, `supersededBy`). Applied after the read, because
+ * a Firestore query on a missing field drops every doc that lacks it; a
+ * superseded session stays readable by id for its link and a restore.
+ */
+export function withoutSuperseded<T extends object>(docs: T[]): T[] {
+  return docs.filter(d => !(d as {supersededBy?: unknown}).supersededBy);
+}

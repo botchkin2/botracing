@@ -18,6 +18,7 @@ import {
 import {ClassTableView} from './ClassTable';
 import {EnergyLineRow} from './EnergyLineRow';
 import {LapTableHeader, SectionFooter, WIDE_ROW_H} from './LapTableRow';
+import {RebuiltLine} from './RebuiltLine';
 import {SessionGrid} from './SessionGrid';
 import {StintCornerBars} from './StintCornerBars';
 import {StintsPanel} from './StintsPanel';
@@ -163,6 +164,7 @@ export function SessionWorkspace({
                     }
                   />
                 ) : null}
+                {model.rebuilt ? <RebuiltLine rebuilt={model.rebuilt} /> : null}
                 {model.optimum.length > 0 ? (
                   <>
                     <View style={styles.optimum}>

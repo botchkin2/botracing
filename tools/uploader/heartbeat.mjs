@@ -128,6 +128,10 @@ export function heartbeatDoc({
     // The newer tray the tray holds ready to install; the key is absent with
     // none (updateWaitingOf), so a tray with no update sends what it always did.
     ...(updateWaiting ? {updateWaiting} : {}),
+    // Recordings healed in place (heal.mjs, thread 74 step 1): the first real
+    // heal shows up here without anyone asking. Absent with none, like
+    // updateWaiting, so a beat without a heal is the beat it always was.
+    ...(watch.healed ? {healed: watch.healed} : {}),
   };
 }
 
@@ -234,6 +238,7 @@ export function beatKey(doc) {
     doc.recorder?.state,
     doc.recorder?.layoutOk,
     doc.updateWaiting ?? null,
+    doc.healed ?? 0,
     Object.entries(doc.sims ?? {}).map(([id, s]) => [
       id,
       s.queue,
