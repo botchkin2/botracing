@@ -26,7 +26,8 @@ export function world(
             ([p, d]) =>
               p.startsWith('laps/') &&
               d.sessionId === sessionId &&
-              d.ownerId === ownerKey,
+              d.ownerId === ownerKey &&
+              !d.supersededBy,
           )
           .map(([p]) => p.slice(5)),
       commit: async writes => {

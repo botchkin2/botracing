@@ -38,7 +38,10 @@ export function memoryStore(seed = {}) {
     },
     async sessionLapIds(sessionId) {
       return [...docs]
-        .filter(([k, d]) => k.startsWith('laps/') && d.sessionId === sessionId)
+        .filter(
+          ([k, d]) =>
+            k.startsWith('laps/') && d.sessionId === sessionId && !d.supersededBy,
+        )
         .map(([k]) => k.slice(5));
     },
     async fileMd5(dest) {

@@ -52,6 +52,7 @@ import {describeCheck} from './irCapture.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {captureExtract} from './captureExtract.mjs';
+import {adoptLiveIds, confirmAdoptions, settleSupersedes} from './heal.mjs';
 import {liveCover, readLiveIndex} from './liveSession.mjs';
 import {usableLiveIndex} from './brokenWheels.mjs';
 import {makeBuilder} from './buildSession.mjs';
@@ -410,6 +411,30 @@ async function main() {
     return !cover;
   });
   const sessions = group(files);
+  // A drive whose live capture is defective (brokenWheels.mjs) is rebuilt from
+  // its game file under the live session's id (heal.mjs, thread 74 step 1).
+  // Only while the live session still exists in the store, so a deleted live
+  // copy is never made again; without a store (local) nothing is adopted.
+  if (remoteStore) {
+    const adopted = adoptLiveIds(
+      sessions,
+      readLiveIndex(work),
+      liveIndex,
+      liveCover,
+    );
+    for (const s of await confirmAdoptions(adopted, async id =>
+      Boolean(await remoteStore.getSession(id)),
+    ))
+      log(`  ${s.id}: the game file replaces the live copy in place`);
+  }
+  // A tombstone that failed after its healed upload is tried again here.
+  if (remoteStore && Object.keys(state.pendingSupersede ?? {}).length)
+    await settleSupersedes(
+      state.pendingSupersede,
+      (oldId, byId) =>
+        remoteStore.supersedeSession(oldId, byId, new Date().toISOString()),
+      log,
+    );
   log(`${files.length} recordings in ${sessions.length} sessions (${folder})`);
 
   if (flag('--list')) {
@@ -569,6 +594,20 @@ async function runPool(
         processed.push({s, rev: r.rev});
         if (!local) {
           markDone(state, s.id, s.fingerprint, ownerId, s.sources);
+          // The healed session holds the drive now: the hand rebuild under
+          // the hash id is tombstoned, after the upload and its stale stamp
+          // are written, so there is never a moment with no copy.
+          if (s.hashId) {
+            (state.pendingSupersede ??= {})[s.hashId] = s.id;
+            delete state.sessions[s.hashId];
+            saveState(state);
+            await settleSupersedes(
+              state.pendingSupersede,
+              (oldId, byId) =>
+                store.supersedeSession(oldId, byId, new Date().toISOString()),
+              log,
+            );
+          }
           state.extracts ??= {};
           // Its extract, if the capture gave one, went up with it.
           state.extracts[s.id] = 'with-session';
@@ -670,6 +709,7 @@ async function processSession(
   if (out.session.consistency?.overview) {
     lines.push(`  ${out.session.consistency.overview}`);
   }
+  out.healDefect = s.healDefect ?? null;
   if (local) lines.push(`  -> ${writeLocal(out)}`);
   else {
     await store.upload(out, {log: line => lines.push(line)});

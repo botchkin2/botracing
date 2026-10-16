@@ -114,6 +114,8 @@ const HEARTBEAT_FIELDS: Record<string, (v: unknown) => boolean> = {
       (v.phase === undefined || str(v.phase, 32))),
   retryAt: when,
   sessionsDone: count,
+  // Recordings healed in place (tools/sessions/heal.mjs); absent on older trays.
+  healed: count,
   problems: v =>
     Array.isArray(v) &&
     v.length <= MAX_PROBLEMS &&
