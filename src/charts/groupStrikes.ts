@@ -1,5 +1,5 @@
 /**
- * Strikes whose rings sit within a finger's reach of each other (screen
+ * Strikes whose rings sit within the hit size of each other (screen
  * points) share one press target that reads all of them: three Warnings at
  * 503-507 m would otherwise stack their 44 pt targets and leave only the top
  * one tappable (bearing #5705). Greedy, in order: a point joins the first

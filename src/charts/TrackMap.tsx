@@ -510,7 +510,7 @@ export function TrackMap({
       {/* 44 pt hit targets over the strike rings: tap reads the strike. */}
       {groupStrikes(
         (strikes ?? []).map(s => ({key: s.key, ...fit(s.at)})),
-        HIT / 2,
+        HIT,
       ).map(g => (
         <Pressable
           key={`strikehit${g.keys[0]}`}
