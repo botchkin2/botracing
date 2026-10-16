@@ -366,6 +366,8 @@ export type SessionDetail = SessionSummary & {
   stale: boolean;
   /** A game-file rebuild replaced the live copy of this session in place (heal.mjs); absent otherwise. */
   rebuilt?: {atMs: number; replaced: number; kept: number} | null;
+  /** The healed session that replaced this one (heal.mjs); its link opens that one. Absent otherwise. */
+  supersededBy?: string | null;
   /**
    * Live laps (pit-wall thread 66): the tray uploads each lap while the game
    * runs (`liveAt`, live.ts). `archiveParts` counts the laps stored so far, so a
@@ -424,6 +426,7 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     trackVariant: str(obj(raw.track).variant),
     stale: raw.stale === true,
     rebuilt: toRebuilt(raw.rebuilt),
+    supersededBy: str(raw.supersededBy) || null,
     archiveParts: num(raw.archiveParts),
     liveAt: toLiveAt(raw.live),
     field: toFieldPointer(raw.field),

@@ -108,9 +108,29 @@ export function adoptLiveIds(sessions, fullIndex, usableIndex, cover) {
   const adopted = [];
   for (const [id, list] of claims) {
     if (list.length !== 1) continue;
+    list[0].hashId = list[0].id;
     list[0].id = id;
     list[0].healDefect = DEFECT;
     adopted.push(list[0]);
   }
   return adopted;
+}
+
+/**
+ * A deleted live copy is never resurrected (bearing #5679, guard 2): an
+ * adoption whose live session is gone from the store is undone, and the
+ * game file builds under its own hash id as before. `exists(id)` reads the
+ * store. Returns the adoptions that stand.
+ */
+export async function confirmAdoptions(adopted, exists) {
+  const standing = [];
+  for (const s of adopted) {
+    if (await exists(s.id)) standing.push(s);
+    else {
+      s.id = s.hashId;
+      delete s.hashId;
+      delete s.healDefect;
+    }
+  }
+  return standing;
 }

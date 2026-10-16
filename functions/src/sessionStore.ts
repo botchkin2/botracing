@@ -8,6 +8,7 @@ import {
   foldFacets,
   listCutoff,
   listVersion,
+  withoutSuperseded,
 } from './sessionQuery';
 import {mapEtag, surfaceEtag} from './trackMapCore';
 import {
@@ -109,9 +110,16 @@ async function sessionsSince(
     .orderBy('startedAt', 'desc');
   if (cutoffIso) query = query.where('startedAt', '>=', cutoffIso);
   const snap = await query
-    .select('sim', 'track', 'trackId', 'startedAt', 'sessionType')
+    .select(
+      'sim',
+      'track',
+      'trackId',
+      'startedAt',
+      'sessionType',
+      'supersededBy',
+    )
     .get();
-  return snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
+  return withoutSuperseded(snap.docs.map(doc => ({id: doc.id, ...doc.data()})));
 }
 
 // Status of each of the owner's PCs: the tray sends it through the upload
@@ -254,11 +262,14 @@ export async function listPlanSessions(
     .where('carModel', '==', combo.carModel)
     .orderBy('startedAt', 'desc')
     .limit(PLAN_MAX_SESSIONS + 1)
-    .select(...PLAN_FIELDS)
+    .select(...PLAN_FIELDS, 'supersededBy')
     .get();
   const truncated = snap.docs.length > PLAN_MAX_SESSIONS;
+  const shown = snap.docs
+    .slice(0, PLAN_MAX_SESSIONS)
+    .filter(doc => !doc.get('supersededBy'));
   return {
-    items: planRows(snap.docs.slice(0, PLAN_MAX_SESSIONS), lapSessions),
+    items: planRows(shown, lapSessions),
     truncated,
   };
 }
@@ -312,9 +323,9 @@ export async function listSessions(
   if (cutoff) query = query.where('startedAt', '>=', cutoff);
   const snap = await query
     .orderBy('startedAt', 'desc')
-    .select(...SESSION_LIST_FIELDS)
+    .select(...SESSION_LIST_FIELDS, 'supersededBy')
     .get();
-  return snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
+  return withoutSuperseded(snap.docs.map(doc => ({id: doc.id, ...doc.data()})));
 }
 
 // The Sessions filter chips: the owner's games and tracks over all history, so
@@ -326,9 +337,9 @@ export async function listFacets(owner: string) {
     .firestore()
     .collection('sessions')
     .where('ownerId', '==', owner)
-    .select('sim', 'trackId', 'track')
+    .select('sim', 'trackId', 'track', 'supersededBy')
     .get();
-  return foldFacets(snap.docs.map(doc => doc.data()));
+  return foldFacets(withoutSuperseded(snap.docs.map(doc => doc.data())));
 }
 
 export async function readSession(

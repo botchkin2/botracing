@@ -233,6 +233,8 @@ export type SessionScreenModel = {
   tires: TiresCard;
   /** A heal replaced this session's live copy: its one header line and the detail a tap opens; null otherwise. */
   rebuilt: {line: string; detail: string} | null;
+  /** This session was replaced by a healed one: its link goes there. */
+  movedTo: string | null;
   /** Practice with green laps only. */
   fuelUse: FuelUseCardModel | null;
   /** Races with a whole lap to end on. */
@@ -695,6 +697,7 @@ export function buildSessionModel(
     pitCard,
     tires: buildTiresCard(session, laps),
     rebuilt: rebuiltOf(session),
+    movedTo: session.supersededBy ?? null,
     fuelUse,
     planVsRace: raceFactsOfPlan(session, planKeyOf(session)),
   };

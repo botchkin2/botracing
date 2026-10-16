@@ -46,7 +46,7 @@ import {LinkedScrollContext, useLinkedScroll} from './components/linkedScroll';
 import {OptimumLines} from './components/OptimumLines';
 import {SessionGrid} from './components/SessionGrid';
 import {ClassTableView} from './components/ClassTable';
-import {RebuiltLine} from './components/RebuiltLine';
+import {MovedLine, RebuiltLine} from './components/RebuiltLine';
 import {SessionHead} from './components/SessionHead';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
@@ -124,6 +124,7 @@ export function SessionScreen({
       </View>
     );
   }
+  if (result.model.movedTo) return <MovedLine to={result.model.movedTo} />;
   return (
     <SessionView
       sessionId={sessionId}

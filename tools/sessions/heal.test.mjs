@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
-import {adoptLiveIds, healPlan, DEFECT} from './heal.mjs';
+import {adoptLiveIds, confirmAdoptions, healPlan, DEFECT} from './heal.mjs';
 import {liveCover} from './liveSession.mjs';
 import {createStore} from './store.mjs';
 import {memoryStore} from '../golden/memoryStore.mjs';
@@ -154,4 +154,68 @@ test('the upload tombstones what it replaces, keeps the lone stretch and its lap
     db.docs.has('laps/l0'),
     'a tombstoned lap survives a later cleanup',
   );
+});
+
+test('an adoption whose live session is gone from the store is undone, never re-created', async () => {
+  const full = {
+    'cap#0': {
+      sessionId: 'LIVE',
+      sim: 'lmu',
+      layout: 'Sil',
+      startMs: T0,
+      endMs: T0 + 600_000,
+    },
+  };
+  const mk = () => ({
+    id: 'hash1',
+    files: [{info: {sim: 'lmu', layout: 'Sil', recordedAt: at(1)}}],
+  });
+  const gone = mk();
+  const adopted = adoptLiveIds([gone], full, {}, liveCover);
+  assert.deepEqual(await confirmAdoptions(adopted, async () => false), []);
+  assert.equal(gone.id, 'hash1');
+  assert.equal(gone.healDefect, undefined);
+  const there = mk();
+  const standing = await confirmAdoptions(
+    adoptLiveIds([there], full, {}, liveCover),
+    async id => id === 'LIVE',
+  );
+  assert.deepEqual(standing, [there]);
+  assert.equal(there.id, 'LIVE');
+});
+
+test('the hand rebuild is tombstoned after the healed session is up, and nothing writes it again', async () => {
+  const db = memoryStore({
+    'sessions/H': {id: 'H', recordingIds: ['h0'], analysis: {v: 1, blocks: {}}},
+    'recordings/h0': {id: 'h0', recordedAt: at(1)},
+    'laps/hl0': {id: 'hl0', sessionId: 'H', recordingId: 'h0'},
+  });
+  const store = createStore({
+    ...db,
+    deleteFile: async () => {},
+    listFiles: async () => [],
+  });
+  const moved = await store.supersedeSession('H', 'L', 'now');
+  assert.deepEqual(moved, {recordings: 1, laps: 1});
+  for (const k of ['sessions/H', 'recordings/h0', 'laps/hl0'])
+    assert.equal(db.docs.get(k).supersededBy, 'L', k);
+  assert.equal(await store.supersedeSession('H', 'L', 'later'), null, 'once');
+  // A sync that still holds the hash id does not write it back.
+  const out = {
+    session: {
+      id: 'H',
+      ownerId: 'o',
+      recordingIds: ['h0'],
+      analysis: {v: 1, blocks: {}},
+    },
+    recordings: [{id: 'h0'}],
+    laps: [],
+    traces: [],
+    files: [],
+    band: null,
+    track: null,
+    boundaries: null,
+  };
+  assert.deepEqual(await store.upload(out), {skipped: 'superseded'});
+  assert.equal(db.docs.get('sessions/H').supersededBy, 'L');
 });

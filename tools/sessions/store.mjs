@@ -354,6 +354,27 @@ async function healOps(backend, before, out, log) {
   };
 }
 
+/**
+ * The drive's earlier copy under another id (a hand rebuild) once the healed
+ * session holds it: the session doc, its recordings and its laps are
+ * tombstoned (heal.mjs: hidden from lists, readable by id, kept 30 days).
+ */
+async function supersedeSession(backend, oldId, byId, nowIso) {
+  const old = await backend.getDoc('sessions', oldId);
+  if (!old || old.supersededBy) return null;
+  const mark = {supersededBy: byId, supersededAt: nowIso};
+  const ops = [
+    {op: 'set', coll: 'sessions', id: oldId, data: mark, merge: true},
+  ];
+  for (const id of old.recordingIds ?? [])
+    ops.push({op: 'set', coll: 'recordings', id, data: mark, merge: true});
+  const lapIds = await backend.sessionLapIds(oldId);
+  for (const id of lapIds)
+    ops.push({op: 'set', coll: 'laps', id, data: mark, merge: true});
+  await backend.writeDocs(ops);
+  return {recordings: (old.recordingIds ?? []).length, laps: lapIds.length};
+}
+
 async function uploadSession(backend, out, {log = () => {}} = {}) {
   const {session} = out;
 
@@ -361,6 +382,11 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   // PC behind the cloud's code leaves a session the cloud already analysed
   // alone (pit-wall thread 1 #4573).
   const before = await backend.getDoc('sessions', session.id);
+  // Replaced by a healed session: nothing builds it again.
+  if (before?.supersededBy) {
+    log(`  skipped: replaced by ${before.supersededBy}`);
+    return {skipped: 'superseded'};
+  }
   if (
     stampNewer(before?.analysis, session.analysis) &&
     !bringsNewRecordings(before, session)
@@ -781,6 +807,10 @@ export function createStore(backend) {
   return {
     // A track's stored corner map, or null.
     getTrack: trackId => backend.getDoc('tracks', trackId),
+    // One session doc (the heal asks whether a live session still exists).
+    getSession: id => backend.getDoc('sessions', id),
+    supersedeSession: (oldId, byId, nowIso) =>
+      supersedeSession(backend, oldId, byId, nowIso),
     // A track's corner boundaries (tools/sessions/layoutBoundaries.mjs),
     // packed, or null. A doc of its own: it grows with every session of the
     // layout, and the app reads only the small summary on the track doc.

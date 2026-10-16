@@ -52,7 +52,7 @@ import {describeCheck} from './irCapture.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {captureExtract} from './captureExtract.mjs';
-import {adoptLiveIds} from './heal.mjs';
+import {adoptLiveIds, confirmAdoptions} from './heal.mjs';
 import {liveCover, readLiveIndex} from './liveSession.mjs';
 import {usableLiveIndex} from './brokenWheels.mjs';
 import {makeBuilder} from './buildSession.mjs';
@@ -413,13 +413,20 @@ async function main() {
   const sessions = group(files);
   // A drive whose live capture is defective (brokenWheels.mjs) is rebuilt from
   // its game file under the live session's id (heal.mjs, thread 74 step 1).
-  for (const s of adoptLiveIds(
-    sessions,
-    readLiveIndex(work),
-    liveIndex,
-    liveCover,
-  ))
-    log(`  ${s.id}: the game file replaces the live copy in place`);
+  // Only while the live session still exists in the store, so a deleted live
+  // copy is never made again; without a store (local) nothing is adopted.
+  if (remoteStore) {
+    const adopted = adoptLiveIds(
+      sessions,
+      readLiveIndex(work),
+      liveIndex,
+      liveCover,
+    );
+    for (const s of await confirmAdoptions(adopted, async id =>
+      Boolean(await remoteStore.getSession(id)),
+    ))
+      log(`  ${s.id}: the game file replaces the live copy in place`);
+  }
   log(`${files.length} recordings in ${sessions.length} sessions (${folder})`);
 
   if (flag('--list')) {
@@ -579,6 +586,21 @@ async function runPool(
         processed.push({s, rev: r.rev});
         if (!local) {
           markDone(state, s.id, s.fingerprint, ownerId, s.sources);
+          // The healed session holds the drive now: the hand rebuild under
+          // the hash id is tombstoned, after the upload and its stale stamp
+          // are written, so there is never a moment with no copy.
+          if (s.hashId) {
+            const moved = await store.supersedeSession(
+              s.hashId,
+              s.id,
+              new Date().toISOString(),
+            );
+            delete state.sessions[s.hashId];
+            if (moved)
+              log(
+                `  heal: ${s.hashId} replaced by ${s.id} (${moved.recordings} recording(s), ${moved.laps} lap(s) hidden)`,
+              );
+          }
           state.extracts ??= {};
           // Its extract, if the capture gave one, went up with it.
           state.extracts[s.id] = 'with-session';
