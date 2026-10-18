@@ -376,3 +376,14 @@ test('putResultsInput stores the input alone, and markStale keeps every stored b
     analysis: {v: 0},
   });
 });
+
+test('markStale never creates a session: a stored one reads stale, a missing one is left alone', async () => {
+  const b = backend(
+    new Map([['sessions/s1', {id: 's1', ownerId: 'o', analysis: {v: 17}}]]),
+  );
+  const store = createStore(b);
+  assert.equal(await store.markStale('s1', 'o'), true);
+  assert.equal(b.docs.get('sessions/s1').analysis.v, 0);
+  assert.equal(await store.markStale('gone', 'o'), false);
+  assert.equal(b.docs.has('sessions/gone'), false);
+});
