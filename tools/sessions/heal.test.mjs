@@ -6,6 +6,8 @@ import {
   confirmAdoptions,
   healPlan,
   settleSupersedes,
+  tombstoneExpired,
+  TOMBSTONE_DAYS,
   DEFECT,
 } from './heal.mjs';
 import {liveCover} from './liveSession.mjs';
@@ -331,4 +333,22 @@ test('a re-upload of the healed session clears a stray mark on its own recording
     boundaries: null,
   });
   assert.equal(db.docs.get('recordings/r0').supersededBy, undefined);
+});
+
+test('a sweep never takes a doc a live session lists, however old its mark', () => {
+  const old = Date.parse('2026-10-01T00:00:00Z');
+  const now = old + (TOMBSTONE_DAYS + 1) * 86_400_000;
+  const mark = {supersededBy: 'L', supersededAt: new Date(old).toISOString()};
+  assert.equal(
+    tombstoneExpired({id: 'h1', ...mark}, now, new Set(['r0'])),
+    true,
+  );
+  assert.equal(
+    tombstoneExpired({id: 'r0', ...mark}, now, new Set(['r0'])),
+    false,
+  );
+  assert.equal(
+    tombstoneExpired({id: 'h1', ...mark}, old + 86_400_000, new Set()),
+    false,
+  );
 });
