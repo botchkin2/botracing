@@ -52,6 +52,9 @@ export function newestCleanBeat(jsonl) {
       continue;
     }
     if (beat.lastError || beat.problems?.length) continue;
+    // A watcher run without LAP_VERSION reports "unknown" or a commit: no
+    // released tray's beat, so no payload (contract/heartbeat.test.mjs).
+    if (!/^\d+\.\d+\.\d+$/.test(beat.version ?? '')) continue;
     const clean = scrubBeat(beat);
     if (clean) return clean;
   }

@@ -209,6 +209,10 @@ jobs:
         shell: pwsh
         env:
           SEAT_TEST_REFRESH_TOKEN: ${{ secrets.SEAT_TEST_REFRESH_TOKEN }}
+          # The tray sets this for its watcher (sidecar.rs); liveE2E runs the
+          # watcher itself, so without it every beat reads version "unknown"
+          # and the saved beat could never be a payload (slipstream on #661).
+          LAP_VERSION: ${{ inputs.version }}
         run: |
           if (-not $env:SEAT_TEST_REFRESH_TOKEN) { throw "secret SEAT_TEST_REFRESH_TOKEN is not set (see the PR that added this workflow)" }
           $tokenFile = Join-Path $env:RUNNER_TEMP 'seat.refresh'

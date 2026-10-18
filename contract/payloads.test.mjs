@@ -129,4 +129,7 @@ test('newestCleanBeat takes the last beat with no error, scrubbed', () => {
     .join('\n');
   assert.equal(newestCleanBeat(lines).state, 'retrying');
   assert.equal(newestCleanBeat(JSON.stringify(failing)), null);
+  // The release's watcher without LAP_VERSION (slipstream on #661).
+  for (const version of ['unknown', '0a1b2c3'])
+    assert.equal(newestCleanBeat(JSON.stringify({...real, version})), null);
 });
