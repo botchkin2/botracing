@@ -27,11 +27,14 @@ import {
 import {finishCurrent, finishDoc} from '../../src/analysis/raceResult.ts';
 import {fieldAfterSync} from './field.mjs';
 import {relabelField} from './irClasses.mjs';
-import {keepVisits, raceAfterSync} from './keepCapture.mjs';
+import {keepVisits, onlineAfterSync, raceAfterSync} from './keepCapture.mjs';
 import {planBlock} from './planBlock.mjs';
 import {stampNewer, withKept} from './versionKey.mjs';
 import {captureExtractPath} from './captureExtract.mjs';
+import {resultsInputPath} from './resultsInput.mjs';
 import {guardedWriter} from './docShape.mjs';
+import {healPlan} from './heal.mjs';
+import {LIVE_STAMP} from './liveSession.mjs';
 import {packState} from './layoutBoundaries.mjs';
 import {trafficMedians} from '../../src/analysis/traffic.ts';
 import {lapTrafficFrom} from './lapTraffic.mjs';
@@ -176,9 +179,12 @@ export function adminBackend({db, bucket}) {
       const found = await db
         .collection('laps')
         .where('sessionId', '==', sessionId)
-        .select()
+        .select('supersededBy')
         .get();
-      return found.docs.map(doc => doc.id);
+      // Not a replaced lap (heal.mjs): the leftover cleanup keeps tombstones.
+      return found.docs
+        .filter(doc => !doc.get('supersededBy'))
+        .map(doc => doc.id);
     },
     async fileMd5(dest) {
       try {
@@ -275,6 +281,8 @@ function bringsNewRecordings(before, session) {
 // The window left is one read to one write; a lap landing in it is still
 // picked up by the next lap's run, or by an open. ISO times compare as text.
 export function keepNewerLive(session, stored, log = () => {}) {
+  // The cloud's analysis writes the whole session doc: the heal's note stays.
+  if (stored?.rebuilt && !session.rebuilt) session.rebuilt = stored.rebuilt;
   const storedLive = stored?.live?.updatedAt;
   if (
     typeof storedLive === 'string' &&
@@ -288,6 +296,88 @@ export function keepNewerLive(session, stored, log = () => {}) {
   }
 }
 
+// The heal's writes for a session being rebuilt over its live copy (heal.mjs).
+async function healOps(backend, before, out, log) {
+  const {session} = out;
+  const ids = (before?.recordingIds ?? []).filter(
+    id => !out.recordings.some(r => r.id === id),
+  );
+  if (ids.length === 0) return null;
+  const stored = (
+    await Promise.all(
+      ids.map(async id => ({id, ...(await backend.getDoc('recordings', id))})),
+    )
+  ).filter(r => r.recordedAt);
+  const laps = (
+    await Promise.all(
+      (
+        await backend.sessionLapIds(session.id)
+      ).map(async id => ({
+        id,
+        ...(await backend.getDoc('laps', id)),
+      })),
+    )
+  ).map(l => ({id: l.id, recordingId: l.recordingId}));
+  const plan = healPlan({
+    stored,
+    built: out.recordings,
+    laps,
+    ownerId: session.ownerId,
+    nowIso: new Date().toISOString(),
+    defect: out.healDefect,
+  });
+  // A stretch the build lacks is the only copy: it stays in the session.
+  session.recordingIds = [...session.recordingIds, ...plan.kept];
+  log(
+    `  heal: ${
+      Object.keys(plan.replaced).length
+    } recording(s) replaced (${Object.entries(plan.replaced)
+      .map(([a, b]) => `${a} -> ${b}`)
+      .join(', ')}), ${plan.lapsSuperseded} lap(s) hidden, ${
+      plan.kept.length
+    } stretch(es) kept (${plan.kept.join(', ')})`,
+  );
+  const kept = new Set(plan.kept);
+  // The session says it was rebuilt (its header line), and a kept stretch
+  // needs the cloud to analyse it again: the live stamp reads stale, so the
+  // next open runs every stored recording, the kept stretch's laps get their
+  // tyres withdrawn and the aggregates include them (plank #5676).
+  session.rebuilt = {
+    at: new Date().toISOString(),
+    replaced: Object.keys(plan.replaced).length,
+    kept: plan.kept.length,
+  };
+  if (plan.kept.length > 0) session.analysis = {...LIVE_STAMP};
+  return {
+    ops: plan.ops,
+    protectedLapIds: laps
+      .filter(l => kept.has(l.recordingId) || l.recordingId in plan.replaced)
+      .map(l => l.id),
+  };
+}
+
+/**
+ * The drive's earlier copy under another id (a hand rebuild) once the healed
+ * session holds it: the session doc, its recordings and its laps are
+ * tombstoned (heal.mjs: hidden from lists, readable by id, kept 30 days).
+ */
+async function supersedeSession(backend, oldId, byId, nowIso) {
+  const old = await backend.getDoc('sessions', oldId);
+  if (!old || old.supersededBy) return null;
+  // ownerId: the upload API refuses a merge that does not name its owner.
+  const mark = {ownerId: old.ownerId, supersededBy: byId, supersededAt: nowIso};
+  const ops = [
+    {op: 'set', coll: 'sessions', id: oldId, data: mark, merge: true},
+  ];
+  for (const id of old.recordingIds ?? [])
+    ops.push({op: 'set', coll: 'recordings', id, data: mark, merge: true});
+  const lapIds = await backend.sessionLapIds(oldId);
+  for (const id of lapIds)
+    ops.push({op: 'set', coll: 'laps', id, data: mark, merge: true});
+  await backend.writeDocs(ops);
+  return {recordings: (old.recordingIds ?? []).length, laps: lapIds.length};
+}
+
 async function uploadSession(backend, out, {log = () => {}} = {}) {
   const {session} = out;
 
@@ -295,6 +385,11 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   // PC behind the cloud's code leaves a session the cloud already analysed
   // alone (pit-wall thread 1 #4573).
   const before = await backend.getDoc('sessions', session.id);
+  // Replaced by a healed session: nothing builds it again.
+  if (before?.supersededBy) {
+    log(`  skipped: replaced by ${before.supersededBy}`);
+    return {skipped: 'superseded'};
+  }
   if (
     stampNewer(before?.analysis, session.analysis) &&
     !bringsNewRecordings(before, session)
@@ -302,7 +397,6 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     log('  skipped: the stored session was analysed under newer rules');
     return {skipped: 'newer'};
   }
-
 
   // The field file already in the bucket (the capture is gone after 14 days,
   // the uploaded file is not). A failure is a log line and null: the next
@@ -341,21 +435,33 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
       {contentType, gzip: true},
     );
 
+  // A finished lap's trace is the same bytes on every run (both stores gzip at
+  // level 9, which is deterministic), so only a trace whose md5 differs from
+  // the stored one is sent: a live session's runs no longer rewrite every lap
+  // they already wrote (lap 30 of a race: 10 of a 27 s run was the write;
+  // pit wall thread 69 #5718).
   let traces = 0;
-  const queue = [...out.traces];
-  const workers = Array.from({length: 8}, async () => {
-    for (let job = queue.shift(); job; job = queue.shift()) {
-      await putGzip(job.dest, job.csv(), 'text/csv');
-      traces++;
-    }
+  await mapLimit(out.traces, 8, async job => {
+    const text = job.csv();
+    const md5 = createHash('md5')
+      .update(gzipSync(Buffer.from(text, 'utf8'), {level: 9}))
+      .digest('base64');
+    if ((await backend.fileMd5(job.dest)) === md5) return;
+    await putGzip(job.dest, text, 'text/csv');
+    traces++;
   });
-  await Promise.all(workers);
-  log(`  traces ${traces}`);
+  log(`  traces ${traces} of ${out.traces.length} sent`);
 
   if (out.captureExtract)
     await putGzip(
       captureExtractPath(session.ownerId, session.id),
       JSON.stringify(out.captureExtract),
+      'application/json',
+    );
+  if (out.resultsInput)
+    await putGzip(
+      resultsInputPath(session.ownerId, session.id),
+      JSON.stringify(out.resultsInput),
       'application/json',
     );
   if (out.band) {
@@ -472,6 +578,7 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   // race length, and the visits read from the car's damage.
   const keptBlocks = [];
   const freshRace = session.race;
+  session.online = onlineAfterSync(session.online, before?.online);
   session.race = raceAfterSync(freshRace, before?.race ?? null, session);
   if (session.race && !freshRace) keptBlocks.push('raceLength');
   if (out.damageMissing) {
@@ -519,6 +626,13 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     ops.push({op: 'set', coll: 'recordings', id: rec.id, data: rec});
   for (const lap of out.laps)
     ops.push({op: 'set', coll: 'laps', id: lap.id, data: lap});
+  // A game-file build that replaces a live copy of the same drive in place
+  // (heal.mjs): the stored recordings it covers, and their laps, are
+  // tombstoned in the same batch; a stretch it lacks stays.
+  const healed = out.healDefect
+    ? await healOps(backend, before, out, log)
+    : null;
+  if (healed) ops.push(...healed.ops);
   // Merge: the track doc also holds fields other tools write (the georef,
   // centerline, edges, corner names). A new corner map replaces only its own.
   if (out.track) {
@@ -536,6 +650,9 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
 
   // A re-run can produce fewer laps (a file that was still growing). Drop leftovers.
   const keep = new Set(out.laps.map(lap => lap.id));
+  // The heal's own: the kept stretch's laps stay, the replaced ones are
+  // tombstoned by the ops above and must not also be deleted as leftovers.
+  for (const id of healed?.protectedLapIds ?? []) keep.add(id);
   let dropped = 0;
   for (const id of await backend.sessionLapIds(session.id)) {
     if (!keep.has(id)) {
@@ -600,6 +717,14 @@ async function putLiveInputs(backend, out, session, log) {
         {contentType: 'application/json', gzip: true},
       ),
     );
+  if (out.resultsInput)
+    puts.push(
+      backend.putFile(
+        resultsInputPath(session.ownerId, session.id),
+        {body: Buffer.from(JSON.stringify(out.resultsInput))},
+        {contentType: 'application/json', gzip: true},
+      ),
+    );
   await Promise.all(puts);
 }
 
@@ -635,7 +760,11 @@ async function uploadLive(backend, out, {log = () => {}} = {}) {
           op: 'set',
           coll: 'sessions',
           id: session.id,
-          data: {field: out.field, analysis: {...before.analysis, v: 0}},
+          data: {
+            ownerId: session.ownerId,
+            field: out.field,
+            analysis: {...before.analysis, v: 0},
+          },
           merge: true,
         },
       ]);
@@ -706,6 +835,10 @@ export function createStore(backend) {
   return {
     // A track's stored corner map, or null.
     getTrack: trackId => backend.getDoc('tracks', trackId),
+    // One session doc (the heal asks whether a live session still exists).
+    getSession: id => backend.getDoc('sessions', id),
+    supersedeSession: (oldId, byId, nowIso) =>
+      supersedeSession(backend, oldId, byId, nowIso),
     // A track's corner boundaries (tools/sessions/layoutBoundaries.mjs),
     // packed, or null. A doc of its own: it grows with every session of the
     // layout, and the app reads only the small summary on the track doc.
@@ -750,8 +883,12 @@ export function createStore(backend) {
     // open analyses it again from the new archive (analysis on open). Merged:
     // only the stamp's version goes, every stored block stays.
     // ownerId: the upload API refuses a doc that does not name its owner.
-    markStale: (sessionId, ownerId) =>
-      backend.writeDocs([
+    // A session that is not stored (deleted, or a live drive whose first lap
+    // never went up) is left alone: a merge would create a session doc that
+    // holds nothing but the stamp. Returns whether it marked one.
+    async markStale(sessionId, ownerId) {
+      if (!(await backend.getDoc('sessions', sessionId))) return false;
+      await backend.writeDocs([
         {
           op: 'set',
           coll: 'sessions',
@@ -759,13 +896,24 @@ export function createStore(backend) {
           data: {ownerId, analysis: {v: 0}},
           merge: true,
         },
-      ]),
+      ]);
+      return true;
+    },
     // A session's capture extract on its own (captureExtract.mjs), for the
     // sessions uploaded before extracts were kept.
     putCaptureExtract: (ownerId, sessionId, extract) =>
       backend.putFile(
         captureExtractPath(ownerId, sessionId),
         {body: Buffer.from(JSON.stringify(extract), 'utf8')},
+        {contentType: 'application/json', gzip: true},
+      ),
+    // A session's results input on its own (resultsInput.mjs): the sessions
+    // uploaded before the game's results were kept, and a live session at its
+    // close, when the game writes the file.
+    putResultsInput: (ownerId, sessionId, input) =>
+      backend.putFile(
+        resultsInputPath(ownerId, sessionId),
+        {body: Buffer.from(JSON.stringify(input), 'utf8')},
         {contentType: 'application/json', gzip: true},
       ),
   };
@@ -779,6 +927,10 @@ export const updateEvents = items => admin().updateEvents(items);
 export const upload = (out, options) => admin().upload(out, options);
 export const putCaptureExtract = (ownerId, sessionId, extract) =>
   admin().putCaptureExtract(ownerId, sessionId, extract);
+export const putResultsInput = (ownerId, sessionId, input) =>
+  admin().putResultsInput(ownerId, sessionId, input);
+export const markStale = (sessionId, ownerId) =>
+  admin().markStale(sessionId, ownerId);
 export const getBoundaries = (trackId, db) =>
   createStore(adminBackend({db: db ?? connect().db})).getBoundaries(trackId);
 export const putBoundaries = (boundaries, db) =>

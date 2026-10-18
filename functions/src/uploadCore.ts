@@ -21,6 +21,7 @@
 // owner-scoped by their own path. The client spells an archive file
 // archive/{sim}/...; it is stored as archive/{ownerKey}/{sim}/...
 import {checkHeartbeat} from './contract/heartbeat.ts';
+import {OWNED, TRACK_DATA, isTheirs, namesOwner} from './contract/ownership.ts';
 import {SAFE_SEGMENT} from './contract/segment.ts';
 
 export const MAX_DOC_BYTES = 900_000; // Firestore's own limit is 1 MiB
@@ -31,9 +32,6 @@ const UPLOAD_URL_MS = 15 * 60_000;
 export const MAX_OPS = 400; // Firestore's batch limit is 500
 const MAX_JSON_DEPTH = 20;
 
-const OWNED = ['recordings', 'sessions', 'laps'];
-// Shared, read-only to everyone here; written by the admin tools only.
-const TRACK_DATA = ['tracks', 'trackBoundaries'];
 const WRITABLE = OWNED;
 // laps: a resync keeps the stored visits read from the car's damage (tools/sessions/keepCapture.mjs).
 // recordings: a live lap sends only the parts no stored recording doc lists
@@ -238,9 +236,6 @@ function cleanDoc(data: unknown): Doc {
 // Bytes, not characters: Firestore's limit is on bytes.
 const sizeOf = (doc: unknown) => Buffer.byteLength(JSON.stringify(doc));
 
-const isTheirs = (existing: Doc | null, ownerKey: string, coll: string) =>
-  existing !== null && OWNED.includes(coll) && existing.ownerId !== ownerKey;
-
 // An existing document of another owner is never touched.
 function mustBeMine(
   existing: Doc | null,
@@ -282,10 +277,9 @@ async function writeDocs(
     }
     if (op.op !== 'set') return refuse(400, 'op must be set or delete');
     const data = cleanDoc(op.data);
-    if (OWNED.includes(coll)) {
-      if (data.ownerId !== ownerKey)
-        return refuse(403, 'document ownerId is not yours');
-    } else delete data.ownerId;
+    if (!namesOwner(coll, data, ownerKey))
+      return refuse(403, 'document ownerId is not yours');
+    if (!OWNED.includes(coll)) delete data.ownerId;
     writes.push({op: 'set', path, data, merge: op.merge === true});
     // A merge keeps fields it does not name, so the sent size under-counts it.
     seen.set(path, {before, after: sizeOf(data)});

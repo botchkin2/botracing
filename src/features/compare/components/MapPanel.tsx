@@ -1,4 +1,4 @@
-import {type ReactNode, useMemo} from 'react';
+import {type ReactNode, useMemo, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {FollowMap, TrackMap} from '@/src/charts';
@@ -18,6 +18,7 @@ import {
 } from '@/src/ui';
 
 import {type MapModel} from '../model';
+import {strikeText} from '../strikeMarks';
 import {type LapStyle} from './ChartBlock';
 
 // The Compare map panel (handoff v2 M1): Follow / Track switch over the map,
@@ -67,6 +68,9 @@ export function MapPanel({
   };
   const f = map.follow;
   const geometry = f?.geometry;
+  // The strike whose readout is open (a tap on its ring); gone with its lap.
+  const [picked, setPicked] = useState<string[]>([]);
+  const pickedStrikes = map.strikes.filter(s => picked.includes(s.key));
 
   // map.lines is rebuilt on every cursor move; its shown laps and their
   // styles only change with the selection. Key the Follow layers on that, so
@@ -154,6 +158,15 @@ export function MapPanel({
               at: d.at,
               color: lapStyle(d.selIndex, d.highlighted).color,
             }))}
+            strikes={map.strikes.map(s => ({
+              key: s.key,
+              at: s.at,
+              color: lapStyle(s.selIndex, s.highlighted).color,
+            }))}
+            pickedStrike={pickedStrikes.map(s => s.key)}
+            onPressStrike={keys =>
+              setPicked(keys.every(k => picked.includes(k)) ? [] : keys)
+            }
             marks={map.marks}
             openSection={openSection}
             onPressSection={onPressSection}
@@ -189,6 +202,17 @@ export function MapPanel({
           </Text>
         )}
       </View>
+      {mode === 'track'
+        ? pickedStrikes.map(s => (
+            <Text
+              key={s.key}
+              variant='dataSmall'
+              tone='textMuted'
+              style={styles.caption}>
+              {strikeText(s)}
+            </Text>
+          ))
+        : null}
       {mode === 'track' && !map.realMap ? (
         <Text variant='dataSmall' tone='textMuted' style={styles.caption}>
           Driven line

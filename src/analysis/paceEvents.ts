@@ -15,7 +15,9 @@
 //      and a slower patch of 3+ laps is part of the curve, not a run of events;
 //   4. the residual is the lap time minus the curve; sigma is 1.4826 x MAD of
 //      the session's residuals (the Hampel identifier), corrected for the few
-//      laps it is taken from (smallSampleFactor).
+//      laps it is taken from (smallSampleFactor). A stint under MIN_CURVE_LAPS
+//      laps has no curve to be judged against: its laps are compared with the
+//      session's pace, and the limit is still made from the residuals above.
 // Laps with no sections (or sections that do not line up) use the lap time as
 // the factor: the same curve and the same test. No straight line anywhere.
 // Neither sections nor recorded events (off-track, yellow, impact) decide: a lap
@@ -52,6 +54,13 @@ export const smallSampleFactor = (n: number) =>
 export const EVENT_GUARD_S = 0.3;
 /** Laps in the running median that makes a stint's curve. */
 const SMOOTH_LAPS = 5;
+/**
+ * A lap needs a curve to be judged against. A stint with fewer candidate laps
+ * than this is judged against the session's pace, and the limit stays the
+ * session's (pit-wall thread 75 #5876: judging a short stint against itself
+ * is a residual of 0, so a slow lap alone in a stint could never be slow).
+ */
+export const MIN_CURVE_LAPS = 3;
 
 export interface PaceLap {
   id: string;
@@ -171,14 +180,25 @@ export function paceEvents(laps: readonly PaceLap[]): PaceEvent[] {
         : l.lapTime,
     );
   const scale = n > 0 ? total : 1;
+  // The residual that makes the session's limit, and the one a lap is
+  // compared to it with: the same except in a stint too short for a curve.
   const residual = new Map<string, number>();
+  const judged = new Map<string, number>();
+  const sessionPace = med([...factor.values()]);
   const stints = [...new Set(laps.map(l => l.stint))];
   for (const st of stints) {
     const own = laps
       .filter(l => l.stint === st)
       .sort((a, b) => a.stintLap - b.stintLap);
     const curve = smoothPace(own.map(l => factor.get(l.id) as number));
-    own.forEach((l, i) => residual.set(l.id, l.lapTime - scale * curve[i]));
+    own.forEach((l, i) => {
+      const r = l.lapTime - scale * curve[i];
+      residual.set(l.id, r);
+      judged.set(
+        l.id,
+        own.length < MIN_CURVE_LAPS ? l.lapTime - scale * sessionPace : r,
+      );
+    });
   }
   const limitS = Math.max(
     EVENT_SIGMAS *
@@ -188,7 +208,7 @@ export function paceEvents(laps: readonly PaceLap[]): PaceEvent[] {
   );
   const events: PaceEvent[] = [];
   for (const l of laps) {
-    const r = residual.get(l.id) as number;
+    const r = judged.get(l.id) as number;
     if (!(r > limitS)) continue;
     events.push({id: l.id, residualS: r, limitS});
   }

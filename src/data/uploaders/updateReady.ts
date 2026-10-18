@@ -36,7 +36,7 @@ export function updateReady(
   if (best == null) return null;
   return {
     version: best,
-    line: inTray ? `Tray ${best} ready` : `Tray ${best} ready on the PC`,
+    line: inTray ? `Update ${best} ready` : `Update ${best} ready on the PC`,
     canRestart: inTray,
   };
 }

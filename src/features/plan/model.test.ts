@@ -57,6 +57,7 @@ const session = (
   classLaps: null,
   finish: null,
   eventId: null,
+  online: null,
   cornerMapSource: 'stored',
   updatedAt: startedAt,
   ...over,

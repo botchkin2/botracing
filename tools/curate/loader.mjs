@@ -7,7 +7,15 @@
 // the command line is the one the uploader has under that id.
 import {mkdirSync} from 'node:fs';
 import {resolve} from 'node:path';
-import {analyzeSession, loadRecording} from '../sessions/analyze.mjs';
+import {
+  MAP_MIN_LAPS,
+  analyzeSession,
+  boundariesFromLaps,
+  loadRecording,
+  mapFromLaps,
+  selectMapLaps,
+  trackMapSourceOf,
+} from '../sessions/analyze.mjs';
 import {groupFiles, scanFolder} from '../sessions/sessionFiles.mjs';
 import {unpackState} from '../sessions/layoutBoundaries.mjs';
 
@@ -99,6 +107,80 @@ export function buildFromSession({adapter, session, workDir, deps = real}) {
     sessionId: session.id,
     sim: first.sim,
     track: {name: first.track, variant: first.layout},
+  };
+}
+
+// Every grid point finite. One NaN becomes a NaN median in the map profile.
+function lapGps(lap) {
+  const lat = lap.grid?.lat;
+  const lon = lap.grid?.lon;
+  if (!lat || !lon || lat.length === 0 || lon.length !== lat.length)
+    return false;
+  for (let i = 0; i < lat.length; i++) {
+    if (!Number.isFinite(lat[i]) || !Number.isFinite(lon[i])) return false;
+  }
+  return true;
+}
+
+/**
+ * The same `built` plan.mjs takes, from laps that already carry an onGrid
+ * grid. `sessions` is `{id, laps}[]`, folded in order into the boundary
+ * state (one session per driver, later). Each session's `laps` is required.
+ * `laps`, when passed, is the set the map is built from; otherwise every
+ * session's laps.
+ * buildFromLaps.golden.mjs checks one Road Atlanta session: the map and
+ * boundary state match buildFromSession.
+ */
+export function buildFromLaps({laps, sim, track, sessions}) {
+  if (!sessions?.length)
+    throw new LoaderError('buildFromLaps needs at least one session');
+  for (const s of sessions) {
+    if (!s.laps)
+      throw new LoaderError(`session ${s.id || '(no id)'} has no laps`);
+  }
+  const groups = sessions.map(s => ({id: s.id ?? '', laps: s.laps}));
+  const all = laps ?? groups.flatMap(s => s.laps);
+  const selected = selectMapLaps(all);
+  const missingGps = selected.laps.filter(lap => !lapGps(lap));
+  if (missingGps.length)
+    throw new LoaderError(
+      `${missingGps.length} of ${selected.laps.length} laps have no GPS`,
+    );
+  const gps = selected.laps.length > 0;
+  const built = mapFromLaps(selected.laps, selected.gridN);
+  const source = trackMapSourceOf({
+    usable: false,
+    catalogOnly: false,
+    built,
+    trackMap: null,
+    minLaps: MAP_MIN_LAPS,
+  });
+  let boundaries = null;
+  if (source === 'new' && built?.map) {
+    let stored = null;
+    let layout = null;
+    for (const group of groups) {
+      layout = boundariesFromLaps({
+        laps: group.laps,
+        map: built.map,
+        stored,
+        sessionId: group.id,
+      });
+      stored = layout?.state ?? stored;
+    }
+    boundaries = stored;
+  }
+  return {
+    map: built?.map ?? null,
+    boundaries,
+    lapsUsed: built?.laps ?? 0,
+    gps,
+    sessionId: groups
+      .map(s => s.id)
+      .filter(Boolean)
+      .join(','),
+    sim,
+    track,
   };
 }
 

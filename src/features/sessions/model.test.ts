@@ -28,6 +28,7 @@ const session = (over: Partial<SessionSummary>): SessionSummary => ({
   classLaps: null,
   finish: null,
   eventId: null,
+  online: null,
   cornerMapSource: 'stored',
   updatedAt: '2026-09-27T23:00:00Z',
   ...over,
@@ -61,6 +62,14 @@ describe('buildSessionsModel', () => {
       best: '1:39.733',
       median: '1:41.123',
     });
+  });
+
+  it('names offline and online on the row, and nothing when unknown', () => {
+    const rowOf = (online: boolean | null) =>
+      buildSessionsModel([session({online})], now)[0].rows[0];
+    expect(rowOf(false).railSubline).toBe('21:40 · 42 laps · Offline');
+    expect(rowOf(true).modeText).toBe('Online');
+    expect(rowOf(null).modeText).toBeNull();
   });
 
   it('says "1 lap", not "1 laps"', () => {

@@ -102,8 +102,12 @@ function tick(folder = telemetry, workDir = work, localDir = local) {
     .map(line => JSON.parse(line));
 }
 
+// The results look the watcher starts on its first tick (sync.mjs --results) is
+// not a sync of the telemetry: these tests count the syncs.
 const runs = () =>
-  readFileSync(syncRuns, 'utf8').split('\n').filter(Boolean).length;
+  readFileSync(syncRuns, 'utf8')
+    .split('\n')
+    .filter(l => l && !l.includes('--results')).length;
 
 test(
   'a fresh tray profile counts only the last 14 days as waiting, not the whole game folder',

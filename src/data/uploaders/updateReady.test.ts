@@ -13,19 +13,19 @@ const pc = (over: Partial<Uploader>): Uploader =>
     lastSeenAt: NOW - 60_000,
     updateWaiting: null,
     ...over,
-  }) as Uploader;
+  } as Uploader);
 
 describe('updateReady', () => {
   it('names the waiting version, with a button only inside the tray window', () => {
     const pcs = [pc({updateWaiting: '0.1.12'})];
     expect(updateReady(pcs, NOW, true)).toEqual({
       version: '0.1.12',
-      line: 'Tray 0.1.12 ready',
+      line: 'Update 0.1.12 ready',
       canRestart: true,
     });
     expect(updateReady(pcs, NOW, false)).toEqual({
       version: '0.1.12',
-      line: 'Tray 0.1.12 ready on the PC',
+      line: 'Update 0.1.12 ready on the PC',
       canRestart: false,
     });
   });
@@ -38,7 +38,11 @@ describe('updateReady', () => {
 
   it('ignores a PC not seen for 10 minutes', () => {
     expect(
-      updateReady([pc({updateWaiting: '0.1.12', lastSeenAt: NOW - 11 * 60_000})], NOW, true),
+      updateReady(
+        [pc({updateWaiting: '0.1.12', lastSeenAt: NOW - 11 * 60_000})],
+        NOW,
+        true,
+      ),
     ).toBeNull();
   });
 

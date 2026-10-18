@@ -54,12 +54,15 @@ capture's field `mDriverName` is empty and its `playerName` is `seat-test`).
   build → `store.upload`) into memory (`memoryStore.mjs`), compares every
   session and lap field, and checks both against the feature manifest
   (`tools/sessions/manifest.mjs`). Prints each unexplained difference and miss.
+  `memoryStore.mjs` refuses writes as the upload API does: both call
+  `functions/src/contract/ownership.ts` (a merge on an owned doc names its owner).
 - `parityAllow.json`: what may differ, each entry with its reason. `tol` bounds
   numbers, `tolS` bounds two times in seconds; no bound allows any value.
   `when: "untimed"` applies to laps the game did not time, `pair` to one pair
   only, and `laps.first` / `laps.last` name a pair's first and last lap. An entry
   marked `gap` is a known missing feature or an open finding
   (`docs/SESSION_PIPELINE.md`) and is deleted when it is fixed or ruled on.
+- `results/<pair>.xml`: the game's results file for a pair (thread 70): his rows only, his name the placeholder `__DRIVER__` and no team, car or other driver, pinned by sha256 in `manifest.json` (`parityResults`). `parity.mjs` fills the name in per source (the capture's meta says who he is, the cut game file says seat-test) and writes the file where the game would have, so both paths read the same rulings; the manifest then expects `trackLimits` on the session and the laps (`checkSession`, `results: true`). Road Atlanta 3 Oct: five No Further Action strikes, two of them outside his laps.
 - `parity.test.mjs`: the rules everywhere; the pairs where `PARITY_PAIRS` names
   their folder. CI's `contract-replay` job fetches them (sha256-pinned in
   `.github/workflows/test.yml`) on any change to the tray, sessions, golden or

@@ -7,6 +7,7 @@ import {createHash} from 'node:crypto';
 import {createStore} from './store.mjs';
 import {LIVE_STAMP} from './liveSession.mjs';
 import {analysisStamp} from './versionKey.mjs';
+import {refuseAsApi} from '../golden/memoryStore.mjs';
 
 // A bucket and a database in memory; `offline` makes every putFile fail.
 function backend(docs = new Map()) {
@@ -18,9 +19,13 @@ function backend(docs = new Map()) {
     offline: false,
     getDoc: async (c, id) => docs.get(`${c}/${id}`) ?? null,
     writeDocs: async ops => {
+      refuseAsApi(ops, docs, 'o');
       for (const op of ops) {
         const key = `${op.coll}/${op.id}`;
-        docs.set(key, op.merge ? {...(docs.get(key) ?? {}), ...op.data} : op.data);
+        docs.set(
+          key,
+          op.merge ? {...(docs.get(key) ?? {}), ...op.data} : op.data,
+        );
       }
     },
     fileMd5: async dest => files.get(dest) ?? null,
@@ -44,8 +49,21 @@ function lapsOut(n) {
     files.push({local, dest: `archive/lmu/s1/r1/samples.00${i}.parquet`});
   }
   return {
-    session: {id: 's1', recordingIds: ['r1'], archiveParts: n, lapCount: n, analysis: LIVE_STAMP},
-    recordings: [{id: 'r1', archive: {parts: files.map(f => ({samples: f.dest}))}}],
+    session: {
+      id: 's1',
+      ownerId: 'o',
+      recordingIds: ['r1'],
+      archiveParts: n,
+      lapCount: n,
+      analysis: LIVE_STAMP,
+    },
+    recordings: [
+      {
+        id: 'r1',
+        ownerId: 'o',
+        archive: {parts: files.map(f => ({samples: f.dest}))},
+      },
+    ],
     files,
   };
 }
@@ -56,7 +74,10 @@ test('each lap sends only its own part; the docs follow the parts', async () => 
   assert.deepEqual(await store.uploadLive(lapsOut(1)), {sent: 1});
   assert.deepEqual(await store.uploadLive(lapsOut(2)), {sent: 1});
   assert.equal(b.docs.get('sessions/s1').lapCount, 2);
-  assert.deepEqual(b.order, ['archive/lmu/s1/r1/samples.000.parquet', 'archive/lmu/s1/r1/samples.001.parquet']);
+  assert.deepEqual(b.order, [
+    'archive/lmu/s1/r1/samples.000.parquet',
+    'archive/lmu/s1/r1/samples.001.parquet',
+  ]);
 });
 
 test('offline for a lap: nothing is written for it, and the next lap sends both parts in order', async () => {
@@ -68,12 +89,26 @@ test('offline for a lap: nothing is written for it, and the next lap sends both 
   assert.equal(b.docs.get('sessions/s1').lapCount, 1);
   b.offline = false;
   assert.deepEqual(await store.uploadLive(lapsOut(3)), {sent: 2});
-  assert.deepEqual(b.order.slice(1), ['archive/lmu/s1/r1/samples.001.parquet', 'archive/lmu/s1/r1/samples.002.parquet']);
+  assert.deepEqual(b.order.slice(1), [
+    'archive/lmu/s1/r1/samples.001.parquet',
+    'archive/lmu/s1/r1/samples.002.parquet',
+  ]);
   assert.equal(b.docs.get('sessions/s1').lapCount, 3);
 });
 
 test('a lap over a session the cloud analysed keeps its analysed fields and reads stale', async () => {
-  const docs = new Map([['sessions/s1', {analysis: analysisStamp(17, {}), archiveParts: 1, recordingIds: ['r1'], consistency: {x: 1}}]]);
+  const docs = new Map([
+    [
+      'sessions/s1',
+      {
+        ownerId: 'o',
+        analysis: analysisStamp(17, {}),
+        archiveParts: 1,
+        recordingIds: ['r1'],
+        consistency: {x: 1},
+      },
+    ],
+  ]);
   const b = backend(docs);
   await createStore(b).uploadLive(lapsOut(2));
   const s = b.docs.get('sessions/s1');
@@ -83,18 +118,41 @@ test('a lap over a session the cloud analysed keeps its analysed fields and read
 });
 
 test('the same parts again over an analysed session change nothing', async () => {
-  const docs = new Map([['sessions/s1', {analysis: analysisStamp(17, {}), archiveParts: 2, recordingIds: ['r1']}]]);
+  const docs = new Map([
+    [
+      'sessions/s1',
+      {analysis: analysisStamp(17, {}), archiveParts: 2, recordingIds: ['r1']},
+    ],
+  ]);
   const b = backend(docs);
-  assert.deepEqual(await createStore(b).uploadLive(lapsOut(2)), {skipped: 'newer'});
+  assert.deepEqual(await createStore(b).uploadLive(lapsOut(2)), {
+    skipped: 'newer',
+  });
   assert.equal(b.order.length, 0);
 });
 
 test('a lap that lands while the cloud analyses is not taken as analysed', async () => {
   // The tray stored 5 laps; the cloud analysed the 4 it read.
-  const docs = new Map([['sessions/s1', {analysis: {v: 0, blocks: {}}, archiveParts: 5, recordingIds: ['r1']}]]);
+  const docs = new Map([
+    [
+      'sessions/s1',
+      {
+        ownerId: 'o',
+        analysis: {v: 0, blocks: {}},
+        archiveParts: 5,
+        recordingIds: ['r1'],
+      },
+    ],
+  ]);
   const b = backend(docs);
   const out = {
-    session: {id: 's1', ownerId: 'o', recordingIds: ['r1'], archiveParts: 4, analysis: analysisStamp(17, {})},
+    session: {
+      id: 's1',
+      ownerId: 'o',
+      recordingIds: ['r1'],
+      archiveParts: 4,
+      analysis: analysisStamp(17, {}),
+    },
     recordings: [],
     laps: [],
     traces: [],
@@ -103,7 +161,12 @@ test('a lap that lands while the cloud analyses is not taken as analysed', async
     track: null,
     boundaries: null,
   };
-  await createStore({...b, sessionLapIds: async () => [], deleteFile: async () => {}, listFiles: async () => []}).upload(out);
+  await createStore({
+    ...b,
+    sessionLapIds: async () => [],
+    deleteFile: async () => {},
+    listFiles: async () => [],
+  }).upload(out);
   const s = b.docs.get('sessions/s1');
   assert.equal(s.archiveParts, 5);
   assert.equal(s.analysis.v, 0);
@@ -115,7 +178,11 @@ const withField = (n, hash) => ({
   ...lapsOut(n),
   field: {path: `field/o/s1/${hash}.json.gz`, hash, cars: 6, hz: 5},
   fieldText: JSON.stringify({cars: [], hash}),
-  captureExtract: {v: 1, damage: {et: [1], dent: [0], detached: [0]}, raceLength: null},
+  captureExtract: {
+    v: 1,
+    damage: {et: [1], dent: [0], detached: [0]},
+    raceLength: null,
+  },
 });
 
 test('a live lap uploads the field and points the session at it; the capture extract goes with it', async () => {
@@ -132,7 +199,11 @@ test('an unchanged field is not sent again; a grown one replaces it', async () =
   await store.uploadLive(withField(1, 'aaaa11112222'));
   const sent = b.order.filter(d => d.startsWith('field/')).length;
   await store.uploadLive(withField(2, 'aaaa11112222'));
-  assert.equal(b.order.filter(d => d.startsWith('field/')).length, sent, 'same hash: not sent');
+  assert.equal(
+    b.order.filter(d => d.startsWith('field/')).length,
+    sent,
+    'same hash: not sent',
+  );
   await store.uploadLive(withField(3, 'bbbb33334444'));
   assert.equal(b.docs.get('sessions/s1').field.hash, 'bbbb33334444');
 });
@@ -146,7 +217,20 @@ test('a lap with no field keeps the stored one', async () => {
 });
 
 test('a stored live session with no field gets it once, with no new lap, and reads stale', async () => {
-  const b = backend(new Map([['sessions/s1', {id: 's1', recordingIds: ['r1'], archiveParts: 2, analysis: analysisStamp(17, {})}]]));
+  const b = backend(
+    new Map([
+      [
+        'sessions/s1',
+        {
+          id: 's1',
+          ownerId: 'o',
+          recordingIds: ['r1'],
+          archiveParts: 2,
+          analysis: analysisStamp(17, {}),
+        },
+      ],
+    ]),
+  );
   const out = withField(2, 'cccc55556666');
   const r = await createStore(b).uploadLive(out);
   assert.deepEqual(r, {skipped: 'newer', field: 'added'});
@@ -186,7 +270,10 @@ test('offline part-way: no doc lists the lap, so the next lap asks about it and 
   b.offline = false;
   asked.length = 0;
   assert.deepEqual(await store.uploadLive(lapsOut(3)), {sent: 2});
-  assert.deepEqual(asked, ['archive/lmu/s1/r1/samples.001.parquet', 'archive/lmu/s1/r1/samples.002.parquet']);
+  assert.deepEqual(asked, [
+    'archive/lmu/s1/r1/samples.001.parquet',
+    'archive/lmu/s1/r1/samples.002.parquet',
+  ]);
 });
 
 test('the parts and the field go up side by side, and the docs only after all of them', async () => {
@@ -208,4 +295,95 @@ test('the parts and the field go up side by side, and the docs only after all of
   };
   await createStore(b).uploadLive(withField(3, 'aaaa11112222'));
   assert.ok(peak >= 3, `peak ${peak}`);
+});
+
+// A finished lap's trace is not sent again (pit wall thread 69 #5718): the
+// stores gzip at level 9, so the stored md5 is the md5 of these bytes.
+test('an analysis run sends only the traces whose content changed', async () => {
+  const {gzipSync} = await import('node:zlib');
+  const b = backend();
+  const sent = [];
+  b.putFile = async (dest, {body}, {gzip} = {}) => {
+    const bytes = gzip ? gzipSync(body, {level: 9}) : body;
+    b.files.set(dest, createHash('md5').update(bytes).digest('base64'));
+    sent.push(dest);
+  };
+  const store = createStore({
+    ...b,
+    sessionLapIds: async () => [],
+    deleteFile: async () => {},
+    listFiles: async () => [],
+  });
+  const run = csvs => ({
+    session: {
+      id: 's1',
+      ownerId: 'o',
+      recordingIds: [],
+      analysis: analysisStamp(17, {}),
+    },
+    recordings: [],
+    laps: [],
+    traces: csvs.map((text, i) => ({
+      dest: `traces/s1/l${i}.csv.gz`,
+      csv: () => text,
+    })),
+    files: [],
+    band: null,
+    track: null,
+    boundaries: null,
+  });
+  await store.upload(run(['lap 1', 'lap 2']));
+  assert.deepEqual(sent, ['traces/s1/l0.csv.gz', 'traces/s1/l1.csv.gz']);
+  sent.length = 0;
+  // The next lap lands: the two finished laps are the same bytes, one is new.
+  await store.upload(run(['lap 1', 'lap 2', 'lap 3']));
+  assert.deepEqual(sent, ['traces/s1/l2.csv.gz']);
+});
+
+test("the game's results input goes up with a live lap to the path analysis reads, and only when there is one", async () => {
+  const input = {
+    v: 1,
+    strikes: [],
+    unplaced: 0,
+    coveredFrom: 7.1,
+    coveredTo: 99,
+  };
+  const b = backend();
+  await createStore(b).uploadLive({
+    ...lapsOut(1),
+    resultsInput: input,
+  });
+  assert.ok(b.files.has('inputs/o/s1/results.json.gz'));
+  const none = backend();
+  await createStore(none).uploadLive(lapsOut(1));
+  assert.ok(![...none.files.keys()].some(k => k.startsWith('inputs/')));
+});
+
+test('putResultsInput stores the input alone, and markStale keeps every stored block but the stamp', async () => {
+  const b = backend(
+    new Map([
+      ['sessions/s1', {id: 's1', ownerId: 'o', lapCount: 4, analysis: {v: 17}}],
+    ]),
+  );
+  const store = createStore(b);
+  await store.putResultsInput('o', 's1', {v: 1, strikes: [], unplaced: 0});
+  assert.ok(b.files.has('inputs/o/s1/results.json.gz'));
+  await store.markStale('s1', 'o');
+  assert.deepEqual(b.docs.get('sessions/s1'), {
+    id: 's1',
+    ownerId: 'o',
+    lapCount: 4,
+    analysis: {v: 0},
+  });
+});
+
+test('markStale never creates a session: a stored one reads stale, a missing one is left alone', async () => {
+  const b = backend(
+    new Map([['sessions/s1', {id: 's1', ownerId: 'o', analysis: {v: 17}}]]),
+  );
+  const store = createStore(b);
+  assert.equal(await store.markStale('s1', 'o'), true);
+  assert.equal(b.docs.get('sessions/s1').analysis.v, 0);
+  assert.equal(await store.markStale('gone', 'o'), false);
+  assert.equal(b.docs.has('sessions/gone'), false);
 });

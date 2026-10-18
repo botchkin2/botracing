@@ -7,6 +7,7 @@ import {
 import {
   carLabel,
   formatDayMonth,
+  modeText,
   lapStroke,
   type Scheme,
   shortTrackName,
@@ -37,7 +38,10 @@ export function chromeBox({
   tab,
   scheme,
 }: {
-  session: Pick<SessionDetail, 'sessionType' | 'track' | 'car' | 'startedAt'>;
+  session: Pick<
+    SessionDetail,
+    'sessionType' | 'track' | 'car' | 'startedAt' | 'online'
+  >;
   /** Whether the session has a recorded field: the fourth tab is Race or Field. */
   hasField: boolean;
   laps: Pick<Lap, 'id' | 'lapIndex'>[] | undefined;
@@ -66,7 +70,12 @@ export function chromeBox({
   return {
     badge: session.sessionType,
     track: shortTrackName(session.track),
-    detail: [car.model, car.entry, formatDayMonth(session.startedAt)]
+    detail: [
+      car.model,
+      car.entry,
+      formatDayMonth(session.startedAt),
+      modeText(session.online),
+    ]
       .filter(Boolean)
       .join(' · '),
     tabs: sessionTabs(

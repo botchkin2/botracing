@@ -13,8 +13,20 @@ import {openIbt} from './ibt.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {captureExtract} from './captureExtract.mjs';
+import {onlineFor} from './gameMode.mjs';
+import {resultsForSpan} from './lmuResults.mjs';
+import {resultsInput} from './resultsInput.mjs';
 
-export function makeBuilder({adapter, work, ownerId, catalogOnly, captureRoot, log}) {
+export function makeBuilder({
+  adapter,
+  work,
+  ownerId,
+  catalogOnly,
+  captureRoot,
+  log,
+  // The game's results folder; the parity gate points it at a fixture.
+  resultsFolder = undefined,
+}) {
   // Every car's class in an iRacing session, from its .ibt (irClasses.mjs);
   // none when the file can't be read.
   function ibtDriversOf(path) {
@@ -113,7 +125,11 @@ export function makeBuilder({adapter, work, ownerId, catalogOnly, captureRoot, l
     const liveCheck =
       foldOnly || sim !== 'iracing'
         ? null
-        : liveLapCheck(captureRoot, span, ibtCrossings(s.files.map(f => f.path)));
+        : liveLapCheck(
+            captureRoot,
+            span,
+            ibtCrossings(s.files.map(f => f.path)),
+          );
     // The car's damage from the live capture, to tell a repair from a penalty
     // (pitVisit.mjs); null where the capture is gone.
     const damage = foldOnly ? null : damageFor(captureRoot, span);
@@ -127,6 +143,23 @@ export function makeBuilder({adapter, work, ownerId, catalogOnly, captureRoot, l
         : sim === 'iracing'
         ? first.raceLength ?? null
         : raceLengthFor(captureRoot, span);
+    // The game's track-limit rulings for his laps, from the results file it
+    // wrote when the session ended (lmuResults.mjs); LMU only, null with no file.
+    // `resultsForSpan` answers {absent: why} with no file: the input is null.
+    const results =
+      foldOnly || sim !== 'lmu'
+        ? null
+        : resultsInput(
+            resultsForSpan(
+              span,
+              first.driver,
+              first.sessionType,
+              resultsFolder,
+            ),
+          );
+    // Online or offline, from the capture's game mode; null where it is gone.
+    const online =
+      foldOnly || sim !== 'lmu' ? null : onlineFor(captureRoot, span);
     const out = analyzeFromArchive({
       ownerId,
       sessionId: s.id,
@@ -142,6 +175,8 @@ export function makeBuilder({adapter, work, ownerId, catalogOnly, captureRoot, l
       foldOnly,
       damage,
       raceLength,
+      online,
+      results,
       event: joined.session,
       // Every car in the session, when the recorder ran (field.mjs, irField.mjs).
       fieldFor: lite =>
@@ -165,7 +200,11 @@ export function makeBuilder({adapter, work, ownerId, catalogOnly, captureRoot, l
       captureExtract: captureExtract({
         damage,
         raceLength: sim === 'lmu' ? raceLength : null,
+        online,
       }),
+      // The game's rulings, kept in the store for analysis on open
+      // (resultsInput.mjs); null with no results file.
+      resultsInput: results,
       capturesUsed,
       files,
     };

@@ -44,6 +44,8 @@ export type SessionSummary = {
   /** The player's finishing position in a race (the stored `result` block); null outside a race or before it is computed. */
   finish: FinishPlace | null;
   eventId: string | null;
+  /** LMU: played online (true) or offline (false), from the capture's game mode; null when unknown, never guessed from the event. */
+  online: boolean | null;
   /**
    * Where the session's corners came from: the track's stored map
    * ('stored', or 'new' when this session created it), or a map of its own
@@ -103,6 +105,7 @@ export function toSessionSummary(raw: RawSession): SessionSummary {
     classLaps: toClassLaps(raw.classLaps),
     finish: toFinishPlace(raw.result),
     eventId: str(raw.eventId) || null,
+    online: typeof raw.online === 'boolean' ? raw.online : null,
     cornerMapSource: toCornerMapSource(raw.trackMapSource),
     updatedAt: str(raw.updatedAt),
   };
@@ -364,6 +367,10 @@ export type SessionDetail = SessionSummary & {
   trackVariant: string;
   /** Made under older analysis rules: opening it runs it again (analysisOnOpen.ts). */
   stale: boolean;
+  /** A game-file rebuild replaced the live copy of this session in place (heal.mjs); absent otherwise. */
+  rebuilt?: {atMs: number; replaced: number; kept: number} | null;
+  /** The healed session that replaced this one (heal.mjs); its link opens that one. Absent otherwise. */
+  supersededBy?: string | null;
   /**
    * Live laps (pit-wall thread 66): the tray uploads each lap while the game
    * runs (`liveAt`, live.ts). `archiveParts` counts the laps stored so far, so a
@@ -390,7 +397,64 @@ export type SessionDetail = SessionSummary & {
   slices: SlicePointer | null;
   /** How long the race is, from the capture; null for other sessions, and for a race with no capture. */
   race: RaceLength | null;
+  /** The game's track-limit rulings over the session (its results file); null without the file. */
+  trackLimits: SessionTrackLimits | null;
 };
+
+/**
+ * What the game ruled over the session: how many strikes, their points, how
+ * many fit no lap of the driver's (after the last lap, or a re-report), and
+ * the laps where the results file and the lap time disagree on INV.
+ */
+export type SessionTrackLimits = {
+  strikes: number;
+  points: number;
+  unplaced: number;
+  disagreements: number;
+};
+
+function toSessionTrackLimits(v: unknown): SessionTrackLimits | null {
+  if (v == null || typeof v !== 'object') return null;
+  const x = obj(v);
+  const strikes = num(x.strikes);
+  if (strikes == null) return null;
+  return {
+    strikes,
+    points: num(x.points) ?? 0,
+    unplaced: num(x.unplaced) ?? 0,
+    disagreements: num(x.disagreements) ?? 0,
+  };
+}
+
+/**
+ * One strike of the game's, on the lap it landed in: when (session seconds),
+ * where (lap distance of the furthest the path was past the edge in the 5 s
+ * before, null without the channels), how far past (metres; negative is inside
+ * the edge), its points, and the game's own words for the ruling.
+ */
+export type LapStrike = {
+  et: number;
+  atM: number | null;
+  widthM: number | null;
+  points: number;
+  outcome: string;
+  ruling: string;
+};
+
+function toLapStrikes(v: unknown): LapStrike[] | null {
+  if (!Array.isArray(v)) return null;
+  return v.map(raw => {
+    const x = obj(raw);
+    return {
+      et: num(x.et) ?? 0,
+      atM: num(x.atM),
+      widthM: num(x.widthM),
+      points: num(x.points) ?? 0,
+      outcome: str(x.outcome),
+      ruling: str(x.ruling),
+    };
+  });
+}
 
 /** The scheduled length of a race, in minutes. */
 export type RaceLength = {minutes: number};
@@ -398,6 +462,14 @@ export type RaceLength = {minutes: number};
 function toRaceLength(v: unknown): RaceLength | null {
   const minutes = num(obj(v).minutes);
   return minutes != null && minutes > 0 ? {minutes} : null;
+}
+
+function toRebuilt(v: unknown): SessionDetail['rebuilt'] {
+  const x = obj(v);
+  const atMs = Date.parse(str(x.at));
+  return Number.isFinite(atMs)
+    ? {atMs, replaced: num(x.replaced) ?? 0, kept: num(x.kept) ?? 0}
+    : null;
 }
 
 export function toSessionDetail(raw: RawSession): SessionDetail {
@@ -413,10 +485,13 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     ...toSessionSummary(raw),
     trackVariant: str(obj(raw.track).variant),
     stale: raw.stale === true,
+    rebuilt: toRebuilt(raw.rebuilt),
+    supersededBy: str(raw.supersededBy) || null,
     archiveParts: num(raw.archiveParts),
     liveAt: toLiveAt(raw.live),
     field: toFieldPointer(raw.field),
     race: toRaceLength(raw.race),
+    trackLimits: toSessionTrackLimits(raw.trackLimits),
     classLaps: toClassLaps(raw.classLaps),
     classBests: toClassBests(raw.classBests),
     traffic: toSessionTraffic(raw.traffic),
@@ -485,6 +560,8 @@ export type Lap = {
    * timed, partial and pit laps.
    */
   invalidTimeS: number | null;
+  /** The game's rulings that fell in this lap (its results file), null without the file. */
+  trackLimits: LapStrike[] | null;
   /** The recording file the lap came from; a new file mid-stint is a reset
    *  or a server drop, not a continuous run. */
   recordingId: string | null;
@@ -492,6 +569,8 @@ export type Lap = {
    *  PR #68); absent before the resync, read as false. */
   endedInReset: boolean;
   offTrackS: number;
+  /** Seconds with throttle and brake both under 5 % above 80 km/h (tools/sessions/coast.mjs); null before the resync. */
+  coastS: number | null;
   /** Contact on this lap. LMU records a flag, not a magnitude. */
   hadImpact: boolean;
   /** Per-section facts in track order, precomputed by the uploader. */
@@ -507,6 +586,8 @@ export type Lap = {
   pitStop: PitStop | null;
   /** Per-wheel tyre facts (tools/sessions/tyres.mjs); null before the resync or without the channels. */
   tyres: LapTyres | null;
+  /** Why this lap has no tyres when its recording's wheel channels are known bad (heal.mjs); absent otherwise. */
+  tyresAbsent?: string | null;
   /**
    * The first lap on new tyres (`freshTyres` in src/analysis/tyres.ts, from
    * the lap before): a pit stop that changed any wheel ended in it, or it
@@ -1000,6 +1081,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
       raw.pitOut !== true
         ? num(raw.lapTime)
         : null,
+    trackLimits: toLapStrikes(raw.trackLimits),
     offTrackS: num(raw.offTrackSec) ?? 0,
     hadImpact: (num(raw.impactMax) ?? 0) > 0,
     sections: (Array.isArray(raw.corners) ? raw.corners : []).map(c => ({
@@ -1016,6 +1098,8 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     fuel: toLapFuel(raw.fuel),
     pitStop: toPitStop(raw.pitStop),
     tyres: toLapTyres(raw.tyres),
+    coastS: num(raw.coastS),
+    tyresAbsent: str(raw.tyresAbsent) || null,
     newTyres: false,
     traceHz: num(raw.traceHz),
   }));

@@ -9,7 +9,17 @@
 // entry with its reason) or the gate fails.
 //
 //   node tools/golden/parity.mjs <pair folder>     prints the differences
-import {mkdtempSync, readdirSync, readFileSync, rmSync, statSync} from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {basename, dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -21,6 +31,7 @@ import {unpackState} from '../sessions/layoutBoundaries.mjs';
 import {groupFiles} from '../sessions/sessionFiles.mjs';
 import {checkSession} from '../sessions/manifest.mjs';
 import {createStore} from '../sessions/store.mjs';
+import {liveInputs} from '../sessions/liveInputs.mjs';
 import {syncLive} from '../sessions/syncLive.mjs';
 import {memoryStore, sessionOf} from './memoryStore.mjs';
 
@@ -34,7 +45,9 @@ const NOW = '2026-10-14T00:00:00.000Z';
  * docs both paths read).
  */
 export async function buildPair(pairDir) {
-  const catalog = JSON.parse(readFileSync(join(pairDir, 'catalog.json'), 'utf8'));
+  const catalog = JSON.parse(
+    readFileSync(join(pairDir, 'catalog.json'), 'utf8'),
+  );
   const seed = {
     [`tracks/${catalog.track.id}`]: catalog.track,
     ...(catalog.boundaries
@@ -42,18 +55,48 @@ export async function buildPair(pairDir) {
       : {}),
   };
   const captureRoot = join(pairDir, 'capture');
-  const [captureName] = readdirSync(captureRoot)
-    .filter(n => statSync(join(captureRoot, n)).isDirectory());
+  const [captureName] = readdirSync(captureRoot).filter(n =>
+    statSync(join(captureRoot, n)).isDirectory(),
+  );
   const work = mkdtempSync(join(tmpdir(), 'parity-'));
   try {
+    // The game's results file for the drive, when the set has one for this pair
+    // (tools/golden/results/<pair>.xml: his rows only, his name a placeholder).
+    // Each path names the driver as its own source does: the capture's meta
+    // says who he is, the cut game file says seat-test. Written where the game
+    // would have written it: after the recording began and before it ends (the
+    // pair is cut to its first laps, and the file really was written 7.5 min
+    // before the capture ended: lmuResults.test.mjs has that case).
+    const meta = JSON.parse(
+      readFileSync(join(captureRoot, captureName, 'meta.json'), 'utf8'),
+    );
+    const fixture = join(here, 'results', `${basename(pairDir)}.xml`);
+    const resultsFor = driver => {
+      if (!existsSync(fixture)) return undefined;
+      const folder = join(
+        work,
+        `results-${mkdtempSync(join(work, 'r-')).slice(-6)}`,
+      );
+      mkdirSync(folder);
+      const file = join(folder, '2026_10_02_20_58_14-47R1.xml');
+      writeFileSync(
+        file,
+        readFileSync(fixture, 'utf8').split('__DRIVER__').join(driver),
+      );
+      const written = new Date(Date.parse(meta.startUtc) + 600_000);
+      utimesSync(file, written, written);
+      return folder;
+    };
     // The capture path.
-    const liveStore = memoryStore(seed);
+    const liveStore = memoryStore(seed, {ownerKey: OWNER});
     await syncLive({
       captureDir: join(captureRoot, captureName),
       ownerId: OWNER,
       work: join(work, 'live'),
       store: createStore(liveStore),
       now: () => NOW,
+      makeInputs: args =>
+        liveInputs({...args, resultsFolder: resultsFor(meta.playerName)}),
     });
     const liveIds = [...liveStore.docs.keys()]
       .filter(k => k.startsWith('sessions/'))
@@ -85,8 +128,9 @@ export async function buildPair(pairDir) {
       catalogOnly: true,
       captureRoot,
       log: () => {},
+      resultsFolder: resultsFor(groups[0].files[0].info.driver),
     });
-    const gameStore = memoryStore(seed);
+    const gameStore = memoryStore(seed, {ownerKey: OWNER});
     const out = build(
       groups[0],
       catalog.track,
@@ -96,14 +140,15 @@ export async function buildPair(pairDir) {
     await createStore(gameStore).upload(out);
 
     // The other cars the capture saw: its car list, less the player.
-    const meta = JSON.parse(
-      readFileSync(join(captureRoot, captureName, 'meta.json'), 'utf8'),
+    const otherCars = Math.max(
+      0,
+      Object.keys(meta.vehicleModels ?? {}).length - 1,
     );
-    const otherCars = Math.max(0, Object.keys(meta.vehicleModels ?? {}).length - 1);
     return {
       capture: sessionOf(liveStore, liveIds[0]),
       game: sessionOf(gameStore, groups[0].id),
       otherCars,
+      results: existsSync(fixture),
       name: basename(pairDir),
     };
   } finally {
@@ -150,10 +195,18 @@ const generic = path => path.replace(/\.\d+(?=\.|$)/g, '.#');
 function withinTolerance(rule, a, b) {
   if (rule.tolS != null) {
     const [x, y] = [Date.parse(a), Date.parse(b)];
-    return Number.isFinite(x) && Number.isFinite(y) && Math.abs(x - y) <= rule.tolS * 1000;
+    return (
+      Number.isFinite(x) &&
+      Number.isFinite(y) &&
+      Math.abs(x - y) <= rule.tolS * 1000
+    );
   }
   if (rule.tol == null) return true;
-  return typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) <= rule.tol;
+  return (
+    typeof a === 'number' &&
+    typeof b === 'number' &&
+    Math.abs(a - b) <= rule.tol
+  );
 }
 
 /**
@@ -192,7 +245,8 @@ export function judge({capture, game, name: pairName}, allow = loadAllow()) {
       }
     byNumber.delete(lap.lapNumber);
   }
-  for (const n of byNumber.keys()) all.push([`laps.${n}`, 'missing', 'present']);
+  for (const n of byNumber.keys())
+    all.push([`laps.${n}`, 'missing', 'present']);
 
   const failures = [];
   const allowed = new Map();
@@ -203,7 +257,8 @@ export function judge({capture, game, name: pairName}, allow = loadAllow()) {
     const row = path.match(/^session\.lapTable\.(\d+)\./);
     const tableLap = row ? capture.laps[Number(row[1])] : null;
     const role = lapRole.get(path) ?? (tableLap ? roleOf(tableLap) : {});
-    const lapForm = name => g.replace(/^(laps|session\.lapTable)\.#/, `$1.${name}`);
+    const lapForm = name =>
+      g.replace(/^(laps|session\.lapTable)\.#/, `$1.${name}`);
     const forms = [
       g,
       path,
@@ -222,7 +277,12 @@ export function judge({capture, game, name: pairName}, allow = loadAllow()) {
       used.add(rule);
     } else failures.push({path, capture: a, game: b});
   }
-  return {failures, allowed: Object.fromEntries(allowed), used, compared: all.length};
+  return {
+    failures,
+    allowed: Object.fromEntries(allowed),
+    used,
+    compared: all.length,
+  };
 }
 
 if (process.argv[1]?.endsWith('parity.mjs')) {
@@ -230,20 +290,35 @@ if (process.argv[1]?.endsWith('parity.mjs')) {
   const r = judge(pair);
   const show = v => {
     const s = JSON.stringify(v);
-    return s === undefined ? 'undefined' : s.length > 80 ? `${s.slice(0, 77)}...` : s;
+    return s === undefined
+      ? 'undefined'
+      : s.length > 80
+      ? `${s.slice(0, 77)}...`
+      : s;
   };
   console.log(
-    `capture: ${pair.capture.laps.length} laps, game file: ${pair.game.laps.length} laps (${basename(process.argv[2])})`,
+    `capture: ${pair.capture.laps.length} laps, game file: ${
+      pair.game.laps.length
+    } laps (${basename(process.argv[2])})`,
   );
   for (const f of r.failures)
-    console.log(`DIFF ${f.path}: capture ${show(f.capture)} | game ${show(f.game)}`);
+    console.log(
+      `DIFF ${f.path}: capture ${show(f.capture)} | game ${show(f.game)}`,
+    );
   console.log(`allowed: ${JSON.stringify(r.allowed)}`);
   console.log(`${r.failures.length} unexplained difference(s)`);
   let missing = 0;
   for (const side of ['capture', 'game']) {
-    const misses = checkSession(pair[side], {otherCars: pair.otherCars});
+    const misses = checkSession(pair[side], {
+      otherCars: pair.otherCars,
+      results: pair.results,
+    });
     missing += misses.length;
-    console.log(`manifest, ${side} path: ${misses.length ? misses.join('; ') : 'complete'}`);
+    console.log(
+      `manifest, ${side} path: ${
+        misses.length ? misses.join('; ') : 'complete'
+      }`,
+    );
   }
   process.exitCode = r.failures.length || missing ? 1 : 0;
 }

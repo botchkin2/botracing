@@ -2,6 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {
   EVENT_GUARD_S,
+  MIN_CURVE_LAPS,
   MIN_EVENT_LAPS,
   type PaceLap,
   paceEvents,
@@ -218,5 +219,64 @@ describe('one rule at every size (decision 2026-10-12)', () => {
     expect(sectionTimesOf(null, [20, 30])).toBeNull();
     expect(sectionTimesOf(10, [20, null])).toBeNull();
     expect(sectionTimesOf(10, [])).toBeNull();
+  });
+});
+
+describe('a stint too short for a curve', () => {
+  // Twelve laps in one stint, then a lone lap in a stint of its own: `x` times
+  // the session's pace (its sections and lap time both scaled).
+  const withLone = (x: number): PaceLap[] => {
+    const long = driver([{stint: 1, laps: 12, noise: 0.05}]);
+    const lone: PaceLap = {
+      id: 'lone',
+      stint: 2,
+      stintLap: 0,
+      lapTime: 76 * x,
+      sections: BASES.map(b => b * x),
+    };
+    return [...long, lone];
+  };
+
+  it('a lone lap 2 % off the session pace is slow, and one at pace is not', () => {
+    expect(MIN_CURVE_LAPS).toBe(3);
+    expect(slowLapIds(withLone(1.02)).has('lone')).toBe(true);
+    expect(slowLapIds(withLone(1)).has('lone')).toBe(false);
+  });
+
+  it('a pair of laps is judged the same way', () => {
+    const laps = withLone(1.02);
+    const pair = [
+      ...laps.slice(0, -1),
+      {...laps[laps.length - 1], id: 'a'},
+      {...laps[laps.length - 1], id: 'b', stintLap: 1},
+    ];
+    expect([...slowLapIds(pair)].sort()).toEqual(['a', 'b']);
+  });
+
+  it('the session limit does not depend on how slow the short stint is', () => {
+    // A real event in the long stint reports the limit; the lone lap adds a
+    // residual of 0 to it whatever its pace.
+    const limit = (x: number) => {
+      const laps = withLone(x);
+      laps[5] = {...laps[5], lapTime: laps[5].lapTime + 5};
+      return paceEvents(laps).find(e => e.id === laps[5].id)?.limitS;
+    };
+    expect(limit(1.02)).toBeDefined();
+    expect(limit(1.02)).toBe(limit(1));
+  });
+
+  it('a stint of 3 laps is judged against its own curve, as before', () => {
+    const three = [
+      ...driver([{stint: 1, laps: 12, noise: 0.05}]),
+      ...[0, 1, 2].map(i => ({
+        id: `t${i}`,
+        stint: 2,
+        stintLap: i,
+        lapTime: 76 * 1.02,
+        sections: BASES.map(b => b * 1.02),
+      })),
+    ];
+    // Three laps at 2 % off are a run of 3: their own pace, not events.
+    expect(slowLapIds(three).size).toBe(0);
   });
 });

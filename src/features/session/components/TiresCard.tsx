@@ -6,6 +6,7 @@ import {space, useTheme} from '@/src/design';
 import {EmptyState, Segment, Text} from '@/src/ui';
 
 import {
+  absentLapsNote,
   treadScale,
   type TreadZone,
   type TiresCard as TiresCardModel,
@@ -39,6 +40,11 @@ export function TiresCard({
       <View style={styles.card}>
         {titled ? <Text variant='label'>Tires</Text> : null}
         <EmptyState title='No tire channels' />
+        {card.absentLaps > 0 ? (
+          <Text variant='dataSmall' tone='textMuted'>
+            {absentLapsNote(card.absentLaps)}
+          </Text>
+        ) : null}
       </View>
     );
   }
@@ -48,6 +54,11 @@ export function TiresCard({
   return (
     <View style={styles.card}>
       {titled ? <Text variant='label'>Tires</Text> : null}
+      {card.absentLaps > 0 ? (
+        <Text variant='dataSmall' tone='textMuted'>
+          {absentLapsNote(card.absentLaps)}
+        </Text>
+      ) : null}
       {card.heat.length > 0 ? (
         <HeatStrips strips={card.heat} width={width} />
       ) : null}

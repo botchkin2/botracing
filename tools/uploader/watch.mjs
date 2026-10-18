@@ -64,6 +64,7 @@ import {
   liveClosed,
   liveRetryDelayMs,
   liveWake,
+  resultsDue,
   retryDelayMin,
 } from './trigger.mjs';
 import {floorOf} from '../sessions/syncState.mjs';
@@ -297,6 +298,33 @@ function runLive(sim, sessionDir) {
     });
   });
 }
+
+// The game's results for stored sessions (sync.mjs --results / --results-live): the
+// game writes its file when a session ends, after the last live run. Idle
+// priority; --run names this tray start (resultsBacklog.mjs).
+function runResults(sim, mode) {
+  return new Promise(done => {
+    const child = spawn(
+      process.execPath,
+      [syncScript, ...syncArgsOf(sim), mode === 'all' ? '--results' : '--results-live', '--run', startedAtIso],
+      {windowsHide: true},
+    );
+    try {
+      setPriority(child.pid, constants.priority.PRIORITY_LOW);
+    } catch {
+      // Priority is a courtesy.
+    }
+    const onData = chunk => {
+      for (const line of String(chunk).split(/\r?\n/).filter(Boolean))
+        log(`  results | ${line}`);
+    };
+    child.stdout.setEncoding('utf8').on('data', onData);
+    child.stderr.setEncoding('utf8').on('data', onData);
+    child.on('close', code => done({code}));
+  });
+}
+const startedAtIso = new Date().toISOString();
+let lastResultsMs = null;
 
 // The wait between ticks. The recorders' status files are read every
 // LIVE_POLL_MS (small files) and a new lap on disk, or a recorder that starts
@@ -571,6 +599,19 @@ async function main() {
           save();
         }
       }
+      // The game's results for sessions that just ended (trigger.mjs resultsDue).
+      {
+        const nowMs = Date.now();
+        const liveEnds = LIVE_SIMS.flatMap(sim =>
+          Object.values(readLiveIndex(workOf(sim))).map(e => e.endMs),
+        );
+        const mode = resultsDue({liveEnds, nowMs, lastRunMs: lastResultsMs});
+        if (mode) {
+          lastResultsMs = nowMs;
+          for (const sim of LIVE_SIMS.filter(s => s.id === 'lmu'))
+            await runResults(sim, mode);
+        }
+      }
       for (const sim of SIMS) {
         const st = stateOf(watch, sim);
         const recs = recordings(sim, st.lastRunAtMs);
@@ -636,6 +677,7 @@ async function main() {
             watch.lastUploadAt = new Date().toISOString();
             watch.lastSessionId = r.stored[0] ?? watch.lastSessionId;
             watch.sessionsDone = (watch.sessionsDone ?? 0) + r.done;
+            watch.healed = (watch.healed ?? 0) + r.healed;
           }
           if (r.stoppedForGame) {
             // Not a failure: nothing to retry or report. The trigger still

@@ -27,8 +27,10 @@ import {
 import {
   carLabel,
   dayMonthOf,
+  formatDayMonthTime,
   formatGap,
   formatLapTime,
+  modeText,
   shortTrackName,
 } from '@/src/design';
 import {planComboKey} from '@/src/nav/routes';
@@ -230,6 +232,10 @@ export type SessionScreenModel = {
   pitCard: PitCard | null;
   /** Per-wheel wear, pressure and rubber temperature by stint. */
   tires: TiresCard;
+  /** A heal replaced this session's live copy: its one header line and the detail a tap opens; null otherwise. */
+  rebuilt: {line: string; detail: string} | null;
+  /** This session was replaced by a healed one: its link goes there. */
+  movedTo: string | null;
   /** Practice with green laps only. */
   fuelUse: FuelUseCardModel | null;
   /** Races with a whole lap to end on. */
@@ -310,6 +316,21 @@ const lapLabel = (lap: Lap) => `L${lap.lapIndex}`;
 const timeOrDash = (t: number | null) => (t == null ? '—' : formatLapTime(t));
 const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v));
 
+/** The outcomes that delete the lap they land in (tools/sessions/resultsInput.mjs). */
+const DELETING: ReadonlySet<string> = new Set([
+  'warning',
+  'invalidCut',
+  'invalidOff',
+]);
+
+/** "Invalid", and the game's words for the strike that deleted the lap when its results file has one. */
+function invalidWhy(lap: Lap): string {
+  const ruling = lap.trackLimits?.find(
+    k => DELETING.has(k.outcome) && k.ruling,
+  )?.ruling;
+  return ruling ? `Invalid · ${ruling}` : 'Invalid';
+}
+
 function tagsFor(lap: Lap, bestLapId: string | null): Tag[] {
   const tags: Tag[] = [];
   if (lap.id === bestLapId) tags.push({code: 'BEST', best: true});
@@ -324,15 +345,14 @@ function tagsFor(lap: Lap, bestLapId: string | null): Tag[] {
   else if (lap.partial || lap.reasons.includes('untimed'))
     tags.push({code: 'PART'});
   if (lap.reasons.includes('slow')) tags.push({code: 'SLOW'});
-  if (lap.offTrackS >= OFF_TRACK_TOLERANCE_S)
-    tags.push({code: `OFF ${lap.offTrackS.toFixed(1)}`});
+  // The game's own rulings in this lap (its results file), counted: what it
+  // ruled is the status line's, never ours.
+  if (lap.trackLimits?.length)
+    tags.push({code: `LIM ${lap.trackLimits.length}`});
   if (lap.hadImpact) tags.push({code: 'HIT'});
   tags.push(...trafficTags(lap.traffic));
   return orderTags(tags);
 }
-
-/** Off-track time a comparable lap may carry (handoff exclusion copy). */
-export const OFF_TRACK_TOLERANCE_S = 1.0;
 
 function statusFor(
   lap: Lap,
@@ -350,7 +370,7 @@ function statusFor(
       : lap.partialWhy === 'grid'
       ? 'Parked start'
       : lap.invalidTimeS != null
-      ? 'Invalid'
+      ? invalidWhy(lap)
       : lap.partial || lap.reasons.includes('untimed')
       ? 'Partial'
       : lap.reasons.includes('slow')
@@ -428,6 +448,26 @@ export function sectionTable(
       row('Best', s => s.bestS),
       row('IQR', s => s.spreadS),
     ],
+  };
+}
+
+/** "Rebuilt from the game file" and, on a tap, when and which stretches. */
+export function rebuiltOf(
+  session: Pick<SessionDetail, 'rebuilt'>,
+): {line: string; detail: string} | null {
+  const r = session.rebuilt;
+  if (!r) return null;
+  const n = (k: number, one: string, many: string) =>
+    `${k} ${k === 1 ? one : many}`;
+  return {
+    line: 'Rebuilt from the game file',
+    detail: [
+      formatDayMonthTime(new Date(r.atMs).toISOString()),
+      n(r.replaced, 'recording replaced', 'recordings replaced'),
+      r.kept > 0 ? n(r.kept, 'stretch kept', 'stretches kept') : null,
+    ]
+      .filter(Boolean)
+      .join(' · '),
   };
 }
 
@@ -632,6 +672,7 @@ export function buildSessionModel(
       car.model,
       car.entry,
       session.sim.toUpperCase(),
+      modeText(session.online),
     ]
       .filter(Boolean)
       .join(' · '),
@@ -671,6 +712,8 @@ export function buildSessionModel(
     ),
     pitCard,
     tires: buildTiresCard(session, laps),
+    rebuilt: rebuiltOf(session),
+    movedTo: session.supersededBy ?? null,
     fuelUse,
     planVsRace: raceFactsOfPlan(session, planKeyOf(session)),
   };

@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {DEFAULT_AGE_DAYS, foldFacets, listCutoff} from '../src/sessionQuery.ts';
+import {
+  DEFAULT_AGE_DAYS,
+  foldFacets,
+  listCutoff,
+  withoutSuperseded,
+} from '../src/sessionQuery.ts';
 
 const NOW = Date.parse('2026-10-09T00:00:00Z');
 const daysAgo = n => new Date(NOW - n * 86400000).toISOString();
@@ -98,10 +103,28 @@ test('a track carries its layout as variant; the name stays plain', () => {
 test('the list version moves with a count, a write, the owner and the day', async () => {
   const {listVersion} = await import('../src/sessionQuery.ts');
   const v = listVersion('u', 170, '2026-10-13T03:00:00.000Z', NOW);
-  assert.equal(v, listVersion('u', 170, '2026-10-13T03:00:00.000Z', NOW + 3600_000));
+  assert.equal(
+    v,
+    listVersion('u', 170, '2026-10-13T03:00:00.000Z', NOW + 3600_000),
+  );
   assert.notEqual(v, listVersion('u', 171, '2026-10-13T03:00:00.000Z', NOW));
   assert.notEqual(v, listVersion('u', 170, '2026-10-13T03:00:01.000Z', NOW));
   assert.notEqual(v, listVersion('w', 170, '2026-10-13T03:00:00.000Z', NOW));
-  assert.notEqual(v, listVersion('u', 170, '2026-10-13T03:00:00.000Z', NOW + 86400000));
+  assert.notEqual(
+    v,
+    listVersion('u', 170, '2026-10-13T03:00:00.000Z', NOW + 86400000),
+  );
   assert.equal(v.length, 16);
+});
+
+test('a session a heal replaced is not in a list; one that was not is', () => {
+  const docs = [
+    {id: 'a'},
+    {id: 'b', supersededBy: 'a'},
+    {id: 'c', supersededBy: null},
+  ];
+  assert.deepEqual(
+    withoutSuperseded(docs).map(d => d.id),
+    ['a', 'c'],
+  );
 });

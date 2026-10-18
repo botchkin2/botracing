@@ -18,12 +18,14 @@ import {mkdirSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {gunzipSync} from 'node:zlib';
 import {captureExtractPath, readCaptureExtract} from './captureExtract.mjs';
+import {readResultsInput, resultsInputPath} from './resultsInput.mjs';
 import {analyzeFromArchive} from './analyzeFromArchive.mjs';
 import {analysisVersion, blockVersions, trackMapVersion} from './analyze.mjs';
 import {catalogStamp} from './catalogStamp.mjs';
 import {isStale} from './versionKey.mjs';
 import {unpackState} from './layoutBoundaries.mjs';
 import {createStore} from './store.mjs';
+import {mapLimit} from './mapLimit.mjs';
 
 /**
  * Whether a stored session needs analysing again now: the rules it was made
@@ -114,15 +116,34 @@ export async function analyzeStored({
     // line (pit-wall thread 66): read back as one file through a glob, which
     // gives the same docs as the whole file.
     const parts = doc.archive.parts ?? null;
-    if (parts) {
-      for (const [i, part] of parts.entries()) {
+    // Side by side: one at a time, a 31-lap race spent 5.3 s here (pit wall
+    // thread 69 #5718).
+    if (parts)
+      await mapLimit(parts, 8, async (part, i) => {
         const n = String(i).padStart(3, '0');
-        await download(backend, part.samples, owner, join(workDir, `${id}.samples.${n}.parquet`));
-        await download(backend, part.events, owner, join(workDir, `${id}.events.${n}.parquet`));
-      }
-    }
-    const samplesPath = join(workDir, `${id}.samples${parts ? '.*' : ''}.parquet`);
-    const eventsPath = join(workDir, `${id}.events${parts ? '.*' : ''}.parquet`);
+        await Promise.all([
+          download(
+            backend,
+            part.samples,
+            owner,
+            join(workDir, `${id}.samples.${n}.parquet`),
+          ),
+          download(
+            backend,
+            part.events,
+            owner,
+            join(workDir, `${id}.events.${n}.parquet`),
+          ),
+        ]);
+      });
+    const samplesPath = join(
+      workDir,
+      `${id}.samples${parts ? '.*' : ''}.parquet`,
+    );
+    const eventsPath = join(
+      workDir,
+      `${id}.events${parts ? '.*' : ''}.parquet`,
+    );
     if (!parts) {
       await download(backend, doc.archive.samples, owner, samplesPath);
       await download(backend, doc.archive.events, owner, eventsPath);
@@ -142,6 +163,13 @@ export async function analyzeStored({
   const extract = stored
     ? readCaptureExtract(gunzipSync(stored).toString('utf8'))
     : null;
+  // The game's track-limit rulings the PC kept (resultsInput.mjs), if any.
+  const storedResults = await backend.getFile(
+    resultsInputPath(owner, sessionId),
+  );
+  const results = storedResults
+    ? readResultsInput(gunzipSync(storedResults).toString('utf8'))
+    : null;
   log(`${at()} archive downloaded`);
   const out = analyze({
     ownerId: owner,
@@ -151,6 +179,7 @@ export async function analyzeStored({
     boundaries: packed ? unpackState(packed) : null,
     catalogOnly: true,
     damage: extract?.damage ?? null,
+    results,
     // iRacing's comes from the .ibt's session info, kept on the recording doc;
     // LMU's from the capture extract, else store.mjs keeps the stored one.
     raceLength: !/^r/i.test(first.sessionType ?? '')
@@ -158,6 +187,7 @@ export async function analyzeStored({
       : first.sim === 'iracing'
       ? first.raceLength ?? null
       : extract?.raceLength ?? null,
+    online: extract?.online ?? null,
     event: {series: session.series ?? null, eventId: session.eventId ?? null},
     fieldFor: () => ({field: null, reason: 'analysed from the store'}),
   });

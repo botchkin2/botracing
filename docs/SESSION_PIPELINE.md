@@ -63,16 +63,34 @@ One flow. Only the reader depends on where the drive came from.
   under a version. It must run before the captures it needs are pruned. The
   per-wheel repair of the 0.1.9-0.1.10 captures (#619) has that deadline.
 
-**Off-track (on the plan list, not on this design's path).** Two separate facts,
-never merged:
-- **INV:** the game's own track-limits call (`mCountLapFlag`, lap time −1).
-- **OFF:** our geometry: all four wheels past the line (the centre past the
-  edge by more than half the car's track width), or 2+ wheels on grass, dirt or
-  gravel.
-
-Today the surface rule cannot see tarmac run-off (it reads code 0, the same as
-the track; pit wall #5382, #5387). One open question first: whether LMU's
-Track Edge is the white line or the outer edge of the kerb.
+**Track limits (the game's verdict, thread 70).** The game rules every strike in
+its results file (`UserData\Log\Results`, one XML per session, written when the
+session ends): a strike is a row with the driver, the session time `et`, points
+and a Resolution. We show what the game ruled and our own measure of where, never
+our own verdict: the earlier OFF (all four wheels past the line, or two on loose
+surface) is no longer shown anywhere. The surface time it was made from
+(`offTrackSec`) stays an input of lap selection, unchanged
+(`decisions/lap/2026-10-15-lap-selection-protected.md`), and `selectionPin.test.ts`
+pins what the default selection picks on the held sessions.
+- **Source:** `lmuResults.mjs`. The file is the session's by its letter (P, Q, R)
+  and by being the first written after the recording ends: the header's
+  `DateTime` is the event's start, the same across a weekend. Our driver by name.
+  A row identical to the one before it is dropped (the game writes many drivers'
+  rows twice).
+- **Placement:** `<Lap num=n et=…>`: `et` is the lap's start, so lap n =
+  [et_n, et_n+1) (et[n+1] - et[n] is lap n's time on 2529 of 2529 timed laps); our
+  lapNumber is n - 1. A strike outside every lap of his, or in his last lap, is
+  counted on the session (`trackLimits.unplaced`), never guessed onto a lap.
+- **INV** is the game deleting the lap: a strike of Resolution 4, 5 or 6 (315 of
+  315 placed strikes, `tools/dev/trackLimitsTable.mjs` re-runs the table). The
+  results file is the source when there is one (`invalidFrom: 'results'`); the
+  lap time (capture -1, game file 0.0) stands in until the file exists, and where
+  they disagree the file wins and the lap is counted in
+  `trackLimits.disagreements`. Resolution 7 No Further Action does not delete.
+- **The measure:** per strike, the lap distance (`atM`) and how far past the track
+  edge the path got (`widthM`) in the 5 s before it (the game rules 1.5 to 3.9 s
+  after the excursion).
+- **iRacing:** none yet (its own verdict is the incident count, a separate row).
 
 ## Today
 
@@ -93,7 +111,7 @@ a gap at the end.
 1. **During the drive (live):** the watcher (`tools/uploader/watch.mjs`) runs `sync.mjs --live <capture>` when the recorder reports a new lap on disk (`status.json` lastLapAt; `trigger.mjs` decideLive). That runs `syncLive.mjs`:
    - `describeCapture` cuts the capture into stretches and laps (`lmuCapture.mjs` / `irLiveCapture.mjs`);
    - each finished lap becomes one archive part, `samples.N` + `events.N` parquet (`writeCaptureArchive`), written once;
-   - `liveInputs.mjs` builds the field (`field.mjs fieldFor`, LMU) and the capture extract (damage, race length) from the same capture;
+   - `liveInputs.mjs` builds the field (`field.mjs fieldFor`, LMU) and the capture extract (damage, race length, online) from the same capture;
    - `store.uploadLive` sends the parts no stored recording doc lists yet (md5 for those only, so a lap costs the same at lap 30 as at lap 1), the field when its content changed and the extract, side by side (`mapLimit.mjs`, 6 at once), then the recording docs and the session doc (merged). It writes **no lap docs**.
    - The server's `liveAnalyze` (an event function on the session doc's `live.updatedAt`) analyses the session from the stored parts, field and extract, and writes the lap docs. A lap is in the app ~5-30 s after the line.
 2. **End of the drive, defined:** the recorder's `status.json` stops saying `recording` for the capture live laps were following (game exit, back to the menus, a new session). Before #619 the watcher waited for `sessionDir` to change, and the recorder keeps the old one on a game exit, so the last lap never went up (L27 on 2026-10-14).
@@ -136,7 +154,8 @@ length, event, kept values.
 | Stints | `analyze.mjs` (963-1009, 1273) | derived | golden (R); `lmuCapture.test.mjs:88` (R) |
 | Fuel per lap and session fuel | `fuelFacts.mjs lapFuel`, `stintFuel`; `analyze.mjs` 1229-1236 | fuel/VE channels; `recording.fuelSetup` (tank, fill limit) | golden (R, game file); fill limit: `fuelFacts.test.mjs:205` (S). From the capture: **none** (the capture has no fill limit, `lmuCapture.mjs:217`) |
 | Tyres per wheel | `tyres.mjs lapTyres`, `settleHotPressure` | tyre channels per wheel | `tyres.test.mjs` (S); golden checks only the tyre change (R). Four distinct wheels on real data: **none today** |
-| Off track | `analyze.mjs` (553-573, 609-611) | `surface` events per wheel | golden (R, game file only); from the capture: **none today** |
+| Surface time off the road (selection input only, not shown) | `analyze.mjs` (553-573, 609-611) | `surface` events per wheel | golden (R, game file only); from the capture: **none today** |
+| Track limits (strikes, INV from the game's results) | `lmuResults.mjs`, `analyze.mjs lapStrikes`, `analyzeFromArchive.mjs trackLimitsOf` | LMU's results XML on the PC, kept as `inputs/…/results.json.gz` | `lmuResults.test.mjs` (his real race laps and Warnings, tonight's three files), `trackLimits.test.mjs` (S); LMU only, both paths read the same file |
 | Corners, start straight, slices | `analyze.mjs` (1084-1141), `cornerFacts.mjs`, `cornerSlices.mjs` | trace, curated map and boundaries | golden corners (R); slices `cornerSlices.test.mjs` (S) |
 | Consistency, band | `analyze.mjs` (1043-1052, 1146-1206) | derived | golden (R) |
 | Field file | `field.mjs fieldFor` (LMU), `irField.mjs irFieldFor` (iRacing), named by content (`analyzeFromArchive.mjs` 225-231) | the capture's field chunks | `field.test.mjs` (S, synthetic capture). On a real capture through upload and analysis: **none today** (#619 replay assertion) |
@@ -148,6 +167,7 @@ length, event, kept values.
 | GPS | trace and map channels (`analyze.mjs` 683-702, 796-810, 841) | LMU has no real GPS in either source. Its .duckdb "GPS" is world metres projected at a fake origin, 60° N 0° E, and the capture reproduces it (`lmuCaptureChannels.mjs:24-25`). Road Atlanta 2026-10-03: game lat 59.98591-60.0005, capture 59.985907-60.000501. The app places both in that frame (`geo.ts:42`, `mapPlace.ts:121-124`). iRacing's .ibt GPS is real; the live iRacing capture's is unchecked | `geo.test.mjs` (S + one real sample); capture vs game file on the same drive: **none** (parity diff) |
 | Track map, boundaries | `analyze.mjs planTrackMap`, `catalogStamp` | curated `tracks/` and `trackBoundaries/` docs | `catalogOnly.test.mjs`, `catalogStamp.test.mjs` (S); golden `trackMapSource` (R) |
 | Online event (series, eventId) | `sync.mjs eventsOf` (`lmuEvents.mjs`) → `analyzeFromArchive.mjs` 251-252 | LMU trace logs on the PC, read only by the game-file sync. **Live sessions: never set** (`liveSessionDoc` has none; the skipped sync step was the only caller, same cause as the field) | `lmuEvents.test.mjs` (S); live: **none** |
+| Online or offline (`online`: true, false, null) | `gameMode.mjs onlineFor` on the capture's `meta.json` `gameMode` (mGameMode: 0 solo, 1-3 online) → capture extract (`liveInputs.mjs`, `sync.mjs`) → `analyzeFromArchive.mjs` `online`; `store.mjs onlineAfterSync` keeps a stored value | LMU capture only: the .duckdb has no such key (thread 76). Null when no capture covers the session, an older recorder wrote no `gameMode`, or the covering captures disagree. **Never inferred from a missing `eventId`**: that is also a trace log that has aged out. Live sessions: the extract carries it on every lap (`liveInputs.mjs`), and the extract backlog (`uploadCaptureBacklog`, `captureExtractFor.mjs`) sends a stored live session's extract once more and marks it stale (`state.extracts`). One function, `captureExtractFor`, makes the extract for both; the cloud analysis is the only writer of `session.online` (a re-analysis keeps a stored value). Game-file sessions get it from the re-sync `blockVersions.online` triggers | `gameMode.test.mjs`, `analyzeStored.test.mjs`, `keepCapture.test.mjs`, `captureExtractFor.test.mjs` (S); real captures 2026-10-17 Algarve practice false, 2026-10-16 Silverstone race true |
 | Plan | `planBlock.mjs` (`store.mjs` 501-507) | fuel, laps, race, result | `planBlock.test.mjs` (S, one real race fixture) |
 
 ### Tray-side rows (torsion), to merge into the table
@@ -211,7 +231,10 @@ times.
 HTTP from the tray, the same calls in the cloud).
 
 - **`upload`** (after an analysis): the session, its laps (laps the run did not
-  make are deleted), traces, slices, band, field file, capture extract.
+  make are deleted), traces, slices, band, field file, capture extract. A
+  trace is sent only when its md5 differs from the stored one, so a live
+  session's run doesn't rewrite the laps it already wrote; the cloud run
+  downloads a recording's parts eight at a time.
 - **`uploadLive`** (the tray, each lap): the parts no stored recording doc
   lists (md5), recording docs, the session doc merged. No lap docs, no
   analysis; what the last analysis wrote stays until the next one.

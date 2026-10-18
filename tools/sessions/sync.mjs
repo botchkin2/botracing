@@ -49,9 +49,10 @@ import {slugId} from './analyzeFromArchive.mjs';
 import {analysisVersion, blockVersions, trackMapVersion} from './analyze.mjs';
 import {markUploaded} from './captureMarker.mjs';
 import {describeCheck} from './irCapture.mjs';
-import {damageFor} from './playerDamage.mjs';
-import {raceLengthFor} from './raceLength.mjs';
-import {captureExtract} from './captureExtract.mjs';
+import {captureExtractFor, liveExtractSessions} from './captureExtractFor.mjs';
+import {resultsForSpan} from './lmuResults.mjs';
+import {backlogCandidates, uploadResultsBacklog} from './resultsBacklog.mjs';
+import {adoptLiveIds, confirmAdoptions, settleSupersedes} from './heal.mjs';
 import {liveCover, readLiveIndex} from './liveSession.mjs';
 import {usableLiveIndex} from './brokenWheels.mjs';
 import {makeBuilder} from './buildSession.mjs';
@@ -291,23 +292,34 @@ function keepBoundaries(trackId, state) {
 // still on the PC: their extract goes up once, by itself, with no analysis
 // (pit-wall thread 1 #4611, #4613). Recorded in state.extracts so a session
 // is sent once.
-async function uploadCaptureBacklog(sessions, state, store) {
+async function uploadCaptureBacklog(sessions, state, store, liveIndex) {
   state.extracts ??= {};
   let sent = 0;
-  for (const s of sessions) {
-    if (!state.sessions[s.id] || state.extracts[s.id]) continue;
-    const span = spanOf(s);
-    const first = s.files[0].info;
-    const extract = captureExtract({
-      damage: damageFor(captureRoot, span),
-      raceLength:
-        first.sim === 'lmu' && /^r/i.test(first.sessionType)
-          ? raceLengthFor(captureRoot, span)
-          : null,
-    });
+  const items = [
+    ...sessions
+      .filter(s => state.sessions[s.id])
+      .map(s => ({
+        id: s.id,
+        sim: s.files[0].info.sim,
+        sessionType: s.files[0].info.sessionType,
+        span: spanOf(s),
+        live: false,
+      })),
+    // A live session's extract went up with its laps, before it carried the
+    // online flag: sent again once, and the session marked stale so the next
+    // open analyses it with the flag.
+    ...liveExtractSessions(liveIndex, captureRoot).map(s => ({
+      ...s,
+      live: true,
+    })),
+  ];
+  for (const s of items) {
+    if (state.extracts[s.id]) continue;
+    const extract = captureExtractFor(captureRoot, s.span, s);
     // No capture on the PC: nothing to keep, and nothing to try again.
     if (extract) {
       await store.putCaptureExtract(ownerId, s.id, extract);
+      if (s.live) await store.markStale(s.id, ownerId);
       sent++;
     }
     // Saved per session, so a run stopped mid-backlog resumes where it was.
@@ -388,6 +400,31 @@ function describeSession(s) {
   } | ${info.car} | ${s.files.length} file(s)`;
 }
 
+// This tray start, for resultsBacklog.mjs: a session with no results file is
+// looked at once per start after its retry window. The watcher passes its own.
+const resultsRun = arg('--run', new Date().toISOString());
+
+function keepResults(sessions, state, store, liveIndex) {
+  const nowMs = Date.now();
+  return uploadResultsBacklog({
+    candidates: backlogCandidates({
+      sessions,
+      state,
+      spanOf,
+      liveIndex,
+      captureRoot,
+    }),
+    state,
+    store,
+    ownerId,
+    resultsForSpan,
+    saveState: () => saveState(state),
+    log,
+    nowMs,
+    run: resultsRun,
+  });
+}
+
 async function main() {
   const state = readState();
   // A session uploaded for another account counts as new for this one.
@@ -395,6 +432,23 @@ async function main() {
   if (forgotten)
     log(`${forgotten} session(s) were uploaded for another account: new here`);
   if (!since && state.since) since = state.since;
+  // --results-live: the same, for the live-uploaded sessions only, without
+  // scanning the telemetry folder: cheap enough to run every minute while a
+  // session has just ended (watch.mjs).
+  if (flag('--results-live')) {
+    if (local || check) {
+      console.error('--results-live uploads; it needs --remote (or LAP_API).');
+      process.exit(2);
+    }
+    const liveStore = remoteStore ?? (await import('./store.mjs'));
+    await keepResults(
+      [],
+      state,
+      liveStore,
+      usableLiveIndex(readLiveIndex(work), captureRoot),
+    );
+    return;
+  }
   const scanned = scan(state);
   if (!check) saveState(state);
   // A drive live laps already uploaded (syncLive.mjs) is that session: its
@@ -410,10 +464,46 @@ async function main() {
     return !cover;
   });
   const sessions = group(files);
+  // A drive whose live capture is defective (brokenWheels.mjs) is rebuilt from
+  // its game file under the live session's id (heal.mjs, thread 74 step 1).
+  // Only while the live session still exists in the store, so a deleted live
+  // copy is never made again; without a store (local) nothing is adopted.
+  if (remoteStore) {
+    const adopted = adoptLiveIds(
+      sessions,
+      readLiveIndex(work),
+      liveIndex,
+      liveCover,
+    );
+    for (const s of await confirmAdoptions(adopted, async id =>
+      Boolean(await remoteStore.getSession(id)),
+    ))
+      log(`  ${s.id}: the game file replaces the live copy in place`);
+  }
+  // A tombstone that failed after its healed upload is tried again here.
+  if (remoteStore && Object.keys(state.pendingSupersede ?? {}).length)
+    await settleSupersedes(
+      state.pendingSupersede,
+      (oldId, byId) =>
+        remoteStore.supersedeSession(oldId, byId, new Date().toISOString()),
+      log,
+    );
   log(`${files.length} recordings in ${sessions.length} sessions (${folder})`);
 
   if (flag('--list')) {
     for (const s of sessions) log(`${s.id} ${describeSession(s)}`);
+    return;
+  }
+
+  // --results: only the game's results for stored sessions that lack them
+  // (the watcher runs it once per tray start, resultsBacklog.mjs).
+  if (flag('--results')) {
+    if (local || check) {
+      console.error('--results uploads; it needs --remote (or LAP_API).');
+      process.exit(2);
+    }
+    const resultsStore = remoteStore ?? (await import('./store.mjs'));
+    await keepResults(sessions, state, resultsStore, liveIndex);
     return;
   }
 
@@ -459,7 +549,9 @@ async function main() {
     log(`${waiting.length} session(s) waiting on a retry: skipped`);
     todo = todo.filter(s => !skipIds.has(s.id));
   }
-  if (!local && !check) await uploadCaptureBacklog(sessions, state, store);
+  if (!local && !check)
+    await uploadCaptureBacklog(sessions, state, store, liveIndex);
+  if (!local && !check) await keepResults(sessions, state, store, liveIndex);
   if (!local && !check) await repairIracingArchives(sessions, state, store);
   // The watcher reads this line for the heartbeat's done/total.
   log(`to do ${todo.length}`);
@@ -569,9 +661,29 @@ async function runPool(
         processed.push({s, rev: r.rev});
         if (!local) {
           markDone(state, s.id, s.fingerprint, ownerId, s.sources);
+          // The healed session holds the drive now: the hand rebuild under
+          // the hash id is tombstoned, after the upload and its stale stamp
+          // are written, so there is never a moment with no copy.
+          if (s.hashId) {
+            (state.pendingSupersede ??= {})[s.hashId] = s.id;
+            delete state.sessions[s.hashId];
+            saveState(state);
+            await settleSupersedes(
+              state.pendingSupersede,
+              (oldId, byId) =>
+                store.supersedeSession(oldId, byId, new Date().toISOString()),
+              log,
+            );
+          }
           state.extracts ??= {};
           // Its extract, if the capture gave one, went up with it.
           state.extracts[s.id] = 'with-session';
+          // Its results input went up with it only if the game had written a
+          // file; otherwise the backlog looks again (resultsBacklog.mjs).
+          if (r.resultsSent) {
+            state.resultsInputs ??= {};
+            state.resultsInputs[s.id] = 'with-session';
+          }
           saveState(state);
         }
       } else {
@@ -670,6 +782,7 @@ async function processSession(
   if (out.session.consistency?.overview) {
     lines.push(`  ${out.session.consistency.overview}`);
   }
+  out.healDefect = s.healDefect ?? null;
   if (local) lines.push(`  -> ${writeLocal(out)}`);
   else {
     await store.upload(out, {log: line => lines.push(line)});
@@ -680,6 +793,7 @@ async function processSession(
     track: out.track,
     boundaries: out.boundaries,
     rev: out.boundariesRev,
+    resultsSent: Boolean(out.resultsInput),
   };
 }
 
