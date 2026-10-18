@@ -399,7 +399,10 @@ function CompareView({
   ) : (
     <View>
       {headerRow}
-      <SessionNav sessionId={sessionId} />
+      <SessionNav
+        sessionId={sessionId}
+        set={setKind === 'day' ? 'day' : null}
+      />
     </View>
   );
 

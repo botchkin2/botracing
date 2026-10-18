@@ -381,7 +381,7 @@ function SessionView({
         {model.subtitle}
       </Text>
       {!layout.isDesktop && setToggle}
-      {!layout.isDesktop && <SessionNav sessionId={sessionId} />}
+      {!layout.isDesktop && <SessionNav sessionId={sessionId} set={set} />}
       {model.trackId ? (
         <Pressable
           accessibilityRole='link'

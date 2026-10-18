@@ -322,7 +322,6 @@ export function sectionChips(
 
 /** The median of the non-null numbers; null when there are none. */
 export function buildCornerModel(input: {
-  session: SessionDetail;
   laps: Lap[];
   map: TrackMapData;
   band: SessionBand | null;

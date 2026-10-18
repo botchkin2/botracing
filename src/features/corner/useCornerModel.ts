@@ -39,6 +39,8 @@ export type CornerResult =
   | {state: 'missing'; noMap: boolean}
   /** The session has no comparable lap to show. */
   | {state: 'noLaps'}
+  /** A day whose sessions were cut at different corner windows: Corner is off. */
+  | {state: 'mixedDay'}
   | {
       state: 'ready';
       model: CornerModel;
@@ -63,50 +65,45 @@ export function useCornerModel(
   const routeLaps = useSessionLaps(sessionId);
   const selection = urlSelection;
   const band = useSessionBand(sessionId);
-  const map = useTrackMap(route.data?.trackId);
-  // A day (data/sessions/lapSet.ts): its first member names the track and car,
-  // its merged laps are the laps, and each member's slice file draws its own.
+  // A day is its own model (data/sessions/lapSet.ts): its laps, its track, no
+  // one session standing in for it. The URL names a day before it has loaded.
   const dayState = useDaySet(sessionId, route.data?.trackId, setKind === 'day');
   const day = dayState.state === 'ready' ? dayState.set : null;
-  const session = day ? {...route, data: day.members[0]} : route;
-  const laps = day ? {...routeLaps, data: day.laps} : routeLaps;
+  const dayPending = setKind === 'day' && dayState.state === 'loading';
+  const dayFailed = setKind === 'day' && dayState.state === 'error';
+  const map = useTrackMap(day ? day.trackId : route.data?.trackId);
+  const lapData = day ? day.laps : routeLaps.data;
+  const known = day != null || route.data != null;
+  // The session's own opening rules; a day has its own (openingIds).
+  const own = day || !route.data ? null : defaultSessionOf(route.data);
 
   const lapIds = useMemo(
     () =>
-      laps.data
-        ? day && selection.laps.length === 0 && !allComparable
-          ? day.openingIds
-          : cornerLapIds(
-              laps.data,
-              selection,
-              allComparable,
-              session.data ? defaultSessionOf(session.data) : null,
-            )
-        : [],
-    [laps.data, selection, allComparable, session.data, day],
+      !lapData
+        ? []
+        : day && selection.laps.length === 0 && !allComparable
+        ? day.openingIds
+        : cornerLapIds(lapData, selection, allComparable, own),
+    [lapData, selection, allComparable, own, day],
   );
   // What Reset goes back to: the opening set, as Session and Compare open.
   const openingIds = useMemo(
     () =>
-      day
-        ? day.openingIds
-        : laps.data && session.data
-        ? openingLapIds(laps.data, defaultSessionOf(session.data))
-        : [],
-    [laps.data, session.data, day],
+      day ? day.openingIds : lapData && own ? openingLapIds(lapData, own) : [],
+    [lapData, own, day],
   );
   // The laps on: drawn in their own colour and named on the strips.
   const bestLapId = day
     ? dayBestLapId(day.laps)
-    : session.data?.bestLapId ?? null;
+    : route.data?.bestLapId ?? null;
   // The drawn laps, fastest first: "the best" and "the next" come from here.
   const ranked = useMemo(
     () =>
-      (laps.data ?? [])
+      (lapData ?? [])
         .filter(l => lapIds.includes(l.id) && l.timeS != null)
         .sort((a, b) => (a.timeS as number) - (b.timeS as number))
         .map(l => l.id),
-    [laps.data, lapIds],
+    [lapData, lapIds],
   );
   const traceIds = useMemo(
     () =>
@@ -123,7 +120,7 @@ export function useCornerModel(
   // Every lap comes from the corner's slice file (one small fetch), so every
   // comparable lap draws, not only the laps on. A session the uploader has
   // not resynced since analysis version 13 has no file: nothing to draw yet.
-  const slicePointer = day ? null : session.data?.slices ?? null;
+  const slicePointer = day ? null : route.data?.slices ?? null;
   // "All" on a compound corner draws from its last part's file, which spans
   // the whole section (wholeCorner.ts).
   const sliceCorner = useMemo(
@@ -169,21 +166,21 @@ export function useCornerModel(
     (): TraceLoad =>
       sliceLoad({
         lapCount: lapIds.length,
-        sessionKnown: session.data != null,
+        sessionKnown: known,
         hasFile,
         status: slices.status,
       }),
-    [lapIds.length, session.data, hasFile, slices.status],
+    [lapIds.length, known, hasFile, slices.status],
   );
   const retryTraces = useCallback(() => {
     void refetchSlices();
   }, [refetchSlices]);
 
   // Stable functions, so they can sit in the memo's dependencies.
-  const {refetch: refetchSession} = session;
-  const {refetch: refetchLaps} = laps;
+  const {refetch: refetchSession} = route;
+  const {refetch: refetchLaps} = routeLaps;
   const {refetch: refetchMap} = map;
-  const error = [session, laps, map].find(q => q.isError)?.error;
+  const error = [route, routeLaps, map].find(q => q.isError)?.error;
   return useMemo((): CornerResult => {
     if (error)
       return {
@@ -195,13 +192,24 @@ export function useCornerModel(
           void refetchMap();
         },
       };
-    if (!session.data || !laps.data || map.isPending) return {state: 'loading'};
+    if (dayFailed)
+      return {
+        state: 'error',
+        message: 'the day did not load',
+        retry: () => {
+          void refetchSession();
+          void refetchLaps();
+        },
+      };
+    if (dayPending || !known || !lapData || map.isPending)
+      return {state: 'loading'};
+    // Corners cut at different windows are not one corner (daySet.ts).
+    if (day && !day.usesSections) return {state: 'mixedDay'};
     // A track with no map yet (null, a 404): no corners to draw.
     if (!map.data) return {state: 'missing', noMap: true};
     if (lapIds.length === 0) return {state: 'noLaps'};
     const model = buildCornerModel({
-      session: session.data,
-      laps: laps.data,
+      laps: lapData,
       map: map.data,
       band: band.data ?? null,
       traces,
@@ -225,8 +233,12 @@ export function useCornerModel(
       : {state: 'missing', noMap: map.data.sections.length === 0};
   }, [
     error,
-    session.data,
-    laps.data,
+    dayFailed,
+    dayPending,
+    known,
+    day,
+    lapData,
+    map.isPending,
     map.data,
     band.data,
     traces,

@@ -151,6 +151,8 @@ export function CornerScreen({
           <Text tone='textMuted'>
             {result.state === 'noLaps'
               ? 'No comparable laps in this session.'
+              : result.state === 'mixedDay'
+              ? 'These sessions were cut at different corner windows.'
               : result.noMap
               ? 'No corner map for this track yet.'
               : `No corner ${corner} on this track.`}

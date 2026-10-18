@@ -11,7 +11,11 @@ import {Pressable} from './Pressable';
 // 18 pt mark grown to a 44 pt target (round 3 N1, review by pace).
 export const MARK_SLOP = (size.hit - size.logo) / 2;
 
-export type ChromeTab<T extends string = string> = {key: T; label: string};
+export type ChromeTab<T extends string = string> = {
+  key: T;
+  label: string;
+  disabled?: boolean;
+};
 
 export type ChromeSession<T extends string = string> = {
   /** R, Q or P. */
@@ -103,7 +107,11 @@ export function AppChrome<T extends string>({
           </Pressable>
           <Divider />
           <Segment
-            options={session.tabs.map(t => ({value: t.key, label: t.label}))}
+            options={session.tabs.map(t => ({
+              value: t.key,
+              label: t.label,
+              disabled: t.disabled,
+            }))}
             value={session.activeTab as T}
             onChange={session.onTab}
           />

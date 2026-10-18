@@ -55,6 +55,7 @@ export {
   type DayState,
   type LapSet,
   splitDayLapId,
+  useCornerOff,
   useDaySet,
   useSessionLapSet,
 } from './lapSet';

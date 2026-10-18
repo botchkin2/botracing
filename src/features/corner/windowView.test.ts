@@ -96,7 +96,6 @@ const build = (
 ) => {
   const laps = toLaps([rawLap('a', stamp), rawLap('b', stamp)]);
   return buildCornerModel({
-    session,
     laps,
     map: m,
     band: null,
@@ -263,7 +262,6 @@ describe('a highlighted lap outside the set, with windows', () => {
   const stamp = {v: 1, rev: 3};
   const build = (hl: string | null) =>
     buildCornerModel({
-      session,
       laps: toLaps([
         rawLap('a', stamp),
         rawLap('b', stamp),

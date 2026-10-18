@@ -37,4 +37,16 @@ describe('sessionTabs', () => {
       sessionTabs({sessionType: 'R', hasField: true}, 'Corner T5')[2].label,
     ).toBe('Corner T5');
   });
+
+  it('turns Corner off, and only Corner, in a day cut at different windows', () => {
+    const tabs = sessionTabs(
+      {sessionType: 'P', hasField: true},
+      'Corner',
+      true,
+    );
+    expect(tabs.filter(t => t.disabled).map(t => t.key)).toEqual(['corner']);
+    expect(
+      sessionTabs({sessionType: 'P', hasField: true}).some(t => t.disabled),
+    ).toBe(false);
+  });
 });

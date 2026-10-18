@@ -122,7 +122,6 @@ const laps = toLaps([
 
 const build = (lapIds: string[], hl: string | null = null, corner = 3) =>
   buildCornerModel({
-    session,
     laps,
     map,
     band: null,
@@ -140,7 +139,6 @@ describe('a lap at full throttle by the slowest point', () => {
     lap('f', [10.1, 450, 106, 590], true, true),
   ]);
   const model = buildCornerModel({
-    session,
     laps: flatLaps,
     map,
     band: null,
@@ -210,7 +208,6 @@ describe('buildCornerModel (per single corner)', () => {
       ],
     };
     const m2 = buildCornerModel({
-      session,
       laps: toLaps([dabbed]),
       map,
       band: null,
@@ -238,7 +235,6 @@ describe('buildCornerModel (per single corner)', () => {
     part.peakBrakePct = null;
     part.brakeAtM = undefined;
     const m2 = buildCornerModel({
-      session,
       laps: toLaps([noBrake]),
       map,
       band: null,
@@ -257,7 +253,6 @@ describe('buildCornerModel (per single corner)', () => {
     const edge = lap('e', [9.9, 455, 109, 655]);
     (edge.corners[1].parts[1] as Record<string, unknown>).minSpeedAtEdge = true;
     const m2 = buildCornerModel({
-      session,
       laps: toLaps([edge]),
       map,
       band: null,
@@ -282,7 +277,6 @@ describe('buildCornerModel (per single corner)', () => {
     part.throttlePickupAtM = null;
     part.minThrottlePct = 69;
     const m2 = buildCornerModel({
-      session,
       laps: toLaps([lift]),
       map,
       band: null,
@@ -325,7 +319,6 @@ describe('buildCornerModel (per single corner)', () => {
 describe('the median basis (no Ref picked)', () => {
   const median = (lapIds: string[], refId: string | null) =>
     buildCornerModel({
-      session,
       laps,
       map,
       band: null,
@@ -371,7 +364,6 @@ describe('the median basis (no Ref picked)', () => {
     });
     const mk = (hl: string | null) =>
       buildCornerModel({
-        session,
         laps: toLaps([withPart(4), {...withPart(3), id: 'd'}]),
         map,
         band: null,
@@ -401,7 +393,6 @@ describe('the median basis (no Ref picked)', () => {
       ].map(([id, kph]) => [id as string, cornerTrace(kph as number)]),
     );
     const withX = buildCornerModel({
-      session,
       laps,
       map,
       band: null,
@@ -413,7 +404,6 @@ describe('the median basis (no Ref picked)', () => {
       corner: 3,
     })!;
     const withoutX = buildCornerModel({
-      session,
       laps,
       map,
       band: null,
@@ -448,7 +438,6 @@ describe('the median basis (no Ref picked)', () => {
       ].map(([id, kph]) => [id as string, window(kph as number)]),
     );
     const m = buildCornerModel({
-      session,
       laps,
       map,
       band: null,
@@ -483,7 +472,6 @@ describe('strips at 7+ laps', () => {
     ),
   );
   const m = buildCornerModel({
-    session,
     laps: many,
     map,
     band: null,
@@ -502,7 +490,6 @@ describe('strips at 7+ laps', () => {
     ]);
     const run = (hl: string | null) =>
       buildCornerModel({
-        session,
         laps: odd,
         map,
         band: null,
@@ -543,7 +530,6 @@ describe('colour slots and the default highlight, by meaning', () => {
     hl: string | null = null,
   ) =>
     buildCornerModel({
-      session,
       laps,
       map,
       band: null,
@@ -792,7 +778,6 @@ describe('the Corner time counts as Compare and Session count it', () => {
     raw('f', 11, {}, {v: 1, rev: 2}),
   ]);
   const m = buildCornerModel({
-    session,
     laps: windowLaps,
     map: windowMap,
     band: null,

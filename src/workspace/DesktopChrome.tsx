@@ -4,6 +4,7 @@ import {useState} from 'react';
 import {
   firstCornerOf,
   trackCorners,
+  useCornerOff,
   useSession,
   useSessionLaps,
   useTrackMap,
@@ -76,12 +77,18 @@ export function DesktopChrome() {
   const {data: session} = useSession(sessionId ?? '', sessionId != null);
   const lapData = useSessionLaps(sessionId);
   const map = useTrackMap(session?.trackId);
+  const cornerOff = useCornerOff(
+    sessionId ?? '',
+    session?.trackId,
+    sessionId != null && next?.set === 'day',
+  );
 
   const content =
     next && session
       ? chromeBox({
           session,
           hasField: session.field != null,
+          cornerOff,
           laps: lapData.data,
           selection: {laps: next.laps, ref: next.ref, hl: next.hl},
           cornerN: next.corner,
