@@ -31,8 +31,6 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
-  statSync,
-  renameSync,
   writeFileSync,
 } from 'node:fs';
 import {availableParallelism, homedir} from 'node:os';
@@ -45,19 +43,21 @@ import {
   QUIET_MIN_DEFAULT,
   scanFolder,
 } from './sessionFiles.mjs';
+import {replaceFile} from './replaceFile.mjs';
 import {versionKey} from './versionKey.mjs';
-import {analyzeFromArchive, slugId} from './analyzeFromArchive.mjs';
+import {slugId} from './analyzeFromArchive.mjs';
 import {analysisVersion, blockVersions, trackMapVersion} from './analyze.mjs';
-import {fieldFor} from './field.mjs';
-import {capturesRead, markUploaded} from './captureMarker.mjs';
-import {describeCheck, ibtCrossings, liveLapCheck} from './irCapture.mjs';
-import {irFieldFor} from './irField.mjs';
-import {driversOfYaml} from './irClasses.mjs';
-import {openIbt} from './ibt.mjs';
+import {markUploaded} from './captureMarker.mjs';
+import {describeCheck} from './irCapture.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {captureExtract} from './captureExtract.mjs';
+import {resultsForSpan} from './lmuResults.mjs';
+import {backlogCandidates, uploadResultsBacklog} from './resultsBacklog.mjs';
+import {adoptLiveIds, confirmAdoptions, settleSupersedes} from './heal.mjs';
 import {liveCover, readLiveIndex} from './liveSession.mjs';
+import {usableLiveIndex} from './brokenWheels.mjs';
+import {makeBuilder} from './buildSession.mjs';
 import {repairArchives} from './archiveRepair.mjs';
 import {checkDoc} from './docShape.mjs';
 import {packState, unpackState} from './layoutBoundaries.mjs';
@@ -148,9 +148,13 @@ if (liveDir) {
   const {captureAdapterFor, syncLive} = await import('./syncLive.mjs');
   // The work folder is the sim's (watch.mjs passes --sim): a capture of another
   // sim would write its live index where that sim's sync never reads it.
-  const {sim: captureSim, adapter: capture} = captureAdapterFor(resolve(liveDir));
+  const {sim: captureSim, adapter: capture} = captureAdapterFor(
+    resolve(liveDir),
+  );
   if (captureSim !== simName) {
-    console.error(`--live: the capture is ${captureSim}, this sync is --sim ${simName}.`);
+    console.error(
+      `--live: the capture is ${captureSim}, this sync is --sim ${simName}.`,
+    );
     process.exit(2);
   }
   const r = await syncLive({
@@ -186,14 +190,21 @@ function readState() {
 // state.json behind (pitlane #667).
 function saveState(state) {
   mkdirSync(work, {recursive: true});
-  const tmp = `${statePath}.tmp`;
-  writeFileSync(tmp, JSON.stringify(state));
-  renameSync(tmp, statePath);
+  replaceFile(statePath, JSON.stringify(state));
 }
 
 function log(line) {
   console.log(line);
 }
+
+const {build, eventsOf, spanOf} = makeBuilder({
+  adapter,
+  work,
+  ownerId,
+  catalogOnly,
+  captureRoot,
+  log,
+});
 
 // Describe every recording, reusing earlier results for files that have not changed
 // (sessionFiles.mjs: the scan and the grouping are shared with the curator).
@@ -215,21 +226,6 @@ function group(files) {
     s.sources = hash(...sources);
   }
   return sessions;
-}
-
-// Every car's class in an iRacing session, from its .ibt (irClasses.mjs);
-// none when the file can't be read.
-function ibtDriversOf(path) {
-  try {
-    const ibt = openIbt(path);
-    try {
-      return driversOfYaml(ibt.yaml);
-    } finally {
-      ibt.close();
-    }
-  } catch {
-    return [];
-  }
 }
 
 // The track's corner map, kept once per track layout so corner numbers stay
@@ -294,38 +290,6 @@ function keepBoundaries(trackId, state) {
   writeFileSync(boundariesPath(trackId), JSON.stringify(packState(state)));
 }
 
-// Which online event a session and each of its recordings were part of.
-function eventsOf(s, eventWindows) {
-  const recordings = s.files.map(f => ({
-    id: f.id,
-    event: adapter.eventFor(eventWindows, f.info.recordedAt),
-  }));
-  const event = recordings.find(r => r.event)?.event ?? null;
-  const ids = new Set(recordings.map(r => r.event?.eventId).filter(Boolean));
-  // One session spanning two events means the grouping or a window is wrong.
-  if (ids.size > 1)
-    log(`  warning: ${s.id} spans events ${[...ids].join(', ')}`);
-  return {
-    session: {
-      id: s.id,
-      series: event?.series ?? null,
-      eventId: event?.eventId ?? null,
-    },
-    recordings,
-  };
-}
-
-// The session's track and wall-clock window, the key a capture joins on.
-function spanOf(s) {
-  const first = s.files[0].info;
-  const last = s.files[s.files.length - 1].info;
-  return {
-    tracks: [first.track, first.layout],
-    startMs: Date.parse(first.recordedAt),
-    endMs: Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000,
-  };
-}
-
 // Sessions uploaded before the tray kept capture extracts, whose capture is
 // still on the PC: their extract goes up once, by itself, with no analysis
 // (pit-wall thread 1 #4611, #4613). Recorded in state.extracts so a session
@@ -372,115 +336,6 @@ async function repairIracingArchives(sessions, state, store) {
     log,
   });
   if (repaired) log(`iRacing archives repaired for ${repaired} session(s)`);
-}
-
-function build(
-  s,
-  trackMap,
-  boundaries,
-  eventWindows,
-  {fresh = [], foldOnly = false} = {},
-) {
-  const dir = resolve(work, 'archive', s.id);
-  mkdirSync(dir, {recursive: true});
-  const first = s.files[0].info;
-  const sim = first.sim;
-  const files = [];
-  const archived = [];
-  const recordings = [];
-  const joined = eventsOf(s, eventWindows);
-  for (const [k, f] of s.files.entries()) {
-    const samples = resolve(dir, `${f.id}.samples.parquet`);
-    const events = resolve(dir, `${f.id}.events.parquet`);
-    // An archive the fold pass of this very run just wrote is not written again.
-    if (!fresh.includes(samples))
-      adapter.writeArchive(f.path, f.info, samples, events);
-    archived.push(samples);
-    const prefix = `archive/${sim}/${s.id}/${f.id}`;
-    files.push({local: samples, dest: `${prefix}/samples.parquet`});
-    files.push({local: events, dest: `${prefix}/events.parquet`});
-    const {_channels, _events, ...info} = f.info;
-    recordings.push({
-      ...info,
-      // The online event this recording was part of, or null offline.
-      event: joined.recordings[k].event,
-      id: f.id,
-      ownerId,
-      sessionId: s.id,
-      durationSec: Math.round((info.endT - info.startT) * 1000) / 1000,
-      archive: {
-        samples: `${prefix}/samples.parquet`,
-        events: `${prefix}/events.parquet`,
-        bytes: statSync(samples).size + statSync(events).size,
-      },
-    });
-  }
-
-  const span = spanOf(s);
-  // iRacing: the tray's live capture against the .ibt of the same drive, lap
-  // by lap. Only logged: a lap over 5 ms apart is the news (apex #2958).
-  // Every capture this session read (field, damage, race length, the player
-  // stream): once it is uploaded they are the tray's to prune.
-  const capturesUsed = foldOnly ? [] : capturesRead(captureRoot, sim, span);
-  const liveCheck =
-    foldOnly || sim !== 'iracing'
-      ? null
-      : liveLapCheck(captureRoot, span, ibtCrossings(s.files.map(f => f.path)));
-  // The car's damage from the live capture, to tell a repair from a penalty
-  // (pitVisit.mjs); null where the capture is gone.
-  const damage = foldOnly ? null : damageFor(captureRoot, span);
-  // How long the race is: {minutes}. LMU: from the capture, null where it is gone.
-  // iRacing: from the .ibt's session info. Null for other sessions.
-  const ibtDrivers =
-    !foldOnly && sim === 'iracing' ? ibtDriversOf(s.files[0].path) : [];
-  const raceLength =
-    foldOnly || !/^r/i.test(first.sessionType)
-      ? null
-      : sim === 'iracing'
-      ? first.raceLength ?? null
-      : raceLengthFor(captureRoot, span);
-  const out = analyzeFromArchive({
-    ownerId,
-    sessionId: s.id,
-    recordings: s.files.map(f => ({
-      id: f.id,
-      info: f.info,
-      samplesPath: resolve(dir, `${f.id}.samples.parquet`),
-      eventsPath: resolve(dir, `${f.id}.events.parquet`),
-    })),
-    trackMap,
-    boundaries,
-    catalogOnly,
-    foldOnly,
-    damage,
-    raceLength,
-    event: joined.session,
-    // Every car in the session, when the recorder ran (field.mjs, irField.mjs).
-    fieldFor: lite =>
-      (sim === 'iracing' ? irFieldFor : fieldFor)(
-        captureRoot,
-        span,
-        lite,
-        ibtDrivers,
-      ),
-  });
-  if (foldOnly) return {a: out.a, archived};
-  return {
-    ...out,
-    recordings,
-    // iRacing: every car's class from the .ibt, so a stored field from before
-    // the field carried classes gets them (store.mjs, irClasses.relabelField).
-    ibtDrivers,
-    liveCheck,
-    // The capture's damage and race length, kept in the store for analysis
-    // on open once the capture is pruned (captureExtract.mjs).
-    captureExtract: captureExtract({
-      damage,
-      raceLength: sim === 'lmu' ? raceLength : null,
-    }),
-    capturesUsed,
-    files,
-  };
 }
 
 function writeLocal(out) {
@@ -536,6 +391,31 @@ function describeSession(s) {
   } | ${info.car} | ${s.files.length} file(s)`;
 }
 
+// This tray start, for resultsBacklog.mjs: a session with no results file is
+// looked at once per start after its retry window. The watcher passes its own.
+const resultsRun = arg('--run', new Date().toISOString());
+
+function keepResults(sessions, state, store, liveIndex) {
+  const nowMs = Date.now();
+  return uploadResultsBacklog({
+    candidates: backlogCandidates({
+      sessions,
+      state,
+      spanOf,
+      liveIndex,
+      captureRoot,
+    }),
+    state,
+    store,
+    ownerId,
+    resultsForSpan,
+    saveState: () => saveState(state),
+    log,
+    nowMs,
+    run: resultsRun,
+  });
+}
+
 async function main() {
   const state = readState();
   // A session uploaded for another account counts as new for this one.
@@ -543,21 +423,78 @@ async function main() {
   if (forgotten)
     log(`${forgotten} session(s) were uploaded for another account: new here`);
   if (!since && state.since) since = state.since;
+  // --results-live: the same, for the live-uploaded sessions only, without
+  // scanning the telemetry folder: cheap enough to run every minute while a
+  // session has just ended (watch.mjs).
+  if (flag('--results-live')) {
+    if (local || check) {
+      console.error('--results-live uploads; it needs --remote (or LAP_API).');
+      process.exit(2);
+    }
+    const liveStore = remoteStore ?? (await import('./store.mjs'));
+    await keepResults(
+      [],
+      state,
+      liveStore,
+      usableLiveIndex(readLiveIndex(work), captureRoot),
+    );
+    return;
+  }
   const scanned = scan(state);
   if (!check) saveState(state);
   // A drive live laps already uploaded (syncLive.mjs) is that session: its
   // game file adds nothing the capture lacks (STORAGE.md, Live laps).
-  const liveIndex = readLiveIndex(work);
+  // A broken-wheel capture covers nothing: its game file builds the drive.
+  const liveIndex = usableLiveIndex(readLiveIndex(work), captureRoot);
   const files = scanned.filter(f => {
     const cover = liveCover(liveIndex, f.info);
-    if (cover) log(`  ${f.info.source}: live laps have it (${cover.sessionId}), skipped`);
+    if (cover)
+      log(
+        `  ${f.info.source}: live laps have it (${cover.sessionId}), skipped`,
+      );
     return !cover;
   });
   const sessions = group(files);
+  // A drive whose live capture is defective (brokenWheels.mjs) is rebuilt from
+  // its game file under the live session's id (heal.mjs, thread 74 step 1).
+  // Only while the live session still exists in the store, so a deleted live
+  // copy is never made again; without a store (local) nothing is adopted.
+  if (remoteStore) {
+    const adopted = adoptLiveIds(
+      sessions,
+      readLiveIndex(work),
+      liveIndex,
+      liveCover,
+    );
+    for (const s of await confirmAdoptions(adopted, async id =>
+      Boolean(await remoteStore.getSession(id)),
+    ))
+      log(`  ${s.id}: the game file replaces the live copy in place`);
+  }
+  // A tombstone that failed after its healed upload is tried again here.
+  if (remoteStore && Object.keys(state.pendingSupersede ?? {}).length)
+    await settleSupersedes(
+      state.pendingSupersede,
+      (oldId, byId) =>
+        remoteStore.supersedeSession(oldId, byId, new Date().toISOString()),
+      log,
+    );
   log(`${files.length} recordings in ${sessions.length} sessions (${folder})`);
 
   if (flag('--list')) {
     for (const s of sessions) log(`${s.id} ${describeSession(s)}`);
+    return;
+  }
+
+  // --results: only the game's results for stored sessions that lack them
+  // (the watcher runs it once per tray start, resultsBacklog.mjs).
+  if (flag('--results')) {
+    if (local || check) {
+      console.error('--results uploads; it needs --remote (or LAP_API).');
+      process.exit(2);
+    }
+    const resultsStore = remoteStore ?? (await import('./store.mjs'));
+    await keepResults(sessions, state, resultsStore, liveIndex);
     return;
   }
 
@@ -604,6 +541,7 @@ async function main() {
     todo = todo.filter(s => !skipIds.has(s.id));
   }
   if (!local && !check) await uploadCaptureBacklog(sessions, state, store);
+  if (!local && !check) await keepResults(sessions, state, store, liveIndex);
   if (!local && !check) await repairIracingArchives(sessions, state, store);
   // The watcher reads this line for the heartbeat's done/total.
   log(`to do ${todo.length}`);
@@ -713,9 +651,29 @@ async function runPool(
         processed.push({s, rev: r.rev});
         if (!local) {
           markDone(state, s.id, s.fingerprint, ownerId, s.sources);
+          // The healed session holds the drive now: the hand rebuild under
+          // the hash id is tombstoned, after the upload and its stale stamp
+          // are written, so there is never a moment with no copy.
+          if (s.hashId) {
+            (state.pendingSupersede ??= {})[s.hashId] = s.id;
+            delete state.sessions[s.hashId];
+            saveState(state);
+            await settleSupersedes(
+              state.pendingSupersede,
+              (oldId, byId) =>
+                store.supersedeSession(oldId, byId, new Date().toISOString()),
+              log,
+            );
+          }
           state.extracts ??= {};
           // Its extract, if the capture gave one, went up with it.
           state.extracts[s.id] = 'with-session';
+          // Its results input went up with it only if the game had written a
+          // file; otherwise the backlog looks again (resultsBacklog.mjs).
+          if (r.resultsSent) {
+            state.resultsInputs ??= {};
+            state.resultsInputs[s.id] = 'with-session';
+          }
           saveState(state);
         }
       } else {
@@ -814,6 +772,7 @@ async function processSession(
   if (out.session.consistency?.overview) {
     lines.push(`  ${out.session.consistency.overview}`);
   }
+  out.healDefect = s.healDefect ?? null;
   if (local) lines.push(`  -> ${writeLocal(out)}`);
   else {
     await store.upload(out, {log: line => lines.push(line)});
@@ -824,6 +783,7 @@ async function processSession(
     track: out.track,
     boundaries: out.boundaries,
     rev: out.boundariesRev,
+    resultsSent: Boolean(out.resultsInput),
   };
 }
 

@@ -3,7 +3,7 @@
 // Destructive, so it is built to be read first and run second (pit wall thread
 // 1 #3959, bias #3960):
 //
-//   node tools/sessions/deleteSessions.mjs --owner UID --ids a,b,c [--sim iracing] [--archive]
+//   node tools/sessions/deleteSessions.mjs --owner UID --ids a,b,c [--sim iracing] [--archive] [--replaced-by a:x,b:y]
 //       dry run (default): prints exactly what would go and a hash of that set
 //   node tools/sessions/deleteSessions.mjs --owner UID --ids a,b,c --apply --confirm HASH
 //       recomputes the set, refuses if its hash is not the one that was shown
@@ -29,12 +29,22 @@
 // So while any recording of the owner still has sessionId == X, X is what the
 // store calls that recording's session today (the resync is unfinished, or X is
 // current): X is refused. The dry run prints the count (expected 0).
+//
+// One exception, named per id: --replaced-by X:Y says session Y replaces X
+// (a live session rebuilt from its game files, whose recordings have other
+// ids and so are never re-pointed; SESSION_PIPELINE flow B). X's recordings
+// are then deleted with it, but only when Y exists, is the owner's, and has a
+// recording within REPLACED_WITHIN_S of every one of X's (the same stretches
+// of the same drive). Anything less is refused as before.
 import {createHash} from 'node:crypto';
 import {mkdirSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 
 export const BATCH = 500;
+// A live recording starts when the recorder sees realtime, up to a second
+// after the game file's (Silverstone 2026-10-14: 00:25:51.344 vs 00:25:51).
+export const REPLACED_WITHIN_S = 2;
 const PREFIXES = ['bands', 'field', 'slices'];
 
 /**
@@ -58,10 +68,11 @@ export function sessionPrefixes({owner, id, sim, archive, ownerKey}) {
  *   recordings),
  *   listFiles(prefix) -> [{path, size}].
  * currentIds: ids the owner's folder groups into now (never deletable).
+ * replacedBy: {oldId: newId}, the sessions that replace these (see the header).
  */
 export async function planDelete(
   backend,
-  {owner, ids, currentIds = new Set(), archive = false},
+  {owner, ids, currentIds = new Set(), archive = false, replacedBy = {}},
 ) {
   const refusals = [];
   const sessions = [];
@@ -92,12 +103,17 @@ export async function planDelete(
     const recordings = (
       await backend.listBySession('recordings', id, owner)
     ).filter(r => r.data?.sessionId === id && r.data?.ownerId === owner);
+    let replaced = [];
     if (recordings.length) {
-      refusals.push({
-        id,
-        why: `${recordings.length} recording(s) still point at this session: it is live, or the resync has not finished`,
-      });
-      continue;
+      const by = replacedBy[id];
+      const why = by
+        ? await notReplaced(backend, {owner, id, by, recordings})
+        : `${recordings.length} recording(s) still point at this session: it is live, or the resync has not finished`;
+      if (why) {
+        refusals.push({id, why});
+        continue;
+      }
+      replaced = recordings.map(r => r.id).sort();
     }
     // Only this owner's laps of this session, checked on the document itself.
     const laps = (await backend.listBySession('laps', id, owner)).filter(
@@ -135,6 +151,9 @@ export async function planDelete(
             .join(' · ')
         : 'already gone',
       recordings: recordings.length,
+      // Deleted with the session: the replacing session has their stretches.
+      replacedBy: replaced.length ? replacedBy[id] : null,
+      recordingDocs: replaced,
       laps: laps.map(l => l.id).sort(),
       files: files.sort((a, b) => a.path.localeCompare(b.path)),
     });
@@ -144,6 +163,28 @@ export async function planDelete(
   return plan;
 }
 
+/**
+ * Why session `by` does not replace `id`, or null when it does: it exists, is
+ * the owner's, and has a recording within REPLACED_WITHIN_S of each of `id`'s.
+ */
+async function notReplaced(backend, {owner, id, by, recordings}) {
+  if (!/^[0-9a-f]{16}$/.test(by) || by === id)
+    return `--replaced-by ${by} is not another session id`;
+  const doc = await backend.getDoc(`sessions/${by}`);
+  if (!doc || doc.ownerId !== owner)
+    return `the replacing session ${by} is missing or not ${owner}'s`;
+  const starts = (await backend.listBySession('recordings', by, owner))
+    .filter(r => r.data?.sessionId === by && r.data?.ownerId === owner)
+    .map(r => Date.parse(r.data.recordedAt));
+  const lone = recordings.filter(r => {
+    const t = Date.parse(r.data?.recordedAt);
+    return !starts.some(s => Math.abs(s - t) <= REPLACED_WITHIN_S * 1000);
+  });
+  if (!lone.length) return null;
+  const which = lone.map(r => `${r.id} ${r.data?.recordedAt}`).join(', ');
+  return `${lone.length} recording(s) have no recording in ${by} within ${REPLACED_WITHIN_S} s: ${which}`;
+}
+
 /** A short hash of exactly what is to be deleted: ids, documents, objects. */
 export function hashOf({owner, sessions}) {
   const h = createHash('sha256');
@@ -151,6 +192,7 @@ export function hashOf({owner, sessions}) {
   for (const s of [...sessions].sort((a, b) => a.id.localeCompare(b.id))) {
     h.update(`session ${s.id} ${s.doc ?? '-'}\n`);
     for (const lap of s.laps) h.update(`lap ${lap}\n`);
+    for (const r of s.recordingDocs ?? []) h.update(`recording ${r}\n`);
     for (const f of s.files) h.update(`file ${f.path} ${f.size}\n`);
   }
   return h.digest('hex').slice(0, 16);
@@ -165,6 +207,10 @@ export function describePlan(plan) {
       `${s.id}  ${s.label}`,
       `    recordings pointing here: ${s.recordings}   session doc: ${s.doc ?? 'none'}   lap docs: ${s.laps.length}   objects: ${s.files.length} (${(bytes / 1e6).toFixed(1)} MB)`,
     );
+    if (s.recordingDocs?.length)
+      lines.push(
+        `    replaced by ${s.replacedBy}: its ${s.recordingDocs.length} recording doc(s) go too (${s.recordingDocs.join(', ')})`,
+      );
   }
   for (const r of plan.refusals) lines.push(`REFUSED ${r.id}: ${r.why}`);
   const nothing = plan.sessions.every(
@@ -216,7 +262,10 @@ export async function applyDelete(
     }
   }
   if (record.failed.length) return record;
-  const lapPaths = plan.sessions.flatMap(s => s.laps.map(l => `laps/${l}`));
+  const lapPaths = plan.sessions.flatMap(s => [
+    ...s.laps.map(l => `laps/${l}`),
+    ...(s.recordingDocs ?? []).map(r => `recordings/${r}`),
+  ]);
   const sessionPaths = plan.sessions.filter(s => s.doc).map(s => s.doc);
   // A failed batch is recorded and stops the run; the session documents come
   // last, so what is left is still the handle for the next run.
@@ -279,7 +328,7 @@ async function main() {
     .filter(Boolean);
   if (!owner || !ids.length) {
     console.error(
-      'usage: deleteSessions.mjs --owner UID --ids a,b,c [--sim iracing] [--archive] [--apply --confirm HASH] [--log-dir DIR]',
+      'usage: deleteSessions.mjs --owner UID --ids a,b,c [--sim iracing] [--archive] [--replaced-by old:new,...] [--apply --confirm HASH] [--log-dir DIR]',
     );
     process.exit(2);
   }
@@ -292,6 +341,12 @@ async function main() {
     ids,
     currentIds: await currentIdsOf(owner, sims),
     archive: process.argv.includes('--archive'),
+    replacedBy: Object.fromEntries(
+      (arg('--replaced-by') ?? '')
+        .split(',')
+        .filter(Boolean)
+        .map(pair => pair.trim().split(':')),
+    ),
   });
   for (const line of describePlan(plan)) console.log(line);
   if (!process.argv.includes('--apply')) {

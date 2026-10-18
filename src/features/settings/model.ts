@@ -4,6 +4,7 @@ import Constants from 'expo-constants';
 
 import {dayMonthOf} from '@/src/design';
 import {
+  SEEN_MS,
   type Uploader,
   type UploaderProblem,
   useUploaders,
@@ -41,7 +42,6 @@ export type SettingsModel = {
   version: string;
 };
 
-export const SEEN_MS = 10 * 60_000;
 // States from tools/capture/recorder.py's status.json (thread 30, #461/#472).
 const RECORDER_LABEL: Record<string, string> = {
   recording: 'recording',
@@ -171,9 +171,11 @@ export function uploaderCard(u: Uploader, nowMs: number): UploaderCard {
       u.queue > 0 ? ` · ${u.queue} queued` : ''
     }`,
     u.disk
-      ? `Capture ${formatBytes(u.disk.captureBytes)} · ${formatBytes(
-          u.disk.freeBytes,
-        )} free`
+      ? `Capture ${formatBytes(u.disk.captureBytes)}${
+          u.disk.freeBytes != null
+            ? ` · ${formatBytes(u.disk.freeBytes)} free`
+            : ''
+        }`
       : '',
     u.recorder && u.recorder.layoutOk
       ? `Recorder ${recorderState(u.recorder)}${

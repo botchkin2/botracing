@@ -2,6 +2,9 @@
 // PCs without Admin credentials (the BotRacing tray). Rules and limits are in
 // uploadCore.ts; this binds them to Firebase Auth, Firestore and Storage.
 import * as admin from 'firebase-admin';
+// The modular export: the emulator's wrapped admin.firestore has no
+// FieldValue (the contract replay's heartbeats were 500s there).
+import {FieldValue} from 'firebase-admin/firestore';
 import {onRequest} from 'firebase-functions/v2/https';
 import {RUNTIME_ACCOUNT} from './runtime';
 import {reportError} from './problems';
@@ -32,23 +35,36 @@ function firebaseDocs(): DocStore {
         .collection(collectionPath)
         .where('sessionId', '==', sessionId)
         .where('ownerId', '==', ownerKey)
-        .select()
+        .select('supersededBy')
         .get();
-      return snap.docs.map(doc => doc.id);
+      // A superseded lap (heal.mjs) is not the session's: the uploader's
+      // leftover cleanup must not see it, or it would delete the tombstone.
+      return snap.docs
+        .filter(doc => !doc.get('supersededBy'))
+        .map(doc => doc.id);
     },
     async commit(writes) {
       const batch = db.batch();
+      // A session write stamps `changedAt`: the session list's version is
+      // the newest stamp (sessionStore.ts sessionsVersion).
+      const changedAt = new Date().toISOString();
       for (const w of writes) {
         const ref = db.doc(w.path);
-        if (w.op === 'delete') batch.delete(ref);
-        else if (w.op === 'update') batch.update(ref, w.data);
-        else if (w.merge) batch.set(ref, w.data, {merge: true});
-        else batch.set(ref, w.data);
+        if (w.op === 'delete') {
+          batch.delete(ref);
+          continue;
+        }
+        const data = w.path.startsWith('sessions/')
+          ? {...w.data, changedAt}
+          : w.data;
+        if (w.op === 'update') batch.update(ref, data);
+        else if (w.merge) batch.set(ref, data, {merge: true});
+        else batch.set(ref, data);
       }
       await batch.commit();
     },
     async addUsage(uid, delta) {
-      const inc = admin.firestore.FieldValue.increment;
+      const inc = FieldValue.increment;
       await db.doc(`users/${uid}`).set(
         {
           usage: {
@@ -86,6 +102,28 @@ function firebaseFiles(): FileStore {
         'x-goog-content-length-range': `0,${maxBytes}`,
       };
       if (contentEncoding) headers['Content-Encoding'] = contentEncoding;
+      // The Storage emulator cannot check a signature and takes no PUT: the
+      // contract replay (contract/README.md) uploads with its media POST.
+      // It also enforces no x-goog-content-length-range, so the replay cannot
+      // catch an upload-size regression: the release gate's live run against
+      // production does (release-tray.yml, parts sent).
+      const emulator = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
+      if (process.env.FUNCTIONS_EMULATOR === 'true' && emulator) {
+        const name = encodeURIComponent(path);
+        const encoding = contentEncoding
+          ? `&contentEncoding=${contentEncoding}`
+          : '';
+        // The query sets the object's contentEncoding. A Content-Encoding
+        // header on this POST would be taken as the request's own encoding:
+        // the emulator inflates the body and stores plain JSON marked gzip,
+        // which the reader then fails to gunzip (#619 contract-replay).
+        const {'Content-Encoding': _sent, ...plain} = headers;
+        return {
+          url: `http://${emulator}/upload/storage/v1/b/${BUCKET}/o?uploadType=media&name=${name}${encoding}`,
+          headers: plain,
+          method: 'POST' as const,
+        };
+      }
       const [url] = await bucket.file(path).getSignedUrl({
         version: 'v4',
         action: 'write',
@@ -97,7 +135,7 @@ function firebaseFiles(): FileStore {
           ...(contentEncoding ? {'content-encoding': contentEncoding} : {}),
         },
       });
-      return {url, headers};
+      return {url, headers, method: 'PUT' as const};
     },
     async read(path) {
       const file = bucket.file(path);

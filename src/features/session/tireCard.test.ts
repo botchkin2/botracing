@@ -6,6 +6,7 @@ import {toLaps} from '@/src/data/sessions/adapters';
 
 import fixture from './__fixtures__/roadAtlantaRace.json';
 import {
+  absentLapsNote,
   buildTiresCard,
   MIN_TREND_LAPS,
   setAges,
@@ -43,7 +44,7 @@ const lap = (
 });
 
 const stints = (laps: Lap[], sim = 'lmu') => {
-  const card = buildTiresCard({stints: [], sim}, laps);
+  const card = buildTiresCard({stints: [], sim, bestLapId: null}, laps);
   if (card.kind !== 'stints') throw new Error('no stints');
   return card.stints;
 };
@@ -52,8 +53,11 @@ const one = (laps: Lap[], sim = 'lmu'): StintTires => stints(laps, sim)[0];
 describe('buildTiresCard', () => {
   it('is absent when no lap carries tyre facts', () => {
     const laps = [lap(1, 99, {tyres: null}), lap(2, 98, {tyres: null})];
-    expect(buildTiresCard({stints: [], sim: 'lmu'}, laps)).toEqual({
+    expect(
+      buildTiresCard({stints: [], sim: 'lmu', bestLapId: null}, laps),
+    ).toEqual({
       kind: 'absent',
+      absentLaps: 0,
     });
   });
 
@@ -443,5 +447,32 @@ describe('wear read at stops only (iRacing holds its pit reading, radio #4437)',
 
   it('one clean equal pair is not enough to tell', () => {
     expect(wearReadAtStops('iracing', run([99, 99]))).toBe(false);
+  });
+});
+
+describe('laps with no tyre data because of a known recorder bug', () => {
+  it('are counted, and the note names them', () => {
+    const laps = [
+      lap(1, null, {
+        tyresAbsent: 'recorder 0.1.9-0.1.10 merged wheels',
+        tyres: null,
+      }),
+      lap(2, null, {
+        tyresAbsent: 'recorder 0.1.9-0.1.10 merged wheels',
+        tyres: null,
+      }),
+      lap(3, 50),
+    ];
+    const card = buildTiresCard(
+      {stints: [], sim: 'lmu', bestLapId: null},
+      laps,
+    );
+    expect(card.absentLaps).toBe(2);
+    expect(absentLapsNote(2)).toBe(
+      'No tyre data on 2 laps (recorder bug, fixed in 0.1.11)',
+    );
+    expect(absentLapsNote(1)).toBe(
+      'No tyre data on 1 lap (recorder bug, fixed in 0.1.11)',
+    );
   });
 });

@@ -1,0 +1,49 @@
+{
+ "hostId": "deadbeef",
+ "label": "Test PC",
+ "version": "0.1.7",
+ "lmuFound": true,
+ "state": "syncing",
+ "lastUploadAt": "2026-10-12T00:39:58.128Z",
+ "lastSessionId": "0a97aa250606c7f3",
+ "queue": 0,
+ "progress": {
+  "done": 0,
+  "total": 26
+ },
+ "sims": {
+  "lmu": {
+   "queue": 0,
+   "syncing": false,
+   "progress": null,
+   "retryAt": null,
+   "lastError": null
+  },
+  "iracing": {
+   "queue": 0,
+   "syncing": true,
+   "progress": {
+    "done": 0,
+    "total": 26
+   },
+   "retryAt": null,
+   "lastError": null
+  }
+ },
+ "retryAt": null,
+ "sessionsDone": 650,
+ "lastError": null,
+ "disk": {
+  "captureBytes": 1054878357,
+  "freeBytes": 470148440064
+ },
+ "recorder": {
+  "state": "no-game",
+  "gameVersion": null,
+  "layoutOk": null,
+  "layoutReason": "",
+  "lastChunkAt": null,
+  "updatedAt": "2026-10-12T00:39:56.001Z"
+ },
+ "problems": []
+}

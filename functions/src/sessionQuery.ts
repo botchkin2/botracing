@@ -1,3 +1,5 @@
+import {createHash} from 'node:crypto';
+
 // The pure parts of the session list: how far back it reads, and the facets
 // (games and tracks) that fill the Sessions filter chips. No Firebase here, so
 // node tests import it directly.
@@ -79,4 +81,35 @@ export function foldFacets(
     games: [...games].map(([sim, count]) => ({sim, count})),
     tracks: [...tracks.values()],
   };
+}
+
+/**
+ * The version of an owner's session list: it changes when a session is added,
+ * removed or written (count and the newest server stamp `changedAt`), and when
+ * the day turns (the default 30-day window slides). It names the owner, so a
+ * cached answer of another person never matches. Hosting does not pass
+ * If-None-Match to the function, so the client sends this as `?v=` and gets
+ * `{unchanged: true}` for two cheap reads instead of every session doc.
+ */
+export function listVersion(
+  owner: string,
+  count: number,
+  newestChangedAt: string | null,
+  now = Date.now(),
+): string {
+  const day = Math.floor(now / 86400000);
+  return createHash('sha1')
+    .update(`${owner}|${count}|${newestChangedAt ?? ''}|${day}`)
+    .digest('hex')
+    .slice(0, 16);
+}
+
+/**
+ * The sessions a list shows: not one a healed session replaced
+ * (tools/sessions/heal.mjs, `supersededBy`). Applied after the read, because
+ * a Firestore query on a missing field drops every doc that lacks it; a
+ * superseded session stays readable by id for its link and a restore.
+ */
+export function withoutSuperseded<T extends object>(docs: T[]): T[] {
+  return docs.filter(d => !(d as {supersededBy?: unknown}).supersededBy);
 }

@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
+import {rmSync, writeFileSync} from 'node:fs';
 import {test} from 'node:test';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 import {gunzipSync, gzipSync} from 'node:zlib';
 import {httpBackend} from '../../tools/sessions/storeClient.mjs';
 import {
@@ -10,92 +13,7 @@ import {
   handleUpload,
 } from '../src/uploadCore.ts';
 
-// In-memory Firestore and bucket, behind the interfaces uploadApi.ts binds to
-// Firebase. users/{uid} holds the owner-key mapping and the usage counters.
-function world(tokens = {'tok-a': 'uidA', 'tok-b': 'uidB', 'tok-k': 'uidK'}) {
-  const docs = new Map([['users/uidK', {ownerKey: 'botkin'}]]);
-  const files = new Map();
-  const usage = new Map();
-  const signed = new Map();
-  const deps = {
-    verifyToken: async t => {
-      if (!tokens[t]) throw new Error('bad');
-      return {uid: tokens[t]};
-    },
-    docs: {
-      get: async p => docs.get(p) ?? null,
-      lapIds: async (_c, sessionId, ownerKey) =>
-        [...docs]
-          .filter(
-            ([p, d]) =>
-              p.startsWith('laps/') &&
-              d.sessionId === sessionId &&
-              d.ownerId === ownerKey,
-          )
-          .map(([p]) => p.slice(5)),
-      commit: async writes => {
-        for (const w of writes) {
-          if (w.op === 'delete') docs.delete(w.path);
-          else if (w.op === 'update') {
-            assert.ok(docs.has(w.path), 'update of a missing doc');
-            docs.set(w.path, {...docs.get(w.path), ...w.data});
-          } else
-            docs.set(
-              w.path,
-              w.merge ? {...(docs.get(w.path) ?? {}), ...w.data} : w.data,
-            );
-        }
-      },
-      addUsage: async (uid, d) => {
-        const u = usage.get(uid) ?? {
-          docs: 0,
-          docBytes: 0,
-          files: 0,
-          fileBytes: 0,
-          heartbeats: 0,
-        };
-        for (const k of Object.keys(u)) u[k] += d[k] ?? 0;
-        usage.set(uid, u);
-      },
-    },
-    files: {
-      stat: async p =>
-        files.has(p)
-          ? {
-              md5Hash: createHash('md5')
-                .update(files.get(p).bytes)
-                .digest('base64'),
-              size: files.get(p).bytes.length,
-            }
-          : null,
-      // What Storage would do with the signed URL; the test's put() below plays
-      // the client's PUT against it.
-      signedUpload: async (p, opts) => {
-        signed.set(`fake://${p}`, {path: p, ...opts});
-        return {
-          url: `fake://${p}`,
-          headers: {
-            'Content-Type': opts.contentType,
-            'x-goog-content-length-range': `0,${opts.maxBytes}`,
-          },
-        };
-      },
-      read: async p => files.get(p)?.bytes ?? null,
-      remove: async p => files.delete(p),
-      list: async prefix => [...files.keys()].filter(k => k.startsWith(prefix)),
-    },
-  };
-  return {deps, docs, files, usage, signed};
-}
-
-const call = (w, token, method, path, rest = {}) =>
-  handleUpload(w.deps, {
-    method,
-    path,
-    query: {},
-    authorization: token ? `Bearer ${token}` : undefined,
-    ...rest,
-  });
+import {call, world} from './uploadWorld.mjs';
 const write = (w, token, ops) =>
   call(w, token, 'POST', '/docs/write', {json: {ops}});
 // The client's two steps: ask for a signed URL (the client gzips first and
@@ -209,6 +127,12 @@ test("reads of another owner's documents are 404, not 403", async () => {
   ]);
   assert.equal((await call(w, 'tok-a', 'GET', '/doc/sessions/s1')).status, 200);
   assert.equal((await call(w, 'tok-b', 'GET', '/doc/sessions/s1')).status, 404);
+  // A live lap reads its recording docs (store.mjs uploadLive): the owner's only.
+  await write(w, 'tok-a', [
+    {op: 'set', coll: 'recordings', id: 'r1', data: {ownerId: 'uidA', archive: {parts: []}}},
+  ]);
+  assert.equal((await call(w, 'tok-a', 'GET', '/doc/recordings/r1')).status, 200);
+  assert.equal((await call(w, 'tok-b', 'GET', '/doc/recordings/r1')).status, 404);
   assert.equal(
     (await call(w, 'tok-b', 'GET', '/doc/sessions/none')).status,
     404,
@@ -224,8 +148,8 @@ test("reads of another owner's documents are 404, not 403", async () => {
   // Laps read like sessions: the owner's, never another owner's.
   assert.equal((await call(w, 'tok-a', 'GET', '/doc/laps/l1')).status, 200);
   assert.equal((await call(w, 'tok-b', 'GET', '/doc/laps/l1')).status, 404);
-  // Not readable at all: recordings, users.
-  for (const coll of ['recordings', 'users'])
+  // Not readable at all: users.
+  for (const coll of ['users'])
     assert.equal(
       (await call(w, 'tok-a', 'GET', `/doc/${coll}/l1`)).status,
       403,
@@ -556,7 +480,7 @@ test('a document is limited by its bytes, not its characters', async () => {
 
 // The real client (tools/sessions/storeClient.mjs) against the real handler,
 // with fetch wired in-process: what #275 sends is what #274 accepts.
-function clientFor(w, tokenName) {
+function clientFor(w, tokenName, backend = httpBackend) {
   const fetch = async (url, init = {}) => {
     const u = new URL(url);
     if (u.protocol === 'fake:') {
@@ -565,6 +489,7 @@ function clientFor(w, tokenName) {
         `fake://${decodeURIComponent(u.hostname + u.pathname)}`,
       );
       assert.ok(grant, 'PUT to a URL the server did not sign');
+      assert.equal(init.method, 'PUT', 'Storage takes a PUT');
       assert.ok(init.body.length <= grant.maxBytes);
       w.files.set(grant.path, {bytes: Buffer.from(init.body), meta: grant});
       return new Response(null, {status: 200});
@@ -583,7 +508,7 @@ function clientFor(w, tokenName) {
     if (out.json === undefined) return new Response(null, {status: out.status});
     return Response.json(out.json, {status: out.status});
   };
-  return httpBackend({
+  return backend({
     api: 'https://x.test/api/upload',
     token: () => tokenName,
     fetch,
@@ -665,347 +590,8 @@ test('the real client works against the handler: docs, files, laps, events', asy
   await assert.rejects(b.getFile('traces/uidA/l1/v2.csv.gz'), /403/);
 });
 
-// -- uploader status (heartbeats) ------------------------------------------------
-
-const beat = (overrides = {}) => ({
-  hostId: 'a1b2c3d4',
-  label: 'Race PC',
-  version: '0.1.0',
-  lmuFound: true,
-  state: 'syncing',
-  lastUploadAt: '2026-10-06T03:00:00Z',
-  lastSessionId: 'bc1d',
-  queue: 2,
-  progress: {done: 1, total: 4},
-  retryAt: null,
-  sessionsDone: 14,
-  lastError: null,
-  disk: {captureBytes: 5e9, freeBytes: 2e11},
-  recorder: {
-    state: 'recording',
-    gameVersion: '1.2',
-    layoutOk: true,
-    layoutReason: null,
-    lastChunkAt: '2026-10-06T03:00:00Z',
-    updatedAt: '2026-10-06T03:00:05Z',
-  },
-  ...overrides,
-});
-const NOW0 = Date.parse('2026-10-06T04:00:00Z');
-const clockWorld = () => {
-  const w = world();
-  w.clock = {t: NOW0};
-  w.deps.now = () => w.clock.t;
-  return w;
-};
-const send = (w, token, body) =>
-  call(w, token, 'POST', '/heartbeat', {json: body});
-
-test('a heartbeat is stored under the token owner, stamped by the server', async () => {
-  const w = clockWorld();
-  const res = await send(
-    w,
-    'tok-a',
-    beat({
-      ownerId: 'botkin', // ignored
-      lastSeenAt: '1999-01-01T00:00:00Z', // the server's clock wins
-      serverUpdatedAt: 'x',
-      secret: 'dropped',
-    }),
-  );
-  assert.equal(res.status, 204);
-  const doc = w.docs.get('uploaders/uidA__a1b2c3d4');
-  assert.equal(doc.ownerId, 'uidA');
-  assert.equal(doc.hostId, 'a1b2c3d4');
-  assert.equal(doc.lastSeenAt, '2026-10-06T04:00:00.000Z');
-  assert.equal(doc.serverUpdatedAt, '2026-10-06T04:00:00.000Z');
-  assert.equal(
-    doc.secret,
-    undefined,
-    'a field the card does not read is dropped',
-  );
-  assert.equal(doc.state, 'syncing');
-  assert.deepEqual(doc.disk, {captureBytes: 5e9, freeBytes: 2e11});
-  // Nothing was written outside uploaders/.
-  assert.deepEqual(
-    [...w.docs.keys()].filter(k => !k.startsWith('users/')),
-    ['uploaders/uidA__a1b2c3d4'],
-  );
-});
-
-test("the legacy owner's heartbeat is stamped botkin, and users cannot touch each other's host", async () => {
-  const w = clockWorld();
-  await send(w, 'tok-k', beat());
-  await send(w, 'tok-a', beat({state: 'idle'}));
-  await send(w, 'tok-b', beat({state: 'error'}));
-  assert.equal(w.docs.get('uploaders/botkin__a1b2c3d4').ownerId, 'botkin');
-  // The same hostId for two users is two documents, never one overwritten.
-  assert.equal(w.docs.get('uploaders/uidA__a1b2c3d4').state, 'idle');
-  assert.equal(w.docs.get('uploaders/uidB__a1b2c3d4').state, 'error');
-  assert.equal(w.docs.get('uploaders/uidB__a1b2c3d4').ownerId, 'uidB');
-});
-
-test('heartbeats are not counted as documents or bytes, only as heartbeats (marshal #236)', async () => {
-  const w = clockWorld();
-  await send(w, 'tok-a', beat());
-  w.clock.t += 40_000;
-  await send(w, 'tok-a', beat({state: 'idle'}));
-  assert.deepEqual(w.usage.get('uidA'), {
-    docs: 0,
-    docBytes: 0,
-    files: 0,
-    fileBytes: 0,
-    heartbeats: 2,
-  });
-});
-
-test('too often is 429 with Retry-After, and the latest state is accepted when allowed', async () => {
-  const w = clockWorld();
-  assert.equal((await send(w, 'tok-a', beat({state: 'syncing'}))).status, 204);
-  // sync started, then finished 5 s later: the second is turned away...
-  w.clock.t += 5_000;
-  const early = await send(w, 'tok-a', beat({state: 'idle', queue: 0}));
-  assert.equal(early.status, 429);
-  assert.equal(early.headers['Retry-After'], '25');
-  assert.equal(w.docs.get('uploaders/uidA__a1b2c3d4').state, 'syncing');
-  assert.equal(
-    w.usage.get('uidA').heartbeats,
-    1,
-    'a refused beat is not counted',
-  );
-  // ...and the tray sends its LATEST state after the wait, which replaces it.
-  w.clock.t += 25_000;
-  assert.equal(
-    (await send(w, 'tok-a', beat({state: 'idle', queue: 0}))).status,
-    204,
-  );
-  assert.equal(w.docs.get('uploaders/uidA__a1b2c3d4').state, 'idle');
-  // Another host of the same user is not held up by this one.
-  assert.equal(
-    (await send(w, 'tok-a', beat({hostId: 'other-pc', state: 'idle'}))).status,
-    204,
-  );
-});
-
-test('a heartbeat needs a token and a safe host id', async () => {
-  const w = clockWorld();
-  assert.equal((await send(w, null, beat())).status, 401);
-  for (const hostId of [
-    '',
-    '../x',
-    'a/b',
-    'a\\b',
-    '.hidden',
-    'x'.repeat(65),
-    undefined,
-    42,
-    null,
-  ])
-    assert.equal(
-      (await send(w, 'tok-a', beat({hostId}))).status,
-      400,
-      String(hostId),
-    );
-  assert.equal(w.docs.size, 1, 'only the users/uidK mapping exists');
-});
-
-test('a heartbeat is checked field by field', async () => {
-  const w = clockWorld();
-  const bad = [
-    {label: undefined},
-    {version: undefined},
-    {lmuFound: 'yes'},
-    {state: 'on fire'},
-    {state: undefined},
-    {queue: -1},
-    {queue: 1.5e15},
-    {queue: '2'},
-    {sessionsDone: NaN},
-    {progress: {done: 1}},
-    {progress: 'half'},
-    {problems: 'boom'},
-    {problems: [{kind: 'sync-crashed', at: null, message: 'm'.repeat(121)}]},
-    {
-      problems: [
-        {kind: 'session-failed', at: null, message: 'm', sessionId: '../x'},
-      ],
-    },
-    {problems: [{kind: 'session-failed', at: null, message: 'm', count: -1}]},
-    {problems: Array(11).fill({kind: 'sync-crashed', at: null, message: 'm'})},
-    {disk: {captureBytes: 1}},
-    {recorder: {state: 5}},
-    {recorder: {state: 'recording', gameVersion: -1}},
-    {recorder: {state: 'recording', gameVersion: 1.5}},
-    {label: 'L'.repeat(65)},
-    {lastSessionId: 'x'.repeat(65)},
-  ];
-  for (const patch of bad)
-    assert.equal(
-      (await send(w, 'tok-a', beat(patch))).status,
-      400,
-      JSON.stringify(patch),
-    );
-  // What the real tray sends is accepted, including nulls and epoch times.
-  const ok = beat({
-    lastUploadAt: 1790000000000,
-    retryAt: null,
-    progress: null,
-    recorder: null,
-    problems: [
-      {
-        kind: 'session-failed',
-        at: '2026-10-06T03:00:00Z',
-        message: 'HTTP 413',
-        sessionId: '4dda01bc58a237af',
-        count: 2,
-        retryAt: 1790000000000,
-        extra: 'dropped',
-      },
-      {kind: 'recorder-layout', at: null, message: 'layout changed'},
-    ],
-    lastSessionId: null,
-  });
-  assert.equal((await send(w, 'tok-a', ok)).status, 204);
-  // The recorder block exactly as the tray's status.json gives it while LMU
-  // records: gameVersion is the game's integer (0 when it reports none). A
-  // string-only check refused all of these on 0.1.9 (thread 1 #4983).
-  for (const gameVersion of [0, 14200]) {
-    const recording = beat({
-      recorder: {
-        state: 'recording',
-        gameVersion,
-        layoutOk: true,
-        layoutReason: '',
-        lastChunkAt: '2026-10-13T02:40:35.842Z',
-        updatedAt: '2026-10-13T02:41:05.845Z',
-      },
-    });
-    // A fresh world: one heartbeat per host per interval (the one above took it).
-    assert.equal((await send(world(), 'tok-a', recording)).status, 204, `gameVersion ${gameVersion}`);
-  }
-  const stored = [...w.docs.values()].find(d => Array.isArray(d.problems));
-  assert.deepEqual(
-    stored.problems,
-    [
-      {
-        kind: 'session-failed',
-        at: '2026-10-06T03:00:00Z',
-        message: 'HTTP 413',
-        sessionId: '4dda01bc58a237af',
-        count: 2,
-        retryAt: 1790000000000,
-      },
-      {kind: 'recorder-layout', at: null, message: 'layout changed'},
-    ],
-    'each problem rebuilt from its known fields',
-  );
-  assert.equal(
-    w.usage.get('uidA').heartbeats,
-    1,
-    'only the accepted one counted',
-  );
-});
-
-test("the tray's own report that the uploader stopped is accepted, without lmuFound", async () => {
-  const w = clockWorld();
-  const res = await send(
-    w,
-    'tok-a',
-    beat({
-      lmuFound: undefined,
-      state: 'error',
-      problems: [
-        {
-          kind: 'uploader-stopped',
-          at: '2026-10-10T02:00:00.000Z',
-          message: 'exit code: 1',
-          count: 2,
-        },
-      ],
-    }),
-  );
-  assert.equal(res.status, 204);
-  const stored = [...w.docs.values()].find(d => Array.isArray(d.problems));
-  assert.equal(stored.problems[0].kind, 'uploader-stopped');
-  assert.equal(stored.problems[0].count, 2);
-  assert.equal('lmuFound' in stored, false, 'not stored when not sent');
-});
-
-test('a problem of a kind this server does not know is dropped, the rest of the status lands', async () => {
-  // A newer tray talking to an older server must not lose its heartbeat.
-  const w = clockWorld();
-  const res = await send(
-    w,
-    'tok-a',
-    beat({
-      problems: [
-        {kind: 'on-fire', at: null, message: 'a future kind'},
-        {kind: 'sync-crashed', at: null, message: 'sync crashed: x'},
-      ],
-    }),
-  );
-  assert.equal(res.status, 204);
-  const stored = [...w.docs.values()].find(d => Array.isArray(d.problems));
-  assert.deepEqual(
-    stored.problems.map(p => p.kind),
-    ['sync-crashed'],
-  );
-  // A known kind with a bad field is still refused.
-  const bad = await send(
-    w,
-    'tok-a',
-    beat({
-      problems: [{kind: 'sync-crashed', at: null, message: 'm'.repeat(121)}],
-    }),
-  );
-  assert.equal(bad.status, 400);
-});
-
-test('a recording the uploader could not read is a problem named by its file', async () => {
-  const w = clockWorld();
-  const res = await send(
-    w,
-    'tok-a',
-    beat({
-      problems: [
-        {
-          kind: 'file-unreadable',
-          at: '2026-10-10T15:00:00.000Z',
-          message:
-            'fordmustanggt3_fuji gp 2026-10-04 10-52-05.ibt: has no samples',
-        },
-      ],
-    }),
-  );
-  assert.equal(res.status, 204);
-  const stored = [...w.docs.values()].find(d => Array.isArray(d.problems));
-  assert.equal(stored.problems[0].kind, 'file-unreadable');
-  assert.match(stored.problems[0].message, /fuji gp .*has no samples/);
-});
-
-test('a heartbeat problem message stores no token or address', async () => {
-  const w = clockWorld();
-  const jwt = 'eyJhbGciOi.eyJzdWIiOiIx.sig-nature_1';
-  const res = await send(
-    w,
-    'tok-a',
-    beat({
-      problems: [
-        {
-          kind: 'sync-crashed',
-          at: null,
-          message: `401 ${jwt} for a@b.example`,
-        },
-      ],
-    }),
-  );
-  assert.equal(res.status, 204);
-  const stored = [...w.docs.values()].find(d => Array.isArray(d.problems));
-  assert.equal(stored.problems[0].message, '401 <token> for <email>');
-});
-
 test('the usage counters on a user that never sent a heartbeat have no heartbeats', async () => {
-  const w = clockWorld();
+  const w = world();
   await write(w, 'tok-a', [lap('l1', 'uidA')]);
   assert.equal(w.usage.get('uidA').heartbeats, 0);
 });
@@ -1028,4 +614,37 @@ test('a write over a session analysed under newer rules still lands', async () =
   };
   assert.equal((await write(w, 'tok-a', [lap])).status, 204);
   assert.equal(w.docs.get('laps/l1').lapTime, 99);
+});
+
+// An installed tray never updates its client with the server (torsion #5134
+// 2): tray 0.1.10's own storeClient.mjs, from its tag, against this server.
+// It ignores the answer's `method` and always PUTs, which is what production
+// answers; the emulator's POST (uploadApi.ts) never reaches it.
+test("tray 0.1.10's own client still uploads to this server", async () => {
+  const old = execFileSync(
+    'git',
+    ['show', 'tray-v0.1.10:tools/sessions/storeClient.mjs'],
+    {encoding: 'utf8'},
+  );
+  // Beside the current file, so its own imports resolve.
+  const path = fileURLToPath(
+    new URL(
+      '../../tools/sessions/.storeClient-tray-0.1.10.mjs',
+      import.meta.url,
+    ),
+  );
+  writeFileSync(path, old);
+  try {
+    const {httpBackend: oldBackend} = await import(pathToFileURL(path).href);
+    const w = world();
+    const a = clientFor(w, 'tok-a', oldBackend);
+    await a.putFile(
+      'archive/lmu/s1/a.json',
+      {body: Buffer.from('{"a":1}')},
+      {contentType: 'application/json', gzip: true},
+    );
+    assert.deepEqual([...w.files.keys()], ['archive/uidA/lmu/s1/a.json']);
+  } finally {
+    rmSync(path);
+  }
 });

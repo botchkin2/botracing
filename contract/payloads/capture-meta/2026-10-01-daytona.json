@@ -1,0 +1,15 @@
+{
+ "version": 1,
+ "startUtc": "2026-10-01T00:27:00.912Z",
+ "endUtc": "2026-10-01T00:52:28.447Z",
+ "chunks": 26,
+ "headerHash": "0b8766310f6b3f78",
+ "layoutBytes": 324824,
+ "suspectFrames": 6,
+ "track": "Daytona International Speedway Road Course",
+ "session": 1,
+ "gameVersion": 14200,
+ "playerName": "seat-test",
+ "serverName": "-none-",
+ "gameMode": 0
+}

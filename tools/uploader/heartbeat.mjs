@@ -4,6 +4,8 @@
 
 import {createHash} from 'node:crypto';
 
+import {compareVersions} from '../../src/data/uploaders/version.ts';
+
 // The endpoint is public (the app has no sign-in), so the doc carries no
 // machine name or user paths: a short hash as id, a label from config.
 export function hostIdOf(machineName) {
@@ -21,6 +23,12 @@ export function scrub(message) {
 // The recorder rewrites its status.json at least every 30 s; older than this
 // means it is not running.
 export const RECORDER_STALE_SEC = 120;
+
+// The server refuses longer text (functions/src/contract/heartbeat.ts
+// LABEL_MAX, LAYOUT_REASON_MAX; contract tests check they agree): the beat is
+// cut to fit rather than refused whole.
+export const LABEL_MAX = 64;
+export const LAYOUT_REASON_MAX = 200;
 
 const iso0 = ms => (ms != null ? new Date(ms).toISOString() : null);
 
@@ -52,6 +60,25 @@ export function simsDoc(entries, syncingSim = null, progress = null) {
   );
 }
 
+/**
+ * The version of an update the tray has downloaded and is holding, from the
+ * text of its update-waiting.json ({version}), or null. Only a version higher
+ * than the running tray's counts: a file left by an update that did install,
+ * or a tray that crashed with the slot full, can never show a banner.
+ */
+export function updateWaitingOf(fileText, runningVersion) {
+  let version;
+  try {
+    version = JSON.parse(fileText)?.version;
+  } catch {
+    return null;
+  }
+  // The one place the rule is written: the app only shows what this sends.
+  const newer =
+    typeof version === 'string' ? compareVersions(version, runningVersion) : null;
+  return newer != null && newer > 0 ? version : null;
+}
+
 // watch: the watcher's own state. recorder: tools/capture's status.json, or
 // null when there is none. sims: simsDoc() of each sim.
 export function heartbeatDoc({
@@ -68,11 +95,16 @@ export function heartbeatDoc({
   recorder,
   retryAtMs = null,
   problems = [],
+  updateWaiting = null,
   nowMs,
 }) {
   return {
     hostId,
-    label,
+    // config.json is the user's: any value, any length.
+    label:
+      typeof label === 'string' && label.trim()
+        ? label.slice(0, LABEL_MAX)
+        : 'Race PC',
     version,
     lmuFound,
     state,
@@ -93,6 +125,13 @@ export function heartbeatDoc({
     disk: {captureBytes: recorder?.captureBytes ?? 0, freeBytes},
     recorder: recorderBlock(recorder, nowMs),
     problems,
+    // The newer tray the tray holds ready to install; the key is absent with
+    // none (updateWaitingOf), so a tray with no update sends what it always did.
+    ...(updateWaiting ? {updateWaiting} : {}),
+    // Recordings healed in place (heal.mjs, thread 74 step 1): the first real
+    // heal shows up here without anyone asking. Absent with none, like
+    // updateWaiting, so a beat without a heal is the beat it always was.
+    ...(watch.healed ? {healed: watch.healed} : {}),
   };
 }
 
@@ -162,7 +201,13 @@ function recorderBlock(status, nowMs) {
     state: stale ? 'not-running' : status.state,
     gameVersion: status.gameVersion ?? null,
     layoutOk: status.layoutOk ?? null,
-    layoutReason: status.layoutReason ?? null,
+    // The recorder's reason can carry an OS error with a user path (a
+    // capture folder it cannot write): Settings shows it, so it is scrubbed
+    // like any error, and cut to what the server takes.
+    layoutReason:
+      status.layoutReason == null
+        ? null
+        : redact(scrub(status.layoutReason)).slice(0, LAYOUT_REASON_MAX),
     lastChunkAt: status.lastChunkAt ?? null,
     updatedAt: status.updatedAt ?? null,
   };
@@ -192,6 +237,8 @@ export function beatKey(doc) {
     doc.retryAt,
     doc.recorder?.state,
     doc.recorder?.layoutOk,
+    doc.updateWaiting ?? null,
+    doc.healed ?? 0,
     Object.entries(doc.sims ?? {}).map(([id, s]) => [
       id,
       s.queue,

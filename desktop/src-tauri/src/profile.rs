@@ -42,6 +42,17 @@ pub fn data_dir_name() -> String {
     format!("BotRacing{}", suffix())
 }
 
+/// The folder under %LOCALAPPDATA% the recorders write captures to and prune
+/// (capture::runner::capture_root). A profile's own, so a test tray never
+/// records into, or prunes, the real tray's captures (pit wall #5281).
+pub fn capture_dir_name() -> String {
+    capture_dir_name_of(&suffix())
+}
+
+fn capture_dir_name_of(suffix: &str) -> String {
+    format!("lap-capture{suffix}")
+}
+
 /// The Credential Manager service name the stored sign-in lives under.
 pub fn keyring_service() -> String {
     format!("BotRacing{}", suffix())
@@ -85,6 +96,7 @@ mod tests {
             assert_eq!(keyring_service(), "BotRacing");
             assert_eq!(lock_pipe(), r"\\.\pipe\botracing-watch");
             assert_eq!(tooltip(), "BotRacing");
+            assert_eq!(capture_dir_name(), "lap-capture");
         }
     }
 
@@ -97,6 +109,12 @@ mod tests {
             identifier_of(base, &suffix_of(Some("seat"))),
             identifier_of(base, &suffix_of(Some("seat2")))
         );
+    }
+
+    #[test]
+    fn a_profile_records_into_its_own_capture_folder() {
+        assert_eq!(capture_dir_name_of(""), "lap-capture");
+        assert_eq!(capture_dir_name_of(&suffix_of(Some("seat"))), "lap-capture-seat");
     }
 
     #[test]

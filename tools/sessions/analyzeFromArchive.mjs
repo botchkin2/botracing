@@ -33,6 +33,24 @@ export function slugId(sim, name) {
   return `${sim}-${adapterOf(sim).slug(name)}`;
 }
 
+/** The session's track-limit totals from its laps (analyze.mjs) and the stored input. */
+export function trackLimitsOf(laps, results) {
+  const strikes = laps.flatMap(lap => lap.trackLimits ?? []);
+  return {
+    strikes: strikes.length,
+    points: strikes.reduce((n, k) => n + k.points, 0),
+    // The file's own ones that fit none of his laps, and the ones that fit a lap
+    // of his the recording has no segment for (a reset, a file gap).
+    unplaced: results.unplaced + (results.strikes.length - strikes.length),
+    disagreements: laps.filter(lap => lap.invalidDisagrees).length,
+  };
+}
+
+// A stretch kept from a defective capture (heal.mjs): its wheel columns are
+// one wheel four times, so its laps carry no tyres and say why.
+const TYRES_DEFECT_WHY = 'recorder 0.1.9-0.1.10 merged wheels';
+const tyresDefect = info => info?.defects?.includes('mergedWheels') ?? false;
+
 /**
  * @param {object} input
  * @param {string} input.ownerId
@@ -45,6 +63,8 @@ export function slugId(sim, name) {
  * @param {boolean} [input.foldOnly]     analyse for the boundary fold, no docs
  * @param {object|null} input.damage     the car's damage series, null without one
  * @param {{minutes: number}|null} input.raceLength
+ * @param {{strikes: object[], unplaced: number, deletedLaps: number[]}|null} input.results
+ *   the game's track-limit rulings for the player (resultsInput.mjs), null without its results file
  * @param {{series: string|null, eventId: string|null}} input.event
  * @param {(lite: {t: Float64Array, lapDist: Float64Array}[]) => {field: object|null, meta?: object, reason?: string}} input.fieldFor
  *   the field around the player, given each loaded recording's clock and lap distance
@@ -59,6 +79,7 @@ export function analyzeFromArchive({
   foldOnly = false,
   damage,
   raceLength,
+  results = null,
   event,
   fieldFor,
 }) {
@@ -80,6 +101,7 @@ export function analyzeFromArchive({
     splitFiles: sim === 'iracing',
     catalogOnly,
     steerRightSign: adapter.steerRightSign,
+    results,
   });
   if (foldOnly) return {a};
   // variant is for display; the layout key stays the id (iRacing's is a number
@@ -140,6 +162,14 @@ export function analyzeFromArchive({
       gameLapTime: lap.gameLapTime,
       durationSec: lap.durationSec,
       timed: lap.timed,
+      // The game deleted this lap: a strike of a deleting ruling in its results
+      // file (invalidFrom 'results'), else -1 at its closing line (a real
+      // crossing; invalidFrom 'lapTime', or absent when the lap is not invalid).
+      invalid: lap.invalid,
+      invalidFrom: lap.invalidFrom,
+      // The game's rulings that fell in the lap, with where (analyze.mjs
+      // lapStrikes); absent without a results file.
+      trackLimits: lap.trackLimits,
       partial: lap.partial,
       // 'grid' (the parked car and the roll to the line), 'file' (cut by a
       // recording boundary), or null.
@@ -158,6 +188,8 @@ export function analyzeFromArchive({
       // The fastest recorded speed sample of the lap, and where.
       maxSpeedKmh: lap.maxSpeedKmh,
       maxSpeedAtM: lap.maxSpeedAtM,
+      // Seconds coasting (coast.mjs): the fuel card's lift-and-coast figure.
+      coastS: lap.coastS,
       sectors: lap.sectors,
       stint: lap.stint,
       comparable: lap.comparable,
@@ -173,7 +205,11 @@ export function analyzeFromArchive({
       // pressure and temperatures, and the wheels changed in the stop that
       // ended during it (tyres.mjs); null without the channels. The lap after
       // a change is the first on new tyres (consistency's cold-tyres rule).
-      tyres: lap.tyres,
+      // A stretch kept from a defective capture (heal.mjs) has no tyres.
+      tyres: tyresDefect(recordings[lap.rec].info) ? null : lap.tyres,
+      ...(tyresDefect(recordings[lap.rec].info)
+        ? {tyresAbsent: TYRES_DEFECT_WHY}
+        : {}),
       tyreCarcassC: lap.tyreCarcassC,
       compound: lap.compound,
       wetness: lap.wetness,
@@ -247,6 +283,10 @@ export function analyzeFromArchive({
     sessionClock: first.sessionClock,
     weather: first.weather,
     race: raceLength,
+    // The game's rulings over the session: how many, their points, how many
+    // could not be placed on a lap of his, and how many laps the results file and
+    // the lap time disagree on; absent without a results file.
+    trackLimits: results ? trackLimitsOf(a.laps, results) : undefined,
     series: event.series,
     eventId: event.eventId,
     startedAt: first.recordedAt,

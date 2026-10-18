@@ -8,6 +8,8 @@ import type {Lap, SessionDetail} from '@/src/data/sessions';
 
 import {median} from '@/src/analysis/setStats';
 
+import {buildHeatStrips, type HeatStrip} from './heatStrips';
+
 /** A trend of wear per lap needs this many green laps (round 7 1C b). */
 export const MIN_TREND_LAPS = 5;
 
@@ -149,9 +151,19 @@ export type StintTires = {
   coolDown: CoolDownBlock;
 };
 
-export type TiresCard =
+export type TiresCard = (
   | {kind: 'absent'}
-  | {kind: 'stints'; stints: StintTires[]};
+  | {kind: 'stints'; stints: StintTires[]; heat: HeatStrip[]}
+) & {
+  /** Laps whose recording had bad wheel channels: no tyres, and the card says so. */
+  absentLaps: number;
+};
+
+/** The line under a card with such laps. */
+export const absentLapsNote = (n: number) =>
+  `No tyre data on ${n} lap${
+    n === 1 ? '' : 's'
+  } (recorder bug, fixed in 0.1.11)`;
 
 const lapLabel = (l: Lap) => `L${l.lapIndex}`;
 
@@ -470,7 +482,7 @@ function stintTires(
 
 /** The card, or `absent` when no lap in the session carries tyre facts. */
 export function buildTiresCard(
-  session: Pick<SessionDetail, 'stints' | 'sim'>,
+  session: Pick<SessionDetail, 'stints' | 'sim' | 'bestLapId'>,
   laps: Lap[],
 ): TiresCard {
   const nums = session.stints.length
@@ -487,5 +499,13 @@ export function buildTiresCard(
     );
     if (s) stints.push(s);
   }
-  return stints.length ? {kind: 'stints', stints} : {kind: 'absent'};
+  const absentLaps = laps.filter(l => l.tyresAbsent).length;
+  return stints.length
+    ? {
+        kind: 'stints',
+        stints,
+        heat: buildHeatStrips(laps, session.bestLapId),
+        absentLaps,
+      }
+    : {kind: 'absent', absentLaps};
 }

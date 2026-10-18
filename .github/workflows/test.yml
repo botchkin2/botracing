@@ -71,7 +71,7 @@ jobs:
       - name: Golden drift gate
         run: node tools/golden/gate.mjs origin/main
       - name: Uploader and session tools
-        run: node --test tools/golden/*.test.mjs tools/sessions/*.test.mjs tools/curate/*.test.mjs tools/uploader/*.test.mjs tools/ci/*.test.mjs tools/dev/*.test.mjs ops/backups/*.test.mjs ops/iam/*.test.mjs scripts/*.test.mjs
+        run: node --test contract/*.test.mjs tools/golden/*.test.mjs tools/sessions/*.test.mjs tools/curate/*.test.mjs tools/uploader/*.test.mjs tools/ci/*.test.mjs tools/dev/*.test.mjs ops/backups/*.test.mjs ops/iam/*.test.mjs scripts/*.test.mjs
   # The functions had no CI of their own: their types and tests (the upload
   # endpoint, the read API's owner rules, the admin scripts) ran only by hand.
   functions:
@@ -79,6 +79,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The tray-v tags: an installed tray's own client is tested against
+          # this server (uploadCore.test.mjs).
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
@@ -144,3 +148,116 @@ jobs:
         run: cargo test --manifest-path src-tauri/Cargo.toml
       - name: Release script tests
         run: node --test scripts/*.test.mjs
+  # Roadmap row 0, layer 2 (contract/README.md): the tray's own watcher replays
+  # a real capture as a live drive against the API in the emulators, through
+  # the Hosting emulator's /api rewrites (functions/test/replay). Any refused
+  # request, lost lap, or heartbeat the contract refuses fails it. It always
+  # runs and reports, and passes at once when nothing on the tray/API line
+  # changed: a required check behind a path filter would hold every other PR
+  # forever (torsion #5115 5). Windows: the watcher's lock and game check are
+  # the tray's.
+  contract-replay:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Anything on the tray/API line?
+        id: scope
+        run: |
+          if git diff --name-only "${{ github.event.pull_request.base.sha }}"...HEAD |
+            grep -qE '^(desktop/|functions/|tools/(uploader|sessions|dev|capture|golden)/|src/(analysis|data/uploaders)/|contract/|firebase(\.emulator)?\.json$|\.github/workflows/test\.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing on the tray/API line changed: no replay needed."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v7
+        if: steps.scope.outputs.run == 'true'
+        with:
+          node-version-file: desktop/node-version  # the node the tray ships
+      - name: Functions build
+        if: steps.scope.outputs.run == 'true'
+        run: npm ci --prefix functions && npm --prefix functions run build
+      # The same pinned CLI the tray ships (desktop/scripts/stage-resources.mjs).
+      - name: DuckDB CLI
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          curl -sSL -o duckdb.zip https://github.com/duckdb/duckdb/releases/download/v1.4.2/duckdb_cli-windows-amd64.zip
+          echo "2a31d67cf54aec3494fb331147edddfee1cd7f3fadcb5b84056f9bc28cf76576  duckdb.zip" | sha256sum -c -
+          unzip -q duckdb.zip -d "$RUNNER_TEMP/duckdb"
+          echo "DUCKDB=$RUNNER_TEMP/duckdb/duckdb.exe" >> "$GITHUB_ENV"
+      # The replay is the gate: without the golden credential it fails rather
+      # than passes unchecked.
+      - name: Golden set (credential)
+        if: steps.scope.outputs.run == 'true'
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GOLDEN_READER_SERVICE_ACCOUNT }}
+      - name: Golden set (gcloud)
+        if: steps.scope.outputs.run == 'true'
+        uses: google-github-actions/setup-gcloud@v3
+      - name: The capture (Road Atlanta 3 Oct, 3 laps)
+        if: steps.scope.outputs.run == 'true'
+        # Each object by name (the reader may get objects under golden/ but not
+        # list them: ops/iam/goldenReaderPlan.mjs), pinned like tools/golden.
+        run: |
+          d="$RUNNER_TEMP/road-atlanta-2026-10-03"
+          mkdir -p "$d"
+          gcloud storage cp gs://botracing-61-lmu/golden/live-capture/road-atlanta-2026-10-03/meta.json gs://botracing-61-lmu/golden/live-capture/road-atlanta-2026-10-03/player-0000.parquet gs://botracing-61-lmu/golden/live-capture/road-atlanta-2026-10-03/field-0000.parquet gs://botracing-61-lmu/golden/live-capture/road-atlanta-2026-10-03/session-0000.parquet "$d/"
+          cd "$d"
+          sha256sum -c - <<SUMS
+          eda895db43ccecd372a5daa8a4f5401c393a5bd1501cef436c4da6dea9c1df05  meta.json
+          b80a810748f34f12e159c80fb236bada8a763b5aeb251c349c842a21c8c3e202  player-0000.parquet
+          37928e31cc497f6fcf7fee13ecfbcdb89166f82b08cb080026a7a6ff7aed717b  field-0000.parquet
+          63ea035560c47aa72aea48c09b094d132626dfdef53e0ed5dbfc6c1f389ec6c9  session-0000.parquet
+          SUMS
+      # docs/SESSION_PIPELINE.md: the same drive through the capture path and
+      # the game-file path must agree (tools/golden/parityAllow.json says what
+      # may differ, and why), and both must have every feature (manifest.mjs).
+      - name: Parity gate (capture vs game file, the same drive)
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          pairs="$RUNNER_TEMP/parity-pairs"
+          g=gs://botracing-61-lmu/golden/parity
+          # The race: the capture fetched above, the game file cut to its window.
+          p="$pairs/road-atlanta-2026-10-03-race"
+          mkdir -p "$p/capture" "$p/game"
+          cp -r "$RUNNER_TEMP/road-atlanta-2026-10-03" "$p/capture/"
+          gcloud storage cp "$g/road-atlanta-2026-10-03/Michelin Raceway Road Atlanta_R_2026-10-03T00_12_27Z.duckdb" "$p/game/"
+          gcloud storage cp "$g/road-atlanta-2026-10-03/catalog.json" "$p/"
+          # The practice: a reset, out-laps and a lap the game invalidated.
+          gcloud storage cp "$g/road-atlanta-2026-10-02-practice.tar.gz" "$RUNNER_TEMP/"
+          (cd "$RUNNER_TEMP" && sha256sum -c - <<SUMS
+          924669c91dc135e2b7043e5f649b15a883663363338dff7b50142cb6f8af722e  road-atlanta-2026-10-02-practice.tar.gz
+          SUMS
+          )
+          # Relative names: Git Bash's tar reads "D:\..." as a remote host "D".
+          (cd "$RUNNER_TEMP" && tar -xzf road-atlanta-2026-10-02-practice.tar.gz -C parity-pairs)
+          (cd "$p" && sha256sum -c - <<SUMS
+          5703aae394415c68cc50f5cdfff835c64d5af669ee9e2852794eabd9302707ee  game/Michelin Raceway Road Atlanta_R_2026-10-03T00_12_27Z.duckdb
+          f1e7f00da39f4d515b7742d5ed34af5cf88daef37802e7d9ff3c5a779144812f  catalog.json
+          SUMS
+          )
+          PARITY_PAIRS="$pairs" node --test tools/golden/parity.test.mjs
+      - name: The finished files (an LMU .duckdb, an iRacing .ibt)
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          d="$RUNNER_TEMP/finished-file"
+          mkdir -p "$d"
+          gcloud storage cp "gs://botracing-61-lmu/golden/finished-file/Michelin Raceway Road Atlanta_P_2026-09-25T23_51_06Z.duckdb" "gs://botracing-61-lmu/golden/finished-file/fordmustanggt3_roadatlanta full 2026-08-27 20-49-07.ibt" "$d/"
+          cd "$d"
+          sha256sum -c - <<SUMS
+          bce60cf49e96bab6a4d624a650cc82e2b8a7dabe1fe37b1b163951b579b9c750  Michelin Raceway Road Atlanta_P_2026-09-25T23_51_06Z.duckdb
+          c1fd5038e3fb2e041aecd34d1b129e6601a038d7ff0a2272b44bb5b13b2a3021  fordmustanggt3_roadatlanta full 2026-08-27 20-49-07.ibt
+          SUMS
+      - name: Replay against the API in the emulators
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          export JAVA_HOME="$(cygpath "$JAVA_HOME_21_X64")"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          node functions/test/replay/emulators.mjs -- functions/test/replay/run.mjs --live "$RUNNER_TEMP/road-atlanta-2026-10-03" --laps 3 --speed 4 --file "$RUNNER_TEMP/finished-file/Michelin Raceway Road Atlanta_P_2026-09-25T23_51_06Z.duckdb" --file "$RUNNER_TEMP/finished-file/fordmustanggt3_roadatlanta full 2026-08-27 20-49-07.ibt"

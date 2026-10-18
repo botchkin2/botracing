@@ -26,19 +26,20 @@ import {
   renameSync,
   statSync,
   statfsSync,
-  writeFileSync,
 } from 'node:fs';
 import {createServer} from 'node:net';
 import {constants, homedir, hostname, setPriority} from 'node:os';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {analysisVersion, blockVersions} from '../sessions/analyze.mjs';
+import {replaceFile} from '../sessions/replaceFile.mjs';
 import {versionKey} from '../sessions/versionKey.mjs';
 import {ARCHIVE_REPAIR} from '../sessions/archiveRepair.mjs';
 import {adapter, telemetryFolder} from '../sessions/sims.mjs';
 import {
   beatKey,
   heartbeatDoc,
+  updateWaitingOf,
   simsDoc,
   hostIdOf,
   idleState,
@@ -60,11 +61,15 @@ import {clearStaleSyncing, stateOf} from './watchState.mjs';
 import {
   decide,
   decideLive,
+  liveClosed,
   liveRetryDelayMs,
   liveWake,
+  resultsDue,
   retryDelayMin,
 } from './trigger.mjs';
 import {floorOf} from '../sessions/syncState.mjs';
+import {readLiveIndex} from '../sessions/liveSession.mjs';
+import {usableLiveIndex} from '../sessions/brokenWheels.mjs';
 import {QUIET_MIN_DEFAULT} from '../sessions/sessionFiles.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -128,6 +133,14 @@ function log(line) {
     // No log yet.
   }
   appendFileSync(logPath, `${new Date().toISOString()} ${line}\n`);
+}
+
+function readText(path) {
+  try {
+    return readFileSync(path, 'utf8');
+  } catch {
+    return '';
+  }
 }
 
 function readJson(path, fallback) {
@@ -286,11 +299,40 @@ function runLive(sim, sessionDir) {
   });
 }
 
+// The game's results for stored sessions (sync.mjs --results / --results-live): the
+// game writes its file when a session ends, after the last live run. Idle
+// priority; --run names this tray start (resultsBacklog.mjs).
+function runResults(sim, mode) {
+  return new Promise(done => {
+    const child = spawn(
+      process.execPath,
+      [syncScript, ...syncArgsOf(sim), mode === 'all' ? '--results' : '--results-live', '--run', startedAtIso],
+      {windowsHide: true},
+    );
+    try {
+      setPriority(child.pid, constants.priority.PRIORITY_LOW);
+    } catch {
+      // Priority is a courtesy.
+    }
+    const onData = chunk => {
+      for (const line of String(chunk).split(/\r?\n/).filter(Boolean))
+        log(`  results | ${line}`);
+    };
+    child.stdout.setEncoding('utf8').on('data', onData);
+    child.stderr.setEncoding('utf8').on('data', onData);
+    child.on('close', code => done({code}));
+  });
+}
+const startedAtIso = new Date().toISOString();
+let lastResultsMs = null;
+
 // The wait between ticks. The recorders' status files are read every
 // LIVE_POLL_MS (small files) and a new lap on disk, or a recorder that starts
 // recording, ends the wait (trigger.mjs liveWake), so a lap starts up within
-// seconds instead of up to a whole tick, the drive's first lap included.
-const LIVE_POLL_MS = 2_000;
+// seconds instead of up to a whole tick, the drive's first lap included. Read
+// each half second: at 2 s the wait cost each lap a second on average before
+// the screen (pit wall thread 69).
+const LIVE_POLL_MS = 500;
 // When a failed live upload is tried again (liveRetryDelayMs), else null.
 let liveRetryAtMs = null;
 let liveFailuresInRow = 0;
@@ -385,17 +427,16 @@ async function main() {
   // reads as changed, so the first run with this code syncs everything once.
   // The archive repair's version too: a tray that brings a new repair syncs
   // once on its first start (game closed, as every run), not at the next drive.
-  const currentKey = `${versionKey(analysisVersion, blockVersions)}|repair${ARCHIVE_REPAIR}`;
+  const currentKey = `${versionKey(
+    analysisVersion,
+    blockVersions,
+  )}|repair${ARCHIVE_REPAIR}`;
   // Failed sessions and their backoff (retries.mjs); older state had a list.
   watch.retries ??= {};
   delete watch.failedSessions;
   clearStaleSyncing(watch, SIMS);
   // Written to a temp file and renamed, so the tray never reads a half-written state.json.
-  const save = () => {
-    const tmp = `${statePath}.tmp`;
-    writeFileSync(tmp, JSON.stringify(watch));
-    renameSync(tmp, statePath);
-  };
+  const save = () => replaceFile(statePath, JSON.stringify(watch));
   save();
   let wasRunning = false;
   let lastKey = '';
@@ -461,6 +502,8 @@ async function main() {
       recorder,
       retryAtMs: earliestOf(all.map(a => earliestRetryMs(a.st.retries ?? {}))),
       problems: problemsOf({sims: all.map(a => a.st), recorder, nowMs}),
+      // The tray writes this file when an update is downloaded (update.rs).
+      updateWaiting: updateWaitingOf(readText(resolve(home, 'update-waiting.json')), ver),
       nowMs,
     });
     const key = beatKey(doc);
@@ -480,6 +523,24 @@ async function main() {
     }
   };
 
+  // Live sessions uploaded before live laps carried the field (tray 0.1.10,
+  // roadmap row 0a): each capture the live index names, still on the PC, is
+  // run through the live path once more; uploadLive adds the field and the
+  // capture extract to a stored session that has none. Once per session.
+  for (const sim of LIVE_SIMS) {
+    const done = ((watch.liveFieldRepair ??= {})[sim.id] ??= {});
+    // Never a broken-wheel capture: flow B rebuilds that drive (brokenWheels.mjs).
+    const index = usableLiveIndex(readLiveIndex(workOf(sim)), captureRoot);
+    for (const [key, span] of Object.entries(index)) {
+      const dir = key.split('#')[0];
+      if (done[span.sessionId] || !existsSync(resolve(captureRoot, dir))) continue;
+      log(`live ${sim.id}: adding the field to ${span.sessionId} (${dir})`);
+      const r = await runLive(sim, dir);
+      if (r.code === 0) done[span.sessionId] = true;
+      save();
+    }
+  }
+
   tick: for (;;) {
     if (parentGone()) {
       log('the tray app is gone, stopping');
@@ -494,7 +555,11 @@ async function main() {
         const recorder = readJson(recorderStatusOf(sim), null);
         // The capture live laps were following has closed (the drive ended,
         // the game quit): one last run sends its in-lap, game running or not.
-        if (live.dir && recorder?.sessionDir !== live.dir) {
+        // Closed is a new capture, or the recorder no longer recording: when
+        // the game exits it keeps the last sessionDir and says no-game, so a
+        // changed sessionDir alone never came and the drive's last lap stayed
+        // partial (2026-10-14, pit wall #5305).
+        if (liveClosed(live.dir, recorder)) {
           log(`live ${sim.id}: ${live.dir} closed, sending its last lap`);
           const r = await runLive(sim, live.dir);
           log(`live ${sim.id}: exit ${r.code}`);
@@ -502,7 +567,9 @@ async function main() {
           save();
         }
         if (!running || !exeRunning(gameExeOf(sim))) continue;
-        const lastLapAtMs = recorder?.lastLapAt ? Date.parse(recorder.lastLapAt) : null;
+        const lastLapAtMs = recorder?.lastLapAt
+          ? Date.parse(recorder.lastLapAt)
+          : null;
         const plan = decideLive({
           gameRunning: true,
           lastLapAtMs,
@@ -530,6 +597,19 @@ async function main() {
           liveRetryAtMs = delay == null ? null : Date.now() + delay;
           live.dir = recorder.sessionDir;
           save();
+        }
+      }
+      // The game's results for sessions that just ended (trigger.mjs resultsDue).
+      {
+        const nowMs = Date.now();
+        const liveEnds = LIVE_SIMS.flatMap(sim =>
+          Object.values(readLiveIndex(workOf(sim))).map(e => e.endMs),
+        );
+        const mode = resultsDue({liveEnds, nowMs, lastRunMs: lastResultsMs});
+        if (mode) {
+          lastResultsMs = nowMs;
+          for (const sim of LIVE_SIMS.filter(s => s.id === 'lmu'))
+            await runResults(sim, mode);
         }
       }
       for (const sim of SIMS) {
@@ -597,6 +677,7 @@ async function main() {
             watch.lastUploadAt = new Date().toISOString();
             watch.lastSessionId = r.stored[0] ?? watch.lastSessionId;
             watch.sessionsDone = (watch.sessionsDone ?? 0) + r.done;
+            watch.healed = (watch.healed ?? 0) + r.healed;
           }
           if (r.stoppedForGame) {
             // Not a failure: nothing to retry or report. The trigger still
