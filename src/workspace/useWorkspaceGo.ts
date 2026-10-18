@@ -3,6 +3,7 @@ import {useGlobalSearchParams, useRouter} from 'expo-router';
 import {
   firstCornerOf,
   trackCorners,
+  useTopSpreadCorner,
   useTrackMapOfSession,
 } from '@/src/data/sessions';
 import {type SessionTab} from '@/src/nav/activeTab';
@@ -21,25 +22,31 @@ import {type TabName, tabTarget} from '@/src/nav/tabTarget';
 
 /**
  * The corner the Corner tab opens, read from the URL: the open corner, else
- * the open section's first corner, else T1. `used` is false in the last case.
+ * the open section's first corner, else the corner of the section holding the
+ * most of the set's spread, else T1. `used` is false in the last two cases.
  */
 export function useCornerTarget(
   sessionId: string | null,
   tab: SessionTab | null,
 ): {n: number; used: boolean} {
-  const {c, n} = useGlobalSearchParams<{c?: string; n?: string}>();
+  const {c, n, laps} = useGlobalSearchParams<{
+    c?: string;
+    n?: string;
+    laps?: string;
+  }>();
   const map = useTrackMapOfSession(sessionId);
+  const landing = useTopSpreadCorner(sessionId, parseSelection({laps}).laps);
   if (tab === 'corner' && n) return {n: Number(n), used: true};
   const fromSection =
     map.data && c ? firstCornerOf(trackCorners(map.data), Number(c)) : null;
-  return {n: fromSection ?? 1, used: fromSection != null};
+  return {n: fromSection ?? landing ?? 1, used: fromSection != null};
 }
 
 /** Everything `go` needs, already resolved by the caller. */
 export type WorkspaceTarget = {
   sessionId: string | null;
   /** The lap selection to carry between tabs. */
-  selection: {laps?: string; ref?: string; hl?: string};
+  selection: {laps?: string; ref?: string; hl?: string; set?: string};
   /** The corner the Corner tab opens. */
   cornerN: number;
   /** The Plan link's combo, when one is named. */
@@ -54,14 +61,15 @@ export function useUrlTarget(
   sessionId: string | null,
   tab: SessionTab | null,
 ): Omit<WorkspaceTarget, 'planCombo'> {
-  const {laps, ref, hl} = useGlobalSearchParams<{
+  const {laps, ref, hl, set} = useGlobalSearchParams<{
     laps?: string;
     ref?: string;
     hl?: string;
+    set?: string;
   }>();
   return {
     sessionId,
-    selection: {laps, ref, hl},
+    selection: {laps, ref, hl, set},
     cornerN: useCornerTarget(sessionId, tab).n,
   };
 }
@@ -78,8 +86,13 @@ export function useWorkspaceGo({
   planCombo,
 }: WorkspaceTarget) {
   const router = useRouter();
-  const {laps: lapIds, ref: refId, hl: hlId} = parseSelection(selection);
-  const sel = {laps: lapIds, ref: refId, hl: hlId};
+  const {
+    laps: lapIds,
+    ref: refId,
+    hl: hlId,
+    set: setKind,
+  } = parseSelection(selection);
+  const sel = {laps: lapIds, ref: refId, hl: hlId, set: setKind};
   return (name: TabName) => {
     const target = tabTarget(name, sessionId);
     switch (target.kind) {

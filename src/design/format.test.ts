@@ -7,6 +7,8 @@ import {
   formatDate,
   formatDayMonth,
   formatDayMonthTime,
+  formatClock,
+  modeText,
   formatDistance,
   formatLength,
   formatGap,
@@ -159,5 +161,22 @@ describe('formatDayMonthTime', () => {
 
   it('is empty for a bad date', () => {
     expect(formatDayMonthTime('nope', now)).toBe('');
+  });
+});
+
+describe('modeText', () => {
+  it('names online and offline, and stays silent when unknown', () => {
+    expect(modeText(true)).toBe('Online');
+    expect(modeText(false)).toBe('Offline');
+    expect(modeText(null)).toBeNull();
+  });
+});
+
+describe('formatClock', () => {
+  it('is the clock time here, and empty for a bad date', () => {
+    expect(formatClock(new Date(2026, 9, 15, 9, 5).toISOString())).toBe(
+      '09:05',
+    );
+    expect(formatClock('nope')).toBe('');
   });
 });

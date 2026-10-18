@@ -15,18 +15,23 @@ export type LapSelectionParams = {
   corner?: number | null;
   /** Cursor distance, metres from the line. */
   cursorM?: number | null;
+  /** `day`: the laps are the sessions of a sitting as one set (`sessionId~lapId` ids, data/sessions/lapSet.ts). */
+  set?: 'day' | null;
 };
 
 type Href = {pathname: string; params: Record<string, string>};
 
 // A lap of another session (`sessionId~lapId`) is only meaningful in Compare:
 // Corner, Session and the rest would drop it or fetch a trace that is not
-// there, so their links carry the session's own laps only.
+// there, so their links carry the session's own laps only. A day is the
+// exception: every one of its laps is `sessionId~lapId`, and every view reads it.
 function selectionParams(
   sel: LapSelectionParams,
-  keepForeign = false,
+  keepForeignLaps = false,
 ): Record<string, string> {
   const p: Record<string, string> = {};
+  const keepForeign = keepForeignLaps || sel.set === 'day';
+  if (sel.set === 'day') p.set = 'day';
   const laps = keepForeign ? sel.laps : sel.laps && ownLapIds(sel.laps);
   if (laps?.length) p.laps = laps.join(',');
   if (sel.ref && (keepForeign || !isForeignLapId(sel.ref))) p.ref = sel.ref;
@@ -55,6 +60,12 @@ export const sessionHref = (
 ): Href => ({
   pathname: '/session/[id]',
   params: {id: sessionId, ...selectionParams(sel)},
+});
+
+/** A session opened as its sitting: the day's laps as one set (`?set=day`). */
+export const sessionDayHref = (sessionId: string): Href => ({
+  pathname: '/session/[id]',
+  params: {id: sessionId, set: 'day'},
 });
 
 export const compareHref = (
@@ -130,6 +141,7 @@ export function parseSelection(params: {
   hl?: string;
   c?: string;
   t?: string;
+  set?: string;
 }): Required<LapSelectionParams> {
   const corner = params.c ? Number(params.c) : NaN;
   const cursorM = params.t ? Number(params.t) : NaN;
@@ -139,5 +151,6 @@ export function parseSelection(params: {
     hl: params.hl || null,
     corner: Number.isFinite(corner) ? corner : null,
     cursorM: Number.isFinite(cursorM) ? cursorM : null,
+    set: params.set === 'day' ? 'day' : null,
   };
 }

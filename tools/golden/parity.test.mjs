@@ -30,6 +30,7 @@ const session = over => ({
   field: {cars: 20},
   classLaps: {},
   classBests: {},
+  paceSet: {v: 3, lapTimesS: [90]},
   result: {},
   traffic: {},
   ...over,

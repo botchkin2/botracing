@@ -17,6 +17,7 @@ export default function CompareRoute() {
     hl?: string;
     c?: string;
     t?: string;
+    set?: string;
   }>();
   const router = useRouter();
   const {update} = useLapSelection();
@@ -29,6 +30,7 @@ export default function CompareRoute() {
     <CompareScreen
       sessionId={params.id}
       selection={selection}
+      setKind={params.set === 'day' ? 'day' : 'session'}
       onSelectionChange={next =>
         update({
           laps: next.laps,

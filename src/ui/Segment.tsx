@@ -12,7 +12,7 @@ export function Segment<T extends string>({
   value,
   onChange,
 }: {
-  options: readonly {value: T; label: string}[];
+  options: readonly {value: T; label: string; disabled?: boolean}[];
   value: T;
   onChange: (value: T) => void;
 }) {
@@ -29,7 +29,8 @@ export function Segment<T extends string>({
           <Pressable
             key={option.value}
             accessibilityRole='tab'
-            accessibilityState={{selected: on}}
+            accessibilityState={{selected: on, disabled: option.disabled}}
+            disabled={option.disabled}
             onPress={() => onChange(option.value)}
             {...hitFor(0, slop)}>
             <View
@@ -37,7 +38,11 @@ export function Segment<T extends string>({
                 styles.option,
                 on && {backgroundColor: color.accentTint},
               ]}>
-              <Text variant='dataStrong' tone={on ? 'accentInk' : 'textMuted'}>
+              <Text
+                variant='dataStrong'
+                tone={
+                  on ? 'accentInk' : option.disabled ? 'textFaint' : 'textMuted'
+                }>
                 {option.label}
               </Text>
             </View>

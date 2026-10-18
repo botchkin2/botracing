@@ -18,19 +18,6 @@ import {
 } from '@/src/analysis/sectionOptimum';
 import type {Lap} from '@/src/data/sessions';
 
-/**
- * The laps the numbers describe: the ticked ones, or every comparable lap when
- * none is ticked (the lap strip's rule, src/state/lapSelection.ts), so an
- * empty selection still reads.
- */
-export function basisOf<L extends {id: string; comparable: boolean}>(
-  laps: readonly L[],
-  ticked: ReadonlySet<string>,
-): L[] {
-  const picked = laps.filter(l => ticked.has(l.id));
-  return picked.length > 0 ? picked : laps.filter(l => l.comparable);
-}
-
 /** Median, best and IQR of the lap times of `laps`; untimed laps skipped. */
 export function lapTimeStats(laps: readonly Lap[]): SegmentStats {
   return columnStats(laps.map(l => l.timeS));

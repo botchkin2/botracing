@@ -1,4 +1,4 @@
-import {useQuery} from '@tanstack/react-query';
+import {useQueries, useQuery} from '@tanstack/react-query';
 
 import {
   type CornerSlices,
@@ -59,5 +59,40 @@ export function useCornerSlices(
     enabled: sessionId !== '' && hash != null,
     staleTime: Infinity,
     retry: retryUnlessClientError,
+  });
+}
+
+/**
+ * The slices of one corner for each session of a day, in the order given: a
+ * member with no hash (not resynced, or no file for this corner) is skipped.
+ * `status` is the day's: pending while any member loads, error when one fails.
+ */
+export function useDayCornerSlices(
+  members: readonly {id: string; hash: string | null}[],
+  corner: number,
+) {
+  return useQueries({
+    queries: members.map(m => ({
+      queryKey: sliceKeys.corner(m.id, corner, m.hash ?? ''),
+      queryFn: ({signal}: {signal: AbortSignal}) => {
+        if (m.hash == null) throw new Error('corner slices: no hash');
+        return fetchCornerSlices(m.id, corner, m.hash, signal);
+      },
+      enabled: m.id !== '' && m.hash != null,
+      staleTime: Infinity,
+      retry: retryUnlessClientError,
+    })),
+    combine: results => ({
+      data: results.map(r => r.data),
+      status: results.some(r => r.status === 'error')
+        ? ('error' as const)
+        : results.some(r => r.status === 'pending' && r.fetchStatus !== 'idle')
+        ? ('pending' as const)
+        : ('success' as const),
+      /** Tries again the files that failed. */
+      refetch: () => {
+        for (const r of results) if (r.isError) void r.refetch();
+      },
+    }),
   });
 }

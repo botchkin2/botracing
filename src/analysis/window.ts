@@ -131,7 +131,8 @@ export function panCursor(
 
 // Distance gridline step: the smallest nice step that leaves at least
 // minGapPt between lines.
-const NICE_STEPS_M = [5, 10, 20, 25, 50, 100, 200, 500, 1000];
+// Labelled steps: 1-2-5 only, so a minor step always divides them evenly.
+const NICE_STEPS_M = [5, 10, 20, 50, 100, 200, 500, 1000];
 export function gridStepM(
   spanM: number,
   widthPt: number,
@@ -139,6 +140,24 @@ export function gridStepM(
 ): number {
   for (const s of NICE_STEPS_M) if ((s / spanM) * widthPt >= minGapPt) return s;
   return NICE_STEPS_M[NICE_STEPS_M.length - 1];
+}
+
+/** Below this a minor gridline is clutter, not a ruler. */
+const MINOR_GAP_PT = 16;
+const MINOR_STEPS_M = [5, 10, 20, 25, 50, 100, 200, 250, 500];
+
+/**
+ * Unlabelled gridlines between a distance axis's labelled ones (Botkin
+ * 2026-10-18: "100m and 200m - granularity not quite enough while looking at
+ * telemetry lines"): the finest round step that divides the labelled one with
+ * lines at least MINOR_GAP_PT apart; null when none fits. `stepPt` is the
+ * labelled step's width on screen.
+ */
+export function minorStepM(stepM: number, stepPt: number): number | null {
+  for (const m of MINOR_STEPS_M)
+    if (m < stepM && stepM % m === 0 && (m / stepM) * stepPt >= MINOR_GAP_PT)
+      return m;
+  return null;
 }
 
 // Advances playback by wall-clock seconds at a rate, looping at the lap end.

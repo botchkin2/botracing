@@ -142,7 +142,6 @@ const build = (
   refId: string | null = 'a',
 ) =>
   buildCornerModel({
-    session,
     laps: l,
     map,
     band: null,

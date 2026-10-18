@@ -249,3 +249,37 @@ test("the game's stored results input reaches the analysis, and none is none", a
   });
   assert.equal(await run(base), null);
 });
+
+test('the stored capture extract carries online/offline to the analysis; no extract is unknown, never offline', async () => {
+  const {gzipSync} = await import('node:zlib');
+  const base = new Map([
+    ['archive/botkin/lmu/s1/r1/samples.parquet', Buffer.from('S')],
+    ['archive/botkin/lmu/s1/r1/events.parquet', Buffer.from('E')],
+  ]);
+  const run = async files => {
+    let seen;
+    await analyzeStored({
+      backend: storeOf({session, recordings: [recording], files}),
+      sessionId: 's1',
+      owner: 'botkin',
+      workDir: mkdtempSync(join(tmpdir(), 'analyzeStored-')),
+      analyze: i => ((seen = i), engineOut()),
+    });
+    return seen.online;
+  };
+  const withExtract = online => {
+    const files = new Map(base);
+    files.set(
+      'inputs/botkin/s1/capture.json.gz',
+      gzipSync(
+        Buffer.from(
+          JSON.stringify({v: 1, damage: null, raceLength: null, online}),
+        ),
+      ),
+    );
+    return files;
+  };
+  assert.equal(await run(withExtract(false)), false);
+  assert.equal(await run(withExtract(true)), true);
+  assert.equal(await run(base), null);
+});

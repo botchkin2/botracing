@@ -110,6 +110,8 @@ export const blockVersions = {
   classBests: CLASS_BESTS_VERSION,
   offTrack: OFF_TRACK_VERSION,
   raceLength: RACE_LENGTH_VERSION,
+  // The session doc's `online` (gameMode.mjs): every session re-syncs once to read its capture.
+  online: 1,
   finish: FINISH_VERSION,
   plan: PLAN_VERSION,
   inFileReset: IN_FILE_RESET_VERSION,
@@ -121,8 +123,10 @@ export const blockVersions = {
   traceClock: 1,
   // iRacing's own sector times (sector_start events): every session re-syncs once.
   iracingSectors: 1,
-  // Which laps are slow (src/analysis/paceEvents.ts replaced the median cut): every session re-analyses once.
-  slowLaps: 1,
+  // Which laps are slow (src/analysis/paceEvents.ts replaced the median cut),
+  // and the session doc's `paceSet` read from them (3: added): every session
+  // re-analyses once.
+  slowLaps: 3,
   // A yellow never selects a lap; iRacing's local yellows are not a course
   // caution (decision 2026-10-11 #4, pit wall #5171): every session re-analyses once.
   yellowNeverSelects: 1,

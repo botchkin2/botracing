@@ -3,7 +3,12 @@
 
 import {type SessionTab} from './activeTab';
 
-export type SessionTabItem = {key: SessionTab; label: string};
+export type SessionTabItem = {
+  key: SessionTab;
+  label: string;
+  /** Shown, not tappable. */
+  disabled?: boolean;
+};
 
 /**
  * Laps / Compare / Corner, and the full-field map: "Race" in a race, "Field"
@@ -15,11 +20,13 @@ export type SessionTabItem = {key: SessionTab; label: string};
 export function sessionTabs(
   session: {sessionType: string; hasField: boolean} | undefined,
   cornerLabel = 'Corner',
+  /** A day cut at different corner windows: Corner is off (daySet.ts). */
+  cornerOff = false,
 ): SessionTabItem[] {
   const tabs: SessionTabItem[] = [
     {key: 'session', label: 'Laps'},
     {key: 'compare', label: 'Compare'},
-    {key: 'corner', label: cornerLabel},
+    {key: 'corner', label: cornerLabel, ...(cornerOff && {disabled: true})},
   ];
   if (session?.sessionType === 'R') tabs.push({key: 'race', label: 'Race'});
   else if (session?.hasField) tabs.push({key: 'race', label: 'Field'});

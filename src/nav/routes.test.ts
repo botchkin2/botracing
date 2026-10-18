@@ -69,12 +69,32 @@ describe('routes', () => {
       hl: 'b',
       corner: 3,
       cursorM: 600,
+      set: null,
     });
     expect(parseSelection({c: 'x', t: ''})).toMatchObject({
       ref: null,
       corner: null,
       cursorM: null,
     });
+  });
+
+  it('a day keeps its merged laps in every view and carries the set', () => {
+    const sel = {laps: ['a~l1', 'b~l2'], hl: 'b~l2', set: 'day' as const};
+    // Corner and Session drop `sessionId~lapId` otherwise; in a day every lap is one.
+    for (const href of [
+      cornerHref('a', 3, sel),
+      sessionHref('a', sel),
+      compareHref('a', sel),
+    ])
+      expect(href.params).toMatchObject({
+        laps: 'a~l1,b~l2',
+        hl: 'b~l2',
+        set: 'day',
+      });
+    expect(parseSelection({laps: 'a~l1,b~l2', set: 'day'}).set).toBe('day');
+    expect(parseSelection({laps: 'x', set: 'week'}).set).toBeNull();
+    // Without the set, a lap of another session is still dropped from Corner.
+    expect(cornerHref('a', 3, {laps: ['a~l1', 'own']}).params.laps).toBe('own');
   });
 
   it('puts the track page corner in the shared c param', () => {

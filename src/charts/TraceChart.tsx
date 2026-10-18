@@ -26,6 +26,7 @@ import {
 import {
   distanceAtTime,
   gridStepM,
+  minorStepM,
   timeAtDistance,
   timeAtIndex,
   timeGridStepM,
@@ -309,21 +310,31 @@ export function TraceChart({
     return `${d}Z`;
   }, [band, from, to, width, height, startM, endM, domainT, tRef, t0, t1]);
 
-  // Apex-relative grids use the handoff's fixed 100 m ticks.
-  const step =
-    gridOriginM != null
-      ? 100
-      : tRef
-      ? timeGridStepM(tRef, spanS, width)
-      : gridStepM(spanM, width);
-  const gridMs: number[] = [];
+  // Labelled lines at a step fitted to the width (an apex-relative grid too:
+  // its fixed 100 m was too coarse to read a brake point), and unlabelled
+  // minor lines between them (minorStepM).
+  const step = tRef
+    ? timeGridStepM(tRef, spanS, width)
+    : gridStepM(spanM, width);
   const origin = gridOriginM ?? 0;
-  for (
-    let m = origin + Math.ceil((startM - origin) / step) * step;
-    m <= endM;
-    m += step
-  )
-    if (m >= 0) gridMs.push(m);
+  const linesAt = (every: number) => {
+    const out: number[] = [];
+    for (
+      let m = origin + Math.ceil((startM - origin) / every) * every;
+      m <= endM;
+      m += every
+    )
+      if (m >= 0) out.push(m);
+    return out;
+  };
+  const gridMs = linesAt(step);
+  const minorStep = minorStepM(step, (step / spanM) * width);
+  const minorMs =
+    minorStep == null
+      ? []
+      : linesAt(minorStep).filter(
+          m => Math.abs(((m - origin) / step) % 1) > 1e-6,
+        );
   const tickLabel = (m: number) => {
     if (gridOriginM == null) return `${Math.round(m)} m`;
     const d = Math.round(m - gridOriginM);
@@ -398,6 +409,18 @@ export function TraceChart({
             fill={baseBand.color}
           />
         )}
+        {minorMs.map(m => (
+          <Line
+            key={`n${m}`}
+            x1={xOfM(m)}
+            x2={xOfM(m)}
+            y1={0}
+            y2={height}
+            stroke={color.grid}
+            strokeOpacity={0.5}
+            strokeWidth={1}
+          />
+        ))}
         {gridMs.map(m => {
           const gx = xOfM(m);
           return (

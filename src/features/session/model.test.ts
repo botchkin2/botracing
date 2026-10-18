@@ -2,7 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 // Adapters are internal to data/; tests may reach them to build real shapes.
 import {toLaps, toSessionDetail} from '@/src/data/sessions/adapters';
-import type {Lap} from '@/src/data/sessions';
+import type {DaySet, Lap} from '@/src/data/sessions';
 
 import fixture from './__fixtures__/roadAtlantaRace.json';
 import {
@@ -28,6 +28,10 @@ describe('buildSessionModel', () => {
     expect(m.title).toBe('Race · Road Atlanta');
     expect(m.subtitle).toMatch(/^Michelin Raceway Road Atlanta · /);
     expect(m.subtitle).toContain('Porsche 911 GT3 R · Custom #397 · LMU');
+    expect(m.subtitle).not.toMatch(/Online|Offline/);
+    expect(
+      buildSessionModel({...session, online: false}, laps, none).subtitle,
+    ).toMatch(/ · LMU · Offline$/);
     expect(m.facts).toEqual([
       {label: 'Laps', value: '22'},
       {label: 'Comparable', value: '16'},
@@ -625,5 +629,45 @@ describe('gridCellTargetOf (Road Atlanta numbering)', () => {
 
   it('the start straight opens nothing', () => {
     expect(gridCellTargetOf(table, 0, 'L4', ['L4'])).toBeNull();
+  });
+});
+
+describe('a day cut at different corner windows', () => {
+  const dayOf = (usesSections: boolean) =>
+    ({
+      kind: 'day',
+      trackId: session.trackId,
+      car: session.car,
+      members: [session],
+      laps,
+      stints: [{n: 1, sessionId: session.id, startedAt: session.startedAt}],
+      openingIds: [],
+      usesSections,
+    } as unknown as DaySet);
+  const build = (usesSections: boolean) =>
+    buildSessionModel(
+      session,
+      laps,
+      none,
+      null,
+      'sectors',
+      dayOf(usesSections),
+    );
+
+  it('has section numbers when every member shares the windows', () => {
+    const m = build(true);
+    expect(m.sections).not.toBeNull();
+    expect(m.spread.length).toBeGreaterThan(0);
+  });
+
+  it('is lap times only otherwise: no section table, spread or optimum', () => {
+    const m = build(false);
+    expect(m.sections).toBeNull();
+    expect(m.spread).toEqual([]);
+    expect(build(true).optimumLines.length).toBeGreaterThan(0);
+    expect(m.optimumLines).toEqual([]);
+    expect(m.rows.some(r => r.kind === 'lap' && r.sections.length > 0)).toBe(
+      false,
+    );
   });
 });

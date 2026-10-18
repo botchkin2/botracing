@@ -1,4 +1,4 @@
-// Keeps the tray current. At launch and every 6 hours it asks the update
+// Keeps the tray current. At launch and every 30 minutes it asks the update
 // endpoint (`GET /api/tray/latest`) whether a newer BotRacing exists; if so it
 // downloads the installer quietly and keeps it on disk. Nothing installs while
 // the tray runs: the installer runs when the person quits (or picks "Restart
@@ -17,8 +17,11 @@ use std::time::Duration;
 use tauri::AppHandle;
 use tauri_plugin_updater::{Update, UpdaterExt};
 
-const CHECK_EVERY: Duration = Duration::from_secs(6 * 60 * 60);
-const FAILED_RETRY: Duration = Duration::from_secs(30 * 60);
+// Half an hour: a release reaches a running tray (and the app's banner) within
+// that, not within six hours (2026-10-18: 0.1.14 came out 32 minutes after the
+// 0.1.13 tray started and its next check was 6 hours away).
+const CHECK_EVERY: Duration = Duration::from_secs(30 * 60);
+const FAILED_RETRY: Duration = Duration::from_secs(10 * 60);
 
 /// A downloaded update waiting for the person to quit.
 pub struct Pending {

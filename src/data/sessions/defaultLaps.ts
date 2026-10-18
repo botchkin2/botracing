@@ -1,3 +1,4 @@
+import {paceCandidates, paceSetOf} from '@/src/analysis/paceSet';
 import {type RefLap, rankReferenceLaps} from '@/src/analysis/referenceLap';
 
 import type {Lap} from './adapters';
@@ -95,12 +96,8 @@ export function referenceDefaultLapIds(
     : defaultLapIds(laps, session.bestLapId);
 }
 
-/** The laps whose pace is judged: timed, whole, and not in or out of the pits (an in- or out-lap is a different lap). */
-function paceCandidates(laps: Lap[]): Lap[] {
-  return laps.filter(
-    l => l.timeS != null && !l.partial && !l.pitIn && !l.pitOut,
-  );
-}
+/** The laps whose pace is judged (analysis/paceSet.ts). */
+export {paceCandidates};
 
 /**
  * The laps a screen opens on when the URL names none: every lap that can be
@@ -112,8 +109,7 @@ function paceCandidates(laps: Lap[]): Lap[] {
  * laps there is no set: the caller falls back to a pair.
  */
 export function paceSetLapIds(laps: Lap[]): string[] {
-  const set = paceCandidates(laps).filter(l => !l.reasons.includes('slow'));
-  return set.length >= 2 ? set.map(l => l.id) : [];
+  return paceSetOf(laps).map(l => l.id);
 }
 
 /**

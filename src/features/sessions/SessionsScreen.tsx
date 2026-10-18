@@ -4,6 +4,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {hitBox, radius, size, space, useLayout, useTheme} from '@/src/design';
 import {
+  sessionDayHref,
   sessionHref,
   sessionsHref,
   settingsHref,
@@ -166,11 +167,24 @@ function SessionTable({days, width}: {days: DayGroup[]; width: number}) {
         stickySectionHeadersEnabled={false}
         contentContainerStyle={styles.listContent}
         renderSectionHeader={({section}) => (
-          <View style={[styles.dayHeader, styles.centered, {width}]}>
-            <Text variant='bodyStrong'>{section.title}</Text>
-            <Text variant='dataSmall' tone='textFaint'>
-              {section.date}
-            </Text>
+          <View>
+            <View style={[styles.dayHeader, styles.centered, {width}]}>
+              <Text variant='bodyStrong'>{section.title}</Text>
+              <Text variant='dataSmall' tone='textFaint'>
+                {section.date}
+              </Text>
+            </View>
+            {section.sittings.map(sitting => (
+              <Pressable
+                key={sitting.firstId}
+                accessibilityRole='link'
+                onPress={() => router.push(sessionDayHref(sitting.firstId))}
+                style={[styles.centered, styles.sitting, {width}]}>
+                <Text variant='dataSmall' tone='accentInk'>
+                  {sitting.text}
+                </Text>
+              </Pressable>
+            ))}
           </View>
         )}
         renderItem={({item}) => (
@@ -220,6 +234,11 @@ function SessionRowView({
             <Text variant='dataSmall' tone='textMuted'>
               {row.subline}
             </Text>
+            {row.modeText ? (
+              <Text variant='dataSmall' tone='textSecondary'>
+                {row.modeText}
+              </Text>
+            ) : null}
             {row.entry ? (
               <Text variant='dataSmall' tone='textFaint'>
                 {row.entry}
@@ -300,6 +319,8 @@ const styles = StyleSheet.create({
   time: {width: COL.time, textAlign: 'right'},
   trackName: {fontSize: 14.5},
   subline: {flexDirection: 'row', flexWrap: 'wrap', columnGap: space.sm},
+  // A sitting row: a link-height line under the day's heading.
+  sitting: {minHeight: 44, justifyContent: 'center'},
   dayHeader: {
     flexDirection: 'row',
     alignItems: 'baseline',
