@@ -45,6 +45,17 @@ The emulators need Java 21.
 
 ## Adding a payload
 
+**After a tray release.** The release can't be tagged until the tray released before it has a beat here (`Release tray`'s first check, `RELEASE_CANDIDATE` in `heartbeat.test.mjs`), so a tag never turns main red. Each release run saves its installed candidate's own beat, already scrubbed, as the artifact `heartbeat-<version>` (the live-laps gate, `tools/dev/liveE2E.mjs --beat-out`). Add it before the next release:
+
+```
+gh run download <release run id> -n heartbeat-<version> -D tmp-beat
+```
+
+then commit `tmp-beat/beat.json` as `heartbeat/<version>-<state>-rec-<recorder state>.json`. A beat from a real PC's `status.jsonl` works too, as below.
+
+**By hand.**
+
+
 1. Take it from a real tray, for example `%LOCALAPPDATA%\BotRacing\status.jsonl` (one beat a line, drop `lastSeenAt`) or `%LOCALAPPDATA%\lap-capture\status.json`.
 2. Scrub it:
    - `hostId` becomes `deadbeef`

@@ -10,6 +10,9 @@ import {
   loadPayloads,
   mutate,
   newShape,
+  newestCleanBeat,
+  payload,
+  scrubBeat,
   scrubProblem,
   shapeOf,
 } from './payloads.mjs';
@@ -98,4 +101,32 @@ test('no test of the tray/API line writes a tray body field by hand', () => {
     [],
     'load a payload (contract/payloads.mjs) or mutate() one',
   );
+});
+
+test('scrubBeat makes a real beat a payload, and refuses one that still carries a path', () => {
+  const raw = payload('heartbeat', '0.1.13-syncing-rec-no-game');
+  const real = {
+    ...raw,
+    hostId: 'ddde1d71',
+    label: 'Race PC',
+    lastSessionId: 'b0ff7e5d09f144ce',
+    lastSeenAt: '2026-10-18T18:07:44.838Z',
+  };
+  assert.deepEqual(scrubBeat(real), raw);
+  assert.equal(
+    scrubBeat({...real, lastError: {message: String.raw`C:\Users\Botkin\x`}}),
+    null,
+  );
+});
+
+test('newestCleanBeat takes the last beat with no error, scrubbed', () => {
+  const raw = payload('heartbeat', '0.1.13-syncing-rec-no-game');
+  const real = {...raw, hostId: 'ddde1d71', label: 'Race PC'};
+  const failing = {...real, lastError: {at: 'x', message: 'failed'}};
+  const lines = [real, {...real, state: 'retrying'}, failing]
+    .map(b => JSON.stringify(b))
+    .concat('not json')
+    .join('\n');
+  assert.equal(newestCleanBeat(lines).state, 'retrying');
+  assert.equal(newestCleanBeat(JSON.stringify(failing)), null);
 });

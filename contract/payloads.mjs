@@ -26,6 +26,38 @@ const FORBIDDEN = [
   [/eyJ[\w-]+\.[\w-]+\.[\w-]+/, 'a token'],
 ];
 
+/**
+ * A real heartbeat made into a payload as contract/README.md says: the
+ * SCRUBBED fields replaced, the session id blanked, no lastSeenAt. Null when
+ * the beat still breaks the scrub rule (a path in an error, say): pick another.
+ */
+export function scrubBeat(beat) {
+  const out = {...beat};
+  for (const [k, v] of Object.entries(SCRUBBED)) if (k in out) out[k] = v;
+  if (out.lastSessionId) out.lastSessionId = 'aaaaaaaaaaaaaaaa';
+  delete out.lastSeenAt;
+  return scrubProblem(JSON.stringify(out)) ? null : out;
+}
+
+/**
+ * From a heartbeat.jsonl (one beat a line), the newest beat with no error or
+ * problem, scrubbed; null when none scrubs clean.
+ */
+export function newestCleanBeat(jsonl) {
+  for (const line of jsonl.trim().split('\n').reverse()) {
+    let beat;
+    try {
+      beat = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (beat.lastError || beat.problems?.length) continue;
+    const clean = scrubBeat(beat);
+    if (clean) return clean;
+  }
+  return null;
+}
+
 /** Why a payload's text breaks the scrub rule, or null. */
 export function scrubProblem(text) {
   for (const [re, what] of FORBIDDEN) if (re.test(text)) return what;
