@@ -353,6 +353,14 @@ export const size = {
   gutter: 16,
   contentWidth: 358,
   lapRow: 32,
+  // The Session screen's spread rows: head column, percent column, bar height.
+  spreadHead: 56,
+  spreadPct: 44,
+  spreadBar: 6,
+  // The brake ledger's strip (a dot per lap, a tick at the median): height, dot, tick width.
+  brakeStrip: 16,
+  brakeDot: 6,
+  brakeTick: 2,
   // The Plan's Race timeline (round 6, section 2): lane label column, lane height, gap, axis row.
   timelineLabel: 72,
   timelineLane: 26,

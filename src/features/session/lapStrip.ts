@@ -1,3 +1,4 @@
+import {basisOf} from '@/src/analysis/lapBasis';
 // The lap strip's numbers: one bar per lap, its height the lap's time against
 // the median of the basis laps (the ticked laps, or every comparable lap when
 // none are ticked; src/state/lapSelection.ts). Pure, so the strip is tested
@@ -5,7 +6,6 @@
 
 import {columnStats} from '@/src/analysis/segments';
 
-import {basisOf} from './selectionStats';
 
 export type StripLap = {
   id: string;

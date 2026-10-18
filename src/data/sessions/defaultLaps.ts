@@ -96,7 +96,7 @@ export function referenceDefaultLapIds(
 }
 
 /** The laps whose pace is judged: timed, whole, and not in or out of the pits (an in- or out-lap is a different lap). */
-function paceCandidates(laps: Lap[]): Lap[] {
+export function paceCandidates(laps: Lap[]): Lap[] {
   return laps.filter(
     l => l.timeS != null && !l.partial && !l.pitIn && !l.pitOut,
   );

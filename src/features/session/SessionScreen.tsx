@@ -48,6 +48,8 @@ import {SessionGrid} from './components/SessionGrid';
 import {ClassTableView} from './components/ClassTable';
 import {MovedLine, RebuiltLine} from './components/RebuiltLine';
 import {SessionHead} from './components/SessionHead';
+import {BrakeLedger} from './components/BrakeLedger';
+import {SpreadRows} from './components/SpreadRows';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
   LapRow,
@@ -394,6 +396,20 @@ function SessionView({
       )}
       {!layout.isDesktop && model.rebuilt ? (
         <RebuiltLine rebuilt={model.rebuilt} />
+      ) : null}
+      {model.spread.length > 0 ? (
+        <SpreadRows
+          rows={model.spread}
+          sessionId={sessionId}
+          laps={selection.laps}
+        />
+      ) : null}
+      {model.brake.length > 0 ? (
+        <BrakeLedger
+          rows={model.brake}
+          sessionId={sessionId}
+          laps={selection.laps}
+        />
       ) : null}
       {model.classTable ? <ClassTableView table={model.classTable} /> : null}
 

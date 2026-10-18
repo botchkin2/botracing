@@ -48,6 +48,7 @@ export {
   useSessionsLaps,
 } from './queries';
 export {useNewUploads} from './useNewUploads';
+export {topSpreadCorner, useTopSpreadCorner} from './spreadLanding';
 export {
   type PlanBlock,
   type PlanLap,

@@ -1,7 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {ABSENT, type Field, type FieldCar} from './field';
-import {raceClock} from './raceClock';
+import {raceClock, raceStartS} from './raceClock';
 
 const HZ = 5;
 
@@ -164,5 +164,117 @@ describe('raceClock.timeAtLapDistance', () => {
     expect(at).not.toBeNull();
     const t = raceClock(f).timeAtLapDistance(at!.lapNumber, at!.distanceM);
     expect(t).toBeCloseTo(12 / HZ, 6);
+  });
+});
+
+describe('the start of a race from a grid behind the line (pit wall thread 91)', () => {
+  // His 2026-10-15 Silverstone race, on a 100 m track at 10 m an update: a
+  // formation lap from behind the line, onto the grid behind it again (lap
+  // distance negative), the start, then the game's counter reads 1 only after
+  // a full racing lap (mTotalLaps stayed 0 from the grid to 274 s).
+  const rows: [number, number][] = [
+    [-15, 0],
+    [-5, 0],
+    ...Array.from({length: 10}, (_, i): [number, number] => [5 + i * 10, 0]),
+    [-3, 0],
+    [-3, 0],
+    [-3, 0],
+    ...Array.from({length: 10}, (_, i): [number, number] => [7 + i * 10, 0]),
+    ...Array.from({length: 10}, (_, i): [number, number] => [7 + i * 10, 1]),
+    [7, 2],
+    [17, 2],
+  ];
+  const car = player(rows.length);
+  rows.forEach(([d, laps], u) => {
+    car.lapDistM[u] = d;
+    car.lapsDone[u] = laps;
+  });
+  const f = field(car, rows.length);
+  // Grid at u 12-14 (-3 m), across the line at u 15 (7 m): 2.8 s + 0.3 of an update.
+  const startS = 14 / HZ + 0.3 / HZ;
+
+  it('lap 1 starts at the start crossing, not at the formation lap', () => {
+    expect(raceClock(f).timeAtLapDistance(0, 0)).toBeCloseTo(startS, 6);
+  });
+  it('lap 2 starts where the counter first moves, one full lap later', () => {
+    // The interpolation from the lap before uses the field's estimated length.
+    expect(raceClock(f).timeAtLapDistance(1, 0)).toBeCloseTo(
+      24 / HZ + 0.3 / HZ,
+      1,
+    );
+  });
+  it('the race starts at the first start crossing', () => {
+    expect(raceStartS(f)).toBeCloseTo(startS, 6);
+  });
+  it('no start when no car completes its first lap in the field', () => {
+    const n = 22;
+    const short = player(n);
+    rows.slice(0, n).forEach(([d], u) => {
+      short.lapDistM[u] = d;
+      short.lapsDone[u] = 0;
+    });
+    expect(raceStartS(field(short, n))).toBeNull();
+  });
+});
+
+describe('a counter already at 1 when the flag drops (Daytona 10-07)', () => {
+  // 100 m track, 10 m an update. The formation wrap is more than 2 s before
+  // the start, and lapsDone is 1 from the green sample through the lap.
+  const rows: [number, number][] = [
+    [80, 0],
+    [90, 0],
+    [-10, 0],
+    ...Array.from({length: 12}, (): [number, number] => [-5, 0]),
+    [-5, 1],
+    [5, 1],
+    ...Array.from({length: 9}, (_, i): [number, number] => [15 + i * 10, 1]),
+    [5, 2],
+  ];
+  const car = player(rows.length);
+  rows.forEach(([d, laps], u) => {
+    car.lapDistM[u] = d;
+    car.lapsDone[u] = laps;
+  });
+  const f = field(car, rows.length);
+  // Grid ends at u 15 (-5 m); the next sample is across the line.
+  const startS = 15 / HZ + 0.5 / HZ;
+  // The next line is the last sample, coming from 95 m.
+  const lap2S = (rows.length - 2) / HZ + 0.5 / HZ;
+
+  it('lap 1 is the start crossing', () => {
+    expect(raceClock(f).timeAtLapDistance(0, 0)).toBeCloseTo(startS, 6);
+  });
+  it('lap 2 is the next start/finish, not a quarter of the lap', () => {
+    expect(raceClock(f).timeAtLapDistance(1, 0)).toBeCloseTo(lap2S, 6);
+  });
+});
+
+describe('a reset mid-lap is unchanged (chord #5980)', () => {
+  // Lap 1 driven to 30 m, a reset (absent two updates), then back on the same
+  // lap from 5 m. Only a wrap the counter never confirms restarts a lap's
+  // run; a reset does not, so the first run still answers, as on main.
+  const rows: [number, number][] = [
+    [0, 1],
+    [10, 1],
+    [20, 1],
+    [30, 1],
+    [NaN, ABSENT],
+    [NaN, ABSENT],
+    [5, 1],
+    [15, 1],
+    [25, 1],
+    [35, 1],
+  ];
+  const car = player(rows.length);
+  rows.forEach(([d, laps], u) => {
+    car.lapDistM[u] = d;
+    car.lapsDone[u] = laps;
+  });
+  const f = field(car, rows.length);
+  it('a distance in both attempts reads from the first', () => {
+    expect(raceClock(f).timeAtLapDistance(1, 20)).toBeCloseTo(2 / HZ, 6);
+  });
+  it('a distance only the second attempt reaches reads from it', () => {
+    expect(raceClock(f).timeAtLapDistance(1, 35)).toBeCloseTo(9 / HZ, 6);
   });
 });

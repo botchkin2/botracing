@@ -1,3 +1,4 @@
+import {basisOf} from '@/src/analysis/lapBasis';
 import {useMemo} from 'react';
 
 import {columnStats} from '@/src/analysis/segments';
@@ -18,7 +19,7 @@ import {
 } from '@/src/design';
 
 import {type Selection} from './model';
-import {basisOf, lapTimeStats} from './selectionStats';
+import {lapTimeStats} from './selectionStats';
 
 // Desktop-only panels of the Session workspace (handoff "Desktop", D1 right
 // column): stints table and stint-vs-stint by corner.

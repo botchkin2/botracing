@@ -26,6 +26,8 @@ jest.mock('@/src/ui', () => ({
 jest.mock('../desktopModel', () => ({useSessionDesktopModel: () => null}));
 
 jest.mock('./EnergyLineRow', () => ({EnergyLineRow: () => null}));
+jest.mock('./SpreadRows', () => ({SpreadRows: () => null}));
+jest.mock('./BrakeLedger', () => ({BrakeLedger: () => null}));
 jest.mock('./LapTableRow', () => ({
   LapTableHeader: () => null,
   SectionFooter: () => null,
@@ -48,6 +50,8 @@ function render() {
     facts: [],
     energy: null,
     optimum: [],
+    spread: [],
+    brake: [],
     rows: [],
     sections: null,
     detail: null,

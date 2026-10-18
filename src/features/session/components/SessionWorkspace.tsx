@@ -16,6 +16,8 @@ import {
 } from '../model';
 
 import {ClassTableView} from './ClassTable';
+import {BrakeLedger} from './BrakeLedger';
+import {SpreadRows} from './SpreadRows';
 import {EnergyLineRow} from './EnergyLineRow';
 import {LapTableHeader, SectionFooter, WIDE_ROW_H} from './LapTableRow';
 import {RebuiltLine} from './RebuiltLine';
@@ -180,6 +182,20 @@ export function SessionWorkspace({
                       ))}
                     </View>
                   </>
+                ) : null}
+                {model.spread.length > 0 ? (
+                  <SpreadRows
+                    rows={model.spread}
+                    sessionId={sessionId}
+                    laps={selection.laps}
+                  />
+                ) : null}
+                {model.brake.length > 0 ? (
+                  <BrakeLedger
+                    rows={model.brake}
+                    sessionId={sessionId}
+                    laps={selection.laps}
+                  />
                 ) : null}
                 {model.classTable ? (
                   <ClassTableView table={model.classTable} />

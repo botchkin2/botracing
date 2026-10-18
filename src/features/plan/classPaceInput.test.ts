@@ -38,6 +38,7 @@ const summary = (
   finish: null,
   eventId: null,
   online: null,
+  endedAt: null,
   cornerMapSource: 'stored',
   updatedAt: '2026-10-01T20:00:00Z',
   ...over,

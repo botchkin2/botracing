@@ -3,6 +3,7 @@ import {describe, expect, it} from '@jest/globals';
 import {
   BOUNDARY_MARGIN_S,
   type Boundaries,
+  applicationPart,
   brakeApplications,
   type CornerWindow,
   cornerBoundaries,
@@ -127,7 +128,13 @@ describe('Daytona', () => {
 
 // A lap through one section at 5 m: turn-in at 340 m, exit at 420 m. Brake
 // from brakeFrom, lift from liftFrom, until 380 m.
-const section: MapSection = {n: 1, entryM: 300, turnInM: 340, exitM: 420};
+const section: MapSection = {
+  n: 1,
+  entryM: 300,
+  turnInM: 340,
+  apexM: 380,
+  exitM: 420,
+};
 const lap = (brakeFrom: number | null, liftFrom: number | null): PedalTrace => {
   const distM = Array.from({length: 61}, (_, i) => 200 + i * 5);
   return {
@@ -172,7 +179,13 @@ describe('onsetM', () => {
 
 describe('look-back', () => {
   // A 330 km/h approach: turn-in at 1,000 m, the previous exit at 400 m.
-  const fast: MapSection = {n: 2, entryM: 760, turnInM: 1000, exitM: 1100};
+  const fast: MapSection = {
+    n: 2,
+    entryM: 760,
+    turnInM: 1000,
+    apexM: 1050,
+    exitM: 1100,
+  };
   const trace = (brakeFrom: number): PedalTrace => {
     const distM = Array.from({length: 121}, (_, i) => 400 + i * 5);
     return {
@@ -233,7 +246,7 @@ describe('onsetsOfLaps', () => {
 
 describe('foldBoundaries', () => {
   const sections: MapSection[] = [
-    {n: 1, entryM: 300, turnInM: 340, exitM: 420},
+    {n: 1, entryM: 300, turnInM: 340, apexM: 380, exitM: 420},
   ];
   // Every pool is built at 180 km/h, 50 m/s: a 25 m margin.
   // A session's pools from onsets laid on 5 m bins.
@@ -384,11 +397,11 @@ describe('foldBoundaries', () => {
 
   it('puts a corner taken flat at its turn-in less the margin', () => {
     const flat = foldBoundaries({
-      sections: [{n: 1, entryM: 340, turnInM: 340, exitM: 420}],
+      sections: [{n: 1, entryM: 340, turnInM: 340, apexM: 380, exitM: 420}],
       stored: null,
       sessionId: 's1',
       pools: onsetPools(
-        [{n: 1, entryM: 340, turnInM: 340, exitM: 420}],
+        [{n: 1, entryM: 340, turnInM: 340, apexM: 380, exitM: 420}],
         [lifting([null, null, null])],
       ),
     });
@@ -552,5 +565,80 @@ describe('brakeApplications', () => {
     expect(brakeApplications(trail, bus)).toEqual([
       {onsetM: 3700, peakPct: 80, part: 8},
     ]);
+  });
+});
+
+describe('a brake application brakes for the first part whose apex is after its peak (pit wall thread 92)', () => {
+  // His Portimão practice, 2026-10-17 (b0ff7e5d), the positions chord measured
+  // on his 13 laps (#6038). Section 4: part 6 turns in at 1830, apex 2075;
+  // part 7 apex 2465. Section 5: part 8 apex 2760, part 9 apex 2950.
+  const s4: CornerWindow = {
+    kind: 'section',
+    section: 4,
+    fromM: 1798,
+    toM: 2551,
+    parts: [
+      {n: 6, turnInM: 1830, apexM: 2075, fromM: 1798, toM: 2300},
+      {n: 7, turnInM: 2335, apexM: 2465, fromM: 2300, toM: 2551},
+    ],
+  };
+  const s5: CornerWindow = {
+    kind: 'section',
+    section: 5,
+    fromM: 2551,
+    toM: 3075,
+    parts: [
+      {n: 8, turnInM: 2600, apexM: 2760, fromM: 2551, toM: 2850},
+      {n: 9, turnInM: 2880, apexM: 2950, fromM: 2850, toM: 3075},
+    ],
+  };
+  // Brake on at `on`, peaking at `peak` (90 %), off at `off`; 1 m samples.
+  const lap = (apps: [on: number, peak: number, off: number][]) => {
+    const distM = Array.from({length: 1300}, (_, i) => 1790 + i);
+    return {
+      distM,
+      brakePct: distM.map(d => {
+        const a = apps.find(([on, , off]) => d >= on && d < off);
+        if (!a) return 0;
+        return d === a[1] ? 90 : 40;
+      }),
+    };
+  };
+  const parts = (l: ReturnType<typeof lap>, w: CornerWindow) =>
+    brakeApplications(l, w).map(a => a.part);
+
+  it('section 4: the touch at the turn-in and the main stop are part 6 on every lap, onset either side of 1830', () => {
+    // An onset at 1812 (before part 6's turn-in) and one at 1838 (after it)
+    // were part 6 and part 7 by the onset rule; the peaks decide now.
+    expect(
+      parts(
+        lap([
+          [1812, 1820, 1839],
+          [1972, 1990, 2040],
+        ]),
+        s4,
+      ),
+    ).toEqual([6, 6]);
+    expect(
+      parts(
+        lap([
+          [1838, 1845, 1860],
+          [1997, 2010, 2050],
+        ]),
+        s4,
+      ),
+    ).toEqual([6, 6]);
+  });
+  it("section 5: L3's main stop (onset 2601, peak 2696) is part 8, not 9", () => {
+    expect(parts(lap([[2601, 2696, 2730]]), s5)).toEqual([8]);
+  });
+  it('section 5: a mid-corner dab before the apex is part 8', () => {
+    expect(parts(lap([[2711, 2725, 2743]]), s5)).toEqual([8]);
+  });
+  it("the window's last metres brake for the next section: no part", () => {
+    expect(parts(lap([[3069, 3074, 3090]]), s5)).toEqual([null]);
+  });
+  it('a single corner has no parts to name', () => {
+    expect(applicationPart([], 100)).toBeNull();
   });
 });

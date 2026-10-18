@@ -33,6 +33,8 @@ export type SessionSummary = {
   carClass: string;
   sessionType: SessionType;
   startedAt: string;
+  /** When the session's last lap ended; null on a doc that has none. */
+  endedAt: string | null;
   lapCount: number;
   comparableCount: number;
   bestTimeS: number | null;
@@ -96,6 +98,7 @@ export function toSessionSummary(raw: RawSession): SessionSummary {
     carClass: str(obj(raw.car).class),
     sessionType: toSessionType(raw.sessionType),
     startedAt: str(raw.startedAt),
+    endedAt: str(raw.endedAt) || null,
     lapCount: num(raw.lapCount) ?? 0,
     comparableCount: num(raw.comparableCount) ?? 0,
     bestTimeS: num(raw.bestLapTime),
