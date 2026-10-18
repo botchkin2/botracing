@@ -18,13 +18,21 @@ export const DEFECT = 'mergedWheels';
  * @param {{id: string, recordedAt: string}[]} p.stored  the stored session's recording docs
  * @param {{id: string, recordedAt: string}[]} p.built   the build's recordings
  * @param {{id: string, recordingId?: string}[]} p.laps   the stored session's lap docs
+ * @param {string} p.ownerId  the session's owner: the upload API refuses a set, a merge too, that does not name it
  * @param {string} p.nowIso
  * @param {string | null} p.defect  the defect of the capture the stored copy came from; a kept stretch is marked with it
  * @returns {{replaced: Record<string, string>, kept: string[], ops: object[], lapsSuperseded: number}}
  *   `replaced`: stored recording id -> the build's recording that replaces it;
  *   `kept`: stored recordings the build has no stretch for.
  */
-export function healPlan({stored, built, laps, nowIso, defect = null}) {
+export function healPlan({
+  stored,
+  built,
+  laps,
+  ownerId,
+  nowIso,
+  defect = null,
+}) {
   const taken = new Set();
   const replaced = {};
   const kept = [];
@@ -42,7 +50,7 @@ export function healPlan({stored, built, laps, nowIso, defect = null}) {
       replaced[rec.id] = match.id;
     } else kept.push(rec.id);
   }
-  const mark = by => ({supersededBy: by, supersededAt: nowIso});
+  const mark = by => ({ownerId, supersededBy: by, supersededAt: nowIso});
   const ops = Object.entries(replaced).map(([id, by]) => ({
     op: 'set',
     coll: 'recordings',
@@ -68,7 +76,7 @@ export function healPlan({stored, built, laps, nowIso, defect = null}) {
       op: 'set',
       coll: 'recordings',
       id,
-      data: {defects: [defect]},
+      data: {ownerId, defects: [defect]},
       merge: true,
     });
   return {replaced, kept, ops, lapsSuperseded};

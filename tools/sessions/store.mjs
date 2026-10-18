@@ -322,6 +322,7 @@ async function healOps(backend, before, out, log) {
     stored,
     built: out.recordings,
     laps,
+    ownerId: session.ownerId,
     nowIso: new Date().toISOString(),
     defect: out.healDefect,
   });
@@ -363,7 +364,8 @@ async function healOps(backend, before, out, log) {
 async function supersedeSession(backend, oldId, byId, nowIso) {
   const old = await backend.getDoc('sessions', oldId);
   if (!old || old.supersededBy) return null;
-  const mark = {supersededBy: byId, supersededAt: nowIso};
+  // ownerId: the upload API refuses a merge that does not name its owner.
+  const mark = {ownerId: old.ownerId, supersededBy: byId, supersededAt: nowIso};
   const ops = [
     {op: 'set', coll: 'sessions', id: oldId, data: mark, merge: true},
   ];
@@ -757,7 +759,11 @@ async function uploadLive(backend, out, {log = () => {}} = {}) {
           op: 'set',
           coll: 'sessions',
           id: session.id,
-          data: {field: out.field, analysis: {...before.analysis, v: 0}},
+          data: {
+            ownerId: session.ownerId,
+            field: out.field,
+            analysis: {...before.analysis, v: 0},
+          },
           merge: true,
         },
       ]);
