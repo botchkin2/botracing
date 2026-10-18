@@ -99,6 +99,8 @@ function cleanProblems(v: unknown): Json {
 const HEARTBEAT_FIELDS: Record<string, (v: unknown) => boolean> = {
   label: v => str(v, LABEL_MAX),
   version: v => str(v, 32),
+  // The version of a downloaded update the tray holds ready to install.
+  updateWaiting: v => str(v, 32),
   lmuFound: v => typeof v === 'boolean',
   state: v => typeof v === 'string' && HEARTBEAT_STATES.includes(v),
   lastUploadAt: when,
@@ -112,6 +114,8 @@ const HEARTBEAT_FIELDS: Record<string, (v: unknown) => boolean> = {
       (v.phase === undefined || str(v.phase, 32))),
   retryAt: when,
   sessionsDone: count,
+  // Recordings healed in place (tools/sessions/heal.mjs); absent on older trays.
+  healed: count,
   problems: v =>
     Array.isArray(v) &&
     v.length <= MAX_PROBLEMS &&

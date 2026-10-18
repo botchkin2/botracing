@@ -113,6 +113,28 @@ test('a stored session is analysed from its archive with the stored inputs, and 
   assert.ok(backend.written.includes('sessions/s1'));
 });
 
+test('a fence that throws before the write leaves the session unwritten (the lease, analyzeCore.ts)', async () => {
+  const files = new Map([
+    ['archive/botkin/lmu/s1/r1/samples.parquet', Buffer.from('S')],
+    ['archive/botkin/lmu/s1/r1/events.parquet', Buffer.from('E')],
+  ]);
+  const backend = storeOf({session, recordings: [recording], files});
+  await assert.rejects(
+    analyzeStored({
+      backend,
+      sessionId: 's1',
+      owner: 'botkin',
+      workDir: mkdtempSync(join(tmpdir(), 'aS-')),
+      analyze: engineOut,
+      beforeWrite: async () => {
+        throw Object.assign(new Error('lease lost'), {status: 409});
+      },
+    }),
+    /lease lost/,
+  );
+  assert.equal(backend.written.length, 0);
+});
+
 test("another owner's session reads as not found", async () => {
   const backend = storeOf({session, recordings: [recording], files: new Map()});
   await assert.rejects(
@@ -154,8 +176,14 @@ test('a live recording stored in parts is downloaded part by part and read back 
   };
   const files = new Map();
   for (const i of [0, 1, 2]) {
-    files.set(`archive/botkin/lmu/s1/r1/samples.00${i}.parquet`, Buffer.from(`S${i}`));
-    files.set(`archive/botkin/lmu/s1/r1/events.00${i}.parquet`, Buffer.from(`E${i}`));
+    files.set(
+      `archive/botkin/lmu/s1/r1/samples.00${i}.parquet`,
+      Buffer.from(`S${i}`),
+    );
+    files.set(
+      `archive/botkin/lmu/s1/r1/events.00${i}.parquet`,
+      Buffer.from(`E${i}`),
+    );
   }
   const backend = storeOf({session, recordings: [live], files});
   let input;
@@ -171,7 +199,53 @@ test('a live recording stored in parts is downloaded part by part and read back 
   assert.match(samplesPath, /r1\.samples\.\*\.parquet$/);
   assert.match(eventsPath, /r1\.events\.\*\.parquet$/);
   for (const i of [0, 1, 2]) {
-    assert.equal(readFileSync(join(workDir, `r1.samples.00${i}.parquet`), 'utf8'), `S${i}`);
-    assert.equal(readFileSync(join(workDir, `r1.events.00${i}.parquet`), 'utf8'), `E${i}`);
+    assert.equal(
+      readFileSync(join(workDir, `r1.samples.00${i}.parquet`), 'utf8'),
+      `S${i}`,
+    );
+    assert.equal(
+      readFileSync(join(workDir, `r1.events.00${i}.parquet`), 'utf8'),
+      `E${i}`,
+    );
   }
+});
+
+test("the game's stored results input reaches the analysis, and none is none", async () => {
+  const {gzipSync} = await import('node:zlib');
+  const input = {
+    v: 1,
+    strikes: [
+      {et: 1390.7, points: 0.25, outcome: 'warning', ruling: 'Warning'},
+    ],
+    unplaced: 1,
+    coveredFrom: 7.1,
+    coveredTo: 2800.8,
+  };
+  const base = new Map([
+    ['archive/botkin/lmu/s1/r1/samples.parquet', Buffer.from('S')],
+    ['archive/botkin/lmu/s1/r1/events.parquet', Buffer.from('E')],
+  ]);
+  const run = async files => {
+    let seen;
+    await analyzeStored({
+      backend: storeOf({session, recordings: [recording], files}),
+      sessionId: 's1',
+      owner: 'botkin',
+      workDir: mkdtempSync(join(tmpdir(), 'analyzeStored-')),
+      analyze: i => ((seen = i), engineOut()),
+    });
+    return seen.results;
+  };
+  const files = new Map(base);
+  files.set(
+    'inputs/botkin/s1/results.json.gz',
+    gzipSync(Buffer.from(JSON.stringify(input))),
+  );
+  assert.deepEqual(await run(files), {
+    strikes: input.strikes,
+    unplaced: 1,
+    coveredFrom: 7.1,
+    coveredTo: 2800.8,
+  });
+  assert.equal(await run(base), null);
 });

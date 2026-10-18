@@ -77,3 +77,23 @@ test('a capture with no finished lap uploads nothing', async () => {
   assert.deepEqual(r, {sessions: 0});
   assert.equal(store.outs.length, 0);
 });
+
+test('the field and capture extract go up with the lap; a field that fails never stops the lap', async () => {
+  const work = mkdtempSync(join(tmpdir(), 'syncLive-'));
+  const store = memoryStore();
+  const field = {path: 'field/o/x/h.json.gz', hash: 'h', cars: 6};
+  await syncLive({
+    captureDir: 'C:/cap', ownerId: 'o', work, store, capture: fakeCapture(2), now: () => 'now',
+    makeInputs: () => ({field, fieldText: '{}', fieldReason: null, extract: {v: 1}}),
+  });
+  assert.equal(store.outs[0].field, field);
+  assert.deepEqual(store.outs[0].captureExtract, {v: 1});
+  const failing = memoryStore();
+  await syncLive({
+    captureDir: 'C:/cap', ownerId: 'o', work: mkdtempSync(join(tmpdir(), 'syncLive-')),
+    store: failing, capture: fakeCapture(2), now: () => 'now',
+    makeInputs: () => { throw new Error('capture busy'); },
+  });
+  assert.equal(failing.outs.length, 1, 'the lap still goes up');
+  assert.equal(failing.outs[0].field, null);
+});

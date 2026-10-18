@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {INVOKER, LIVE, RECEIVER, grants, planLiveAnalyze} from './liveAnalyzePlan.mjs';
+import {AGENT_BINDINGS, INVOKER, LIVE, RECEIVER, grants, planLiveAnalyze} from './liveAnalyzePlan.mjs';
+
+const allAgents = AGENT_BINDINGS.map(() => true);
 import {main, readState} from './liveAnalyze.mjs';
 
 const runtime = `serviceAccount:${LIVE.runtime}`;
 const policy = (...roles) => ({bindings: roles.map(role => ({role, members: [runtime]}))});
 
 test('before the first deploy: the project-level event receiver, and the invoker waits for the service', () => {
-  const steps = planLiveAnalyze({receiver: false, serviceExists: false, invoker: false});
+  const steps = planLiveAnalyze({receiver: false, serviceExists: false, invoker: false, agents: allAgents});
   assert.equal(steps.length, 2);
   assert.deepEqual(steps[0].run.slice(0, 3), ['projects', 'add-iam-policy-binding', LIVE.project]);
   assert.ok(steps[0].run.includes(`--role=${RECEIVER}`));
@@ -15,7 +17,7 @@ test('before the first deploy: the project-level event receiver, and the invoker
 });
 
 test('after the deploy: run.invoker on the liveanalyze service only, never the project', () => {
-  const steps = planLiveAnalyze({receiver: true, serviceExists: true, invoker: false});
+  const steps = planLiveAnalyze({receiver: true, serviceExists: true, invoker: false, agents: allAgents});
   assert.equal(steps.length, 1);
   assert.deepEqual(steps[0].run.slice(0, 4), ['run', 'services', 'add-iam-policy-binding', LIVE.service]);
   assert.ok(steps[0].run.includes(`--role=${INVOKER}`));
@@ -23,7 +25,7 @@ test('after the deploy: run.invoker on the liveanalyze service only, never the p
 });
 
 test('all granted: no steps', () => {
-  assert.deepEqual(planLiveAnalyze({receiver: true, serviceExists: true, invoker: true}), []);
+  assert.deepEqual(planLiveAnalyze({receiver: true, serviceExists: true, invoker: true, agents: allAgents}), []);
 });
 
 test('a conditioned or another member binding does not count', () => {
@@ -41,7 +43,7 @@ test('the dry run reads only and changes nothing', async () => {
     if (args[0] === 'run') return {etag: 'ACAB'};
     return policy();
   };
-  assert.deepEqual(readState(run), {receiver: false, serviceExists: false, invoker: false});
+  assert.deepEqual(readState(run), {receiver: false, agents: AGENT_BINDINGS.map(() => false), serviceExists: false, invoker: false});
   calls.length = 0;
   const log = console.log;
   console.log = () => {};
@@ -51,4 +53,14 @@ test('the dry run reads only and changes nothing', async () => {
     console.log = log;
   }
   assert.ok(calls.every(a => a.includes('get-iam-policy') || a.includes('describe')), 'only reads');
+});
+
+test("the first event function's service-agent bindings the Firebase CLI checks are planned when missing", () => {
+  const steps = planLiveAnalyze({receiver: true, serviceExists: true, invoker: true, agents: [false, true, false]});
+  assert.deepEqual(steps.map(s => [s.run[3], s.run[4]]), [
+    [`--member=${AGENT_BINDINGS[0].member}`, `--role=${AGENT_BINDINGS[0].role}`],
+    [`--member=${AGENT_BINDINGS[2].member}`, `--role=${AGENT_BINDINGS[2].role}`],
+  ]);
+  // Exactly the three bindings the failed deploy (run 38497100019) named.
+  assert.deepEqual(AGENT_BINDINGS.map(b => b.role).sort(), ['roles/eventarc.eventReceiver', 'roles/iam.serviceAccountTokenCreator', 'roles/run.invoker']);
 });

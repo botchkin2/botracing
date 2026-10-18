@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 import {test} from 'node:test';
 import {LEGACY_OWNER} from './ownerCopy.mjs';
-import {copyOwner, mapLimit, verifyCopy} from './ownerCopyRun.mjs';
+import {copyOwner, verifyCopy} from './ownerCopyRun.mjs';
 import {memoryBackend, ownerData, snapshot} from './ownerCopyFixture.mjs';
 
 const FROM = LEGACY_OWNER;
@@ -387,24 +387,6 @@ test('tracks are shared app data: nothing is copied for them and what is there i
     ).toString(),
   );
   assert.equal(surface.sessions.length, 2);
-});
-
-test('work is bounded: no more than the limit runs at once, and the order of results is kept', async () => {
-  let running = 0;
-  let peak = 0;
-  const out = await mapLimit([...Array(40).keys()], 5, async n => {
-    running++;
-    peak = Math.max(peak, running);
-    await new Promise(r => setTimeout(r, 2));
-    running--;
-    return n * 2;
-  });
-  assert.equal(peak, 5);
-  assert.deepEqual(
-    out,
-    [...Array(40).keys()].map(n => n * 2),
-  );
-  assert.deepEqual(await mapLimit([], 5, async n => n), []);
 });
 
 test('a run holds one session at a time: it never lists every lap of the owner', async () => {

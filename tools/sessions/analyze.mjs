@@ -49,14 +49,17 @@ import {
 } from '../../src/analysis/classLaps.ts';
 import {FINISH_VERSION} from '../../src/analysis/raceResult.ts';
 import {RACE_LENGTH_VERSION} from './raceLength.mjs';
+import {DELETING_OUTCOMES} from './resultsInput.mjs';
 import {SLICE_FORMAT, SLICE_FRAME_VERSION} from './cornerSlices.mjs';
 import {
   CORNER_BOUNDARIES_VERSION,
+  lapMeasures,
   mapKeyOf,
   sessionBoundaries,
 } from './layoutBoundaries.mjs';
 import {sampleTicks} from './pedalPoints.mjs';
 import {freshTyres} from '../../src/analysis/tyres.ts';
+import {COAST_VERSION, coastSeconds} from './coast.mjs';
 import {CORNER_INPUTS_VERSION} from './cornerInputs.mjs';
 import {lapTyres, settleHotPressure, TYRES_VERSION} from './tyres.mjs';
 import {
@@ -93,6 +96,8 @@ const OFF_TRACK_SEC = 0.3;
 export const IN_FILE_RESET_VERSION = 1;
 
 export const blockVersions = {
+  // The lap doc's `coastS` (coast.mjs): every session re-analyses once.
+  coast: COAST_VERSION,
   tyres: TYRES_VERSION,
   traffic: TRAFFIC_VERSION,
   gridLap: GRID_LAP_VERSION,
@@ -118,6 +123,9 @@ export const blockVersions = {
   iracingSectors: 1,
   // Which laps are slow (src/analysis/paceEvents.ts replaced the median cut): every session re-analyses once.
   slowLaps: 1,
+  // The game's track-limit rulings per lap and the INV from its results file
+  // (resultsInput.mjs): a session read stale re-analyses once on open.
+  trackLimits: 1,
 };
 
 const GRID_M = 5;
@@ -370,7 +378,9 @@ function pitIntervals(list) {
   return out;
 }
 
-function lapTimeNear(list, t) {
+// The lap_time event's value nearest t within 0.75 s, or null. The game logs
+// -1 for a lap it did not count (cut track, out-lap).
+function lapTimeEventNear(list, t) {
   let best = null;
   let bestDt = 0.75;
   for (const event of list || []) {
@@ -380,7 +390,12 @@ function lapTimeNear(list, t) {
       best = event.v;
     }
   }
-  return best != null && best > 0 ? best : null;
+  return best;
+}
+
+function lapTimeNear(list, t) {
+  const v = lapTimeEventNear(list, t);
+  return v != null && v > 0 ? v : null;
 }
 
 function lastPositive(list, start, end) {
@@ -541,7 +556,84 @@ function lapDistance(rec, i0, i1) {
   return out;
 }
 
-function analyzeLap(rec, seg, pits, flags, visitFacts) {
+/**
+ * Whether the results file can rule a lap: the lap lies inside the laps of his
+ * the file lists (its last lap has no end, so a strike in it cannot be placed,
+ * and a lap before his first listed one is not in it). A lap it cannot rule
+ * keeps the lap time's verdict: a Warning in his last lap must not turn the
+ * game's -1 into a partial lap (#620, bearing #5660 B2).
+ */
+export function lapCovered(results, seg) {
+  const slack = 1;
+  return (
+    results.coveredFrom != null &&
+    results.coveredTo != null &&
+    seg.start >= results.coveredFrom - slack &&
+    seg.end <= results.coveredTo + slack
+  );
+}
+
+/**
+ * The game's rulings that fall in one lap (a strike's `et` is on the lap
+ * clock), each with where it happened: the lap distance at, and how far past
+ * the track edge, the path got in the 5 s before the strike (the game rules a
+ * moment after the excursion: 1.5 to 3.9 s, plank #5583). The window may begin
+ * in the lap before: the furthest point is then measured there, in that lap's
+ * own distance. Null width and place without the path and edge channels
+ * (iRacing).
+ */
+export function lapStrikes(results, s, seg, i0, i1, dist) {
+  return results.strikes
+    .filter(k => k.et >= seg.start && k.et < seg.end)
+    .map(k => {
+      let widthM = null;
+      let atM = null;
+      if (s.path_lateral_m && s.track_edge_m) {
+        let first = i0;
+        while (first > 0 && s.t[first - 1] >= k.et - 5) first--;
+        for (let i = first; i <= i1; i++) {
+          if (s.t[i] < k.et - 5 || s.t[i] > k.et) continue;
+          const past =
+            Math.abs(s.path_lateral_m[i]) - Math.abs(s.track_edge_m[i]);
+          if (widthM == null || past > widthM) {
+            widthM = past;
+            atM = i >= i0 ? dist[i - i0] : s.lap_dist_m?.[i] ?? null;
+          }
+        }
+      }
+      return {
+        et: round(k.et, 1),
+        atM: atM == null ? null : round(atM, 0),
+        widthM: widthM == null ? null : round(widthM, 2),
+        points: k.points,
+        outcome: k.outcome,
+        ruling: k.ruling,
+      };
+    });
+}
+
+/**
+ * Whether the game deleted a lap. Where the results file covers the lap it is
+ * the source: a strike of a deleting ruling in it (not in a pit-lane lap, which
+ * is no track-limits call). Where it does not (no file, or the lap is outside
+ * his laps in it), the lap time stands in. Where they disagree the file wins
+ * and the lap counts in `invalidDisagrees`. Only an invalid lap says where its
+ * verdict came from (thread 70 #5592, bearing #5660 B2 and non-blocking 4).
+ */
+export function lapVerdict({covered, trackLimits, pitlane, timeInvalid}) {
+  const resultsInvalid =
+    covered &&
+    trackLimits.some(k => DELETING_OUTCOMES.has(k.outcome)) &&
+    !pitlane;
+  const invalid = covered ? resultsInvalid : timeInvalid;
+  return {
+    invalid,
+    invalidFrom: !invalid ? undefined : covered ? 'results' : 'lapTime',
+    invalidDisagrees: covered ? resultsInvalid !== timeInvalid : false,
+  };
+}
+
+function analyzeLap(rec, seg, pits, flags, visitFacts, results = null) {
   const {s, events} = rec;
   const [i0, i1] = lapTicks(rec, seg);
   const dist = lapDistance(rec, i0, i1);
@@ -588,6 +680,27 @@ function analyzeLap(rec, seg, pits, flags, visitFacts) {
   const pitIn = pits.some(([a]) => a > seg.start && a <= seg.end);
   const pitOut = pits.some(([, b]) => b >= seg.start && b < seg.end);
   const pitlane = pits.some(([a, b]) => a < seg.end && b > seg.start);
+  // Invalid: the game closed the lap at a real crossing with no time (<= 0).
+  // A recording's end is no crossing, whatever event sits there. A lap through
+  // the pit lane closes with -1 too, and is no track-limits call (spring #5422).
+  const endsAtCrossing = seg.end < s.t[s.t.length - 1] - 0.5;
+  const endTime = lapTimeEventNear(events.lap_time, seg.end);
+  const timeInvalid =
+    !pitlane && endsAtCrossing && endTime != null && endTime <= 0;
+  // The game's results file, when there is one, is what deleted the lap: a
+  // strike of a deleting ruling in it (resultsInput.mjs). The lap time is the
+  // stand-in until the file exists, and where they disagree the file wins and
+  // the disagreement is counted on the session (thread 70 #5592).
+  const covered = results ? lapCovered(results, seg) : false;
+  const trackLimits = covered
+    ? lapStrikes(results, s, seg, i0, i1, dist)
+    : undefined;
+  const {invalid, invalidFrom, invalidDisagrees} = lapVerdict({
+    covered,
+    trackLimits,
+    pitlane,
+    timeInvalid,
+  });
 
   return {
     lapNumber: seg.lapNumber,
@@ -601,6 +714,10 @@ function analyzeLap(rec, seg, pits, flags, visitFacts) {
     gameLapTime: timed ? round(gameLapTime, 3) : null,
     lapTime: round(timed ? gameLapTime : seg.end - seg.start, 3),
     timed,
+    invalid,
+    invalidFrom,
+    invalidDisagrees,
+    trackLimits,
     partial: why !== null,
     partialWhy: why,
     pitlane,
@@ -656,6 +773,8 @@ function analyzeLap(rec, seg, pits, flags, visitFacts) {
     // 60). The CSV has no time column; the app's clock is row / traceHz.
     traceHz: rec.baseHz,
     ...topSpeed(s, i0, i1, dist),
+    // Seconds with both pedals off above 80 km/h (coast.mjs, thread 72).
+    coastS: coastSeconds(s, i0, i1),
   };
 }
 
@@ -672,8 +791,10 @@ export function topSpeed(s, i0, i1, dist) {
   };
 }
 
-// Resample one lap onto the distance grid: time, speed, throttle, brake.
-function onGrid(rec, lap, gridN) {
+// Resample one lap onto the distance grid: time, speed, throttle, brake,
+// lat, lon. Exported so a lap that did not come from a recording (the curate
+// loader) is gridded the same way as analyzeSession.
+export function onGrid(rec, lap, gridN) {
   const {s} = rec;
   const out = {
     time: new Float64Array(gridN),
@@ -950,6 +1071,7 @@ export function analyzeSession(
     splitFiles = false,
     catalogOnly = false,
     steerRightSign = 1,
+    results = null,
   } = {},
 ) {
   const laps = [];
@@ -998,7 +1120,7 @@ export function analyzeSession(
     for (const a of assigned.filter(row => row.r === r)) {
       const seg = segs[a.si];
       seg.partial = a.partial || seg.partial;
-      const lap = analyzeLap(rec, seg, pits, flags[r], visitFacts);
+      const lap = analyzeLap(rec, seg, pits, flags[r], visitFacts, results);
       lap.lapNumber = a.lapNumber;
       lap.endedInReset = seg.resetAt != null;
       lap.afterReset = (first && reset) || resetBefore;
@@ -1032,18 +1154,12 @@ export function analyzeSession(
   markSlow(laps);
 
   const comparable = laps.filter(l => l.comparable);
-  const pool = comparable.length
-    ? comparable
-    : laps.filter(l => l.timed && !l.partial);
-  const best = pool.reduce(
-    (a, b) => (b.lapTime < (a?.lapTime ?? Infinity) ? b : a),
-    null,
-  );
-
+  // Best and grid count, before the grids exist. The lap set is empty here;
+  // buildTrackMap selects it again once the grids are attached.
+  const {best, gridN: counted} = selectMapLaps(laps);
   let band = null;
-  let gridN = 0;
-  if (best && best.distanceM > 100) {
-    gridN = Math.floor(best.distanceM / GRID_M) + 1;
+  let gridN = counted;
+  if (gridN) {
     for (const lap of laps) {
       if (!lap.partial && lap.distanceM > best.distanceM * 0.9) {
         lap.grid = onGrid(recs[lap.rec], lap, gridN);
@@ -1065,8 +1181,14 @@ export function analyzeSession(
     catalogOnly,
   });
   const fits = plan.fits;
-  const built = plan.mayBuild
+  const made = plan.mayBuild
     ? buildTrackMap(recs, comparable, best, gridN)
+    : null;
+  const built = made?.result ?? null;
+  // Indexes into `laps`, from this pass. The second markSlow below changes
+  // `comparable`; these ids are the set the map used (buildFromLaps.golden.mjs).
+  const trackMapLapIds = built
+    ? made.chosen.map(lap => String(laps.indexOf(lap)))
     : null;
   const map = plan.usable ? trackMap : built?.map ?? null;
   const trackMapSource = trackMapSourceOf({
@@ -1082,9 +1204,13 @@ export function analyzeSession(
   // fold their onsets into what the layout keeps; a lap on a map of this
   // session's own (not stored) is cut at boundaries made from it alone.
   let layout = null;
+  let boundaryLapIds = null;
   if (map?.corners.length) {
     const fitting = laps.filter(lap => cornersFit(lap, map));
-    layout = sessionBoundaries({
+    boundaryLapIds = fitting
+      .filter(lapMeasures)
+      .map(lap => String(laps.indexOf(lap)));
+    layout = boundariesFromLaps({
       laps: fitting,
       map,
       stored: trackMapSource === 'session' ? null : boundaries,
@@ -1252,6 +1378,10 @@ export function analyzeSession(
     trackMapSource,
     // Clean laps the built map used (null when none was built); the curator needs it.
     trackMapLaps: built?.laps ?? null,
+    // Indexes into `laps` for the map set, and for the laps that measured
+    // the boundary onsets. Null when that set was not built.
+    trackMapLapIds,
+    boundaryLapIds,
     trackMapMismatch: Boolean(trackMap && !fits),
     consistency: {
       summary: consistency.summary,
@@ -1292,14 +1422,45 @@ export function analyzeSession(
   };
 }
 
-function buildTrackMap(recs, comparable, best, gridN) {
-  if (!best || !gridN) return null;
-  if (!recs.every(r => r.s.lat_deg && r.s.lon_deg)) return null;
-  const laps = comparable.filter(
+/** How many 5 m points a lap of this length is resampled onto. 0 under 100 m. */
+export function gridNOf(distanceM) {
+  if (!(distanceM > 100)) return 0;
+  return Math.floor(distanceM / GRID_M) + 1;
+}
+
+/**
+ * The fastest lap and the comparable laps within 1% of its length that carry
+ * a grid. Same selection buildTrackMap used before it was split (thread 78).
+ */
+export function selectMapLaps(laps) {
+  const comparable = laps.filter(l => l.comparable);
+  const pool = comparable.length
+    ? comparable
+    : laps.filter(l => l.timed && !l.partial);
+  const best = pool.reduce(
+    (a, b) => (b.lapTime < (a?.lapTime ?? Infinity) ? b : a),
+    null,
+  );
+  const gridN = best ? gridNOf(best.distanceM) : 0;
+  if (!best || !gridN) return {best: null, gridN: 0, laps: []};
+  return {best, gridN, laps: lapsWithinBest(comparable, best)};
+}
+
+function lapsWithinBest(comparable, best) {
+  return comparable.filter(
     l =>
       l.grid && Math.abs(l.distanceM - best.distanceM) < best.distanceM * 0.01,
   );
-  if (laps.length < 3) return null;
+}
+
+/**
+ * The track map from laps that already have a 5 m grid. `laps` is the set
+ * selectMapLaps kept. Null under 3 laps. One builder for every lap source.
+ */
+export function mapFromLaps(laps, gridN) {
+  if (!gridN || laps.length < 3) return null;
+  let best = laps[0];
+  for (const lap of laps) if (lap.lapTime < best.lapTime) best = lap;
   return {
     laps: laps.length,
     map: {
@@ -1310,6 +1471,35 @@ function buildTrackMap(recs, comparable, best, gridN) {
       corners: findTrackSections(profile(laps, gridN)),
     },
   };
+}
+
+/**
+ * This session's boundary state for a map, from the laps that fit it.
+ * `stored` is the layout's state so far (null on the first session). The
+ * catalog-only path passes readOnly and the stored state of this map.
+ */
+export function boundariesFromLaps({
+  laps,
+  map,
+  stored = null,
+  sessionId = '',
+  readOnly = false,
+}) {
+  if (!map?.corners.length) return null;
+  return sessionBoundaries({
+    laps: laps.filter(lap => cornersFit(lap, map)),
+    map,
+    stored,
+    sessionId,
+    readOnly,
+  });
+}
+
+function buildTrackMap(recs, comparable, best, gridN) {
+  if (!best || !gridN) return null;
+  if (!recs.every(r => r.s.lat_deg && r.s.lon_deg)) return null;
+  const chosen = lapsWithinBest(comparable, best);
+  return {result: mapFromLaps(chosen, gridN), chosen};
 }
 
 // What src/analysis/consistency.ts needs to know about a lap. The lap doc

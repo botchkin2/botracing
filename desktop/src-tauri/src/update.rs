@@ -88,7 +88,30 @@ fn remove_stale(dir: &Path, keep: &str) {
     }
 }
 
-async fn check_once(app: &AppHandle, token_file: &Path, dir: &Path, slot: &Slot) -> Outcome {
+/// What the watcher reads (heartbeat `updateWaiting`, tools/uploader/heartbeat.mjs
+/// updateWaitingOf) to tell the app that a restart would update the tray.
+const WAITING_FILE: &str = "update-waiting.json";
+
+fn waiting_text(version: &str) -> String {
+    serde_json::json!({"version": version}).to_string()
+}
+
+fn write_waiting(home: &Path, version: &str) {
+    let _ = std::fs::create_dir_all(home);
+    let _ = std::fs::write(home.join(WAITING_FILE), waiting_text(version));
+}
+
+fn clear_waiting(home: &Path) {
+    let _ = std::fs::remove_file(home.join(WAITING_FILE));
+}
+
+async fn check_once(
+    app: &AppHandle,
+    token_file: &Path,
+    dir: &Path,
+    home: &Path,
+    slot: &Slot,
+) -> Outcome {
     if slot.lock().unwrap().is_some() {
         return Outcome::Downloaded;
     }
@@ -125,6 +148,7 @@ async fn check_once(app: &AppHandle, token_file: &Path, dir: &Path, slot: &Slot)
         }
     }
     remove_stale(dir, &update.version);
+    write_waiting(home, &update.version);
     *slot.lock().unwrap() = Some(Pending {
         version: update.version.clone(),
         update,
@@ -134,9 +158,12 @@ async fn check_once(app: &AppHandle, token_file: &Path, dir: &Path, slot: &Slot)
 }
 
 /// Checks on a thread of its own, for the life of the tray.
-pub fn spawn(app: AppHandle, token_file: PathBuf, dir: PathBuf, slot: Slot) {
+pub fn spawn(app: AppHandle, token_file: PathBuf, dir: PathBuf, home: PathBuf, slot: Slot) {
+    // A file left by a tray that ended with the slot full says nothing about
+    // this run: the app banner must not outlive the update it names.
+    clear_waiting(&home);
     std::thread::spawn(move || loop {
-        let outcome = tauri::async_runtime::block_on(check_once(&app, &token_file, &dir, &slot));
+        let outcome = tauri::async_runtime::block_on(check_once(&app, &token_file, &dir, &home, &slot));
         std::thread::sleep(wait_after(&outcome));
     });
 }
@@ -166,6 +193,21 @@ mod tests {
             menu_line(Some("0.1.1")),
             Some("Restart to update to 0.1.1".into())
         );
+    }
+
+    #[test]
+    fn the_waiting_file_names_the_version_and_is_cleared() {
+        let home = std::env::temp_dir().join(format!("waiting-{}", std::process::id()));
+        assert_eq!(waiting_text("0.1.12"), r#"{"version":"0.1.12"}"#);
+        write_waiting(&home, "0.1.12");
+        assert_eq!(
+            std::fs::read_to_string(home.join(WAITING_FILE)).unwrap(),
+            r#"{"version":"0.1.12"}"#
+        );
+        clear_waiting(&home);
+        assert!(!home.join(WAITING_FILE).exists());
+        clear_waiting(&home);
+        let _ = std::fs::remove_dir_all(&home);
     }
 
     #[test]

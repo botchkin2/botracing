@@ -2,22 +2,11 @@
 // clipped to the window. Pure, so it is tested without a renderer.
 import type {RaceLanes, Span} from '@/src/analysis/raceLanes';
 
-export const LANE_ORDER = [
-  'pit',
-  'off',
-  'tow',
-  'battle',
-  'blue',
-  'pass',
-] as const;
-// Wide enough to see and to tap at a glance on a 375 pt strip.
-export const OFF_MIN_W = 3;
-
+export const LANE_ORDER = ['pit', 'tow', 'battle', 'blue', 'pass'] as const;
 export type LaneKey = (typeof LANE_ORDER)[number];
 
 export const LANE_LABEL: Record<LaneKey, string> = {
   pit: 'PIT',
-  off: 'OFF',
   tow: 'TOW',
   battle: 'BATTLE',
   blue: 'BLUE',
@@ -99,14 +88,13 @@ export function lanesLayout({
       .filter(s => s.toS > window.fromS && s.fromS < window.toS)
       .map(s => {
         const x = xOf(Math.max(s.fromS, window.fromS));
-        // A span shorter than minW still draws: a 0.2 s off is sub-pixel over a race.
+        // A span shorter than minW still draws.
         return {x, w: Math.max(minW, xOf(Math.min(s.toS, window.toS)) - x)};
       });
   const spanLane = {
     pit: lanes.pit,
     tow: lanes.tow,
     battle: lanes.battle,
-    off: lanes.off,
   } as Partial<Record<LaneKey, Span[]>>;
 
   return {
@@ -114,7 +102,7 @@ export function lanesLayout({
       key,
       label: LANE_LABEL[key],
       y: i * laneHeight,
-      spans: clipped(spanLane[key] ?? [], key === 'off' ? OFF_MIN_W : 1),
+      spans: clipped(spanLane[key] ?? [], 1),
       ticks: key === 'blue' ? lanes.blueS.filter(inside).map(xOf) : [],
       marks:
         key === 'pass'

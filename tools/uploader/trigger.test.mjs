@@ -162,3 +162,17 @@ test('liveRetryDelayMs: a failed live upload is tried again in 5 s, doubling, at
   assert.equal(liveRetryDelayMs(4), 30_000);
   assert.equal(liveRetryDelayMs(9), 30_000);
 });
+
+// The drive's last lap (pit wall #5305): his status.json after the game quit
+// on 2026-10-14, as the recorder wrote it.
+import {liveClosed} from './trigger.mjs';
+test('a capture closes when the recorder stops recording, though it keeps the sessionDir', () => {
+  const dir = '2026-10-14T00-25-17Z_silverstone-grand-prix-circuit-elms_1';
+  const afterExit = {state: 'no-game', sessionDir: dir, lastLapAt: '2026-10-14T01:34:57.409Z'};
+  assert.equal(liveClosed(dir, afterExit), true);
+  assert.equal(liveClosed(dir, {state: 'recording', sessionDir: dir}), false, 'still driving');
+  assert.equal(liveClosed(dir, {state: 'recording', sessionDir: 'next'}), true, 'a new capture');
+  assert.equal(liveClosed(dir, {state: 'waiting', sessionDir: dir}), true, 'back in the menus');
+  assert.equal(liveClosed(null, afterExit), false, 'nothing followed');
+  assert.equal(liveClosed(dir, null), false, 'no status: wait');
+});

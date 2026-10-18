@@ -22,6 +22,7 @@ export function statusKey(doc) {
     doc.retryAt,
     doc.recorder?.state,
     doc.recorder?.layoutOk,
+    doc.updateWaiting ?? null,
   ]);
 }
 

@@ -15,7 +15,7 @@ import {
 } from './client';
 import {analyzeDeps, analyzeOnce} from './analysisOnOpen';
 import {type SessionFilter, sessionKeys} from './keys';
-import {isLive, isRecentlyLive, livePoll} from './live';
+import {isLive, isRecentlyLive, liveAnalysisDue, livePoll} from './live';
 import {useSessionNewUploads} from './useNewUploads';
 
 // A session is rewritten only by an upload or analysis on open (which
@@ -76,9 +76,11 @@ export function useSession(id: string, enabled = true) {
   });
   // Opening a session made under older rules analyses it again in the cloud;
   // the stored numbers show until the new ones land (analysisOnOpen.ts). A
-  // live session again for each lap the tray adds.
+  // live session's new lap is the cloud's own to analyse (liveAnalyze), so an
+  // open asks only once that is overdue: the poll picks the lap up either way.
   const client = useQueryClient();
-  const stale = query.data?.stale === true;
+  const stale =
+    query.data?.stale === true && !liveAnalysisDue(query.data.liveAt);
   const parts = query.data?.archiveParts ?? null;
   // dataUpdatedAt: a lap that landed while an analysis ran is tried again once
   // that analysis has refetched the session, not at the lap after.

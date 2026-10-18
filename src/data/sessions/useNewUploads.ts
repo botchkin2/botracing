@@ -53,7 +53,7 @@ export function sessionUploadMark(
 /**
  * An open session hears of a lap from the same signal as the list: the
  * uploaders say a PC uploaded to it, and the session doc is read again. Its
- * own 5 s poll runs only while the session is live (live.ts), so a drive
+ * own live poll runs only while the session is live (live.ts), so a drive
  * that went quiet for 10 minutes and then resumed into the same session was
  * never seen until the screen was left and opened again (pit-wall #5283,
  * #5290). No new polling: the uploaders call is the list's (one a minute).

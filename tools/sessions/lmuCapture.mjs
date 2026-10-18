@@ -20,7 +20,7 @@
 //   track_edge_m
 //   tyres_rubber_temp NOT in the capture: the mean of the three inner layers
 //                     and the carcass, an approximation.
-//   weather           not in the capture: ''.
+//   weather           the label of the stretch's first mCloudCoverage (skyLabel).
 //   fuelSetup         the tank from mFuelCapacity; the fill limit lives in the
 //                     car setup the capture does not have: null.
 import {readdirSync, readFileSync} from 'node:fs';
@@ -46,6 +46,17 @@ const TICK_HZ = 400;
 // Past an ended stretch's last row and under one 400 Hz step, so the trailing
 // part keeps that row and nothing after it.
 const END_PAD_S = 0.001;
+
+// Under this from a stretch's end, a lap bump with no lap time is a reset.
+const RESET_BUMP_S = 1;
+
+// mCloudCoverage as the .duckdb's WeatherConditions names it. 0, 1 and 3
+// checked against every capture with a .duckdb beside it (13, Sep-Oct 2026:
+// the label is the first realtime row's value).
+// Only the values seen with the game's own label: an unchecked one is left
+// empty rather than guessed (2 and 4 have not been seen yet).
+const SKIES = {0: 'Clear', 1: 'Light Clouds', 3: 'Mostly Cloudy'};
+export const skyLabel = cc => SKIES[cc] ?? '';
 
 const chunkRe = /^(player|field|session)-\d+\.parquet$/;
 
@@ -73,7 +84,7 @@ const num = x => {
 };
 
 // rF2 session numbers: 0 test day, 1-4 practice, 5-8 qualifying, 9 warmup, 10-13 race.
-function sessionType(session) {
+export function sessionTypeOf(session) {
   if (session >= 10 && session <= 13) return 'Race';
   if (session >= 5 && session <= 8) return 'Qualify';
   if (session === 9) return 'Warmup';
@@ -121,13 +132,13 @@ export function describeCapture(captureDir) {
   const S = `read_parquet(${fileList(files.session)})`;
   const [row] = rows(
     ':memory:',
-    `WITH s0 AS (SELECT wall_ms w, mCurrentET t, mInRealtime r, mTimeOfDay tod, mSession ses,
+    `WITH s0 AS (SELECT wall_ms w, mCurrentET t, mInRealtime r, mTimeOfDay tod, mSession ses, mCloudCoverage cc,
         lag(mCurrentET) OVER (ORDER BY wall_ms, mCurrentET) pt,
         coalesce(lag(mInRealtime) OVER (ORDER BY wall_ms, mCurrentET), false) pr FROM ${S}),
       s AS (SELECT *, coalesce(t < pt, false) rst,
         sum(CASE WHEN t < pt THEN 1 ELSE 0 END) OVER (ORDER BY w, t) e FROM s0),
       ${epochSql('s')},
-      st AS (SELECT row_number() OVER (ORDER BY w, t) - 1 k, e, t onT, w onW, tod, ses,
+      st AS (SELECT row_number() OVER (ORDER BY w, t) - 1 k, e, t onT, w onW, tod, ses, cc,
         (SELECT arg_min(CASE WHEN x.rst THEN x.pt + ${END_PAD_S} ELSE x.t END, x.w) FROM s x
           WHERE x.w > s.w AND (NOT x.r OR x.rst)) offT
         FROM s WHERE r AND (NOT pr OR rst)),
@@ -139,25 +150,38 @@ export function describeCapture(captureDir) {
       )}),
       span AS (SELECT k, count(*) n, min(t) t0, max(t) t1, arg_min(wall_ms, t) wall0, arg_max(wall_ms, t) wall1,
         arg_min(cap, t) cap, arg_min(lap, t) lap0 FROM p GROUP BY k),
-      cross_ AS (SELECT k, e, ls::DOUBLE ls, lap FROM (SELECT *, lag(lap) OVER (PARTITION BY k ORDER BY t) pl FROM p)
+      cross_ AS (SELECT k, e, ls::DOUBLE ls, lap, t seen FROM (SELECT *, lag(lap) OVER (PARTITION BY k ORDER BY t) pl FROM p)
         WHERE pl IS NOT NULL AND lap IS DISTINCT FROM pl),
-      timed AS (SELECT c.k, c.ls, c.lap, f.mLastLapTime llt FROM cross_ c
+      timed AS (SELECT c.k, c.ls, c.lap, c.seen, f.mLastLapTime llt FROM cross_ c
         ASOF LEFT JOIN f ON f.e = c.e AND f.mTotalLaps = c.lap AND c.ls <= f.et),
       car AS (SELECT st.k, arg_min(mVehicleName, et) car, arg_min(mVehicleClass, et) cls
         FROM f JOIN st ON f.e = st.e AND f.et >= st.onT AND (st.offT IS NULL OR f.et < st.offT) GROUP BY st.k)
     SELECT to_json({
-      stretches: (SELECT list({k: st.k, onT: st.onT, offT: st.offT, tod: st.tod, ses: st.ses,
+      stretches: (SELECT list({k: st.k, onT: st.onT, offT: st.offT, tod: st.tod, ses: st.ses, cc: st.cc,
         n: span.n, t0: span.t0, t1: span.t1, wall0: span.wall0, wall1: span.wall1, cap: span.cap, lap0: span.lap0,
         car: car.car, cls: car.cls} ORDER BY st.k)
         FROM st JOIN span USING (k) LEFT JOIN car USING (k)),
-      crossings: (SELECT list({k: k, ls: ls, lap: lap, llt: llt} ORDER BY k, ls) FROM timed)
+      crossings: (SELECT list({k: k, ls: ls, lap: lap, seen: seen, llt: llt} ORDER BY k, ls) FROM timed)
     }) j`,
   );
   const {stretches, crossings} = JSON.parse(row.j);
   const folder = basename(captureDir);
   return {
     stretches: (stretches || []).map(st => {
+      const ended = st.offT != null || Boolean(meta.endUtc);
+      let end = st.offT ?? st.t1 + END_PAD_S;
       const own = (crossings || []).filter(c => c.k === st.k && c.ls > st.t0);
+      // A reset to the garage bumps mLapNumber with no lap time just before
+      // realtime goes off (Silverstone 14 Oct: 0.03-0.14 s before). That is
+      // not a crossing: the lap it cut is the stretch's trailing partial and
+      // ends at the first row that shows the bump, as the .duckdb, which ends
+      // mid-lap, has it. That row on is the reset itself (the tank already
+      // refilled), and can sit a hair before the bump's mLapStartET.
+      const bump = own.at(-1);
+      if (ended && bump && end - bump.ls < RESET_BUMP_S && !(bump.llt > 0)) {
+        own.pop();
+        end = Math.min(bump.ls, bump.seen);
+      }
       const laps = [];
       let from = st.t0;
       let lap = st.lap0;
@@ -177,8 +201,6 @@ export function describeCapture(captureDir) {
       // Ended: realtime went off after it, or the recorder closed the capture
       // (endUtc). Its trailing part then runs to the realtime-off time, or
       // just past its last row.
-      const ended = st.offT != null || Boolean(meta.endUtc);
-      const end = st.offT ?? st.t1 + END_PAD_S;
       if (ended && end > from)
         laps.push({
           lapNumber: lap,
@@ -206,7 +228,7 @@ function stretchInfo(meta, st) {
     driver: meta.playerName || '',
     recordedAt: new Date(Number(st.wall0)).toISOString(),
     sessionClock: clockOf(st.tod),
-    sessionType: sessionType(Number(meta.session ?? st.ses)),
+    sessionType: sessionTypeOf(Number(meta.session ?? st.ses)),
     // The recorder has the scoring track name, which is the .duckdb's layout
     // ("Daytona International Speedway Road Course"); the venue alone is not
     // in the capture.
@@ -215,7 +237,7 @@ function stretchInfo(meta, st) {
     car: st.car || 'Unknown car',
     carClass: st.cls || '',
     fuelSetup: {fillLimitL: null, tankL: st.cap > 0 ? Number(st.cap) : null},
-    weather: '',
+    weather: skyLabel(st.cc),
     baseHz: 100,
     ticks: Number(st.n),
     startT: Number(st.t0),

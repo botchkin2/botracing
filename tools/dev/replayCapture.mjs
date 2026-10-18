@@ -156,6 +156,12 @@ for (let n = 0; n + 1 < cuts.length; n++) {
   );
   if (lapsDone >= maxLaps) break;
 }
-writeJson(resolve(dir, 'meta.json'), {...meta, chunks: cuts.length - 1});
-writeJson(status, recorderStatus('waiting'));
+// --laps: the drive goes on, so the capture stays open (no endUtc, still
+// recording). Closing it here ended the drive 1 s after the line, and the
+// watcher sent that second as a lap of its own (lapCount 4 after 3 laps, pit
+// wall thread 69).
+if (lapsDone < maxLaps) {
+  writeJson(resolve(dir, 'meta.json'), {...meta, chunks: cuts.length - 1});
+  writeJson(status, recorderStatus('waiting'));
+}
 console.log(`${iso()} replay done, ${lapsDone} laps`);

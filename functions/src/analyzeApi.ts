@@ -1,13 +1,14 @@
 // POST /api/analyze/{sessionId}: analysis on open (analyzeCore.ts). Runs the
 // session engine bundled from tools/sessions (scripts/buildEngine.mjs) with
 // the DuckDB CLI it ships with, one run per instance.
+import {randomUUID} from 'crypto';
 import * as admin from 'firebase-admin';
 import {mkdtempSync, rmSync} from 'fs';
 import {tmpdir} from 'os';
 import {join} from 'path';
 import {onRequest} from 'firebase-functions/v2/https';
-import {type AnalyzeDeps, LEASE_MS, handleAnalyze} from './analyzeCore';
-import {loadEngine} from './engine';
+import {type AnalyzeDeps, handleAnalyze} from './analyzeCore';
+import {analysisEngine, isSessionStale} from './engine';
 import {Unauthorized, resolveOwner} from './ownerAccess';
 import {RUNTIME_ACCOUNT} from './runtime';
 
@@ -26,30 +27,40 @@ const ALLOWED_ORIGIN =
 export function engineDeps(
   db: admin.firestore.Firestore,
 ): Omit<AnalyzeDeps, 'owner'> {
-  const lease = (id: string) => db.doc(`analysisRuns/${id}`);
   return {
-    takeLease: (id, owner, now) =>
-      db.runTransaction(async tx => {
-        const held = await tx.get(lease(id));
-        if (held.exists && (held.get('until') as number) > now)
-          return false;
-        tx.set(lease(id), {owner, until: now + LEASE_MS});
-        return true;
+    runTx: (id, fn) =>
+      db.runTransaction(tx => {
+        const ref = db.doc(`analysisRuns/${id}`);
+        return fn({
+          get: async () => {
+            const held = await tx.get(ref);
+            return held.exists
+              ? {until: held.get('until') as number, token: held.get('token') as string}
+              : null;
+          },
+          set: lease => void tx.set(ref, lease),
+          delete: () => void tx.delete(ref),
+        });
       }),
-    releaseLease: async id => {
-      await lease(id).delete();
-    },
-    extendLease: async (id, owner, now) => {
-      await lease(id).set({owner, until: now + LEASE_MS});
-    },
+    token: () => randomUUID(),
     liveStamp: async id => {
       const at = (await db.doc(`sessions/${id}`).get()).get(
         'live.updatedAt',
       );
       return typeof at === 'string' ? at : null;
     },
-    analyze: async (sessionId, owner) => {
-      const {analyzeStored, adminBackend} = loadEngine();
+    // A session gone or not the caller's, or a test that cannot tell, runs:
+    // the run then answers for itself (404, or a fresh analysis).
+    stale: async (id, owner) => {
+      const doc = (await db.doc(`sessions/${id}`).get()).data();
+      if (!doc || doc.ownerId !== owner) return true;
+      return isSessionStale(doc, async (coll, docId) => {
+        const d = await db.doc(`${coll}/${docId}`).get();
+        return d.exists ? d.data() : null;
+      }).catch(() => true);
+    },
+    analyze: async (sessionId, owner, fence) => {
+      const {analyzeStored, adminBackend} = analysisEngine();
       const workDir = mkdtempSync(
         join(tmpdir(), `analyze-${sessionId}-`),
       );
@@ -62,6 +73,7 @@ export function engineDeps(
           sessionId,
           owner,
           workDir,
+          beforeWrite: fence,
           log: (line: string) =>
             console.log(`analyze ${sessionId}: ${line}`),
         });

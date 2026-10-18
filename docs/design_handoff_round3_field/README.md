@@ -117,7 +117,9 @@ Same style as OUT/IN/OFF/SLOW/HIT (`LapTag`: mono 500 10, `--text-secondary`; BE
 | **RESET** | Lap ends in the garage after a reset. Excluded, like IN. (Needs the reset detection fix.) |
 | BEST | Unchanged. |
 
-**Priority (extends LAP_TAG_PRIORITY):** PART · OUT · IN · RESET · SLOW · **TOW** · BEST · OFF · HIT · TRAF · BLUE · PASS · BTL. TOW sits above BEST so a towed best lap always shows TOW at 375 pt (one tag + "+n").
+**Priority (extends LAP_TAG_PRIORITY):** PART · INV · OUT · IN · RESET · SLOW · **TOW** · BEST · OFF · HIT · TRAF · BLUE · PASS · BTL. TOW sits above BEST so a towed best lap always shows TOW at 375 pt (one tag + "+n").
+
+**INV** (2026-10-14): a whole lap the game did not time (LMU invalidates a lap, e.g. on track limits, and withholds its time). The row shows its line-to-line time; it is never in a median, best or default selection. PART stays for a lap that is really cut short.
 - **Session summary** adds "Best without TOW or TRAF: Ln m:ss.sss · +0.290 s".
 - **Lap chart (R3c):** bars towed ≥ 5 s are drawn hollow (1 pt outline in the bar's colour). Rails under the chart, labelled TOW / TRAF / PIT (mono 9): white 4 pt block per towed lap, grey tick for TRAF or BLUE, amber for IN/OUT.
 - **Detail panel for a towed lap:** "In a tow for 10.0 s on this lap, mostly behind #27. The best lap without TOW or TRAF is L9 (1:48.459, +0.913 s)." + per-straight rows + the rule line.

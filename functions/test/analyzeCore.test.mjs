@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
+import {readFileSync} from 'node:fs';
 import {LEASE_MS, handleAnalyze} from '../src/analyzeCore.ts';
 import {Unauthorized} from '../src/ownerAccess.ts';
 
@@ -8,22 +9,25 @@ const ID = '4c96f9dfd54fd9ab';
 function world({owners = {'Bearer a': 'botkin'}, analyze} = {}) {
   const leases = new Map();
   const runs = [];
+  let tokens = 0;
   let clock = 1_000_000;
   const deps = {
     owner: async auth => {
       if (!owners[auth]) throw new Unauthorized('sign in');
       return owners[auth];
     },
-    takeLease: async (id, owner, now) => {
-      const held = leases.get(id);
-      if (held && held > now) return false;
-      leases.set(id, now + LEASE_MS);
-      return true;
-    },
-    releaseLease: async id => void leases.delete(id),
+    // The store only: the rules are analyzeCore's own (leases()).
+    runTx: async (id, fn) =>
+      fn({
+        get: async () => leases.get(id) ?? null,
+        set: lease => leases.set(id, lease),
+        delete: () => leases.delete(id),
+      }),
+    token: () => `run-${++tokens}`,
     analyze:
       analyze ??
-      (async (id, owner) => {
+      (async (id, owner, fence) => {
+        await fence();
         runs.push([id, owner]);
         return {laps: 21};
       }),
@@ -62,7 +66,7 @@ test("another owner's session is a 404 from the engine, and the lease is let go"
 
 test('a second open while a run holds the lease starts nothing: 202', async () => {
   const w = world();
-  w.leases.set(ID, 1_000_000 + 60_000);
+  w.leases.set(ID, {until: 1_000_000 + 60_000, token: 'other'});
   const r = await handleAnalyze(w.deps, 'POST', `/api/analyze/${ID}`, 'Bearer a');
   assert.deepEqual(r, {status: 202, body: {state: 'running'}});
   assert.equal(w.runs.length, 0);
@@ -70,7 +74,7 @@ test('a second open while a run holds the lease starts nothing: 202', async () =
 
 test('a lease left by a crashed run expires', async () => {
   const w = world();
-  w.leases.set(ID, 1_000_000 - 1);
+  w.leases.set(ID, {until: 1_000_000 - 1, token: 'crashed'});
   const r = await handleAnalyze(w.deps, 'POST', `/api/analyze/${ID}`, 'Bearer a');
   assert.equal(r.status, 200);
 });
@@ -108,12 +112,7 @@ function liveWorld(stamps) {
     reads.push(stamps[Math.min(at, stamps.length - 1)]);
     return stamps[Math.min(at++, stamps.length - 1)];
   };
-  const extended = [];
-  w.deps.extendLease = async (id, owner, now) => {
-    extended.push(now);
-    w.leases.set(id, now + LEASE_MS);
-  };
-  return {...w, extended};
+  return w;
 }
 
 test('a lap that lands during a run makes the run go again; then it stops', async () => {
@@ -122,7 +121,6 @@ test('a lap that lands during a run makes the run go again; then it stops', asyn
   const run = await runAnalysis(w.deps, ID, 'botkin');
   assert.deepEqual(run, {state: 'done', laps: 21});
   assert.equal(w.runs.length, 2);
-  assert.equal(w.extended.length, 1, 'the lease is extended before the second run');
   assert.equal(w.leases.size, 0, 'and let go after');
 });
 
@@ -140,7 +138,7 @@ test('a session that was never live runs once', async () => {
 
 test('a live lap while a run holds the lease starts nothing', async () => {
   const w = liveWorld(['t1']);
-  await w.deps.takeLease(ID, 'botkin', w.deps.now());
+  w.leases.set(ID, {owner: 'botkin', until: w.deps.now() + LEASE_MS, token: 'other-run'});
   assert.deepEqual(await runAnalysis(w.deps, ID, 'botkin'), {state: 'running'});
   assert.equal(w.runs.length, 0);
 });
@@ -156,4 +154,92 @@ test("only a live upload's new stamp starts a run: lap 1's create too, never ana
   assert.equal(liveLapLanded(live('t5', 6), live('t6', 6)), true);
   // A game-file sync (no live block) never starts it.
   assert.equal(liveLapLanded({lapCount: 4}, {lapCount: 9}), false);
+});
+
+// spring #5375, #5389: two runs must never both write one session. Each test
+// below fails against the lease before #622 (fixed 150 s, no token).
+const timeout = file =>
+  Number(readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8').match(/timeoutSeconds: (\d+)/)[1]);
+
+test("the lease outlives either function's timeout, so it cannot run out under a live run", () => {
+  for (const file of ['analyzeApi.ts', 'liveAnalyze.ts'])
+    assert.ok(LEASE_MS > timeout(file) * 1000, `${file}: ${timeout(file)} s`);
+});
+
+test('a run at the timeout still holds its lease: a second start is refused', async () => {
+  let second;
+  const w = world({
+    analyze: async (id, owner, fence) => {
+      w.tick(timeout('liveAnalyze.ts') * 1000);
+      second = await runAnalysis(w.deps, ID, 'botkin');
+      await fence();
+      return {laps: 21};
+    },
+  });
+  assert.deepEqual(await runAnalysis(w.deps, ID, 'botkin'), {state: 'done', laps: 21});
+  assert.deepEqual(second, {state: 'running'});
+});
+
+test("a run never deletes another run's lease", async () => {
+  const w = world({
+    analyze: async () => {
+      // This run's lease is gone (expired, another run holds it now).
+      w.leases.set(ID, {until: w.deps.now() + LEASE_MS, token: 'the-other-run'});
+      return {laps: 21};
+    },
+  });
+  await runAnalysis(w.deps, ID, 'botkin');
+  assert.equal(w.leases.get(ID)?.token, 'the-other-run');
+});
+
+test('a run that lost its lease writes nothing: the fence stops it before the write', async () => {
+  let wrote = false;
+  const w = world({
+    analyze: async (id, owner, fence) => {
+      w.leases.set(ID, {until: w.deps.now() + LEASE_MS, token: 'the-other-run'});
+      await fence();
+      wrote = true;
+      return {laps: 21};
+    },
+  });
+  assert.deepEqual(await runAnalysis(w.deps, ID, 'botkin'), {state: 'running'});
+  assert.equal(wrote, false);
+  assert.equal(w.leases.get(ID)?.token, 'the-other-run');
+});
+
+test('an expired lease no longer passes the fence', async () => {
+  let wrote = false;
+  const w = world({
+    analyze: async (id, owner, fence) => {
+      w.tick(LEASE_MS + 1);
+      await fence();
+      wrote = true;
+      return {laps: 21};
+    },
+  });
+  assert.deepEqual(await runAnalysis(w.deps, ID, 'botkin'), {state: 'running'});
+  assert.equal(wrote, false);
+});
+
+// A run over a session already current writes nothing (pit wall thread 69): an
+// open that lands after a live lap's run ran a second full analysis.
+test('a run over a current session is a no-op: nothing analysed, the lease let go, the open told done', async () => {
+  const w = world();
+  const asked = [];
+  w.deps.stale = async (id, owner) => (asked.push([id, owner]), false);
+  const r = await handleAnalyze(w.deps, 'POST', `/api/analyze/${ID}`, 'Bearer a');
+  assert.deepEqual(r, {status: 200, body: {state: 'done'}});
+  assert.deepEqual(asked, [[ID, 'botkin']]);
+  assert.equal(w.runs.length, 0);
+  assert.equal(w.leases.size, 0);
+});
+
+test('a stale session is analysed, and the test is asked only once the lease is held', async () => {
+  const w = world();
+  w.deps.stale = async () => {
+    assert.equal(w.leases.size, 1, 'under the lease');
+    return true;
+  };
+  assert.deepEqual(await runAnalysis(w.deps, ID, 'botkin'), {state: 'done', laps: 21});
+  assert.equal(w.runs.length, 1);
 });

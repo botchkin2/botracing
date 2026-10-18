@@ -152,6 +152,50 @@ test('a session a recording still points at is refused, and the count is printed
   assert.ok(describePlan(ok).some(l => l.includes('recordings pointing here: 0')));
 });
 
+test('--replaced-by deletes the recordings too, only when the new session has each stretch', async () => {
+  // A live session (recording ids of the capture) rebuilt from its game files
+  // (other recording ids), as Silverstone 2026-10-14.
+  const rec = (id, sessionId, recordedAt, owner = OWNER) => ({
+    [`recordings/${id}`]: {sessionId, ownerId: owner, recordedAt},
+  });
+  const docs = {
+    ...session(OLD),
+    ...session(NEW),
+    ...lap('lap-1', OLD),
+    ...rec('live-1', OLD, '2026-10-14T00:25:51.344Z'),
+    ...rec('live-2', OLD, '2026-10-14T00:33:20.370Z'),
+    ...rec('game-1', NEW, '2026-10-14T00:25:51Z'),
+    ...rec('game-2', NEW, '2026-10-14T00:33:20Z'),
+  };
+  const store = fakeStore(docs);
+  const plan = await planDelete(store, {owner: OWNER, ids: [OLD], replacedBy: {[OLD]: NEW}});
+  assert.deepEqual(plan.refusals, []);
+  assert.deepEqual(plan.sessions[0].recordingDocs, ['live-1', 'live-2']);
+  assert.ok(describePlan(plan).some(l => l.includes(`replaced by ${NEW}: its 2 recording doc(s) go too`)));
+  // The recordings are part of what the hash names.
+  assert.notEqual(plan.hash, hashOf({...plan, sessions: [{...plan.sessions[0], recordingDocs: []}]}));
+  await applyDelete(store, plan, {confirm: plan.hash});
+  assert.ok(!store.docs['recordings/live-1'] && !store.docs['recordings/live-2']);
+  assert.ok(!store.docs[`sessions/${OLD}`]);
+  assert.ok(store.docs['recordings/game-1'] && store.docs[`sessions/${NEW}`], 'the new session is untouched');
+  assert.equal(store.deletedDocs.at(-1), `sessions/${OLD}`, 'the session document goes last');
+
+  // A stretch the new session lacks, a missing or foreign replacement, or no
+  // --replaced-by at all: refused as before, nothing deleted.
+  const lacking = fakeStore({...docs, ...rec('live-3', OLD, '2026-10-14T01:06:36.550Z')});
+  const p1 = await planDelete(lacking, {owner: OWNER, ids: [OLD], replacedBy: {[OLD]: NEW}});
+  assert.match(p1.refusals[0].why, /1 recording\(s\) have no recording in .* live-3/);
+  const p2 = await planDelete(fakeStore(docs), {owner: OWNER, ids: [OLD], replacedBy: {[OLD]: NEXT}});
+  assert.match(p2.refusals[0].why, /missing or not/);
+  const foreign = fakeStore({...docs, ...session(NEW, 'owner-b')});
+  const p3 = await planDelete(foreign, {owner: OWNER, ids: [OLD], replacedBy: {[OLD]: NEW}});
+  assert.match(p3.refusals[0].why, /missing or not/);
+  const p4 = await planDelete(fakeStore(docs), {owner: OWNER, ids: [OLD], replacedBy: {[OLD]: OLD}});
+  assert.match(p4.refusals[0].why, /not another session id/);
+  const p5 = await planDelete(fakeStore(docs), {owner: OWNER, ids: [OLD]});
+  assert.match(p5.refusals[0].why, /2 recording\(s\) still point/);
+});
+
 test('--archive lists both layouts: the Admin sync and the tray upload (ownerKey)', async () => {
   const KEY = 'key-of-owner';
   const store = fakeStore(

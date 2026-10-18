@@ -1,10 +1,12 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {
+  LIVE_ANALYSIS_GRACE_MS,
   LIVE_FRESH_MS,
   LIVE_POLL_MS,
   isLive,
   isRecentlyLive,
+  liveAnalysisDue,
   livePoll,
 } from './live';
 
@@ -23,6 +25,11 @@ describe('live', () => {
     expect(livePoll(Date.now())).toBe(LIVE_POLL_MS);
     expect(livePoll(Date.now() - 2 * LIVE_FRESH_MS)).toBe(false);
     expect(livePoll(null)).toBe(false);
+  });
+  it('leaves a new lap to the live analysis for the grace, then the open asks', () => {
+    expect(liveAnalysisDue(now - 1_000, now)).toBe(true);
+    expect(liveAnalysisDue(now - LIVE_ANALYSIS_GRACE_MS, now)).toBe(false);
+    expect(liveAnalysisDue(null, now)).toBe(false);
   });
 });
 

@@ -26,7 +26,6 @@ const dark = {
   slower: '#ed4a49',
   // The off-track mark (Race lanes and map, D52): its own token, not `slower`,
   // which means a signed loss.
-  offTrack: '#ed4a49',
   median: '#3a4148',
   band: 'rgba(230,232,234,0.07)',
   track: '#262b31',
@@ -88,7 +87,6 @@ const light: ColorTokens = {
   best: '#7d40c8',
   faster: '#25984d',
   slower: '#b00a1d',
-  offTrack: '#b00a1d',
   median: '#c9cdd1',
   band: 'rgba(17,19,22,0.07)',
   track: '#d5d9dd',
@@ -145,11 +143,11 @@ export function hueOf(hex: string): number {
   return (h * 60 + 360) % 360;
 }
 
-/** The app's one-meaning colours (best, faster, slower, accent, off-track). A lap hue must not read as one of them. */
+/** The app's one-meaning colours (best, faster, slower, accent). A lap hue must not read as one of them. */
 export const RESERVED_HUE_GAP = 15;
 export function reservedHues(scheme: Scheme): number[] {
   const c = colors[scheme];
-  return [c.accent, c.best, c.faster, c.slower, c.offTrack].map(hueOf);
+  return [c.accent, c.best, c.faster, c.slower].map(hueOf);
 }
 const hueDistance = (a: number, b: number) => {
   const d = Math.abs(a - b) % 360;
@@ -498,4 +496,17 @@ export function cornerCell(d: number): {bg: string; fg: string} {
   return d > 0
     ? {bg: oklchHex(0.4 + 0.12 * t, 0.1 + 0.1 * t, 25), fg: '#f2f4f6'}
     : {bg: oklchHex(0.62 + 0.2 * t, 0.1 + 0.07 * t, 150), fg: '#0d0f12'};
+}
+
+// --- heat strips (pit-wall thread 73, row 1f) ---------------------------------
+
+/**
+ * One sequential ramp for a meter on a fixed physical scale: dark slate at the
+ * low end to pale cyan at the high end, t in 0..1. A single hue on purpose:
+ * red and green already mean slower and faster, and a temperature is neither.
+ * The strip's legend prints the numbers each end stands for.
+ */
+export function heatCell(t: number): string {
+  const x = Math.min(1, Math.max(0, t));
+  return oklchHex(0.3 + 0.58 * x, 0.025 + 0.09 * x, 230);
 }
