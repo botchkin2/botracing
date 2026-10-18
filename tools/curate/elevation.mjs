@@ -148,7 +148,7 @@ export function readCaptureLaps(captureDir) {
   let number = null;
   for (let i = 0; i < data.lap.length; i++) {
     if (data.lap[i] !== number) {
-      current = {x: [], y: [], z: []};
+      current = {lapNumber: data.lap[i], x: [], y: [], z: []};
       laps.push(current);
       number = data.lap[i];
     }
@@ -157,8 +157,21 @@ export function readCaptureLaps(captureDir) {
     current.z.push(data.z[i]);
   }
   return laps.map(lap => ({
+    lapNumber: lap.lapNumber,
     x: Float64Array.from(lap.x),
     y: Float64Array.from(lap.y),
     z: Float64Array.from(lap.z),
   }));
+}
+
+/** The capture laps whose lap number is one the session's map kept. */
+export function keepMeasuredLaps(laps, lapNumbers) {
+  const want = new Set(lapNumbers);
+  const kept = [];
+  let dropped = 0;
+  for (const lap of laps) {
+    if (want.has(lap.lapNumber)) kept.push(lap);
+    else dropped++;
+  }
+  return {laps: kept, dropped};
 }

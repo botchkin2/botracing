@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {elevationFromLaps} from './elevation.mjs';
+import {elevationFromLaps, keepMeasuredLaps} from './elevation.mjs';
 
 const line = (len, heightAt) => {
   const n = 21;
@@ -47,6 +47,17 @@ test('path lengths that disagree by more than 1% are refused', () => {
   );
   assert.equal(built.elevation, null);
   assert.match(built.refusals.join(' '), /path lengths differ/);
+});
+
+test('an in-lap is dropped even when its path length matches', () => {
+  const good = [1, 2, 3].map(n => ({...line(100, () => 0), lapNumber: n}));
+  const inLap = {...line(100, () => 40), lapNumber: 9};
+  const picked = keepMeasuredLaps([...good, inLap], [1, 2, 3]);
+  assert.equal(picked.dropped, 1);
+  const built = elevationFromLaps(picked.laps, 100);
+  assert.deepEqual(built.refusals, []);
+  assert.equal(built.elevation.heightM[0], 0);
+  assert.equal(built.elevation.heightM[5], 0);
 });
 
 test('height that wanders by more than 1 m is refused', () => {

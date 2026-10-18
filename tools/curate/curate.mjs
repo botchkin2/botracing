@@ -7,7 +7,7 @@
 //   node tools/curate/curate.mjs plan-replace <trackId> --session <id> [--allow-renumber]
 //   node tools/curate/curate.mjs plan-refold <trackId> --sessions <id,id,...>
 //   node tools/curate/curate.mjs plan-undo <trackId> [--to-rev N]
-//   node tools/curate/curate.mjs plan-elevation <trackId> --capture <dir>
+//   node tools/curate/curate.mjs plan-elevation <trackId> --session <id> --capture <dir>
 //
 // Every plan command is a dry run: it prints the plan and writes nothing. Add
 // `--apply --reason "why"` to write it (needs Admin credentials today:
@@ -21,13 +21,18 @@ import {fileURLToPath} from 'node:url';
 import {adapter as simAdapter, telemetryFolder} from '../sessions/sims.mjs';
 import {PlanRefused, applyPlan} from './apply.mjs';
 import {describeMap} from './diff.mjs';
-import {elevationFromLaps, readCaptureLaps} from './elevation.mjs';
+import {
+  elevationFromLaps,
+  keepMeasuredLaps,
+  readCaptureLaps,
+} from './elevation.mjs';
 import {
   LoaderError,
   buildFromSession,
   buildRefold,
   describeSession,
   findSessions,
+  measuredLapNumbers,
   pickSession,
 } from './loader.mjs';
 import {
@@ -179,10 +184,18 @@ export async function run(argv, deps) {
     };
     let plan;
     if (cmd === 'plan-elevation') {
-      if (!flags.capture)
-        throw new LoaderError('plan-elevation needs --capture <dir>');
-      const lengthM = current.track?.lengthM;
-      const built = elevationFromLaps(readCaptureLaps(flags.capture), lengthM);
+      if (!flags.capture || !flags.session)
+        throw new LoaderError(
+          'plan-elevation needs --session <id> and --capture <dir>',
+        );
+      const session = pickSession(sessionsHere(), flags.session);
+      const lapNumbers = measuredLapNumbers({adapter, session, workDir});
+      const picked = keepMeasuredLaps(
+        readCaptureLaps(flags.capture),
+        lapNumbers,
+      );
+      const built = elevationFromLaps(picked.laps, current.track?.lengthM);
+      built.stats = {...built.stats, droppedInLaps: picked.dropped};
       plan = planElevation({trackId, current, built, blast});
     } else if (cmd === 'plan-add' || cmd === 'plan-replace') {
       if (!flags.session)
