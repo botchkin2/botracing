@@ -22,9 +22,7 @@ export function topSpreadCorner(
   if (!map) return null;
   const times = turnSegmentTimes(laps, map);
   if (!times) return null;
-  const named = times.laps.filter(l => ticked.has(l.id));
-  const picked =
-    named.length > 0 ? named : times.laps.filter(l => l.comparable);
+  const picked = basisOf(times.laps, ticked);
   const shares = spreadShares(
     times.segments.map((_, i) => picked.map(l => l.timesS[i] ?? null)),
   );
