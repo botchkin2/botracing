@@ -41,6 +41,7 @@ export const CURATED_FIELDS = [
   'corners',
   'source',
   'boundaries',
+  'elevation',
   'catalogRev',
   'curatedAt',
   'curatedBy',
@@ -242,6 +243,21 @@ export function planRefold({trackId, current, built, blast}) {
   return plan;
 }
 
+export function planElevation({trackId, current, built, blast}) {
+  const plan = start('elevation', trackId, current, blast);
+  if (!hasMap(current.track))
+    plan.refusals.push(
+      `${trackId} has no curated map: elevation belongs to a map`,
+    );
+  if (!(current.track?.lengthM > 0))
+    plan.refusals.push('the map has no lap length');
+  for (const r of built?.refusals ?? []) plan.refusals.push(r);
+  plan.stats = built?.stats ?? null;
+  if (built?.elevation && !plan.refusals.length)
+    plan.set = {elevation: built.elevation};
+  return plan;
+}
+
 export function planUndo({trackId, current, history, toRev, blast}) {
   const plan = start('undo', trackId, current, blast);
   const target = toRev ?? plan.expectedRev - 1;
@@ -304,6 +320,7 @@ export function renderPlan(plan) {
     replace: 'REPLACE the map of',
     refold: 'REFOLD the boundaries of',
     undo: 'UNDO to an earlier rev of',
+    elevation: 'ADD ELEVATION to',
   }[plan.kind];
   lines.push(
     `${verb} ${plan.trackId}: catalogRev ${plan.expectedRev} -> ${plan.newRev}${
@@ -319,6 +336,18 @@ export function renderPlan(plan) {
   else if (plan.diff.map) {
     const d = renderMapDiff(plan.diff.map);
     lines.push(...(d.length ? d : ['the map does not change']));
+  }
+  if (plan.kind === 'elevation' && plan.set.elevation) {
+    const e = plan.set.elevation;
+    const h = e.heightM;
+    lines.push(
+      `${h.length} heights, step ${e.stepM} m, ${
+        plan.stats?.laps ?? '?'
+      } laps, path ${plan.stats?.pathM} m, height ${plan.stats?.min} to ${
+        plan.stats?.max
+      } m, p95 ${plan.stats?.p95} m`,
+    );
+    lines.push(`source: ${e.source}`);
   }
   if (plan.diff.boundaries) {
     const d = renderBoundaryDiff(plan.diff.boundaries);
@@ -337,6 +366,8 @@ export function renderPlan(plan) {
 /** One line for the history. */
 export function summaryOf(plan) {
   const parts = [];
+  if (plan.kind === 'elevation')
+    parts.push('capture mPos_y, lap-fraction aligned');
   if (plan.diff.map) {
     const d = plan.diff.map;
     if (plan.kind === 'add')
