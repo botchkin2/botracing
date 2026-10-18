@@ -54,6 +54,8 @@ capture's field `mDriverName` is empty and its `playerName` is `seat-test`).
   build → `store.upload`) into memory (`memoryStore.mjs`), compares every
   session and lap field, and checks both against the feature manifest
   (`tools/sessions/manifest.mjs`). Prints each unexplained difference and miss.
+  `memoryStore.mjs` refuses writes as the upload API does (`uploadCore.ts`): a
+  set on `sessions`, `recordings` or `laps`, a merge too, must name its owner.
 - `parityAllow.json`: what may differ, each entry with its reason. `tol` bounds
   numbers, `tolS` bounds two times in seconds; no bound allows any value.
   `when: "untimed"` applies to laps the game did not time, `pair` to one pair

@@ -7,6 +7,7 @@ import {createHash} from 'node:crypto';
 import {createStore} from './store.mjs';
 import {LIVE_STAMP} from './liveSession.mjs';
 import {analysisStamp} from './versionKey.mjs';
+import {refuseUnowned} from '../golden/memoryStore.mjs';
 
 // A bucket and a database in memory; `offline` makes every putFile fail.
 function backend(docs = new Map()) {
@@ -18,6 +19,7 @@ function backend(docs = new Map()) {
     offline: false,
     getDoc: async (c, id) => docs.get(`${c}/${id}`) ?? null,
     writeDocs: async ops => {
+      refuseUnowned(ops, docs);
       for (const op of ops) {
         const key = `${op.coll}/${op.id}`;
         docs.set(
@@ -49,13 +51,18 @@ function lapsOut(n) {
   return {
     session: {
       id: 's1',
+      ownerId: 'o',
       recordingIds: ['r1'],
       archiveParts: n,
       lapCount: n,
       analysis: LIVE_STAMP,
     },
     recordings: [
-      {id: 'r1', archive: {parts: files.map(f => ({samples: f.dest}))}},
+      {
+        id: 'r1',
+        ownerId: 'o',
+        archive: {parts: files.map(f => ({samples: f.dest}))},
+      },
     ],
     files,
   };
@@ -94,6 +101,7 @@ test('a lap over a session the cloud analysed keeps its analysed fields and read
     [
       'sessions/s1',
       {
+        ownerId: 'o',
         analysis: analysisStamp(17, {}),
         archiveParts: 1,
         recordingIds: ['r1'],
@@ -128,7 +136,12 @@ test('a lap that lands while the cloud analyses is not taken as analysed', async
   const docs = new Map([
     [
       'sessions/s1',
-      {analysis: {v: 0, blocks: {}}, archiveParts: 5, recordingIds: ['r1']},
+      {
+        ownerId: 'o',
+        analysis: {v: 0, blocks: {}},
+        archiveParts: 5,
+        recordingIds: ['r1'],
+      },
     ],
   ]);
   const b = backend(docs);
@@ -210,6 +223,7 @@ test('a stored live session with no field gets it once, with no new lap, and rea
         'sessions/s1',
         {
           id: 's1',
+          ownerId: 'o',
           recordingIds: ['r1'],
           archiveParts: 2,
           analysis: analysisStamp(17, {}),

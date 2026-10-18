@@ -19,14 +19,15 @@ test('a stored recording is replaced only when the build has one within 2 s; the
   // bearing #5659 / 1edfb967: a live session of 2 stretches, a game file of 1.
   const plan = healPlan({
     stored: [
-      {id: 'L0', recordedAt: at(0)},
-      {id: 'L1', recordedAt: at(3000)},
+      {id: 'L0', ownerId: 'o', recordedAt: at(0)},
+      {id: 'L1', ownerId: 'o', recordedAt: at(3000)},
     ],
-    built: [{id: 'B0', recordedAt: at(1.5)}],
+    built: [{id: 'B0', ownerId: 'o', recordedAt: at(1.5)}],
     laps: [
-      {id: 'l0', recordingId: 'L0'},
-      {id: 'l1', recordingId: 'L1'},
+      {id: 'l0', ownerId: 'o', recordingId: 'L0'},
+      {id: 'l1', ownerId: 'o', recordingId: 'L1'},
     ],
+    ownerId: 'o',
     nowIso: 'now',
     defect: DEFECT,
   });
@@ -39,16 +40,19 @@ test('a stored recording is replaced only when the build has one within 2 s; the
   assert.equal(byId['recordings/L0'].supersededBy, 'B0');
   assert.equal(byId['laps/l0'].supersededBy, 'B0');
   assert.equal(byId['laps/l1'], undefined);
-  assert.deepEqual(byId['recordings/L1'], {defects: [DEFECT]});
+  assert.deepEqual(byId['recordings/L1'], {ownerId: 'o', defects: [DEFECT]});
+  // The upload API refuses a set, a merge too, that does not name its owner
+  // (uploadCore.ts; his PC's 403 on 0.1.13).
+  for (const o of plan.ops) assert.equal(o.data.ownerId, 'o', o.id);
 });
 
 test('2.5 s apart is not the same stretch; one build recording replaces one stored', () => {
   const plan = healPlan({
     stored: [
-      {id: 'L0', recordedAt: at(0)},
-      {id: 'L1', recordedAt: at(1)},
+      {id: 'L0', ownerId: 'o', recordedAt: at(0)},
+      {id: 'L1', ownerId: 'o', recordedAt: at(1)},
     ],
-    built: [{id: 'B0', recordedAt: at(0.5)}],
+    built: [{id: 'B0', ownerId: 'o', recordedAt: at(0.5)}],
     laps: [],
     nowIso: 'now',
   });
@@ -60,8 +64,8 @@ test('2.5 s apart is not the same stretch; one build recording replaces one stor
     'no defect named: the kept stretch is not marked',
   );
   const far = healPlan({
-    stored: [{id: 'L0', recordedAt: at(0)}],
-    built: [{id: 'B0', recordedAt: at(2.5)}],
+    stored: [{id: 'L0', ownerId: 'o', recordedAt: at(0)}],
+    built: [{id: 'B0', ownerId: 'o', recordedAt: at(2.5)}],
     laps: [],
     nowIso: 'now',
   });
@@ -98,11 +102,16 @@ test('the game-file session takes the live id only for a defective capture, and 
 
 test('the upload tombstones what it replaces, keeps the lone stretch and its laps, and hides both from the leftover cleanup', async () => {
   const db = memoryStore({
-    'sessions/S': {id: 'S', recordingIds: ['L0', 'L1'], archiveParts: 4},
-    'recordings/L0': {id: 'L0', recordedAt: at(0)},
-    'recordings/L1': {id: 'L1', recordedAt: at(3000)},
-    'laps/l0': {id: 'l0', sessionId: 'S', recordingId: 'L0'},
-    'laps/l1': {id: 'l1', sessionId: 'S', recordingId: 'L1'},
+    'sessions/S': {
+      id: 'S',
+      ownerId: 'o',
+      recordingIds: ['L0', 'L1'],
+      archiveParts: 4,
+    },
+    'recordings/L0': {id: 'L0', ownerId: 'o', recordedAt: at(0)},
+    'recordings/L1': {id: 'L1', ownerId: 'o', recordedAt: at(3000)},
+    'laps/l0': {id: 'l0', ownerId: 'o', sessionId: 'S', recordingId: 'L0'},
+    'laps/l1': {id: 'l1', ownerId: 'o', sessionId: 'S', recordingId: 'L1'},
   });
   const out = {
     session: {
@@ -111,8 +120,8 @@ test('the upload tombstones what it replaces, keeps the lone stretch and its lap
       recordingIds: ['B0'],
       analysis: {v: 1, blocks: {}},
     },
-    recordings: [{id: 'B0', recordedAt: at(1)}],
-    laps: [{id: 'b0', sessionId: 'S', recordingId: 'B0'}],
+    recordings: [{id: 'B0', ownerId: 'o', recordedAt: at(1)}],
+    laps: [{id: 'b0', ownerId: 'o', sessionId: 'S', recordingId: 'B0'}],
     traces: [],
     files: [],
     band: null,
@@ -192,9 +201,14 @@ test('an adoption whose live session is gone from the store is undone, never re-
 
 test('the hand rebuild is tombstoned after the healed session is up, and nothing writes it again', async () => {
   const db = memoryStore({
-    'sessions/H': {id: 'H', recordingIds: ['h0'], analysis: {v: 1, blocks: {}}},
-    'recordings/h0': {id: 'h0', recordedAt: at(1)},
-    'laps/hl0': {id: 'hl0', sessionId: 'H', recordingId: 'h0'},
+    'sessions/H': {
+      id: 'H',
+      ownerId: 'o',
+      recordingIds: ['h0'],
+      analysis: {v: 1, blocks: {}},
+    },
+    'recordings/h0': {id: 'h0', ownerId: 'o', recordedAt: at(1)},
+    'laps/hl0': {id: 'hl0', ownerId: 'o', sessionId: 'H', recordingId: 'h0'},
   });
   const store = createStore({
     ...db,
