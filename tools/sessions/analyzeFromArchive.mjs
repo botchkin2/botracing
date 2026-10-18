@@ -20,7 +20,7 @@ import {
 } from './cornerSlices.mjs';
 import {classBestsDoc, classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {finishDoc} from '../../src/analysis/raceResult.ts';
-import {paceSetOf} from '../../src/analysis/paceSet.ts';
+import {paceFieldsOf, paceSetOf} from '../../src/analysis/paceSet.ts';
 import {carLabel} from '../../src/design/carModels.ts';
 import {lapTraffic} from './lapTraffic.mjs';
 import {adapter as adapterOf} from './sims.mjs';
@@ -419,16 +419,8 @@ export function analyzeFromArchive({
   };
 }
 
-// The lap docs as the opening set's rule reads them: the fields the app's
-// adapter (src/data/sessions/adapters.ts toLaps) maps them to.
+// The lap docs as the opening set's rule reads them: the same mapping the
+// app's adapter uses (paceFieldsOf), so a dot and its screen agree.
 export function paceSetTimes(laps) {
-  return paceSetOf(
-    laps.map(lap => ({
-      timeS: lap.timed === false ? null : lap.lapTime,
-      partial: lap.partial === true || lap.incomplete === true,
-      pitIn: lap.pitIn === true,
-      pitOut: lap.pitOut === true,
-      reasons: lap.reasons ?? [],
-    })),
-  ).map(lap => lap.timeS);
+  return paceSetOf(laps.map(paceFieldsOf)).map(lap => lap.timeS);
 }

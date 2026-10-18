@@ -1,3 +1,4 @@
+import {paceFieldsOf} from '@/src/analysis/paceSet';
 import {
   type ClassLaps,
   type ClassLapsKind,
@@ -1059,53 +1060,57 @@ function toPartialWhy(v: unknown): Lap['partialWhy'] {
 }
 
 export function toLaps(items: Record<string, unknown>[]): Lap[] {
-  const laps = items.map((raw, i) => ({
-    id: str(raw.id),
-    lapIndex: i + 1,
-    lapNumber: num(raw.lapNumber),
-    recordingId: str(raw.recordingId) || null,
-    timeS: raw.timed === false ? null : num(raw.lapTime),
-    sectorsS: Array.isArray(raw.sectors) ? raw.sectors.map(num) : [],
-    stint: num(raw.stint) ?? 1,
-    stintLap: num(raw.stintLap),
-    comparable: raw.comparable === true,
-    reasons: Array.isArray(raw.reasons) ? raw.reasons.map(r => str(r)) : [],
-    pitIn: raw.pitIn === true,
-    pitOut: raw.pitOut === true,
-    endedInReset: raw.endedInReset === true,
-    partial: raw.partial === true || raw.incomplete === true,
-    partialWhy: toPartialWhy(raw.partialWhy),
-    // Only the analysis's own `invalid` (the game gave −1 at a real crossing,
-    // not a reset's lap bump): never inferred from 'untimed' (sidepod #5337).
-    invalidTimeS:
-      raw.invalid === true &&
-      raw.partial !== true &&
-      raw.pitIn !== true &&
-      raw.pitOut !== true
-        ? num(raw.lapTime)
-        : null,
-    trackLimits: toLapStrikes(raw.trackLimits),
-    offTrackS: num(raw.offTrackSec) ?? 0,
-    hadImpact: (num(raw.impactMax) ?? 0) > 0,
-    sections: (Array.isArray(raw.corners) ? raw.corners : []).map(c => ({
-      ...toCornerFacts(c),
-      brakeApps: toBrakeApps(obj(c).brakeApps),
-      parts: (Array.isArray(obj(c).parts)
-        ? (obj(c).parts as unknown[])
-        : []
-      ).map(toCornerFacts),
-    })),
-    startStraight: toStartStraight(raw.startStraight),
-    cornerBoundaries: toBoundaryStamp(raw.cornerBoundaries),
-    traffic: toTraffic(raw.traffic),
-    fuel: toLapFuel(raw.fuel),
-    pitStop: toPitStop(raw.pitStop),
-    tyres: toLapTyres(raw.tyres),
-    coastS: num(raw.coastS),
-    tyresAbsent: str(raw.tyresAbsent) || null,
-    newTyres: false,
-    traceHz: num(raw.traceHz),
-  }));
+  const laps = items.map((raw, i) => {
+    // The fields the opening set reads, mapped once for app and uploader.
+    const pace = paceFieldsOf(raw);
+    return {
+      id: str(raw.id),
+      lapIndex: i + 1,
+      lapNumber: num(raw.lapNumber),
+      recordingId: str(raw.recordingId) || null,
+      timeS: pace.timeS,
+      sectorsS: Array.isArray(raw.sectors) ? raw.sectors.map(num) : [],
+      stint: num(raw.stint) ?? 1,
+      stintLap: num(raw.stintLap),
+      comparable: raw.comparable === true,
+      reasons: pace.reasons as LapReason[],
+      pitIn: pace.pitIn,
+      pitOut: pace.pitOut,
+      endedInReset: raw.endedInReset === true,
+      partial: pace.partial,
+      partialWhy: toPartialWhy(raw.partialWhy),
+      // Only the analysis's own `invalid` (the game gave −1 at a real crossing,
+      // not a reset's lap bump): never inferred from 'untimed' (sidepod #5337).
+      invalidTimeS:
+        raw.invalid === true &&
+        raw.partial !== true &&
+        raw.pitIn !== true &&
+        raw.pitOut !== true
+          ? num(raw.lapTime)
+          : null,
+      trackLimits: toLapStrikes(raw.trackLimits),
+      offTrackS: num(raw.offTrackSec) ?? 0,
+      hadImpact: (num(raw.impactMax) ?? 0) > 0,
+      sections: (Array.isArray(raw.corners) ? raw.corners : []).map(c => ({
+        ...toCornerFacts(c),
+        brakeApps: toBrakeApps(obj(c).brakeApps),
+        parts: (Array.isArray(obj(c).parts)
+          ? (obj(c).parts as unknown[])
+          : []
+        ).map(toCornerFacts),
+      })),
+      startStraight: toStartStraight(raw.startStraight),
+      cornerBoundaries: toBoundaryStamp(raw.cornerBoundaries),
+      traffic: toTraffic(raw.traffic),
+      fuel: toLapFuel(raw.fuel),
+      pitStop: toPitStop(raw.pitStop),
+      tyres: toLapTyres(raw.tyres),
+      coastS: num(raw.coastS),
+      tyresAbsent: str(raw.tyresAbsent) || null,
+      newTyres: false,
+      traceHz: num(raw.traceHz),
+    };
+  });
   return laps.map((lap, i) =>
     freshTyres(laps[i - 1]) ? {...lap, newTyres: true} : lap,
   );
