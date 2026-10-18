@@ -19,6 +19,10 @@ describe('chaseHeading', () => {
   it('keeps a yaw that disagrees with the road but matches the car travelling that way', () => {
     expect(chaseHeading({...base, gameYaw: Math.PI, travel: Math.PI - 0.1})).toBe(Math.PI);
   });
+  it('keeps the yaw of a spinning car: 100 degrees from the road and the travel is a spin, not a flip', () => {
+    const yaw = (100 * Math.PI) / 180;
+    expect(chaseHeading({...base, gameYaw: yaw, tangent: 0, travel: 0})).toBe(yaw);
+  });
   it('falls back to the road, then zero, without a yaw', () => {
     expect(chaseHeading({...base, gameYaw: null, travel: null, tangent: 0.4})).toBe(0.4);
     expect(chaseHeading({gameYaw: null, tangent: null, travel: null, speedKmh: 0, onRoad: false})).toBe(0);

@@ -1,11 +1,13 @@
-// Which way a car points in the chase view. The stored yaw is the game's own and is right on the road (measured:
-// 99.8 % within 10 degrees of the road direction on Portimao, 98.9 % on Silverstone), but a few samples are flipped, so
-// it is kept only where it agrees with the road or with the car's own travel. Plain TypeScript, imports one file.
+// Which way a car points in the chase view. The stored yaw is the game's own and is the answer wherever it exists:
+// measured on his Portimao practice and Silverstone race it is within 10 degrees of the car's travel on 99.9 % of
+// moving frames, and the frames beyond 50 degrees (16 of 41 334 on Silverstone, none on Portimao) are a car spinning,
+// which is real. Only a yaw pointing the opposite way to both the road and the car's travel is treated as a flipped
+// sample. Plain TypeScript, imports one file.
 
 import {angDiff} from './chaseMath.ts';
 
-/** A stored yaw this far (radians) from both the road tangent and the direction of travel is a flipped sample. */
-export const FLIP_LIMIT_RAD = 0.9;
+/** A stored yaw this far (radians, 150 degrees) from both the road tangent and the direction of travel points the wrong way round. */
+export const FLIP_LIMIT_RAD = 2.6;
 /** Below this speed the direction of travel is noise. */
 export const TRAVEL_MIN_KMH = 8;
 

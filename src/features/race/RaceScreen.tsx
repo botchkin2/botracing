@@ -428,10 +428,11 @@ function RaceView({
     return {
       classTag: classes.of(me.classKey).title,
       classPlace: me.classPlace,
-      aheadS: me.intervalS,
-      behindS: behind?.intervalS ?? null,
+      // before the start the cars stand on the grid: there is no gap to show
+      aheadS: shownS < startS ? null : me.intervalS,
+      behindS: shownS < startS ? null : behind?.intervalS ?? null,
     };
-  }, [cars, focus, classes]);
+  }, [cars, focus, classes, shownS, startS]);
   // The 3D chase: every car as the map has it, on the road the game measured.
   const chase = useMemo<RaceChase | null>(
     () =>
