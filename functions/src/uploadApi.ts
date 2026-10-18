@@ -35,9 +35,13 @@ function firebaseDocs(): DocStore {
         .collection(collectionPath)
         .where('sessionId', '==', sessionId)
         .where('ownerId', '==', ownerKey)
-        .select()
+        .select('supersededBy')
         .get();
-      return snap.docs.map(doc => doc.id);
+      // A superseded lap (heal.mjs) is not the session's: the uploader's
+      // leftover cleanup must not see it, or it would delete the tombstone.
+      return snap.docs
+        .filter(doc => !doc.get('supersededBy'))
+        .map(doc => doc.id);
     },
     async commit(writes) {
       const batch = db.batch();
@@ -109,9 +113,14 @@ function firebaseFiles(): FileStore {
         const encoding = contentEncoding
           ? `&contentEncoding=${contentEncoding}`
           : '';
+        // The query sets the object's contentEncoding. A Content-Encoding
+        // header on this POST would be taken as the request's own encoding:
+        // the emulator inflates the body and stores plain JSON marked gzip,
+        // which the reader then fails to gunzip (#619 contract-replay).
+        const {'Content-Encoding': _sent, ...plain} = headers;
         return {
           url: `http://${emulator}/upload/storage/v1/b/${BUCKET}/o?uploadType=media&name=${name}${encoding}`,
-          headers,
+          headers: plain,
           method: 'POST' as const,
         };
       }

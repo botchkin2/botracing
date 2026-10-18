@@ -5,6 +5,7 @@ import Constants from 'expo-constants';
 import {type QueryLike, queryState} from '@/src/data/queryState';
 import {dayMonthOf, formatOffline} from '@/src/design';
 import {
+  SEEN_MS,
   type Uploader,
   type UploaderProblem,
   useUploaders,
@@ -45,7 +46,6 @@ export type SettingsModel = {
   version: string;
 };
 
-export const SEEN_MS = 10 * 60_000;
 // States from tools/capture/recorder.py's status.json (thread 30, #461/#472).
 const RECORDER_LABEL: Record<string, string> = {
   recording: 'recording',

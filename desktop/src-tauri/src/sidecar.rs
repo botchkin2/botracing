@@ -138,7 +138,10 @@ fn command(p: &Paths) -> Command {
         .env("LAP_UPLOADER_HOME", uploader_home(&p.data))
         .env("LAP_VERSION", env!("CARGO_PKG_VERSION"))
         .env("LAP_PARENT_PID", std::process::id().to_string())
-        .env("LAP_LOCK_PIPE", crate::profile::lock_pipe());
+        .env("LAP_LOCK_PIPE", crate::profile::lock_pipe())
+        // The recorders' folder, so a profile's uploader reads and prunes its
+        // own captures, never the real tray's (pit wall #5281).
+        .env("LAP_CAPTURE", crate::capture::runner::capture_root());
     cmd
 }
 

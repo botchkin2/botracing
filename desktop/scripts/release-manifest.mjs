@@ -1,4 +1,4 @@
-// What CI does around `tauri build` for a tray release (.github/workflows/tray-release.yml):
+// What CI does around `tauri build` for a tray release (.github/workflows/release-tray.yml):
 //
 //   node desktop/scripts/release-manifest.mjs check tray-v0.1.1
 //       the tag, tauri.conf.json and Cargo.toml all say the same version
@@ -49,6 +49,45 @@ export function cargoVersionOf(cargoToml) {
   const match = /^\s*version\s*=\s*"([^"]+)"/m.exec(cargoToml);
   if (!match) throw new Error('Cargo.toml has no version');
   return match[1];
+}
+
+/** A release version as "Release tray" takes it: X.Y.Z, nothing else. */
+export function releaseVersion(version) {
+  if (!/^\d+\.\d+\.\d+$/.test(version ?? ''))
+    throw new Error(`"${version}" is not an X.Y.Z version`);
+  return version;
+}
+
+/**
+ * The version written into the build's own checkout (never committed): main
+ * stays 0.0.0-dev, so a local or rc build is never mistaken for a release, and
+ * the release's tag is the record of what shipped (roadmap 2w). Returns the
+ * files' new text; only the `botracing` package's version in Cargo.lock moves.
+ */
+export function stampVersions(version, files) {
+  releaseVersion(version);
+  const conf = JSON.parse(files.conf);
+  conf.version = version;
+  const pkg = JSON.parse(files.pkg);
+  pkg.version = version;
+  const lock = JSON.parse(files.pkgLock);
+  lock.version = version;
+  if (lock.packages?.['']) lock.packages[''].version = version;
+  const cargo = files.cargo.replace(
+    /^(\s*version\s*=\s*)"[^"]+"/m,
+    `$1"${version}"`,
+  );
+  const botracingLock = /(\[\[package\]\]\r?\nname = "botracing"\r?\nversion = )"[^"]+"/;
+  if (!botracingLock.test(files.cargoLock))
+    throw new Error('Cargo.lock has no botracing package to stamp');
+  const cargoLock = files.cargoLock.replace(botracingLock, `$1"${version}"`);
+  return {
+    conf: `${JSON.stringify(conf, null, 2)}\n`,
+    pkg: `${JSON.stringify(pkg, null, 2)}\n`,
+    pkgLock: `${JSON.stringify(lock, null, 2)}\n`,
+    cargo,
+    cargoLock,
+  };
 }
 
 /** latest.json: the version, where its installer is in Storage, and its signature. */
@@ -110,20 +149,63 @@ function build(outDir) {
   console.log(`laid out ${installer} ${confVersion} in ${outDir}`);
 }
 
+/**
+ * "Release tray"'s layout (roadmap 2w): the installer the gates tested and the
+ * .sig the publish job made beside it, by path, at the version it was stamped.
+ */
+function layout(installerPath, version, outDir) {
+  releaseVersion(version);
+  const installer = installerPath.split(/[\\/]/).pop();
+  if (!installer.endsWith('-setup.exe'))
+    throw new Error(`${installer} is not a -setup.exe`);
+  const to = join(outDir, 'tray', version);
+  mkdirSync(to, {recursive: true});
+  copyFileSync(installerPath, join(to, installer));
+  copyFileSync(`${installerPath}.sig`, join(to, `${installer}.sig`));
+  const latest = buildLatest({
+    version,
+    installer,
+    signature: readFileSync(`${installerPath}.sig`, 'utf8'),
+    pubDate: new Date().toISOString(),
+  });
+  writeFileSync(
+    join(outDir, 'tray', 'latest.json'),
+    `${JSON.stringify(latest, null, 2)}\n`,
+  );
+  console.log(`laid out ${installer} ${version} in ${outDir}`);
+}
+
 if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
-  const [command, arg] = process.argv.slice(2);
+  const [command, arg, ...rest] = process.argv.slice(2);
   try {
-    if (command === 'check') {
+    if (command === 'layout' && arg && rest.length === 2) {
+      layout(arg, rest[0], rest[1]);
+    } else if (command === 'stamp' && arg) {
+      const desktop = resolve(tauriDir, '..');
+      const paths = {
+        conf: join(tauriDir, 'tauri.conf.json'),
+        pkg: join(desktop, 'package.json'),
+        pkgLock: join(desktop, 'package-lock.json'),
+        cargo: join(tauriDir, 'Cargo.toml'),
+        cargoLock: join(tauriDir, 'Cargo.lock'),
+      };
+      const files = Object.fromEntries(
+        Object.entries(paths).map(([k, p]) => [k, readFileSync(p, 'utf8')]),
+      );
+      const stamped = stampVersions(arg, files);
+      for (const [k, p] of Object.entries(paths)) writeFileSync(p, stamped[k]);
+      console.log(`stamped ${arg} into tauri.conf.json, Cargo.toml, Cargo.lock, package.json, package-lock.json`);
+    } else if (command === 'check') {
       const version = checkVersions({tag: arg, ...readVersions()});
       console.log(`tag, tauri.conf.json and Cargo.toml agree on ${version}`);
     } else if (command === 'build' && arg) {
       build(arg);
     } else {
       throw new Error(
-        'usage: release-manifest.mjs check <tag> | build <outDir>',
+        'usage: release-manifest.mjs stamp <X.Y.Z> | layout <installer> <X.Y.Z> <outDir> | check <tag> | build <outDir>',
       );
     }
   } catch (error) {

@@ -32,3 +32,40 @@ Locally, `gcloud auth login` is enough, or run `make.mjs` on a PC with the sessi
 
 Slices are never regenerated for a small reason: every new one is another 1 to 4 MB in
 the bucket, and the manifest's sha256s change with it.
+
+## The parity pairs
+
+Each pair is one drive recorded twice, by the tray's capture and by the game,
+with the curated track docs both paths read (`catalog.json`):
+
+- `road-atlanta-2026-10-03-race`: the golden live capture
+  (`golden/live-capture/road-atlanta-2026-10-03/`, the first five laps of the race)
+  and the game's file of the same race cut to that window
+  (`golden/parity/road-atlanta-2026-10-03/`).
+- `road-atlanta-2026-10-02-practice` (`golden/parity/road-atlanta-2026-10-02-practice.tar.gz`):
+  a practice with a reset to the garage, out-laps and a lap the game
+  invalidated; the capture cut to the session before the restart.
+
+Driver names are blanked (the game file's DriverName is `seat-test`; the
+capture's field `mDriverName` is empty and its `playerName` is `seat-test`).
+
+- `parity.mjs <pair folder>`: builds the drive through today's capture path
+  (`syncLive` → `analyzeStored`) and game-file path (`buildSession`, sync.mjs's
+  build → `store.upload`) into memory (`memoryStore.mjs`), compares every
+  session and lap field, and checks both against the feature manifest
+  (`tools/sessions/manifest.mjs`). Prints each unexplained difference and miss.
+  `memoryStore.mjs` refuses writes as the upload API does: both call
+  `functions/src/contract/ownership.ts` (a merge on an owned doc names its owner).
+- `parityAllow.json`: what may differ, each entry with its reason. `tol` bounds
+  numbers, `tolS` bounds two times in seconds; no bound allows any value.
+  `when: "untimed"` applies to laps the game did not time, `pair` to one pair
+  only, and `laps.first` / `laps.last` name a pair's first and last lap. An entry
+  marked `gap` is a known missing feature or an open finding
+  (`docs/SESSION_PIPELINE.md`) and is deleted when it is fixed or ruled on.
+- `results/<pair>.xml`: the game's results file for a pair (thread 70): his rows only, his name the placeholder `__DRIVER__` and no team, car or other driver, pinned by sha256 in `manifest.json` (`parityResults`). `parity.mjs` fills the name in per source (the capture's meta says who he is, the cut game file says seat-test) and writes the file where the game would have, so both paths read the same rulings; the manifest then expects `trackLimits` on the session and the laps (`checkSession`, `results: true`). Road Atlanta 3 Oct: five No Further Action strikes, two of them outside his laps.
+- `parity.test.mjs`: the rules everywhere; the pairs where `PARITY_PAIRS` names
+  their folder. CI's `contract-replay` job fetches them (sha256-pinned in
+  `.github/workflows/test.yml`) on any change to the tray, sessions, golden or
+  API code.
+- `cutGameFile.mjs <in.duckdb> <out.duckdb> <untilT>` and
+  `cutCapture.mjs <capture> <out> <lastChunk> <endUtc>`: how the pairs were cut.

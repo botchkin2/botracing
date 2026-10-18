@@ -6,7 +6,12 @@
 //
 //   node tools/dev/replayCapture.mjs --from <capture folder> --out <root> [--speed 1]
 //
-// --speed 10 plays ten times faster. Times are the capture's own clock.
+// --speed 10 plays ten times faster. The play-time clock is the capture's own.
+// The wall clock is shifted to now (every wall_ms, meta's startUtc/endUtc and
+// the folder's name): the session id comes from the capture's wall time, so a
+// capture replayed twice would land on the same stored session and every lap
+// would be "nothing new". A replay is a drive happening now. --keep-clock keeps
+// the capture's own time (a test of the same stored session).
 import {
   existsSync,
   mkdirSync,
@@ -27,6 +32,7 @@ const speed = Number(arg('--speed', '1'));
 // --laps n: stop after the nth finished lap (the drive goes on, the test ends).
 const maxLaps = Number(arg('--laps', '0')) || Infinity;
 let lapsDone = 0;
+const keepClock = process.argv.includes('--keep-clock');
 if (!existsSync(resolve(from, 'meta.json')) || !arg('--out')) {
   console.error(
     'usage: --from <capture folder> --out <scratch root> [--speed n]',
@@ -60,9 +66,27 @@ const lapCuts = crossings
   .map(t => t + LAP_CUT_AFTER_S);
 const cuts = [Number(t0), ...lapCuts, Number(t1) + 0.001];
 
-const dir = resolve(root, basename(from));
+const meta0 = JSON.parse(readFileSync(resolve(from, 'meta.json'), 'utf8'));
+// The shift: the capture's first player sample lands on now.
+const [{w0}] = rows(
+  ':memory:',
+  `SELECT min(wall_ms) w0 FROM read_parquet(${glob('player')})`,
+);
+const shiftMs = keepClock ? 0 : Date.now() - Number(w0);
+const shifted = iso =>
+  iso ? new Date(Date.parse(iso) + shiftMs).toISOString() : iso;
+const meta = {
+  ...meta0,
+  startUtc: shifted(meta0.startUtc),
+  endUtc: shifted(meta0.endUtc),
+};
+// The folder is named by its start: <startUtc with : as ->_<track>_<session>.
+const stampOf = iso => iso.replace(/\.\d+Z$/, 'Z').replace(/:/g, '-');
+const folder = keepClock
+  ? basename(from)
+  : basename(from).replace(/^[^_]+/, stampOf(meta.startUtc));
+const dir = resolve(root, folder);
 mkdirSync(dir, {recursive: true});
-const meta = JSON.parse(readFileSync(resolve(from, 'meta.json'), 'utf8'));
 const status = resolve(root, 'status.json');
 const writeJson = (path, value) => {
   writeFileSync(`${path}.tmp`, JSON.stringify(value, null, 1));
@@ -105,7 +129,7 @@ for (let n = 0; n + 1 < cuts.length; n++) {
     const out = resolve(dir, `${kind}-${name}.parquet`);
     run(
       ':memory:',
-      `COPY (SELECT * FROM read_parquet(${glob(
+      `COPY (SELECT * REPLACE (wall_ms + ${shiftMs} AS wall_ms) FROM read_parquet(${glob(
         kind,
       )}) WHERE ${clock} >= ${a} AND ${clock} < ${b})
        TO ${sqlPath(`${out}.tmp`)} (FORMAT parquet, COMPRESSION zstd)`,
@@ -122,7 +146,7 @@ for (let n = 0; n + 1 < cuts.length; n++) {
     status,
     recorderStatus('recording', {
       lastChunkAt: iso(),
-      sessionDir: basename(from),
+      sessionDir: folder,
     }),
   );
   console.log(
@@ -132,6 +156,12 @@ for (let n = 0; n + 1 < cuts.length; n++) {
   );
   if (lapsDone >= maxLaps) break;
 }
-writeJson(resolve(dir, 'meta.json'), {...meta, chunks: cuts.length - 1});
-writeJson(status, recorderStatus('waiting'));
+// --laps: the drive goes on, so the capture stays open (no endUtc, still
+// recording). Closing it here ended the drive 1 s after the line, and the
+// watcher sent that second as a lap of its own (lapCount 4 after 3 laps, pit
+// wall thread 69).
+if (lapsDone < maxLaps) {
+  writeJson(resolve(dir, 'meta.json'), {...meta, chunks: cuts.length - 1});
+  writeJson(status, recorderStatus('waiting'));
+}
 console.log(`${iso()} replay done, ${lapsDone} laps`);

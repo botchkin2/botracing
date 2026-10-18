@@ -1,7 +1,5 @@
 import {type TrayRelease} from '@/src/data/tray';
-import {type Uploader} from '@/src/data/uploaders';
-
-import {SEEN_MS} from './model';
+import {SEEN_MS, type Uploader, compareVersions} from '@/src/data/uploaders';
 
 // The Windows app card on Settings (pit-wall thread 54): what the Download
 // button says, from the state of the release query. Pure, so each state is
@@ -15,20 +13,6 @@ export type TrayCard = {
   /** One line per PC: its tray version against the latest, or not reporting. */
   pcs: string[];
 };
-
-/** [major, minor, patch] of 'x.y.z' (a pre-release suffix is ignored), else null. */
-function semver(v: string): [number, number, number] | null {
-  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(v);
-  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
-}
-
-/** Negative when a is older than b; null when either is not a x.y.z version. */
-export function compareVersions(a: string, b: string): number | null {
-  const x = semver(a);
-  const y = semver(b);
-  if (!x || !y) return null;
-  return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
-}
 
 /**
  * What one PC's tray says about itself: its version, then 'not reporting' when

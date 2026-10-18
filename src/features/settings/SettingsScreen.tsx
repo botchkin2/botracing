@@ -11,12 +11,17 @@ import {
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {accountLabel, useAuthStore, useSignIn} from '@/src/auth';
+import {
+  accountLabel,
+  trayRestart,
+  useAuthStore,
+  useSignIn,
+} from '@/src/auth';
 import {radius, size, space, useLayout, useTheme} from '@/src/design';
 import {androidDownloadUrl, useAndroidRelease} from '@/src/data/android';
 import {trayDownloadUrl, useTrayRelease} from '@/src/data/tray';
 import {readFailure} from '@/src/data/queryState';
-import {useUploaders} from '@/src/data/uploaders';
+import {updateReady, useUploaders} from '@/src/data/uploaders';
 import {useSectionPrefs, sectionModeOf} from '@/src/state/sectionPrefs';
 import {OfflineLine, Button, Pressable, Segment, Text} from '@/src/ui';
 
@@ -28,6 +33,7 @@ import {
 } from './androidCard';
 import {type ProblemRow, type UploaderCard, useSettingsModel} from './model';
 import {trayCard} from './trayCard';
+import {UpdateRow} from './UpdateRow';
 
 // Settings (handoff v2 M5): the uploader card per sim PC, then the app
 // version. Theme, pairing and offline data are not on the list (decision
@@ -155,6 +161,12 @@ function WindowsApp() {
     pcs: uploaders.data,
     nowMs: uploaders.dataUpdatedAt || undefined,
   });
+  const restart = typeof window === 'undefined' ? null : trayRestart(window);
+  const ready = updateReady(
+    uploaders.data,
+    uploaders.dataUpdatedAt,
+    restart != null,
+  );
   return (
     <>
       <Text variant='label' tone='textMuted' style={styles.section}>
@@ -168,6 +180,7 @@ function WindowsApp() {
         <Text variant='data' tone='textSecondary'>
           {card.status}
         </Text>
+        <UpdateRow ready={ready} restart={restart} />
         {card.pcs.map(line => (
           <Text key={line} variant='dataSmall' tone='textSecondary'>
             {line}

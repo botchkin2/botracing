@@ -208,8 +208,9 @@ pub fn library_paths(vdf: &str) -> Vec<PathBuf> {
         .collect()
 }
 
-/// `LAP_CAPTURE` overrides `%LOCALAPPDATA%\lap-capture`, the folder the
-/// uploader reads (tools/sessions/sync.mjs).
+/// `LAP_CAPTURE` overrides `%LOCALAPPDATA%\lap-capture` (a profile's own,
+/// `lap-capture-<profile>`, profile.rs). The tray hands the result to the
+/// uploader as LAP_CAPTURE (sidecar.rs), so both read the same folder.
 pub fn capture_root() -> PathBuf {
     if let Some(dir) = std::env::var_os("LAP_CAPTURE") {
         return PathBuf::from(dir);
@@ -217,7 +218,7 @@ pub fn capture_root() -> PathBuf {
     std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir)
-        .join("lap-capture")
+        .join(crate::profile::capture_dir_name())
 }
 
 #[cfg(windows)]

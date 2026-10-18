@@ -189,3 +189,10 @@ test('a recording the sync could not read is named once, with the reason', () =>
     {name: 'b.ibt', why: 'could not open the file'},
   ]);
 });
+
+test('a heal line adds its replaced recordings to the sync result', () => {
+  const r = newSyncResult();
+  readSyncLine(r, '  heal: 2 recording(s) replaced (a -> b, c -> d), 5 lap(s) hidden, 0 stretch(es) kept ()');
+  readSyncLine(r, '  heal: 1 recording(s) replaced (e -> f), 0 lap(s) hidden, 1 stretch(es) kept (g)');
+  assert.equal(r.healed, 3);
+});

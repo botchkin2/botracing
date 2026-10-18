@@ -67,3 +67,13 @@ test('every released tray from the oldest with payloads on has payloads', () => 
     'save a real beat of each in contract/payloads/heartbeat',
   );
 });
+
+test('a real beat with a tray update waiting is accepted; a non-string or over-long version is refused', () => {
+  const real = payload('heartbeat', '0.1.12-update-waiting-rec-none');
+  assert.equal(real.updateWaiting, '0.1.13');
+  const ok = checkHeartbeat(real);
+  assert.ok(ok.ok, ok.ok ? '' : ok.error);
+  assert.equal(ok.doc.updateWaiting, '0.1.13');
+  assert.equal(checkHeartbeat(mutate(real, 'updateWaiting', 12)).ok, false);
+  assert.equal(checkHeartbeat(mutate(real, 'updateWaiting', 'x'.repeat(33))).ok, false);
+});

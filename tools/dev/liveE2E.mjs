@@ -3,7 +3,7 @@
 // as seat-test against the production API with LMU "running", and the time
 // from each lap reaching the disk to the session's lap count showing it.
 //
-//   node tools/dev/liveE2E.mjs --from <capture folder> --token <seat-test ID token file> --custom-token <seat-test custom token file> [--laps 4] [--speed 1] [--max-lap-s 15]
+//   node tools/dev/liveE2E.mjs --from <capture folder> --token <seat-test ID token file> --custom-token <seat-test custom token file> [--laps 4] [--speed 1] [--max-lap-s 30] [--pane-origin <app origin>]
 //
 // Exits 1, the release gate's fail, when a lap never reaches the app or takes
 // more than --max-lap-s from the disk to the session's lap count, or when the
@@ -13,12 +13,13 @@
 //
 // Scratch folders only: nothing of the real tray, capture or uploader is touched.
 import {spawn} from 'node:child_process';
-import {mkdirSync, mkdtempSync, readFileSync} from 'node:fs';
+import {mkdirSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {liveVerdict, screenLapCount} from './liveGate.mjs';
 import {openPane} from './livePane.mjs';
+import {seatSession} from './seatSession.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const arg = (name, fallback) => {
@@ -26,10 +27,25 @@ const arg = (name, fallback) => {
   return i < 0 ? fallback : process.argv[i + 1];
 };
 const from = resolve(arg('--from', ''));
-const token = resolve(arg('--token', ''));
+// CI (roadmap 2w): --refresh-token <file> holds seat-test's refresh token, the
+// only credential there. It gives the watcher and the API polls an ID token
+// (written to the scratch folder) and the panes a signed-in session
+// (seatSession.mjs), so neither --token nor --custom-token is needed.
+const refreshTokenFile = arg('--refresh-token', '');
+const session = refreshTokenFile
+  ? await seatSession({refreshToken: readFileSync(resolve(refreshTokenFile), 'utf8')})
+  : null;
+// The watcher the release ships (roadmap 2w): the installed tray's own node and
+// app folder, not this checkout's (--node <node.exe> --app <install>\app).
+const nodeExe = arg('--node', process.execPath);
+const appDir = arg('--app', '') ? resolve(arg('--app', '')) : resolve(here, '../..');
 const laps = Number(arg('--laps', '4'));
 const speed = arg('--speed', '1');
-const maxLapS = Number(arg('--max-lap-s', '15'));
+// 30 s from the line to the app and the screen (Botkin, 2026-10-15: "30
+// seconds is propbably fine. I don't want to risk random flake blocking a
+// release").
+// 0.1.11 measured 10.7-12.3 s on the screen (run 38662560290).
+const maxLapS = Number(arg('--max-lap-s', '30'));
 // The Sessions list learns of a drive from the uploader signal (one /uploaders
 // call a minute), not a poll of its own: its limit is 75 s, apart from the laps'.
 const maxListS = Number(arg('--max-list-s', '75'));
@@ -42,13 +58,20 @@ const customToken = arg('--custom-token', '')
   ? resolve(arg('--custom-token', ''))
   : '';
 const noScreen = process.argv.includes('--no-screen');
-if (!customToken && !noScreen) {
+if (!customToken && !session && !noScreen) {
   console.log(
-    'FAIL: --custom-token <file> is needed for the screen check (--no-screen skips it; the release gate does not accept that)',
+    'FAIL: --custom-token <file> or --refresh-token <file> is needed for the screen check (--no-screen skips it; the release gate does not accept that)',
   );
   process.exit(1);
 }
+const paneOptions = session
+  ? {session}
+  : {customTokenFile: customToken};
 const api = process.env.LAP_API_BASE || 'https://botracing-61.web.app';
+// The app the panes open: the API's own host by default; --pane-origin
+// http://localhost:<live slot port> checks a branch's app against the same API
+// before it deploys (AGENTS.md live slots).
+const paneOrigin = arg('--pane-origin', api);
 
 const root = mkdtempSync(resolve(tmpdir(), 'live-e2e-'));
 const dirs = Object.fromEntries(
@@ -58,14 +81,22 @@ const dirs = Object.fromEntries(
     return [d, p];
   }),
 );
+// The ID token the watcher uploads with and the polls read with.
+const token = session
+  ? (() => {
+      const file = resolve(root, 'seat.idt');
+      writeFileSync(file, session.idToken);
+      return file;
+    })()
+  : resolve(arg('--token', ''));
 const t0 = Date.now();
 const stamp = () => `${((Date.now() - t0) / 1000).toFixed(1).padStart(7)} s`;
 
 // The watcher, as the tray runs it, with LMU "running" (node.exe always is).
 const watcher = spawn(
-  process.execPath,
+  nodeExe,
   [
-    resolve(here, '../uploader/watch.mjs'),
+    resolve(appDir, 'tools/uploader/watch.mjs'),
     '--',
     '--remote',
     '--work',
@@ -122,6 +153,7 @@ replay.stdout.setEncoding('utf8').on('data', chunk => {
 const seen = new Map();
 const onScreen = new Map();
 let pane = null;
+let paneOpening = null;
 // The Sessions list, open and untouched from before the first lap: the drive
 // must change it by itself (Botkin had to filter to LMU to find the live
 // session, thread 1 #4997). Its text is the baseline; the first change after
@@ -131,12 +163,30 @@ let listPane = null;
 let listBaseline = null;
 const onList = new Map();
 if (!noScreen) {
-  listPane = await openPane({origin: api, customTokenFile: customToken});
+  listPane = await openPane({origin: paneOrigin, ...paneOptions});
   await listPane.goto('/', 4000);
   listBaseline = await listPane.text();
   console.log(`${stamp()} list pane open (${listBaseline.length} chars)`);
 }
+// The capture's session was already stored: nothing can "arrive", so the run
+// says so and stops, instead of reporting laps that never reached the app. The
+// replay shifts the capture's clock to now (replayCapture.mjs), so this is a
+// harness fault, not a product miss. Only before the first lap arrives: in a
+// valid run the watcher logs the same line once the cloud analysis writes a
+// newer stamp (sidepod, #608 review), and that must not wipe real verdicts.
+let alreadyStored = false;
 const poll = async () => {
+  try {
+    if (
+      seen.size === 0 &&
+      readFileSync(watchLog, 'utf8').includes(
+        'nothing new over the stored session',
+      )
+    )
+      alreadyStored = true;
+  } catch {
+    // No log yet.
+  }
   if (!sessionId) {
     try {
       const m = readFileSync(watchLog, 'utf8').match(
@@ -146,12 +196,19 @@ const poll = async () => {
     } catch {
       // No log yet.
     }
-    if (sessionId && !noScreen) {
-      pane = await openPane({origin: api, customTokenFile: customToken});
-      await pane.goto(`/session/${sessionId}`);
-      console.log(`${stamp()} pane open on session ${sessionId}`);
-    }
-    return;
+    // The pane opens beside the polls, not between them: awaiting its ~7 s
+    // start here left the API unread, and lap 1 read 13 s "in the app" for a
+    // doc written 5.6 s after the line (pit wall thread 69).
+    if (sessionId && !noScreen)
+      paneOpening = openPane({origin: paneOrigin, ...paneOptions})
+        .then(async p => {
+          await p.goto(`/session/${sessionId}`);
+          pane = p;
+          console.log(`${stamp()} pane open on session ${sessionId}`);
+        })
+        // No pane: no lap reaches the screen, and the verdict says so.
+        .catch(err => console.log(`${stamp()} pane: ${err.message}`));
+    if (!sessionId) return;
   }
   const res = await fetch(`${api}/api/sessions/${sessionId}`, {
     headers: {Authorization: `Bearer ${readFileSync(token, 'utf8').trim()}`},
@@ -200,10 +257,11 @@ const poll = async () => {
 const done = () =>
   seen.size >= laps && (noScreen || (onScreen.size >= laps && onList.has(1)));
 const until = Date.now() + (laps * 100_000) / Number(speed) + 180_000;
-while (Date.now() < until && !done()) {
+while (Date.now() < until && !done() && !alreadyStored) {
   await new Promise(r => setTimeout(r, 2000));
   await poll().catch(err => console.log(`${stamp()} poll: ${err.message}`));
 }
+await paneOpening;
 if (pane) await pane.close();
 if (listPane) await listPane.close();
 watcher.kill();
@@ -233,7 +291,30 @@ if (!noScreen) {
     }),
   );
 }
-const problems = verdicts.flatMap(v => v.problems);
+// The recording itself reached Storage through the signed-URL PUT, the one
+// step the emulator gate cannot run (pit wall #5133). uploadLive writes the lap
+// docs only after every part is up, so a lap in the app already implies it;
+// this says it outright, and fails a run where no part was ever sent (every
+// part skipped by md5 would measure nothing).
+let partsSent = 0;
+try {
+  for (const m of readFileSync(watchLog, 'utf8').matchAll(
+    /live: (\d+) of \d+ parts sent/g,
+  ))
+    partsSent += Number(m[1]);
+} catch {
+  // No log: the lap verdicts already fail.
+}
+console.log(`recording parts sent to Storage: ${partsSent}`);
+if (partsSent === 0 && !alreadyStored)
+  verdicts.push({
+    problems: ['no recording part was sent to Storage (signed-URL PUT)'],
+  });
+const problems = alreadyStored
+  ? [
+      'capture already uploaded ("nothing new over the stored session"): this run measured nothing, use another capture',
+    ]
+  : verdicts.flatMap(v => v.problems);
 for (const p of problems) console.log(`FAIL: ${p}`);
 const pass = problems.length === 0;
 console.log(

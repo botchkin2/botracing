@@ -3,7 +3,7 @@
 // A field the header does not have stops the recorder at start.
 
 use crate::capture::columns::decode_text;
-use crate::capture::layout::{size_align, Kind, Layout};
+use crate::capture::layout::{Kind, Layout};
 
 /// Offset of `path` inside `struct_name`: dotted names, with array positions
 /// as numbers ("mWheel.0.mTemperature.1").
@@ -21,7 +21,7 @@ pub fn offset_of(layout: &Layout, struct_name: &str, path: &str) -> Result<usize
             if i >= *n {
                 return Err(format!("{struct_name}.{path}: {i} is past the {n} elements"));
             }
-            offset += i * size_align(inner).0;
+            offset += i * layout.size_of(inner)?;
             kind = Some((**inner).clone());
             continue;
         }
@@ -148,4 +148,25 @@ pub fn u8_at(raw: &[u8], at: usize) -> u8 {
 
 pub fn text_at(raw: &[u8], t: Text) -> String {
     raw.get(t.at..t.at + t.len).map_or_else(String::new, decode_text)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_wheel_by_position_is_its_own_slot() {
+        // An array of structs was stepped by 0, so "mWheel.1..." was FL's (pit wall #5324).
+        let lay = Layout::parse(include_str!("../../../../tools/capture/tests/fixture.hpp")).unwrap();
+        let telem = lay.built("TelemInfoV01").unwrap();
+        let wheel = lay.built("TelemWheelV01").unwrap();
+        let base = telem.fields.iter().find(|f| f.name == "mWheel").unwrap().offset;
+        let brake = wheel.fields.iter().find(|f| f.name == "mBrakeTemp").unwrap().offset;
+        for i in 0..4 {
+            assert_eq!(
+                offset_of(&lay, "TelemInfoV01", &format!("mWheel.{i}.mBrakeTemp")).unwrap(),
+                base + i * wheel.size + brake
+            );
+        }
+    }
 }

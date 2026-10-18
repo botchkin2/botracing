@@ -11,6 +11,7 @@ export interface Engine {
     sessionId: string;
     owner: string;
     workDir: string;
+    beforeWrite?: () => Promise<void>;
     log?: (line: string) => void;
   }): Promise<{laps: number}>;
   adminBackend(o: {db: unknown; bucket: unknown}): unknown;
@@ -29,10 +30,22 @@ export interface Engine {
 
 let engine: Engine | undefined;
 
+/** The bundled engine. Loading it stages nothing: the staleness test needs no DuckDB. */
 export function loadEngine(): Engine {
-  if (engine) return engine;
-  // The DuckDB CLI the deploy ships (bin/duckdb). The zip a deploy uploads may
-  // drop the exec bit, so a copy in /tmp runs. duck.mjs reads DUCKDB on load.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  engine ??= require('./engine.cjs') as Engine;
+  return engine;
+}
+
+/**
+ * The engine with its DuckDB CLI ready, for the functions that analyse
+ * (analyzeApi, liveAnalyze). The deploy ships bin/duckdb; the zip may drop the
+ * exec bit, so a copy in /tmp runs. /tmp is memory on Cloud Run, and the
+ * 54 MiB copy made on dataApi's 256 MiB lines up with its out-of-memory
+ * restarts during drives (pit wall thread 69), so only these functions make
+ * it. duck.mjs reads DUCKDB on first use.
+ */
+export function analysisEngine(): Engine {
   const shipped = resolve(__dirname, '../bin/duckdb');
   if (existsSync(shipped)) {
     const runnable = join(tmpdir(), 'duckdb');
@@ -42,9 +55,7 @@ export function loadEngine(): Engine {
     }
     process.env.DUCKDB = runnable;
   }
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  engine = require('./engine.cjs') as Engine;
-  return engine;
+  return loadEngine();
 }
 
 // The curated track docs staleNow reads, kept per instance for a minute: every
@@ -71,18 +82,29 @@ function trackDoc(
 
 /**
  * Whether a stored session needs analysing again under the deployed code and
- * today's curated track. An engine that fails to load must not take the
- * session route down with it: the session reads as fresh, and the error is
- * logged.
+ * today's curated track: the one test the session route answers with and an
+ * analysis run checks before it runs (analyzeApi engineDeps). Throws when it
+ * cannot tell.
+ */
+export function isSessionStale(
+  session: Record<string, unknown>,
+  getDoc: (coll: string, id: string) => Promise<unknown>,
+): Promise<boolean> {
+  return loadEngine().staleNow(session, (coll, id) =>
+    trackDoc(coll, id, getDoc),
+  );
+}
+
+/**
+ * The session route's answer: an engine that fails to load must not take the
+ * route down with it, so the session reads as fresh and the error is logged.
  */
 export async function sessionStale(
   session: Record<string, unknown>,
   getDoc: (coll: string, id: string) => Promise<unknown>,
 ): Promise<boolean> {
   try {
-    return await loadEngine().staleNow(session, (coll, id) =>
-      trackDoc(coll, id, getDoc),
-    );
+    return await isSessionStale(session, getDoc);
   } catch (error) {
     console.error('staleness not known', error);
     return false;

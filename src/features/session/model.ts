@@ -27,6 +27,7 @@ import {
 import {
   carLabel,
   dayMonthOf,
+  formatDayMonthTime,
   formatGap,
   formatLapTime,
   formatOffline,
@@ -232,6 +233,10 @@ export type SessionScreenModel = {
   pitCard: PitCard | null;
   /** Per-wheel wear, pressure and rubber temperature by stint. */
   tires: TiresCard;
+  /** A heal replaced this session's live copy: its one header line and the detail a tap opens; null otherwise. */
+  rebuilt: {line: string; detail: string} | null;
+  /** This session was replaced by a healed one: its link goes there. */
+  movedTo: string | null;
   /** Practice with green laps only. */
   fuelUse: FuelUseCardModel | null;
   /** Races with a whole lap to end on. */
@@ -312,6 +317,21 @@ const lapLabel = (lap: Lap) => `L${lap.lapIndex}`;
 const timeOrDash = (t: number | null) => (t == null ? '—' : formatLapTime(t));
 const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v));
 
+/** The outcomes that delete the lap they land in (tools/sessions/resultsInput.mjs). */
+const DELETING: ReadonlySet<string> = new Set([
+  'warning',
+  'invalidCut',
+  'invalidOff',
+]);
+
+/** "Invalid", and the game's words for the strike that deleted the lap when its results file has one. */
+function invalidWhy(lap: Lap): string {
+  const ruling = lap.trackLimits?.find(
+    k => DELETING.has(k.outcome) && k.ruling,
+  )?.ruling;
+  return ruling ? `Invalid · ${ruling}` : 'Invalid';
+}
+
 function tagsFor(lap: Lap, bestLapId: string | null): Tag[] {
   const tags: Tag[] = [];
   if (lap.id === bestLapId) tags.push({code: 'BEST', best: true});
@@ -320,18 +340,20 @@ function tagsFor(lap: Lap, bestLapId: string | null): Tag[] {
   // A lap cut short by a reset says so, instead of the generic PART.
   if (lap.endedInReset) tags.push({code: 'RESET'});
   else if (lap.partialWhy === 'grid') tags.push({code: 'PARK'});
+  // A whole lap the game did not time is invalid, not partial (L25 of
+  // 682524ed, 2026-10-14: a full lap between two full laps read PART).
+  else if (lap.invalidTimeS != null) tags.push({code: 'INV'});
   else if (lap.partial || lap.reasons.includes('untimed'))
     tags.push({code: 'PART'});
   if (lap.reasons.includes('slow')) tags.push({code: 'SLOW'});
-  if (lap.offTrackS >= OFF_TRACK_TOLERANCE_S)
-    tags.push({code: `OFF ${lap.offTrackS.toFixed(1)}`});
+  // The game's own rulings in this lap (its results file), counted: what it
+  // ruled is the status line's, never ours.
+  if (lap.trackLimits?.length)
+    tags.push({code: `LIM ${lap.trackLimits.length}`});
   if (lap.hadImpact) tags.push({code: 'HIT'});
   tags.push(...trafficTags(lap.traffic));
   return orderTags(tags);
 }
-
-/** Off-track time a comparable lap may carry (handoff exclusion copy). */
-export const OFF_TRACK_TOLERANCE_S = 1.0;
 
 function statusFor(
   lap: Lap,
@@ -348,6 +370,8 @@ function statusFor(
       ? 'Reset'
       : lap.partialWhy === 'grid'
       ? 'Parked start'
+      : lap.invalidTimeS != null
+      ? invalidWhy(lap)
       : lap.partial || lap.reasons.includes('untimed')
       ? 'Partial'
       : lap.reasons.includes('slow')
@@ -425,6 +449,26 @@ export function sectionTable(
       row('Best', s => s.bestS),
       row('IQR', s => s.spreadS),
     ],
+  };
+}
+
+/** "Rebuilt from the game file" and, on a tap, when and which stretches. */
+export function rebuiltOf(
+  session: Pick<SessionDetail, 'rebuilt'>,
+): {line: string; detail: string} | null {
+  const r = session.rebuilt;
+  if (!r) return null;
+  const n = (k: number, one: string, many: string) =>
+    `${k} ${k === 1 ? one : many}`;
+  return {
+    line: 'Rebuilt from the game file',
+    detail: [
+      formatDayMonthTime(new Date(r.atMs).toISOString()),
+      n(r.replaced, 'recording replaced', 'recordings replaced'),
+      r.kept > 0 ? n(r.kept, 'stretch kept', 'stretches kept') : null,
+    ]
+      .filter(Boolean)
+      .join(' · '),
   };
 }
 
@@ -550,7 +594,7 @@ export function buildSessionModel(
         lapId: l.id,
         label: lapLabel(l),
         stint: l.stint,
-        time: timeOrDash(l.timeS),
+        time: timeOrDash(l.timeS ?? l.invalidTimeS),
         gap: gap == null ? null : formatGap(gap),
         gapFaster: gap != null && gap < 0,
         sectors: sectorCells(l.id),
@@ -668,6 +712,8 @@ export function buildSessionModel(
     ),
     pitCard,
     tires: buildTiresCard(session, laps),
+    rebuilt: rebuiltOf(session),
+    movedTo: session.supersededBy ?? null,
     fuelUse,
     planVsRace: raceFactsOfPlan(session, planKeyOf(session)),
   };

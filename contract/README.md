@@ -54,4 +54,6 @@ The emulators need Java 21.
    The loader refuses a file with a user folder, an email, a Firebase uid or a token in it, or with any of those three fields not scrubbed.
 3. Name it `<tray version>-<what it shows>.json`.
 
+`heartbeat/0.1.12-update-waiting-rec-none.json` is a beat the real `tools/uploader/watch.mjs --once` wrote in a scratch home (`LAP_VERSION=0.1.12`, `uploader/update-waiting.json` = `{"version":"0.1.13"}`, the e2e seams of `watch.e2e.test.mjs`), scrubbed as above. No released tray sends `updateWaiting` yet; replace it with a beat from a real 0.1.12 tray from `status.jsonl` once one runs.
+
 **Never delete a version's payloads while any PC still sends from it** (`GET /api/uploaders`, last 30 days). The server deploys on every merge; trays update when they update.

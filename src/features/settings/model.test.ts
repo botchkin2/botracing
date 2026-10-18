@@ -21,6 +21,7 @@ const rig = (over: Partial<Uploader> = {}): Uploader => ({
   hostId: 'RIG',
   host: 'RIG',
   version: '0.3.1',
+  updateWaiting: null,
   lmuFound: true,
   state: 'syncing',
   lastSeenAt: NOW - 2 * min,

@@ -15,6 +15,7 @@ import {spawn} from 'node:child_process';
 import {existsSync, mkdtempSync, readFileSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
+import {seedRecord, seedScript} from './seatSession.mjs';
 
 const CANDIDATES = [
   process.env.LAP_BROWSER,
@@ -50,6 +51,8 @@ async function pageSocket(profile, deadline) {
 export async function openPane({
   origin,
   customTokenFile,
+  // {uid, idToken, refreshToken, expiresAtMs} from seatSession.mjs: CI's way in.
+  session = null,
   browser = findBrowser(),
   startMs = 30_000,
 }) {
@@ -133,7 +136,14 @@ export async function openPane({
       }
     },
   };
-  if (customTokenFile) {
+  if (session) {
+    // CI's way in (seatSession.mjs): seat-test's own tokens, seeded where the
+    // web SDK restores a user from, on a same-origin page that runs no app
+    // code, so nothing races the write; the app then loads signed in.
+    await send('Page.navigate', {url: `${origin}/api/tray/latest`});
+    await sleep(1500);
+    await evaluate(seedScript(seedRecord(session)));
+  } else if (customTokenFile) {
     // The fragment never reaches a server; the app takes it out of the address.
     const token = readFileSync(customTokenFile, 'utf8').trim();
     await send('Page.navigate', {url: `${origin}/#ct=${token}`});
