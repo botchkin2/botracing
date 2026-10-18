@@ -14,8 +14,8 @@
   html,body{margin:0;height:100%;background:var(--bg);color:var(--text);overflow:hidden;user-select:none}
   #gl{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
   .vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 45%,transparent 55%,rgba(0,0,0,.42) 100%)}
-  .glass{position:absolute;background:var(--glass);border:1px solid var(--line);border-radius:10px;backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2)}
-  .mono{font-family:"Cascadia Mono","SF Mono",Consolas,monospace;font-variant-numeric:tabular-nums}
+  .glass{position:absolute;background:var(--glass);border:1px solid var(--line);border-radius:6px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  .mono{font-family:"IBM Plex Mono","Cascadia Mono","SF Mono",Consolas,monospace;font-variant-numeric:tabular-nums}
 
   /* who + nearby */
   #who{left:14px;top:14px;width:250px;padding:10px 12px}
@@ -66,16 +66,35 @@
   #bar .xtra{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;padding-top:2px}
   #bar.collapsed .xtra{display:none}
   #more svg{transition:transform .2s} #bar:not(.collapsed) #more svg{transform:rotate(180deg)}
-  button{font:inherit;font-size:13px;color:var(--text);background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:8px;padding:0 12px;height:34px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
-  button:hover{background:rgba(255,255,255,.14)}
-  button.on{background:rgba(255,176,32,.18);border-color:rgba(255,176,32,.55);color:#ffd48a}
+  button{font:inherit;font-size:13px;color:var(--text);background:var(--raised);border:1px solid var(--line);border-radius:6px;padding:0 12px;height:34px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  button:hover{background:var(--overlay)}
+  button.on{background:rgba(254,169,47,.13);border-color:var(--accent);color:var(--accent)}
   #clock{font-size:15px;min-width:52px}
   #seek{flex:1;min-width:80px;accent-color:var(--accent);height:34px}
-  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
   .seg button{border:0;border-radius:0;background:transparent;border-right:1px solid var(--line)}
   .seg button:last-child{border-right:0}
-  .seg button.on{background:rgba(255,176,32,.22);color:#ffd48a}
+  .seg button.on{background:rgba(254,169,47,.13);color:var(--accent)}
   .ico{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+  /* inputs wheel, elevation gauge, class bests */
+  .brk{display:none}
+  #wheelsvg{width:52px;height:52px;flex:0 0 auto}
+  #eg{position:relative;width:200px;height:56px;flex:0 0 auto}
+  #egc{width:100%;height:100%;display:block}
+  #eg .egn{position:absolute;left:0;top:-2px;display:flex;gap:10px;font-size:11px;color:var(--muted)}
+  #eg .egn span:first-child{color:var(--text);font-size:13px}
+  #best{display:flex;gap:6px;padding:5px 6px;position:relative}
+  #best .b{display:flex;align-items:center;gap:6px;padding:3px 7px;border-radius:6px;background:rgba(255,255,255,.05);font-size:12px;white-space:nowrap}
+  #best .cb{padding:0 5px;border-radius:3px;font-size:10px;font-weight:700;color:#06090d}
+  #best small{color:var(--muted);font-size:10.5px}
+  #best .d{color:var(--muted);font-size:11px}
+  @media (min-width:1100px){
+    #best{position:fixed;right:14px;bottom:14px;flex-direction:column;gap:4px;padding:8px;width:218px}
+    #best .b{justify-content:space-between;font-size:13px}
+    #best h6{margin:0 0 2px;font-size:10px;letter-spacing:.8px;color:var(--muted);font-weight:600;text-transform:uppercase}
+  }
+  @media (max-width:1099px){ #best h6{display:none} }
 
   /* floating chips over cars */
   #chips{position:absolute;inset:0;pointer-events:none;overflow:hidden}
@@ -91,8 +110,11 @@
     #strip{left:8px;right:8px;transform:none;top:106px;width:auto;height:46px}
     #mapwrap{width:92px;height:92px;right:8px;top:8px}
     #bottom{left:8px;right:8px;bottom:8px;gap:8px}
-    #dash{gap:14px;padding:8px 12px}
-    #dash .hide-s{display:none}
+    #dash{gap:10px 12px;padding:8px 12px;flex-wrap:wrap;justify-content:center}
+    .brk{display:block;flex:1 1 100%;height:0}
+    #eg{flex:1 1 120px;width:auto;height:46px}
+    #wheelsvg{width:44px;height:44px} #gball{width:44px !important;height:44px !important}
+    #best{padding:4px;justify-content:center;flex-wrap:wrap}
     #spd{font-size:42px} #gear{font-size:34px;width:26px} #spdbox{min-width:92px}
     #bar .xtra{justify-content:flex-start}
     button{height:36px}
@@ -111,17 +133,19 @@
 <div id="profwrap" class="glass"><canvas id="profc"></canvas></div>
 
 <div id="bottom">
-<div id="dash" class="glass mono"><div id="est">ESTIMATED FROM ACCELERATION</div>
+<div id="best" class="glass mono"></div>
+<div id="dash" class="glass mono"><div id="est">EST</div>
   <div id="gear">N</div>
   <div id="spdbox"><span id="spd">0</span><span id="spdu">KM/H</span><div id="leds"></div></div>
   <div class="pedals" id="pedals"><div class="pedal" title="Brake"><i id="pBrake" style="background:var(--bad)"></i></div><div class="pedal" title="Throttle"><i id="pThr" style="background:var(--good)"></i></div></div>
-  <canvas id="gball" width="112" height="112" style="width:56px;height:56px" title="Acceleration"></canvas>
-  <div class="kv hide-s"><small>Grade</small><b id="grade">0.0%</b></div>
-  <div class="kv hide-s"><small>Alt</small><b id="alt">0 m</b></div>
+  <div class="brk"></div>
+  <svg id="wheelsvg" viewBox="-26 -26 52 52" title="Steering"><circle r="20" fill="none" stroke="#3a4350" stroke-width="3.5"/><g id="wheel"><path d="M-20 0H20M0 0V20" stroke="#eef2f6" stroke-width="3.5" stroke-linecap="round"/><path d="M-5 -20h10" stroke="#ffb020" stroke-width="4" stroke-linecap="round"/></g></svg>
+  <canvas id="gball" width="112" height="112" style="width:52px;height:52px" title="Acceleration"></canvas>
+  <div id="eg" title="Height: 100 m behind, 500 m ahead"><canvas id="egc"></canvas><div class="egn mono"><span id="grade">0.0%</span><span id="alt">0 m</span></div></div>
 </div>
 <div id="bar" class="glass collapsed">
   <div class="core">
-    <button id="play" title="Play / pause (Space)"><svg class="ico" viewBox="0 0 24 24" id="playico"><path d="M7 5v14l12-7z"/></svg></button>
+    <button id="play" title="Pause (Space)" aria-label="Pause"><svg class="ico" viewBox="0 0 14 14" id="playico" style="fill:currentColor;stroke:none"><rect x="2" y="1" width="3.4" height="12"/><rect x="8.6" y="1" width="3.4" height="12"/></svg></button>
     <span id="clock" class="mono">0:00.0</span>
     <input id="seek" type="range" min="0" max="1000" value="0">
     <button id="more" title="More controls (M)"><svg class="ico" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>

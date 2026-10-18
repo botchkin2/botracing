@@ -28,13 +28,13 @@ f = (tmp / "field.csv").as_posix()
 subprocess.run([DK, "-csv", "-c", f"""copy (select mID id, et, mVehicleClass cls, mVehicleName vname, mIsPlayer pl, mInPits pit, mTotalLaps laps,
   mLapDist ld, mPlace place, mPos_x x, mPos_y h, mPos_z z, mLocalVel_x vx, mLocalVel_z vz, mLocalAccel_x ax, mLocalAccel_z az,
   mOri_0_x o0x, mOri_0_y o0y, mOri_0_z o0z, mOri_1_x o1x, mOri_1_y o1y, mOri_1_z o1z, mOri_2_x o2x, mOri_2_y o2y, mOri_2_z o2z,
-  mSector sec, mHeadlights hl from read_parquet('{Path(cap).as_posix()}/field-*.parquet') where et between {t0 - 1} and {t1 + 1} order by et, mID) to '{f}' (header true)"""], check=True)
+  mSector sec, mHeadlights hl, mBestLapTime blt, mLocalRot_y rot from read_parquet('{Path(cap).as_posix()}/field-*.parquet') where et between {t0 - 1} and {t1 + 1} order by et, mID) to '{f}' (header true)"""], check=True)
 rows = list(csv.DictReader(open(f, encoding="utf8")))
 print("field rows", len(rows))
 NT = int(round((t1 - t0) * FH)) + 1
 ids = sorted({int(r["id"]) for r in rows})
 car = {i: dict(cls="", vname="", pl=False, k=[], x=np.full(NT, np.nan), y=np.full(NT, np.nan), h=np.full(NT, np.nan), yaw=np.full(NT, np.nan), pitch=np.full(NT, np.nan),
-               roll=np.full(NT, np.nan), v=np.full(NT, np.nan), lon=np.full(NT, np.nan), lat=np.full(NT, np.nan), ld=np.full(NT, np.nan), lap=np.zeros(NT), pit=np.zeros(NT), sec=np.zeros(NT), hl=np.zeros(NT)) for i in ids}
+               roll=np.full(NT, np.nan), blt=np.full(NT, -1.0), rot=np.full(NT, np.nan), v=np.full(NT, np.nan), lon=np.full(NT, np.nan), lat=np.full(NT, np.nan), ld=np.full(NT, np.nan), lap=np.zeros(NT), pit=np.zeros(NT), sec=np.zeros(NT), hl=np.zeros(NT)) for i in ids}
 for r in rows:
     k = int(round((float(r["et"]) - t0) * FH))
     if not 0 <= k < NT: continue
@@ -48,7 +48,7 @@ for r in rows:
     c["roll"][k] = math.asin(max(-1, min(1, g("o0y"))))   # + = right side down (the right axis dips)
     c["v"][k] = math.hypot(g("vx"), g("vz")); c["lon"][k] = -g("az"); c["lat"][k] = g("ax")
     c["ld"][k] = g("ld"); c["lap"][k] = g("laps"); c["pit"][k] = 1 if r["pit"] == "true" else 0
-    c["sec"][k] = g("sec") if r["sec"] != "" else 0; c["hl"][k] = g("hl")
+    c["sec"][k] = g("sec") if r["sec"] != "" else 0; c["hl"][k] = g("hl"); c["blt"][k] = g("blt") if r["blt"] != "" else -1; c["rot"][k] = g("rot") if r["rot"] != "" else np.nan
 
 
 def fillnan(a, wrap=None):
@@ -61,7 +61,9 @@ def fillnan(a, wrap=None):
 
 
 for i, c in car.items():
-    for key in ["x", "y", "h", "v", "lon", "lat", "ld"]: c[key] = fillnan(c[key])
+    for key in ["x", "y", "h", "v", "lon", "lat", "ld", "rot"]: c[key] = fillnan(c[key])
+    for k in range(1, NT):
+        if c["blt"][k] <= 0 and c["blt"][k - 1] > 0: c["blt"][k] = c["blt"][k - 1]
     c["yaw"] = fillnan(c["yaw"], wrap=2 * math.pi)
     for key in ["pitch", "roll"]: c[key] = fillnan(c[key])
 
@@ -135,6 +137,11 @@ gx = np.loadtxt(ff, delimiter=",", ndmin=2)
 gi = np.clip(np.searchsorted(gx[:, 0], t0 + np.arange(NT) / FH, side="right") - 1, 0, len(gx) - 1)
 inputs["gear"] = gx[gi, 1].astype(int).tolist()
 
+WB = 2.73
+dl = np.array([WB * pc["rot"][k] / max(pc["v"][k], 1) for k in range(NT)]); stp = np.array(inputs["st"]); okf = np.array([pc["v"][k] > 20 and pc["pit"][k] == 0 for k in range(NT)])
+a_fit = float(np.sum(dl[okf] * stp[okf]) / np.sum(dl[okf] ** 2)); corr = float(np.corrcoef(dl[okf], stp[okf])[0, 1])
+print("steering fit: wheel pct =", round(a_fit, 1), "* (L*yawrate/v); corr", round(corr, 2))
+
 # --- braking boards: where the player brakes hard, per lap, clustered -----------------------
 br = inputs["br"]; ld = pc["ld"]; onsets = []; on = False
 for k in range(NT):
@@ -163,10 +170,10 @@ for i, c in car.items():
     num = re.search(r"#(\S+?)(?::|$)", c["vname"]); team = re.sub(r"\s+\d{4}.*$", "", c["vname"]).strip()
     cars.append(dict(id=i, cls=c["cls"], model=meta["vehicleModels"].get(str(i), ""), team=team, num=num.group(1) if num else str(i), pl=bool(c["pl"]),
                      x=r(c["x"]), y=r(c["y"]), h=r(c["h"] - cg[c["cls"]]), yaw=r(c["yaw"], 3), pitch=r(c["pitch"], 3), roll=r(c["roll"], 3), v=r(c["v"], 1),
-                     lon=r(c["lon"], 1), lat=r(c["lat"], 1), ld=r(c["ld"], 1), lap=c["lap"].astype(int).tolist(), pit=c["pit"].astype(int).tolist(), hl=c["hl"].astype(int).tolist()))
+                     lon=r(c["lon"], 1), lat=r(c["lat"], 1), blt=r(c["blt"], 3), rot=r(c["rot"], 3), ld=r(c["ld"], 1), lap=c["lap"].astype(int).tolist(), pit=c["pit"].astype(int).tolist(), hl=c["hl"].astype(int).tolist()))
 cars.sort(key=lambda c: (not c["pl"], c["cls"], c["id"]))
 data = dict(track=base["track"], lengthM=LEN, bin=BIN, hz=FH, t0=t0, t1=t1,
             road=dict(cx=road["cx"], cy=road["cy"], hl=road["hl"], hr=road["hr"], z=r(zroad), bank=r(bank, 4)), terrain=terrain,
-            cars=cars, inputs=inputs, brakeZones=brake_zones, sector=sector)
+            cars=cars, steer=dict(k=round(a_fit, 2), corr=round(corr, 3), wheelbase=WB), inputs=inputs, brakeZones=brake_zones, sector=sector)
 Path(out).write_text("window.FOLLOW_DATA=" + json.dumps(data, separators=(",", ":")) + ";\n")
 print("wrote", out, round(Path(out).stat().st_size / 1e6, 2), "MB;", len(cars), "cars,", NT, "samples")

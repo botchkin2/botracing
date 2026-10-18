@@ -26,7 +26,7 @@ const fbm = (x, y) => vnoise(x, y) * 0.55 + vnoise(x * 2.1, y * 2.1) * 0.3 + vno
 let seed = 99; const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
 
 // ---- classes -------------------------------------------------------------------------------
-const CLASS = { Hyper: { color: '#e8261c', tag: 'HYPER' }, LMP2: { color: '#2f7bff', tag: 'LMP2' }, GT3: { color: '#22c55e', tag: 'GT3' } };
+const CLASS = { Hyper: { color: '#e64343', tag: 'HYPER' }, LMP2: { color: '#4697e4', tag: 'LMP2' }, GT3: { color: '#f68443', tag: 'GT3' } };   // class1/2/3 by pace, src/design/tokens.ts
 const LIVERIES = ['#f4f4f1', '#1b1f27', '#c8102e', '#0a5bd6', '#f2b705', '#0e8a5f', '#6d3fe0', '#ff6a13', '#13b5a6', '#d81b72', '#8c9199', '#1e3a8a'];
 const teamPaint = t => { let h = 0; for (const ch of t) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return [LIVERIES[h % LIVERIES.length], LIVERIES[(h >> 5) % LIVERIES.length]]; };
 
@@ -48,8 +48,11 @@ function gauss(a, sigma) {
   const r = Math.max(1, Math.ceil(sigma * 3)), k = []; let sum = 0; for (let j = -r; j <= r; j++) { const w = Math.exp(-0.5 * (j / sigma) ** 2); k.push(w); sum += w; }
   const out = new Array(a.length); for (let i = 0; i < a.length; i++) { let s = 0; for (let j = -r; j <= r; j++) s += a[clamp(i + j, 0, a.length - 1)] * k[j + r]; out[i] = s / sum; } return out;
 }
+function despike(a, thr) { let n = 0; for (let i = 1; i < a.length - 1; i++) { const mid = (a[i - 1] + a[i + 1]) / 2; if (Math.abs(a[i] - mid) > thr && Math.abs(a[i - 1] - a[i + 1]) < thr * .6) { a[i] = mid; n++; } } return n; }
+let spikes = 0;
 for (const c of D.cars) {
-  c.x = gauss(c.x, .6); c.y = gauss(c.y, .6); c.h = gauss(c.h, 2); c.pitch = gauss(c.pitch, 1.5); c.roll = gauss(c.roll, 1.5); c.v = gauss(c.v, 1); c.lon = gauss(c.lon, 1.2); c.lat = gauss(c.lat, 1.2);
+  { const u = [c.yaw[0]]; for (let i = 1; i < NT; i++) u.push(u[i - 1] + angDiff(u[i - 1], c.yaw[i])); spikes += despike(u, .6); for (let k = 0; k < 2; k++) spikes += despike(u, .6); c.yaw = u; spikes += despike(c.pitch, .12) + despike(c.roll, .12); }
+  c.x = gauss(c.x, .6); c.y = gauss(c.y, .6); c.h = gauss(c.h, 2); c.pitch = gauss(c.pitch, 1.5); c.roll = gauss(c.roll, 1.5); c.v = gauss(c.v, 1); c.lon = gauss(c.lon, 1.2); c.lat = gauss(c.lat, 1.2); c.rot = gauss(c.rot, 1);
 }
 // ---- cars: continuous progress, interpolation ----------------------------------------------
 const cars = D.cars.map((c, k) => {
@@ -57,7 +60,7 @@ const cars = D.cars.map((c, k) => {
   for (let i = 1; i < NT; i++) { const d = c.ld[i] - c.ld[i - 1]; if (d < -LEN / 2) off += LEN; else if (d > LEN / 2) off -= LEN; prog[i] = c.ld[i] + off; }
   yaw[0] = c.yaw[0]; for (let i = 1; i < NT; i++) yaw[i] = yaw[i - 1] + angDiff(yaw[i - 1], c.yaw[i]);
   const ys = gauss(Array.from(yaw), .8); for (let i = 0; i < NT; i++) yaw[i] = ys[i];
-  const info = CLASS[c.cls] || { color: '#9aa4b2' }, [paint, accent] = c.pl ? ['#ff8a00', '#f4f4f1'] : teamPaint(c.team);
+  const info = CLASS[c.cls] || { color: '#9aa4b2' }, [paint, accent] = c.pl ? ['#fea92f', '#f4f4f1'] : teamPaint(c.team);
   return { k, d: c, prog, yaw, color: info.color, paint, accent, cls: c.cls, num: c.num, label: '#' + c.num };
 });
 const player = cars.findIndex(c => c.d.pl);
@@ -65,11 +68,16 @@ function carAt(c, t) {
   const tt = clamp(t * HZ, 0, NT - 1.001), i = Math.floor(tt), f = tt - i, d = c.d, g = (a, j) => a[clamp(j, 0, NT - 1)];
   const cr = a => { const p0 = g(a, i - 1), p1 = g(a, i), p2 = g(a, i + 1), p3 = g(a, i + 2); return 0.5 * ((2 * p1) + (-p0 + p2) * f + (2 * p0 - 5 * p1 + 4 * p2 - p3) * f * f + (-p0 + 3 * p1 - 3 * p2 + p3) * f * f * f); };
   const li = a => lerp(a[i], a[i + 1], f), prog = lerp(c.prog[i], c.prog[i + 1], f);
-  return { x: cr(d.x), y: cr(d.y), z: Zt(cr(d.h)), hd: lerp(c.yaw[i], c.yaw[i + 1], f), pitch: li(d.pitch), roll: li(d.roll), v: li(d.v), lon: li(d.lon), lat: li(d.lat), ld: mod(prog, LEN), prog, lap: d.lap[i], pit: d.pit[i], hl: d.hl[i] };
+  return { x: cr(d.x), y: cr(d.y), z: Zt(cr(d.h)), hd: lerp(c.yaw[i], c.yaw[i + 1], f), pitch: li(d.pitch), roll: li(d.roll), v: li(d.v), lon: li(d.lon), lat: li(d.lat), rot: li(d.rot), ld: mod(prog, LEN), prog, lap: d.lap[i], pit: d.pit[i], hl: d.hl[i] };
 }
 const INP = D.inputs;
 const inpAt = (t, key) => { const tt = clamp(t * HZ, 0, NT - 1.001), i = Math.floor(tt); return lerp(INP[key][i], INP[key][i + 1], tt - i); };
 const gearAt = t => INP.gear[clamp(Math.round(t * HZ), 0, NT - 1)];
+const WB = { GT3: 2.73, Hyper: 3.0, LMP2: 3.0 };
+function steerPct(ci, s, t) {
+  if (ci === player) return { st: inpAt(t, 'st'), est: false };
+  const wb = WB[cars[ci].cls] || 2.8; return { st: clamp(D.steer.k * (wb * s.rot / Math.max(s.v, 8)), -100, 100), est: true };
+}
 function pedals(ci, s, t) {
   if (ci === player) return { th: inpAt(t, 'th'), br: inpAt(t, 'br'), est: false };
   const a = s.lon; return { th: a > 1.2 ? clamp(40 + a * 14, 0, 100) : a > -1.5 ? (s.v > 25 ? 20 : 0) : 0, br: a < -2.5 ? clamp(-a * 9, 0, 100) : 0, est: true };
@@ -329,7 +337,7 @@ function updateCam(dt, me) {
     lx = me.x + dirx * 3; ly = me.y + diry * 3; lz = me.z + .9; px = tvRig.x; py = tvRig.y; pz = clearView(tvRig.x, tvRig.y, tvRig.z, lx, ly, lz);
     const dist = Math.hypot(lx - px, ly - py, lz - pz); fov = clamp(2 * Math.atan(13 / Math.max(dist, 1)) * 180 / Math.PI, 10, 60); posK = 400; lookK = 6;
   } else {
-    cam.orbit += dt * .16; px = me.x + Math.cos(cam.orbit) * 62; py = me.y + Math.sin(cam.orbit) * 62; pz = Math.max(me.z, groundZ(px, py)) + 40 + Math.sin(cam.orbit * .5) * 6; lx = me.x + dirx * 8; ly = me.y + diry * 8; lz = me.z; fov = 48; posK = 3; lookK = 8;
+    if (hard) cam.orbit = 0; const oa = me.hd + Math.PI + cam.orbit; px = me.x + Math.cos(oa) * 55; py = me.y + Math.sin(oa) * 55; pz = Math.max(me.z, groundZ(px, py)) + 38; lx = me.x + dirx * 8; ly = me.y + diry * 8; lz = me.z; fov = 48; posK = 3; lookK = 8;
   }
   const kp = hard ? 1 : 1 - Math.exp(-dt * posK), kl = hard ? 1 : 1 - Math.exp(-dt * lookK);
   cam.x = lerp(cam.x, px, kp); cam.y = lerp(cam.y, py, kp); cam.z = lerp(cam.z, pz, camMode === 1 || camMode === 2 ? 1 - Math.exp(-dt * 7) : kp);
@@ -352,11 +360,11 @@ function toast(msg) { const e = $('toast'); e.textContent = msg; e.style.opacity
 function setCam(m) { camMode = m; for (let i = 1; i <= 5; i++) $('cam' + i).classList.toggle('on', i === m); toast(CAM_NAMES[m - 1]); }
 const RATES = [0.25, 0.5, 1, 2, 4, 8, 16];
 function setRate(d) { rate = RATES[clamp(RATES.indexOf(rate) + d, 0, RATES.length - 1)]; $('spdx').textContent = rate + '×'; }
-function setPlaying(v) { playing = v; $('playico').innerHTML = v ? '<path d="M7 5v14l12-7z"/>' : '<path d="M7 5v14M17 5v14"/>'; }
+function setPlaying(v) { playing = v; $('playico').innerHTML = v ? '<rect x="2" y="1" width="3.4" height="12"/><rect x="8.6" y="1" width="3.4" height="12"/>' : '<path d="M3 1 L13 7 L3 13 Z"/>'; $('play').title = $('play').ariaLabel = v ? 'Pause (Space)' : 'Play (Space)'; }
 function pick(i) { follow = i; tvRig = null; cam.init = false; }
 const rankOrder = () => cars.map((c, i) => i).sort((a, b) => curStates[b].prog - curStates[a].prog);
-const bar = $('bar'); try { if (localStorage.getItem('fc-bar') === 'open') bar.classList.remove('collapsed'); } catch (e) {}
-function toggleBar() { bar.classList.toggle('collapsed'); try { localStorage.setItem('fc-bar', bar.classList.contains('collapsed') ? 'closed' : 'open'); } catch (e) {} }
+const bar = $('bar');   // always starts collapsed: the view comes first
+function toggleBar() { bar.classList.toggle('collapsed'); }
 $('more').onclick = toggleBar;
 $('play').onclick = () => setPlaying(!playing); $('slower').onclick = () => setRate(-1); $('faster').onclick = () => setRate(1);
 $('seek').oninput = e => { t = e.target.value / 1000 * DUR; };
@@ -370,7 +378,12 @@ addEventListener('keydown', e => {
   else if (k === 'ArrowUp' || k === 'ArrowDown') { const order = rankOrder(), r = order.indexOf(follow); pick(order[clamp(r + (k === 'ArrowUp' ? -1 : 1), 0, order.length - 1)]); e.preventDefault(); }
   else if (k === 'm' || k === 'M') toggleBar(); else if (k === 'e' || k === 'E') cycleRelief(); else if (k === 't' || k === 'T') $('theme').click(); else if (k === 'l' || k === 'L') $('line').click();
 });
-canvas.addEventListener('click', e => {   // click a car in the 3D view to follow it
+let drag = null;   // heli: drag sideways to look around the followed car
+canvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, o: cam.orbit, moved: false }; });
+addEventListener('pointermove', e => { if (drag && camMode === 5) { const dx = e.clientX - drag.x; if (Math.abs(dx) > 4) drag.moved = true; cam.orbit = drag.o - dx * .008; } });
+addEventListener('pointerup', () => { setTimeout(() => { drag = null; }, 0); });
+canvas.addEventListener('click', e => {
+  if (drag && drag.moved) return;   // click a car in the 3D view to follow it
   const r = canvas.getBoundingClientRect(); let best = -1, bd = 46;
   curStates.forEach((s, i) => { if (hidden.has(cars[i].cls) || i === follow) return; setV(tmpP, s.x, s.y, s.z + 1); tmpP.project(camera); if (tmpP.z > 1) return; const d = Math.hypot((tmpP.x * .5 + .5) * r.width - (e.clientX - r.left), (-tmpP.y * .5 + .5) * r.height - (e.clientY - r.top)); if (d < bd) { bd = d; best = i; } });
   if (best >= 0) pick(best);
@@ -389,7 +402,7 @@ function drawMap(cs) {
 function drawProfile(cs) {
   const w = profc.width, h = profc.height, k = w / 210, p = 10 * k, zr = Math.max(zMax - zMin, 10), X = s => p + (w - 2 * p) * s / LEN, Y = z => h - p - 6 * k - (h - 2 * p - 18 * k) * ((z - zMin) / zr);
   pctx.clearRect(0, 0, w, h); pctx.beginPath(); pctx.moveTo(p, h - p); for (let i = 0; i <= N; i++) pctx.lineTo(X(i * BIN), Y(R.z[i % N])); pctx.lineTo(w - p, h - p); pctx.closePath();
-  const g = pctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(255,176,32,.6)'); g.addColorStop(1, 'rgba(255,176,32,.06)'); pctx.fillStyle = g; pctx.fill();
+  const g = pctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(254,169,47,.55)'); g.addColorStop(1, 'rgba(254,169,47,.05)'); pctx.fillStyle = g; pctx.fill();
   const me = cs[follow]; pctx.strokeStyle = 'rgba(255,255,255,.4)'; pctx.lineWidth = k; pctx.beginPath(); pctx.moveTo(X(me.ld), p); pctx.lineTo(X(me.ld), h - p); pctx.stroke();
   pctx.fillStyle = '#fff'; pctx.beginPath(); pctx.arc(X(me.ld), Y(zRaw(me.ld)), 4.2 * k, 0, TAU); pctx.fill(); pctx.fillStyle = '#8e99a8'; pctx.font = `${10.5 * k}px Segoe UI`; pctx.fillText(Math.round(zMax - zMin) + ' m', p, p + 6 * k);
 }
@@ -410,6 +423,29 @@ function drawG(me) {
   const lat = clamp(-me.lat / 9.81 / 3, -1, 1), lon = clamp(me.lon / 9.81 / 3, -1, 1);   // 3 g at the rim; accelerating moves the dot up
   gctx.fillStyle = lon < -.05 ? '#ff5a4d' : '#39e08a'; gctx.beginPath(); gctx.arc(c + lat * r, c - lon * r, 6, 0, TAU); gctx.fill();
 }
+// elevation gauge: 100 m behind, 500 m ahead, line coloured by grade, the car as a dot (instrument only, no advice)
+const egc = $('egc'), ectx = egc.getContext('2d');
+function drawElev(me) {
+  const dpr = Math.min(devicePixelRatio || 1, 2), w = Math.round(egc.clientWidth * dpr), h = Math.round(egc.clientHeight * dpr); if (egc.width !== w || egc.height !== h) { egc.width = w; egc.height = h; }
+  if (!w) return; ectx.clearRect(0, 0, w, h);
+  const B = 100, A = 500, n = 121, zs = [], k = dpr; for (let i = 0; i < n; i++) zs.push(zRaw(me.ld - B + (A + B) * i / (n - 1)));
+  let lo = Math.min(...zs), hi = Math.max(...zs); const span = Math.max(hi - lo, 10), mid = (hi + lo) / 2; lo = mid - span / 2; hi = mid + span / 2;
+  const X = i => (w * i) / (n - 1), top = 16 * k, bot = h - 4 * k, Y = z => bot - (bot - top) * (z - lo) / (hi - lo);
+  ectx.strokeStyle = 'rgba(255,255,255,.07)'; ectx.lineWidth = k; for (let m = -B + 100; m <= A; m += 100) { const x = X((m + B) / (A + B) * (n - 1)); ectx.beginPath(); ectx.moveTo(x, top); ectx.lineTo(x, bot); ectx.stroke(); }
+  ectx.beginPath(); ectx.moveTo(0, bot); zs.forEach((z, i) => ectx.lineTo(X(i), Y(z))); ectx.lineTo(w, bot); ectx.closePath(); const g = ectx.createLinearGradient(0, top, 0, bot); g.addColorStop(0, 'rgba(255,176,32,.28)'); g.addColorStop(1, 'rgba(255,176,32,.02)'); ectx.fillStyle = g; ectx.fill();
+  ectx.lineWidth = 2 * k; ectx.lineJoin = ectx.lineCap = 'round';
+  for (let i = 1; i < n; i++) { const gr = (zs[i] - zs[i - 1]) / ((A + B) / (n - 1)); ectx.strokeStyle = gr > 0.03 ? '#ffb020' : gr < -0.03 ? '#5cc8ff' : '#aab4c2'; ectx.beginPath(); ectx.moveTo(X(i - 1), Y(zs[i - 1])); ectx.lineTo(X(i), Y(zs[i])); ectx.stroke(); }
+  const cx = X(B / (A + B) * (n - 1)), cy = Y(zRaw(me.ld)); ectx.fillStyle = '#fff'; ectx.strokeStyle = cars[follow].color; ectx.lineWidth = 2 * k; ectx.beginPath(); ectx.arc(cx, cy, 4.5 * k, 0, TAU); ectx.fill(); ectx.stroke();
+}
+// best lap per class as of the replay clock (the field's own best-lap column)
+const bestEl = $('best'); let bestKey = '';
+function bestTimes() {
+  const i = clamp(Math.round(t * HZ), 0, NT - 1), best = {};
+  cars.forEach((c, k) => { const b = c.d.blt[i]; if (b > 0 && !(c.cls in best && best[c.cls].b <= b)) best[c.cls] = { b, num: c.num, k }; });
+  const mine = cars[follow], myB = mine.d.blt[i], key = JSON.stringify([best, follow, myB]); if (key === bestKey) return; bestKey = key;
+  const fmt = v => { const m = Math.floor(v / 60); return m + ':' + (v - m * 60).toFixed(3).padStart(6, '0'); };
+  bestEl.innerHTML = '<h6>Best</h6>' + ['Hyper', 'LMP2', 'GT3'].filter(k => best[k]).map(k => { const b = best[k], mineHere = mine.cls === k && myB > 0 && b.k !== follow ? `<span class="d">+${(myB - b.b).toFixed(2)}</span>` : ''; return `<div class="b"><span class="cb" style="background:${CLASS[k].color}">${CLASS[k].tag}</span><span style="color:var(--best)">${fmt(b.b)}</span><small>#${b.num}</small>${mineHere}</div>`; }).join('');
+}
 const fmtClock = s => { const m = Math.floor(s / 60); return m + ':' + (s - m * 60).toFixed(1).padStart(4, '0'); };
 const SECT = [0, D.sector['1-2'], D.sector['2-0'], LEN], sectorOf = ld => ld < SECT[1] ? 0 : ld < SECT[2] ? 1 : 2;
 function hud(cs, me) {
@@ -423,13 +459,13 @@ function hud(cs, me) {
     return `<div class="row" data-i="${o.i}"><span class="cb" style="background:${ci.color}">${ci.tag}</span><span>#${c.num}</span><span class="t">${c.d.team}</span><span class="g ${cc}">${o.d > 0 ? '−' : '+'}${gap.toFixed(1)}<small style="color:var(--muted)"> ${cl > 0 ? '▲' : '▼'}${Math.abs(cl).toFixed(0)}</small></span></div>`; };
   near.innerHTML = ahead.map(row).join('') + `<div class="row me"><span class="cb" style="background:${cls.color}">${cls.tag}</span><span>#${mc.num}</span><span class="t">${mc.d.team}</span><span class="g"></span></div>` + behind.map(row).join('');
   near.querySelectorAll('.row[data-i]').forEach(e => e.onclick = () => pick(+e.dataset.i));
-  const p = pedals(follow, me, t); $('est').style.display = p.est ? 'block' : 'none';
+  const p = pedals(follow, me, t), sp = steerPct(follow, me, t); $('est').style.display = 'none'; const isP = follow === player; $('pedals').style.visibility = $('wheelsvg').style.visibility = isP ? 'visible' : 'hidden'; $('wheel').setAttribute('transform', `rotate(${clamp(sp.st, -100, 100) * 2.1})`);
   $('spd').textContent = Math.round(me.v * 3.6); const g = follow === player ? gearAt(t) : 0; $('gear').textContent = follow === player ? (g <= 0 ? (g < 0 ? 'R' : 'N') : g) : '–';
   $('pBrake').style.height = clamp(p.br, 0, 100) + '%'; $('pThr').style.height = clamp(p.th, 0, 100) + '%';
   const lit = follow === player ? Math.round(clamp(inpAt(t, 'rpm') / 9200, 0, 1) * 22) : 0; [...leds.children].forEach((e, i) => { e.style.background = i < lit ? (i > 18 ? '#ff5a4d' : i > 14 ? '#ffb020' : '#39e08a') : ''; });
   const gr = gradeAt(me.ld) * 100; $('grade').textContent = (gr > 0 ? '+' : '') + gr.toFixed(1) + '%'; $('grade').style.color = gr > 2.5 ? '#ffb020' : gr < -2.5 ? '#5cc8ff' : '';
   $('alt').textContent = Math.round(zRaw(me.ld) - zMin) + ' m'; $('clock').textContent = fmtClock(t); $('seek').value = t / DUR * 1000;
-  drawMap(cs); drawProfile(cs); drawStrip(cs); drawG(me);
+  drawMap(cs); drawProfile(cs); drawStrip(cs); drawG(me); drawElev(me); bestTimes();
 }
 function chipsUpdate(cs) {
   const me = cs[follow];
@@ -451,7 +487,7 @@ function advance(dtReal) {
   if (ribbonFor !== follow) buildRibbon(follow);
   cs.forEach((s, i) => { poseCar(i, s, playing ? dtReal * rate : 0); carObjs[i].visible = !hidden.has(cars[i].cls) && !(camMode === 3 && i === follow); });
   updateCam(dtReal * Math.sqrt(Math.max(rate, 1)), me);
-  if (ribbon) { const i0 = clamp(Math.floor(t * HZ * SUB) + 1, 0, (NT - 1) * SUB - 2), cnt = clamp(Math.min(SUB * HZ * 5, (NT - 1) * SUB - 1 - i0), 0, 1e6); ribbon.geometry.setDrawRange(i0 * 6, cnt * 6); ribbon.visible = showLine; }
+  if (ribbon) { const i0 = clamp(Math.floor(t * HZ * SUB) + 1, 0, (NT - 1) * SUB - 2), cnt = clamp(Math.min(SUB * HZ * 5, (NT - 1) * SUB - 1 - i0), 0, 1e6); ribbon.geometry.setDrawRange(i0 * 6, cnt * 6); ribbon.visible = showLine && follow === player; }
   const T = THEMES[themeName]; setV(sun.target.position, me.x, me.y, me.z); sun.position.copy(sun.target.position).addScaledVector(skyUni.sunDir.value, 160);
   skyUni.time.value = performance.now() * .001; sky.position.copy(camera.position);
   if (T.lights) { setV(head.position, me.x, me.y, me.z + 1.0); setV(head.target.position, me.x + Math.cos(me.hd) * 30, me.y + Math.sin(me.hd) * 30, me.z + .3); }
@@ -459,7 +495,7 @@ function advance(dtReal) {
   if ((frameN++ & 1) === 0) { hud(cs, me); chipsUpdate(cs); }
 }
 function frame(now) { advance(Math.min(0.05, (now - last) / 1000)); last = now; requestAnimationFrame(frame); }
-resize(); applyTheme('day'); buildWorld(); setCam(1); buildRibbon(follow); $('load').remove(); requestAnimationFrame(frame);
+resize(); setPlaying(true); applyTheme('day'); buildWorld(); setCam(1); buildRibbon(follow); $('load').remove(); requestAnimationFrame(frame);
 window.__proto = {
   cars, THREE, tick(n, dt = 1 / 60) { const a = performance.now(); for (let i = 0; i < n; i++) advance(dt); return (performance.now() - a) / n; },
   get t() { return t; }, set t(v) { t = v; }, set cam(v) { setCam(v); }, set playing(v) { setPlaying(v); }, set follow(v) { pick(v); }, theme(n) { applyTheme(n); }, get renderer() { return renderer; }, get states() { return curStates; },
