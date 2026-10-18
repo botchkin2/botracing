@@ -5,6 +5,7 @@ import {
   LIVE_FRESH_MS,
   LIVE_POLL_MS,
   isLive,
+  isRecentlyLive,
   liveAnalysisDue,
   livePoll,
 } from './live';
@@ -29,5 +30,14 @@ describe('live', () => {
     expect(liveAnalysisDue(now - 1_000, now)).toBe(true);
     expect(liveAnalysisDue(now - LIVE_ANALYSIS_GRACE_MS, now)).toBe(false);
     expect(liveAnalysisDue(null, now)).toBe(false);
+  });
+});
+
+describe('isRecentlyLive (pit-wall #5291)', () => {
+  it('is a session live in the last 2 h; never one that was never live', () => {
+    const now = Date.parse('2026-10-14T02:00:00Z');
+    expect(isRecentlyLive(now - 60 * 60_000, now)).toBe(true);
+    expect(isRecentlyLive(now - 3 * 60 * 60_000, now)).toBe(false);
+    expect(isRecentlyLive(null, now)).toBe(false);
   });
 });
