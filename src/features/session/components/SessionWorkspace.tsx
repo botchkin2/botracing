@@ -217,10 +217,14 @@ export function SessionWorkspace({
                   width={innerW}
                   wide
                   heads={model.sections?.heads ?? model.sectorHeads}
-                  headTaps={model.sections?.targets.map(t => t.corner != null)}
+                  headTaps={
+                    day
+                      ? undefined
+                      : model.sections?.targets.map(t => t.corner != null)
+                  }
                   onHeadPress={i => {
                     const corner = model.sections?.sections[i];
-                    if (corner != null)
+                    if (!day && corner != null)
                       router.push(
                         compareHref(sessionId, {
                           laps: selection.laps,

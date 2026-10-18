@@ -517,7 +517,9 @@ function SessionView({
   };
 
   // Which section columns open something: the game's sectors and the start straight do not.
-  const sectionTaps = model.sections?.targets.map(t => t.corner != null) ?? [];
+  const sectionTaps = day
+    ? []
+    : model.sections?.targets.map(t => t.corner != null) ?? [];
   const renderRow = (item: RowModel, width: number, wide = false) =>
     item.kind === 'note' ? (
       <NoteRow
