@@ -9,7 +9,7 @@ import {fieldClasses} from '@/src/analysis/fieldClasses';
 import {carLapsOf} from '@/src/analysis/carLaps';
 import {updateAt} from '@/src/analysis/field';
 import {RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
-import {size, space, useLayout, useTheme} from '@/src/design';
+import {classColor, size, space, useLayout, useTheme} from '@/src/design';
 import {SessionNav} from '@/src/workspace/SessionNav';
 import {sessionHref} from '@/src/nav/routes';
 import {
@@ -36,6 +36,7 @@ import {
   type LabelMode,
   type MapMode,
   RaceMap,
+  type RaceChase,
   type RaceFollow,
 } from './components/RaceMap';
 import {RaceTransport} from './components/RaceTransport';
@@ -390,6 +391,32 @@ function RaceView({
       fellBack: focus !== null && chased.index !== focus,
     };
   }, [chased, focus, placer, outlineUse, line, mapZoom]);
+  // The 3D chase: every car as the map has it, on the road the game measured.
+  const chase = useMemo<RaceChase | null>(
+    () =>
+      data.matches && data.chase
+        ? {
+            road: data.chase,
+            cars: cars.map(c => ({
+              index: c.index,
+              xM: c.xM,
+              zM: c.zM,
+              headingRad: c.headingRad,
+              speedKmh: Number.isFinite(c.speedKmh) ? c.speedKmh : 0,
+              carClass: c.carClass,
+              color: classColor(color, classes.of(c.classKey).slot),
+              player: c.player,
+              lapDistM: c.lapDistM,
+              label: labels === 'pos' && c.classPlace > 0 ? String(c.classPlace) : '',
+              state: c.state,
+            })),
+            focus,
+            playing: clock.playing,
+            rate: clock.rate,
+          }
+        : null,
+    [data.matches, data.chase, cars, focus, clock.playing, clock.rate, classes, color, labels],
+  );
   const toggleFocus = useCallback(
     (index: number) => setFocus(f => (f === index ? null : index)),
     [],
@@ -437,8 +464,9 @@ function RaceView({
         onLabels={mode === 'race' ? setLabels : null}
         onPressCar={toggleFocus}
         mode={mapMode}
-        onMode={follow ? setMapMode : null}
+        onMode={follow || chase ? setMapMode : null}
         follow={follow}
+        chase={chase}
         zoom={mapZoom}
         onZoom={prefs.setMapZoom}
       />

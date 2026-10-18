@@ -21,6 +21,8 @@ import {
   useTrackMap,
   useTrackSurface,
 } from '@/src/data/sessions';
+import {chaseRoad, type ChaseRoad} from '@/src/analysis/chaseRoad';
+import {standInElevation} from '@/src/data/elevation';
 import {useLapTraceLoad} from '@/src/data/traces';
 import {shortTrackName} from '@/src/design';
 
@@ -68,6 +70,8 @@ export type RaceData =
       attribution: string | null;
       /** The measured road is still on its way: the map holds its place. */
       roadPending: boolean;
+      /** What the chase view draws: the measured road and a stand-in height profile; null without a measured road. */
+      chase: ChaseRoad | null;
     };
 
 /** Gathers the Race screen's inputs; `carsAt` and the model do the rest. */
@@ -154,6 +158,19 @@ export function useRaceData(sessionId: string): RaceData {
     return worldMatchM(placer.placeWorld(pts), line);
   }, [field.data, line, placer, placed]);
 
+  const chase = useMemo(
+    () =>
+      centreWorld && stored?.hasPositions
+        ? chaseRoad(
+            centreWorld,
+            edges,
+            surfaceStepM,
+            surface.data?.lengthM ?? 0,
+            standInElevation(detail?.trackId),
+          )
+        : null,
+    [centreWorld, edges, surfaceStepM, surface.data, stored, detail?.trackId],
+  );
   const gate = raceGate({
     sessionPending: session.isPending,
     hasDetail: detail != null,
@@ -207,5 +224,6 @@ export function useRaceData(sessionId: string): RaceData {
     matchM,
     attribution: map.data?.attribution ?? null,
     roadPending: surface.isPending,
+    chase,
   };
 }

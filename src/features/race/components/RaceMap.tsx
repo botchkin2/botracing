@@ -2,6 +2,7 @@ import {useMemo} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {type Box} from '@/src/analysis/carLabels';
+import {type ChaseRoad} from '@/src/analysis/chaseRoad';
 import {type FollowView} from '@/src/analysis/followView';
 import {type OutlineUse} from '@/src/analysis/outlineUse';
 import {type Radar as RadarData} from '@/src/analysis/radar';
@@ -18,6 +19,8 @@ import {
 } from '@/src/ui';
 
 import {type RaceDot} from '../model';
+import {ChaseView, chaseAvailable} from './ChaseView';
+import {type ChaseCar} from './chaseTypes';
 
 // Dot radii in points by class, fastest first, from handoff R1d (desktop
 // scale x1.15, phone x0.8); "other" takes the third size.
@@ -49,9 +52,20 @@ const MODE_OPTIONS = [
   {value: 'track', label: 'Track'},
   {value: 'follow', label: 'Follow'},
 ] as const;
+const MODE_OPTIONS_3D = [...MODE_OPTIONS, {value: 'chase', label: '3D'}] as const;
 
-/** Track: the whole circuit. Follow: a heading-up chase view of one car. */
-export type MapMode = 'track' | 'follow';
+/** Track: the whole circuit. Follow: a heading-up chase view of one car. 3D: the same chase, in perspective, with height. */
+export type MapMode = 'track' | 'follow' | 'chase';
+
+/** What the 3D chase needs beyond the cars: the road, and whose eyes. */
+export type RaceChase = {
+  road: ChaseRoad;
+  cars: ChaseCar[];
+  /** The car to follow: the focused one, else you. */
+  focus: number | null;
+  playing: boolean;
+  rate: number;
+};
 
 /** What Follow needs: where the view sits (no size), and the road under it. */
 export type RaceFollow = {
@@ -84,6 +98,7 @@ export function RaceMap({
   mode,
   onMode,
   follow,
+  chase,
   zoom,
   onZoom,
 }: {
@@ -115,12 +130,15 @@ export function RaceMap({
   /** Null hides the switch: the file has no headings, or nothing to chase. */
   onMode: ((mode: MapMode) => void) | null;
   follow: RaceFollow | null;
+  /** Null hides the 3D option (no measured road, not on the web). */
+  chase: RaceChase | null;
   /** Index into FOLLOW_SPANS_M; the Follow map's zoom. */
   zoom: MapZoom;
   onZoom: (zoom: MapZoom) => void;
 }) {
   const {color} = useTheme();
   const following = mode === 'follow' && follow !== null;
+  const chasing = mode === 'chase' && chase !== null && chaseAvailable;
   const scale = desktop ? DESKTOP_SCALE : PHONE_SCALE;
   const lines = useMemo(
     // Fits the view and is the band when there is no outline; no lap is drawn.
@@ -191,7 +209,18 @@ export function RaceMap({
           backgroundColor: color.surface,
         },
       ]}>
-      {following ? (
+      {chasing ? (
+        <ChaseView
+          width={width - 2}
+          height={height - 2}
+          road={chase.road}
+          cars={chase.cars}
+          focus={chase.focus}
+          playing={chase.playing}
+          rate={chase.rate}
+          onPressCar={onPressCar}
+        />
+      ) : following ? (
         <FollowMap
           width={width - 2}
           height={height - 2}
@@ -236,7 +265,11 @@ export function RaceMap({
       )}
       <View style={styles.controls}>
         {onMode ? (
-          <Segment options={MODE_OPTIONS} value={mode} onChange={onMode} />
+          <Segment
+            options={chase && chaseAvailable ? MODE_OPTIONS_3D : MODE_OPTIONS}
+            value={mode}
+            onChange={onMode}
+          />
         ) : null}
         {onLabels ? (
           <Segment options={LABEL_OPTIONS} value={labels} onChange={onLabels} />
