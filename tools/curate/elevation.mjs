@@ -7,6 +7,7 @@ import {join} from 'node:path';
 import {columns, sqlPath} from '../sessions/duck.mjs';
 
 export const ELEVATION_STEP_M = 10;
+export const DURATION_TOLERANCE_S = 0.1;
 const PATH_SPREAD = 0.01;
 const HEIGHT_P95_M = 1;
 const MIN_LAPS = 3;
@@ -140,7 +141,7 @@ export function readCaptureLaps(captureDir) {
     .join(', ')}])`;
   const data = columns(
     ':memory:',
-    `SELECT mLapNumber AS lap, mPos_x AS x, mPos_y AS y, mPos_z AS z
+    `SELECT mLapNumber AS lap, mElapsedTime AS t, mPos_x AS x, mPos_y AS y, mPos_z AS z
      FROM ${src} ORDER BY mElapsedTime`,
   );
   const laps = [];
@@ -148,25 +149,67 @@ export function readCaptureLaps(captureDir) {
   let number = null;
   for (let i = 0; i < data.lap.length; i++) {
     if (data.lap[i] !== number) {
-      current = {lapNumber: data.lap[i], x: [], y: [], z: []};
+      current = {
+        lapNumber: data.lap[i],
+        t0: data.t[i],
+        t1: data.t[i],
+        x: [],
+        y: [],
+        z: [],
+      };
       laps.push(current);
       number = data.lap[i];
     }
+    current.t1 = data.t[i];
     current.x.push(data.x[i]);
     current.y.push(data.y[i]);
     current.z.push(data.z[i]);
   }
   return laps.map(lap => ({
     lapNumber: lap.lapNumber,
+    duration: lap.t1 - lap.t0,
     x: Float64Array.from(lap.x),
     y: Float64Array.from(lap.y),
     z: Float64Array.from(lap.z),
   }));
 }
 
+/**
+ * Kept capture laps against the session's lapTime. The join is by lap number,
+ * so a capture whose numbers are shifted by one lap fails here.
+ * @param {{lapNumber: number, duration: number}[]} captureLaps
+ * @param {{lapNumber: number, lapTime: number}[]} sessionLaps
+ */
+export function checkLapDurations(captureLaps, sessionLaps) {
+  const byNum = new Map((sessionLaps ?? []).map(s => [s.lapNumber, s.lapTime]));
+  const bad = [];
+  for (const lap of captureLaps ?? []) {
+    const lapTime = byNum.get(lap.lapNumber);
+    const ok =
+      Number.isFinite(lapTime) &&
+      Number.isFinite(lap.duration) &&
+      Math.abs(lap.duration - lapTime) <= DURATION_TOLERANCE_S;
+    if (!ok) bad.push(lap.lapNumber);
+  }
+  const checked = (captureLaps ?? []).length;
+  return {
+    matched: checked - bad.length,
+    checked,
+    refusals: bad.length
+      ? [
+          `capture duration does not match lapTime within ${DURATION_TOLERANCE_S} s on lap ${bad.join(
+            ', ',
+          )}`,
+        ]
+      : [],
+  };
+}
+
 /** The capture laps whose lap number is one the session's map kept. */
 export function keepMeasuredLaps(laps, lapNumbers) {
-  const want = new Set(lapNumbers);
+  const want = new Set(
+    (lapNumbers ?? []).map(n => (n && typeof n === 'object' ? n.lapNumber : n)),
+  );
   const kept = [];
   let dropped = 0;
   for (const lap of laps) {

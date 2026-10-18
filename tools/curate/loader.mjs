@@ -90,7 +90,7 @@ const hasGps = recs => recs.every(r => r.s.lat_deg && r.s.lon_deg);
  * folded in before). Returns the `built` a plan takes:
  * {map, boundaries (the state), lapsUsed, gps, sessionId, sim, track}.
  */
-/** Lap numbers lapMeasures kept. Elevation uses these, not every capture lap. */
+/** Lap number and lapTime for each lap lapMeasures kept. */
 export function measuredLapNumbers({adapter, session, workDir, deps = real}) {
   const recs = loadRecs({adapter, session, workDir, load: deps.load});
   const first = session.files[0].info;
@@ -98,9 +98,10 @@ export function measuredLapNumbers({adapter, session, workDir, deps = real}) {
     sessionId: session.id,
     sessionType: first.sessionType,
   });
-  return (analyzed.boundaryLapIds ?? []).map(
-    id => analyzed.laps[Number(id)].lapNumber,
-  );
+  return (analyzed.boundaryLapIds ?? []).map(id => {
+    const lap = analyzed.laps[Number(id)];
+    return {lapNumber: lap.lapNumber, lapTime: lap.lapTime};
+  });
 }
 
 export function buildFromSession({adapter, session, workDir, deps = real}) {

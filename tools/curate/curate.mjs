@@ -22,6 +22,7 @@ import {adapter as simAdapter, telemetryFolder} from '../sessions/sims.mjs';
 import {PlanRefused, applyPlan} from './apply.mjs';
 import {describeMap} from './diff.mjs';
 import {
+  checkLapDurations,
   elevationFromLaps,
   keepMeasuredLaps,
   readCaptureLaps,
@@ -189,13 +190,23 @@ export async function run(argv, deps) {
           'plan-elevation needs --session <id> and --capture <dir>',
         );
       const session = pickSession(sessionsHere(), flags.session);
-      const lapNumbers = measuredLapNumbers({adapter, session, workDir});
+      const sessionLaps = measuredLapNumbers({adapter, session, workDir});
       const picked = keepMeasuredLaps(
         readCaptureLaps(flags.capture),
-        lapNumbers,
+        sessionLaps,
       );
       const built = elevationFromLaps(picked.laps, current.track?.lengthM);
-      built.stats = {...built.stats, droppedInLaps: picked.dropped};
+      const timing = checkLapDurations(picked.laps, sessionLaps);
+      if (timing.refusals.length) {
+        built.elevation = null;
+        built.refusals.push(...timing.refusals);
+      }
+      built.stats = {
+        ...built.stats,
+        droppedInLaps: picked.dropped,
+        matched: timing.matched,
+        checked: timing.checked,
+      };
       plan = planElevation({trackId, current, built, blast});
     } else if (cmd === 'plan-add' || cmd === 'plan-replace') {
       if (!flags.session)

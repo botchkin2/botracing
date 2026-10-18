@@ -349,6 +349,10 @@ export function renderPlan(plan) {
     );
     lines.push(`source: ${e.source}`);
   }
+  if (plan.kind === 'elevation' && Number.isFinite(plan.stats?.checked))
+    lines.push(
+      `${plan.stats.matched}/${plan.stats.checked} laps match lapTime within 0.1 s`,
+    );
   if (plan.diff.boundaries) {
     const d = renderBoundaryDiff(plan.diff.boundaries);
     lines.push(...(d.length ? d : ['the boundaries do not change']));
