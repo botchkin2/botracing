@@ -320,10 +320,10 @@ function clearView(px, py, pz, tx, ty, tz) { for (let lift = 0; lift < 40; lift 
 const camTarget = new THREE.Vector3();
 function updateCam(dt, me) {
   const dirx = Math.cos(me.hd), diry = Math.sin(me.hd); let px, py, pz, lx, ly, lz, fov = 62, rollT = 0, posK = 11, lookK = 12, shake = 0;
-  const hard = !cam.init || cam.mode !== camMode;
+  const hard = !cam.init || cam.mode !== camMode || !playing;   // paused: no smoothing, the camera sits exactly on its target
   if (camMode === 1 || camMode === 2) {
     const port = camera.aspect < 0.8, back = (camMode === 1 ? 7.2 : 15) + (port ? 1.6 : 0), up = (camMode === 1 ? 2.1 : 6.4) + (port ? .4 : 0), ahead = port ? 15 : 20; if (hard) cam.yaw = me.hd;
-    const bias = clamp(curvAt(me.ld + 30) * 26, -0.2, 0.2); cam.yaw += angDiff(cam.yaw, me.hd + bias) * (1 - Math.exp(-dt * 3.4));
+    const bias = clamp(curvAt(me.ld + 30) * 26, -0.2, 0.2); cam.yaw += angDiff(cam.yaw, me.hd + bias) * (hard ? 1 : 1 - Math.exp(-dt * 3.4));
     const cx = Math.cos(cam.yaw), cy = Math.sin(cam.yaw);
     px = me.x - cx * back; py = me.y - cy * back; pz = Math.max(me.z + up - me.pitch * 3, roadZ(me.ld - back) + 1.2);
     lx = me.x + cx * ahead; ly = me.y + cy * ahead; lz = roadZ(me.ld + ahead) + (camMode === 1 ? (port ? .3 : 1.5) : 0.4);
@@ -340,11 +340,12 @@ function updateCam(dt, me) {
     if (hard) cam.orbit = 0; const oa = me.hd + Math.PI + cam.orbit; px = me.x + Math.cos(oa) * 55; py = me.y + Math.sin(oa) * 55; pz = Math.max(me.z, groundZ(px, py)) + 38; lx = me.x + dirx * 8; ly = me.y + diry * 8; lz = me.z; fov = 48; posK = 3; lookK = 8;
   }
   const kp = hard ? 1 : 1 - Math.exp(-dt * posK), kl = hard ? 1 : 1 - Math.exp(-dt * lookK);
-  cam.x = lerp(cam.x, px, kp); cam.y = lerp(cam.y, py, kp); cam.z = lerp(cam.z, pz, camMode === 1 || camMode === 2 ? 1 - Math.exp(-dt * 7) : kp);
+  cam.x = lerp(cam.x, px, kp); cam.y = lerp(cam.y, py, kp); cam.z = lerp(cam.z, pz, hard ? 1 : camMode === 1 || camMode === 2 ? 1 - Math.exp(-dt * 7) : kp);
   cam.lx = lerp(cam.lx, lx, kl); cam.ly = lerp(cam.ly, ly, kl); cam.lz = lerp(cam.lz, lz, kl);
   cam.roll = lerp(cam.roll, rollT, hard ? 1 : 1 - Math.exp(-dt * 6)); cam.fov = lerp(cam.fov, fov, hard ? 1 : 1 - Math.exp(-dt * 4)); cam.mode = camMode; cam.init = true;
   const gz = groundZ(cam.x, cam.y); if (cam.z < gz + 1.1) cam.z = gz + 1.1;
-  setV(camera.position, cam.x, cam.y, cam.z); const tn = performance.now() * .001; camera.position.x += Math.sin(tn * 31) * shake; camera.position.y += Math.sin(tn * 43 + 1) * shake;
+  setV(camera.position, cam.x, cam.y, cam.z); const tn = performance.now() * .001, sk = playing ? shake : 0;   // road buzz only while playing
+  camera.position.x += Math.sin(tn * 31) * sk; camera.position.y += Math.sin(tn * 43 + 1) * sk;
   setV(camTarget, cam.lx, cam.ly, cam.lz); camera.up.set(0, 1, 0); camera.lookAt(camTarget); camera.rotateZ(cam.roll); camera.fov = cam.fov; camera.updateProjectionMatrix();
 }
 
@@ -479,7 +480,7 @@ function chipsUpdate(cs) {
 let W = 0, H = 0;
 function resize() { W = canvas.clientWidth; H = canvas.clientHeight; renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix(); const dpr = Math.min(devicePixelRatio || 1, 2); for (const c of [mapc, profc, stripc]) { c.width = Math.round(c.clientWidth * dpr); c.height = Math.round(c.clientHeight * dpr); } }
 addEventListener('resize', resize);
-let frameN = 0, last = performance.now();
+let frameN = 0, last = performance.now(), skyT = 0;
 function advance(dtReal) {
   if (canvas.clientWidth !== W || canvas.clientHeight !== H) resize();
   if (playing) t += dtReal * rate; if (t > DUR) t = 0; if (t < 0) t = 0;
@@ -489,7 +490,7 @@ function advance(dtReal) {
   updateCam(dtReal * Math.sqrt(Math.max(rate, 1)), me);
   if (ribbon) { const i0 = clamp(Math.floor(t * HZ * SUB) + 1, 0, (NT - 1) * SUB - 2), cnt = clamp(Math.min(SUB * HZ * 5, (NT - 1) * SUB - 1 - i0), 0, 1e6); ribbon.geometry.setDrawRange(i0 * 6, cnt * 6); ribbon.visible = showLine && follow === player; }
   const T = THEMES[themeName]; setV(sun.target.position, me.x, me.y, me.z); sun.position.copy(sun.target.position).addScaledVector(skyUni.sunDir.value, 160);
-  skyUni.time.value = performance.now() * .001; sky.position.copy(camera.position);
+  if (playing) skyT += dtReal * rate; skyUni.time.value = skyT; sky.position.copy(camera.position);
   if (T.lights) { setV(head.position, me.x, me.y, me.z + 1.0); setV(head.target.position, me.x + Math.cos(me.hd) * 30, me.y + Math.sin(me.hd) * 30, me.z + .3); }
   renderer.render(scene, camera);
   if ((frameN++ & 1) === 0) { hud(cs, me); chipsUpdate(cs); }
@@ -498,6 +499,6 @@ function frame(now) { advance(Math.min(0.05, (now - last) / 1000)); last = now; 
 resize(); setPlaying(true); applyTheme('day'); buildWorld(); setCam(1); buildRibbon(follow); $('load').remove(); requestAnimationFrame(frame);
 window.__proto = {
   cars, THREE, tick(n, dt = 1 / 60) { const a = performance.now(); for (let i = 0; i < n; i++) advance(dt); return (performance.now() - a) / n; },
-  get t() { return t; }, set t(v) { t = v; }, set cam(v) { setCam(v); }, set playing(v) { setPlaying(v); }, set follow(v) { pick(v); }, theme(n) { applyTheme(n); }, get renderer() { return renderer; }, get states() { return curStates; },
+  get t() { return t; }, set t(v) { t = v; }, set cam(v) { setCam(v); }, set playing(v) { setPlaying(v); }, set follow(v) { pick(v); }, theme(n) { applyTheme(n); }, get renderer() { return renderer; }, get camera() { return camera; }, get states() { return curStates; },
   seekLd(ld, car = player) { const c = cars[car]; for (let i = 6; i < NT; i++) if (mod(c.d.ld[i], LEN) >= ld) { t = i / HZ; return t; } }, setRate(r) { rate = r; },
 };
