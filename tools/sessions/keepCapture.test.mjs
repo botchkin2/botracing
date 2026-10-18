@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {
   keepVisits,
+  onlineAfterSync,
   raceAfterSync,
   visitAfterSync,
   visitUsedDamage,
@@ -233,4 +234,11 @@ test('an upload API that cannot read lap docs keeps nothing and does not fail th
   await createStore(backend).upload(out);
   assert.deepEqual(docs.get('sessions/s1').race, {minutes: 40});
   assert.equal(docs.get('laps/l1').pitStop.visit.kind, 'unknown');
+});
+
+test('the online flag: a new value wins, offline is kept as false, absence keeps the stored one', () => {
+  assert.equal(onlineAfterSync(true, false), true);
+  assert.equal(onlineAfterSync(false, true), false);
+  assert.equal(onlineAfterSync(null, false), false);
+  assert.equal(onlineAfterSync(null, undefined), null);
 });

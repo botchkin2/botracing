@@ -232,6 +232,7 @@ export const SESSION_LIST_FIELDS = [
   'stints',
   'series',
   'eventId',
+  'online',
   // Five numbers per class, so the Plan can pool class pace without opening
   // every session's full doc.
   'classLaps',

@@ -30,6 +30,7 @@ import {
   formatDayMonthTime,
   formatGap,
   formatLapTime,
+  modeText,
   shortTrackName,
 } from '@/src/design';
 import {planComboKey} from '@/src/nav/routes';
@@ -671,6 +672,7 @@ export function buildSessionModel(
       car.model,
       car.entry,
       session.sim.toUpperCase(),
+      modeText(session.online),
     ]
       .filter(Boolean)
       .join(' · '),

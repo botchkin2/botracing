@@ -51,6 +51,7 @@ import {markUploaded} from './captureMarker.mjs';
 import {describeCheck} from './irCapture.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
+import {onlineFor} from './gameMode.mjs';
 import {captureExtract} from './captureExtract.mjs';
 import {resultsForSpan} from './lmuResults.mjs';
 import {backlogCandidates, uploadResultsBacklog} from './resultsBacklog.mjs';
@@ -307,6 +308,7 @@ async function uploadCaptureBacklog(sessions, state, store) {
         first.sim === 'lmu' && /^r/i.test(first.sessionType)
           ? raceLengthFor(captureRoot, span)
           : null,
+      online: first.sim === 'lmu' ? onlineFor(captureRoot, span) : null,
     });
     // No capture on the PC: nothing to keep, and nothing to try again.
     if (extract) {

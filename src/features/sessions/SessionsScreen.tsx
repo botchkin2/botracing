@@ -220,6 +220,11 @@ function SessionRowView({
             <Text variant='dataSmall' tone='textMuted'>
               {row.subline}
             </Text>
+            {row.modeText ? (
+              <Text variant='dataSmall' tone='textSecondary'>
+                {row.modeText}
+              </Text>
+            ) : null}
             {row.entry ? (
               <Text variant='dataSmall' tone='textFaint'>
                 {row.entry}

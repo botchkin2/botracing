@@ -187,6 +187,7 @@ export async function analyzeStored({
       : first.sim === 'iracing'
       ? first.raceLength ?? null
       : extract?.raceLength ?? null,
+    online: extract?.online ?? null,
     event: {series: session.series ?? null, eventId: session.eventId ?? null},
     fieldFor: () => ({field: null, reason: 'analysed from the store'}),
   });

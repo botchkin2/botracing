@@ -27,7 +27,7 @@ import {
 import {finishCurrent, finishDoc} from '../../src/analysis/raceResult.ts';
 import {fieldAfterSync} from './field.mjs';
 import {relabelField} from './irClasses.mjs';
-import {keepVisits, raceAfterSync} from './keepCapture.mjs';
+import {keepVisits, onlineAfterSync, raceAfterSync} from './keepCapture.mjs';
 import {planBlock} from './planBlock.mjs';
 import {stampNewer, withKept} from './versionKey.mjs';
 import {captureExtractPath} from './captureExtract.mjs';
@@ -576,6 +576,7 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   // race length, and the visits read from the car's damage.
   const keptBlocks = [];
   const freshRace = session.race;
+  session.online = onlineAfterSync(session.online, before?.online);
   session.race = raceAfterSync(freshRace, before?.race ?? null, session);
   if (session.race && !freshRace) keptBlocks.push('raceLength');
   if (out.damageMissing) {

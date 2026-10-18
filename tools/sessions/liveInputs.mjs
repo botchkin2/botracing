@@ -11,6 +11,7 @@ import {dirname} from 'node:path';
 import {captureExtract} from './captureExtract.mjs';
 import * as duck from './duck.mjs';
 import {fieldFor} from './field.mjs';
+import {onlineFor} from './gameMode.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {resultsForSpan} from './lmuResults.mjs';
@@ -63,6 +64,7 @@ export function liveInputs({
       first.sim === 'lmu' && /^r/i.test(first.sessionType ?? '')
         ? raceLengthFor(root, span)
         : null,
+    online: first.sim === 'lmu' ? onlineFor(root, span) : null,
   });
   // The game's rulings: its results file exists once the session has ended, so
   // a lap during the drive finds none and the run at the close finds it.
