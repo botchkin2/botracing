@@ -42,10 +42,10 @@ export type MovesCard = {
 };
 
 const LABEL: Record<MoveId, string> = {
-  brake: 'Brake point',
+  brake: 'Brake',
   line: 'Line',
-  steer: 'Steering',
-  throttle: 'Full pedal',
+  steer: 'Steer',
+  throttle: 'Pedal',
 };
 
 /** Robust spread in the units of a standard deviation (IQR / 1.349), null under the spread floor. */
