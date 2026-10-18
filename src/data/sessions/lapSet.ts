@@ -1,5 +1,5 @@
 import {useQueryClient} from '@tanstack/react-query';
-import {useEffect, useMemo, useRef} from 'react';
+import {useEffect, useMemo} from 'react';
 
 import {sittingOf} from '@/src/analysis/sitting';
 
@@ -184,12 +184,19 @@ export function useSessionLapSet(id: string): LapSet | null {
     : null;
 }
 
+// An id per object, so a list of query results has a signature that changes
+// only when one of them is new data.
+const ids = new WeakMap<object, number>();
+let nextId = 1;
+const idOf = (x: unknown): string => {
+  if (x == null || typeof x !== 'object') return String(x);
+  let id = ids.get(x);
+  if (id == null) ids.set(x, (id = nextId++));
+  return String(id);
+};
+
 /** The same array while its elements are the same objects: `useQueries` hands back a new one each render. */
 function useStableList<T>(items: readonly T[]): readonly T[] {
-  const last = useRef<readonly T[]>(items);
-  const same =
-    last.current.length === items.length &&
-    last.current.every((x, i) => x === items[i]);
-  if (!same) last.current = items;
-  return last.current;
+  const signature = items.map(idOf).join(',');
+  return useMemo(() => items, [signature]);
 }
