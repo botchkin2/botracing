@@ -1,7 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {ABSENT, type Field, type FieldCar} from './field';
-import {raceClock} from './raceClock';
+import {raceClock, raceStartS} from './raceClock';
 
 const HZ = 5;
 
@@ -164,5 +164,54 @@ describe('raceClock.timeAtLapDistance', () => {
     expect(at).not.toBeNull();
     const t = raceClock(f).timeAtLapDistance(at!.lapNumber, at!.distanceM);
     expect(t).toBeCloseTo(12 / HZ, 6);
+  });
+});
+
+describe('the start of a race from a grid behind the line (pit wall thread 91)', () => {
+  // His 2026-10-15 Silverstone race, on a 100 m track at 10 m an update: a
+  // formation lap from behind the line, onto the grid behind it again (lap
+  // distance negative), the start, then the game's counter reads 1 only after
+  // a full racing lap (mTotalLaps stayed 0 from the grid to 274 s).
+  const rows: [number, number][] = [
+    [-15, 0],
+    [-5, 0],
+    ...Array.from({length: 10}, (_, i): [number, number] => [5 + i * 10, 0]),
+    [-3, 0],
+    [-3, 0],
+    [-3, 0],
+    ...Array.from({length: 10}, (_, i): [number, number] => [7 + i * 10, 0]),
+    ...Array.from({length: 10}, (_, i): [number, number] => [7 + i * 10, 1]),
+    [7, 2],
+    [17, 2],
+  ];
+  const car = player(rows.length);
+  rows.forEach(([d, laps], u) => {
+    car.lapDistM[u] = d;
+    car.lapsDone[u] = laps;
+  });
+  const f = field(car, rows.length);
+  // Grid at u 12-14 (-3 m), across the line at u 15 (7 m): 2.8 s + 0.3 of an update.
+  const startS = 14 / HZ + 0.3 / HZ;
+
+  it('lap 1 starts at the start crossing, not at the formation lap', () => {
+    expect(raceClock(f).timeAtLapDistance(0, 0)).toBeCloseTo(startS, 6);
+  });
+  it('lap 2 starts where the counter first moves, one full lap later', () => {
+    // The interpolation from the lap before uses the field's estimated length.
+    expect(raceClock(f).timeAtLapDistance(1, 0)).toBeCloseTo(
+      24 / HZ + 0.3 / HZ,
+      1,
+    );
+  });
+  it('the race starts at the first start crossing', () => {
+    expect(raceStartS(f)).toBeCloseTo(startS, 6);
+  });
+  it('no start when no car completes its first lap in the field', () => {
+    const short = field(player(rows.length), 22);
+    rows.slice(0, 22).forEach(([d], u) => {
+      short.cars[0].lapDistM[u] = d;
+      short.cars[0].lapsDone[u] = 0;
+    });
+    expect(raceStartS(short)).toBeNull();
   });
 });
