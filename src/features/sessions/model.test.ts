@@ -29,6 +29,7 @@ const session = (over: Partial<SessionSummary>): SessionSummary => ({
   finish: null,
   eventId: null,
   online: null,
+  endedAt: null,
   cornerMapSource: 'stored',
   updatedAt: '2026-09-27T23:00:00Z',
   ...over,
