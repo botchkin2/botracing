@@ -5,6 +5,7 @@ import {
 } from '@/src/analysis/paceEvents';
 
 import {type Lap} from './adapters';
+import {paceCandidates} from './defaultLaps';
 
 // A sitting's laps as one set (pit-wall thread 88, chord's day set #5950): the
 // sessions of one track, car and type run back to back, derived from the
@@ -47,10 +48,6 @@ export function mergeDayLaps(members: readonly DayMember[]): Lap[] {
   return out;
 }
 
-/** The laps whose pace is judged: timed, whole, not in or out of the pits (as the uploader's candidates). */
-const isCandidate = (l: Lap) =>
-  l.timeS != null && !l.partial && !l.pitIn && !l.pitOut;
-
 /** Laps the uploader's slow rule looks at: no stored reason but 'slow' (src/analysis/paceEvents.ts, tools/sessions/analyze.mjs markSlow). */
 const isJudged = (l: Lap) => l.reasons.every(r => r === 'slow');
 
@@ -60,9 +57,7 @@ const isJudged = (l: Lap) => l.reasons.every(r => r === 'slow');
  * they differ: the whole day is then lap time only, never a mix.
  */
 export function dayUsesSections(members: readonly DayMember[]): boolean {
-  const laps = members.flatMap(m =>
-    m.laps.filter(l => isCandidate(l) && isJudged(l)),
-  );
+  const laps = members.flatMap(m => paceCandidates(m.laps).filter(isJudged));
   const first = laps[0]?.cornerBoundaries;
   return (
     first != null &&
@@ -85,7 +80,9 @@ export function dayUsesSections(members: readonly DayMember[]): boolean {
 export function daySlowIds(members: readonly DayMember[]): Set<string> | null {
   if (members.some(m => !m.current)) return null;
   const judged = members.flatMap(m =>
-    m.laps.filter(l => isCandidate(l) && isJudged(l)).map(l => ({m, l})),
+    paceCandidates(m.laps)
+      .filter(isJudged)
+      .map(l => ({m, l})),
   );
   const useSections = dayUsesSections(members);
   const stintOf = new Map<string, number>();
@@ -122,8 +119,7 @@ export function dayLapIds(members: readonly DayMember[]): string[] | null {
   const slow = daySlowIds(members);
   if (!slow) return null;
   const set = members.flatMap(m =>
-    m.laps
-      .filter(isCandidate)
+    paceCandidates(m.laps)
       .map(l => dayLapId(m.sessionId, l.id))
       .filter(id => !slow.has(id)),
   );
