@@ -1,3 +1,4 @@
+import {basisOf} from '@/src/analysis/lapBasis';
 import {useMemo} from 'react';
 
 import type {StripLap} from './lapStrip';
@@ -41,7 +42,6 @@ import {buildFuelUse, type FuelUse} from './fuelUse';
 import {optimumFacts} from './optimumFacts';
 import {type OptimumLine, optimumLines} from './optimumLines';
 import {
-  basisOf,
   lapTimeStats,
   segmentBasisStats,
   stintNumbers,
@@ -59,6 +59,7 @@ import {
   trafficRows,
 } from './trafficFacts';
 import {isCompound} from '@/src/data/sessions/corners';
+import {type SpreadRow, spreadRows} from './spreadRows';
 import {MIN_COMPARISON_LAPS} from '@/src/analysis/setStats';
 
 // Session screen view model (handoff §2). buildSessionModel is pure: session,
@@ -217,6 +218,8 @@ export type SessionScreenModel = {
   optimumLines: OptimumLine[];
   /** Null while no lap has sections or sector times. */
   sections: SectionTable | null;
+  /** The sections that hold the most of the set's lap-to-lap spread; empty under 10 laps (spreadRows.ts). */
+  spread: SpreadRow[];
   /** The game's sector columns (S1..Sn) when laps carry sector times; none otherwise. */
   sectorHeads: string[];
   chart: ChartModel | null;
@@ -647,6 +650,7 @@ export function buildSessionModel(
       : null;
 
   const bestLap = laps.find(l => l.id === session.bestLapId);
+  const sections = sectionTable(sectionTimes, basis, map);
   const trafficPace = trafficPaceFacts(session, basisLaps);
   const pitCard = buildPitCard(session.sessionType, laps, session);
   const fuelUse = buildFuelUseCard(session, laps);
@@ -695,7 +699,8 @@ export function buildSessionModel(
     ],
     optimum: optimumFacts([...stintLines.values()], session.stints.length),
     optimumLines: optimumLines([...stintLines.values()], session.stints.length),
-    sections: sectionTable(sectionTimes, basis, map),
+    sections,
+    spread: spreadRows(sectionTimes, basis, sections),
     chart,
     noComparable,
     rows,
