@@ -1,5 +1,5 @@
 import {useQueryClient} from '@tanstack/react-query';
-import {useEffect, useMemo} from 'react';
+import {useCallback, useEffect, useMemo} from 'react';
 
 import {sittingOf} from '@/src/analysis/sitting';
 
@@ -112,7 +112,7 @@ export function useDaySet(
   sessionId: string,
   trackId: string | undefined,
   wanted: boolean,
-): DayState & {ids: string[]} {
+): DayState & {ids: string[]; retry: () => void} {
   const client = useQueryClient();
   const list = useSessions({trackId}, trackId != null);
   const ids = useMemo(() => {
@@ -181,7 +181,15 @@ export function useDaySet(
     lapsOf.failed,
     lapsOf.pending,
   ]);
-  return {...result, ids};
+  const {refetch: refetchList} = list;
+  const {refetch: refetchDetails} = details;
+  const {refetch: refetchLaps} = lapsOf;
+  const retry = useCallback(() => {
+    if (list.isError) void refetchList();
+    refetchDetails();
+    refetchLaps();
+  }, [list.isError, refetchList, refetchDetails, refetchLaps]);
+  return {...result, ids, retry};
 }
 
 /** The one session as a LapSet; null while it loads. */

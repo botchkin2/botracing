@@ -513,7 +513,12 @@ export function buildSessionModel(
   // The game's sectors for the phone table; the desktop table reads the
   // segments the Settings toggle picks. Best = fastest among comparable laps.
   const sectorTimes = sectorSegmentTimes(laps);
-  const sectionTimes = segmentTimesFor(sectionMode, laps, map);
+  // A day cut at different corner windows has no section numbers at all: the
+  // columns, optimum, spread and brake rows are lap times only (daySet.ts).
+  const bySections = day == null || day.usesSections;
+  const sectionTimes = bySections
+    ? segmentTimesFor(sectionMode, laps, map)
+    : null;
   const sectorCells = cellsOf(sectorTimes, basis, 1);
   const sectionCells = cellsOf(sectionTimes, basis, 2);
   const stintLines = new Map(
@@ -725,7 +730,7 @@ export function buildSessionModel(
     optimumLines: optimumLines([...stintLines.values()], stintCount),
     sections,
     spread: spreadRows(sectionTimes, basis, sections),
-    brake: brakeLedger(laps, basis, map),
+    brake: brakeLedger(laps, basis, bySections ? map : null),
     chart,
     noComparable,
     rows,
@@ -806,7 +811,9 @@ export function useDaySegmentTimes(day: DaySet | null): SegmentTimes | null {
   const sectionMode = useSectionMode();
   return useMemo(
     () =>
-      day ? segmentTimesFor(sectionMode, day.laps, map.data ?? null) : null,
+      day?.usesSections
+        ? segmentTimesFor(sectionMode, day.laps, map.data ?? null)
+        : null,
     [day, map.data, sectionMode],
   );
 }

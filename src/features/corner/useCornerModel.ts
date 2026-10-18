@@ -64,7 +64,7 @@ export function useCornerModel(
   const route = useSession(sessionId);
   const routeLaps = useSessionLaps(sessionId);
   const selection = urlSelection;
-  const band = useSessionBand(sessionId);
+  const sessionBand = useSessionBand(sessionId);
   // A day is its own model (data/sessions/lapSet.ts): its laps, its track, no
   // one session standing in for it. The URL names a day before it has loaded.
   const dayState = useDaySet(sessionId, route.data?.trackId, setKind === 'day');
@@ -72,6 +72,8 @@ export function useCornerModel(
   const dayPending = setKind === 'day' && dayState.state === 'loading';
   const dayFailed = setKind === 'day' && dayState.state === 'error';
   const map = useTrackMap(day ? day.trackId : route.data?.trackId);
+  // The band is one session's: a day has none yet, so none is drawn under its laps.
+  const band = day || setKind === 'day' ? null : sessionBand.data ?? null;
   const lapData = day ? day.laps : routeLaps.data;
   const known = day != null || route.data != null;
   // The session's own opening rules; a day has its own (openingIds).
@@ -142,8 +144,9 @@ export function useCornerModel(
     sliceCorner,
     !day && hasFile ? slicePointer?.hash ?? null : null,
   );
-  const slices = day ? {...single, status: daySlices.status} : single;
-  const {refetch: refetchSlices} = single;
+  const sliceStatus = day ? daySlices.status : single.status;
+  const {refetch: refetchSingle} = single;
+  const {refetch: refetchDay} = daySlices;
   const traces = useMemo(() => {
     const out = new Map<string, GridTrace>();
     if (day) {
@@ -168,13 +171,14 @@ export function useCornerModel(
         lapCount: lapIds.length,
         sessionKnown: known,
         hasFile,
-        status: slices.status,
+        status: sliceStatus,
       }),
-    [lapIds.length, known, hasFile, slices.status],
+    [lapIds.length, known, hasFile, sliceStatus],
   );
   const retryTraces = useCallback(() => {
-    void refetchSlices();
-  }, [refetchSlices]);
+    if (day) refetchDay();
+    else void refetchSingle();
+  }, [day, refetchDay, refetchSingle]);
 
   // Stable functions, so they can sit in the memo's dependencies.
   const {refetch: refetchSession} = route;
@@ -196,10 +200,7 @@ export function useCornerModel(
       return {
         state: 'error',
         message: 'the day did not load',
-        retry: () => {
-          void refetchSession();
-          void refetchLaps();
-        },
+        retry: dayState.retry,
       };
     if (dayPending || !known || !lapData || map.isPending)
       return {state: 'loading'};
@@ -211,7 +212,7 @@ export function useCornerModel(
     const model = buildCornerModel({
       laps: lapData,
       map: map.data,
-      band: band.data ?? null,
+      band,
       traces,
       lapIds,
       keyLapIds: traceIds,
@@ -234,13 +235,14 @@ export function useCornerModel(
   }, [
     error,
     dayFailed,
+    dayState.retry,
     dayPending,
     known,
     day,
     lapData,
     map.isPending,
     map.data,
-    band.data,
+    band,
     traces,
     lapIds,
     traceIds,

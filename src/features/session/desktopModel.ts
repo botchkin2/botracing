@@ -164,17 +164,21 @@ export function useSessionDesktopModel(
 ): SessionDesktopModel | null {
   const own = useSession(id);
   const ownLaps = useSessionLaps(id);
-  const session = day ? {data: {stints: day.stints}} : own;
-  const laps = day ? {data: day.laps} : ownLaps;
-  const map = useTrackMap(own.data?.trackId ?? day?.members[0].trackId);
+  const map = useTrackMap(day ? day.trackId : own.data?.trackId);
+  const ownSession = own.data;
+  const ownLapData = ownLaps.data;
   return useMemo(() => {
-    if (!session.data || !laps.data) return null;
-    // Corner numbers are the map's parts (T1–T11), in lapCornerTimes order.
-    const corners = map.data ? trackCorners(map.data) : null;
+    const session = day ? {stints: day.stints} : ownSession;
+    const laps = day ? day.laps : ownLapData;
+    if (!session || !laps) return null;
+    // Corner numbers are the map's parts (T1–T11), in lapCornerTimes order. A
+    // day cut at different windows has none: lap times only (daySet.ts).
+    const corners =
+      map.data && (day?.usesSections ?? true) ? trackCorners(map.data) : null;
     const ticked = new Set(selection.laps);
     return {
-      stints: buildStintTable(session.data, laps.data, ticked),
-      stintVsStint: buildStintVsStint(laps.data, corners, ticked),
+      stints: buildStintTable(session, laps, ticked),
+      stintVsStint: buildStintVsStint(laps, corners, ticked),
     };
-  }, [session.data, laps.data, map.data, selection]);
+  }, [day, ownSession, ownLapData, map.data, selection]);
 }

@@ -89,6 +89,10 @@ export function useDayCornerSlices(
         : results.some(r => r.status === 'pending' && r.fetchStatus !== 'idle')
         ? ('pending' as const)
         : ('success' as const),
+      /** Tries again the files that failed. */
+      refetch: () => {
+        for (const r of results) if (r.isError) void r.refetch();
+      },
     }),
   });
 }

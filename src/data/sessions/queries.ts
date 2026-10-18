@@ -132,6 +132,9 @@ export function useSessionsLaps(ids: string[]) {
       laps: results.map(r => r.data),
       pending: results.some(r => r.isPending),
       failed: results.filter(r => r.isError).length,
+      refetch: () => {
+        for (const r of results) if (r.isError) void r.refetch();
+      },
     }),
   });
 }
@@ -150,6 +153,9 @@ export function useSessionsDetail(ids: string[]) {
       // Loading, not failed: a query that errored has no data either.
       pending: results.some(r => r.isPending),
       failed: results.filter(r => r.isError).length,
+      refetch: () => {
+        for (const r of results) if (r.isError) void r.refetch();
+      },
     }),
   });
 }
