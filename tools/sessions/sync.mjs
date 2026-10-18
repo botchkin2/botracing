@@ -49,14 +49,7 @@ import {slugId} from './analyzeFromArchive.mjs';
 import {analysisVersion, blockVersions, trackMapVersion} from './analyze.mjs';
 import {markUploaded} from './captureMarker.mjs';
 import {describeCheck} from './irCapture.mjs';
-import {damageFor} from './playerDamage.mjs';
-import {raceLengthFor} from './raceLength.mjs';
-import {onlineFor} from './gameMode.mjs';
-import {
-  liveOnlineFlags,
-  uploadLiveOnlineBacklog,
-} from './liveOnlineBacklog.mjs';
-import {captureExtract} from './captureExtract.mjs';
+import {captureExtractFor, liveExtractSessions} from './captureExtractFor.mjs';
 import {resultsForSpan} from './lmuResults.mjs';
 import {backlogCandidates, uploadResultsBacklog} from './resultsBacklog.mjs';
 import {adoptLiveIds, confirmAdoptions, settleSupersedes} from './heal.mjs';
@@ -299,24 +292,34 @@ function keepBoundaries(trackId, state) {
 // still on the PC: their extract goes up once, by itself, with no analysis
 // (pit-wall thread 1 #4611, #4613). Recorded in state.extracts so a session
 // is sent once.
-async function uploadCaptureBacklog(sessions, state, store) {
+async function uploadCaptureBacklog(sessions, state, store, liveIndex) {
   state.extracts ??= {};
   let sent = 0;
-  for (const s of sessions) {
-    if (!state.sessions[s.id] || state.extracts[s.id]) continue;
-    const span = spanOf(s);
-    const first = s.files[0].info;
-    const extract = captureExtract({
-      damage: damageFor(captureRoot, span),
-      raceLength:
-        first.sim === 'lmu' && /^r/i.test(first.sessionType)
-          ? raceLengthFor(captureRoot, span)
-          : null,
-      online: first.sim === 'lmu' ? onlineFor(captureRoot, span) : null,
-    });
+  const items = [
+    ...sessions
+      .filter(s => state.sessions[s.id])
+      .map(s => ({
+        id: s.id,
+        sim: s.files[0].info.sim,
+        sessionType: s.files[0].info.sessionType,
+        span: spanOf(s),
+        live: false,
+      })),
+    // A live session's extract went up with its laps, before it carried the
+    // online flag: sent again once, and the session marked stale so the next
+    // open analyses it with the flag.
+    ...liveExtractSessions(liveIndex, captureRoot).map(s => ({
+      ...s,
+      live: true,
+    })),
+  ];
+  for (const s of items) {
+    if (state.extracts[s.id]) continue;
+    const extract = captureExtractFor(captureRoot, s.span, s);
     // No capture on the PC: nothing to keep, and nothing to try again.
     if (extract) {
       await store.putCaptureExtract(ownerId, s.id, extract);
+      if (s.live) await store.markStale(s.id, ownerId);
       sent++;
     }
     // Saved per session, so a run stopped mid-backlog resumes where it was.
@@ -401,18 +404,6 @@ function describeSession(s) {
 // looked at once per start after its retry window. The watcher passes its own.
 const resultsRun = arg('--run', new Date().toISOString());
 
-// Each stored live session's online flag, once (liveOnlineBacklog.mjs).
-function keepOnline(state, store, liveIndex) {
-  return uploadLiveOnlineBacklog({
-    flags: liveOnlineFlags(liveIndex, captureRoot),
-    state,
-    store,
-    ownerId,
-    saveState: () => saveState(state),
-    log,
-  });
-}
-
 function keepResults(sessions, state, store, liveIndex) {
   const nowMs = Date.now();
   return uploadResultsBacklog({
@@ -452,11 +443,6 @@ async function main() {
     const liveStore = remoteStore ?? (await import('./store.mjs'));
     await keepResults(
       [],
-      state,
-      liveStore,
-      usableLiveIndex(readLiveIndex(work), captureRoot),
-    );
-    await keepOnline(
       state,
       liveStore,
       usableLiveIndex(readLiveIndex(work), captureRoot),
@@ -563,9 +549,9 @@ async function main() {
     log(`${waiting.length} session(s) waiting on a retry: skipped`);
     todo = todo.filter(s => !skipIds.has(s.id));
   }
-  if (!local && !check) await uploadCaptureBacklog(sessions, state, store);
+  if (!local && !check)
+    await uploadCaptureBacklog(sessions, state, store, liveIndex);
   if (!local && !check) await keepResults(sessions, state, store, liveIndex);
-  if (!local && !check) await keepOnline(state, store, liveIndex);
   if (!local && !check) await repairIracingArchives(sessions, state, store);
   // The watcher reads this line for the heartbeat's done/total.
   log(`to do ${todo.length}`);

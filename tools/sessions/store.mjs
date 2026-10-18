@@ -887,19 +887,6 @@ export function createStore(backend) {
           merge: true,
         },
       ]),
-    // A stored session's online flag on its own, for a live session whose last
-    // lap went up before the tray read it (liveOnlineBacklog.mjs). Merged:
-    // nothing else on the doc moves. ownerId: the API refuses a doc without it.
-    setOnline: (sessionId, ownerId, online) =>
-      backend.writeDocs([
-        {
-          op: 'set',
-          coll: 'sessions',
-          id: sessionId,
-          data: {ownerId, online},
-          merge: true,
-        },
-      ]),
     // A session's capture extract on its own (captureExtract.mjs), for the
     // sessions uploaded before extracts were kept.
     putCaptureExtract: (ownerId, sessionId, extract) =>
@@ -930,8 +917,6 @@ export const putCaptureExtract = (ownerId, sessionId, extract) =>
   admin().putCaptureExtract(ownerId, sessionId, extract);
 export const putResultsInput = (ownerId, sessionId, input) =>
   admin().putResultsInput(ownerId, sessionId, input);
-export const setOnline = (sessionId, ownerId, online) =>
-  admin().setOnline(sessionId, ownerId, online);
 export const markStale = (sessionId, ownerId) =>
   admin().markStale(sessionId, ownerId);
 export const getBoundaries = (trackId, db) =>

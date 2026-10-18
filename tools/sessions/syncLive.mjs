@@ -127,7 +127,6 @@ export async function syncLive({
         sessionId: session.id,
         recordings,
         nowIso: now(),
-        online: inputs.extract?.online ?? null,
       }),
       recordings: recordings.map(recording =>
         liveRecordingDoc({ownerId, sessionId: session.id, recording}),
