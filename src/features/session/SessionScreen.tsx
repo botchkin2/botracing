@@ -24,7 +24,6 @@ import {type DaySet, useDaySet, useSession} from '@/src/data/sessions';
 import {SessionNav} from '@/src/workspace/SessionNav';
 import {
   compareHref,
-  cornerHref,
   sessionHref,
   sessionsHref,
   trackHref,
@@ -64,7 +63,6 @@ import {
 } from './components/LapTableRow';
 import {
   BAR_CLAMP_S,
-  gridCellTargetOf,
   type NoteRowModel,
   type RowModel,
   type Selection,
@@ -73,6 +71,7 @@ import {
   useSessionOpeningLapIds,
   useSessionScreenModel,
 } from './model';
+import {sectionCellHref, sectionHeadHref, sectionTapsOf} from './sectionTaps';
 
 const CHART_H = 166;
 const DESKTOP_SIDE_W = 340;
@@ -517,9 +516,7 @@ function SessionView({
   };
 
   // Which section columns open something: the game's sectors and the start straight do not.
-  const sectionTaps = day
-    ? []
-    : model.sections?.targets.map(t => t.corner != null) ?? [];
+  const sectionTaps = sectionTapsOf(model.sections);
   const renderRow = (item: RowModel, width: number, wide = false) =>
     item.kind === 'note' ? (
       <NoteRow
@@ -550,18 +547,15 @@ function SessionView({
         sectionTaps={sectionTaps}
         sectionNames={model.sections?.heads}
         onSectionPress={i => {
-          const target =
-            model.sections &&
-            gridCellTargetOf(model.sections, i, item.lapId, selection.laps);
-          if (target)
-            router.push(
-              cornerHref(
-                sessionId,
-                target.corner,
-                {laps: target.laps, hl: item.lapId, set},
-                target.whole,
-              ),
-            );
+          const href = sectionCellHref(
+            sessionId,
+            model.sections,
+            i,
+            item.lapId,
+            selection.laps,
+            set,
+          );
+          if (href) router.push(href);
         }}
         lapColor={item.selIndex != null ? colorOf(item.selIndex) : undefined}
         onPress={() => highlight(item.lapId, false)}
@@ -683,15 +677,14 @@ function SessionView({
                     heads={model.sections?.heads ?? model.sectorHeads}
                     headTaps={sectionTaps}
                     onHeadPress={i => {
-                      const corner = model.sections?.sections[i];
-                      if (corner != null)
-                        router.push(
-                          compareHref(sessionId, {
-                            laps: selection.laps,
-                            corner,
-                            set,
-                          }),
-                        );
+                      const href = sectionHeadHref(
+                        sessionId,
+                        model.sections,
+                        i,
+                        selection.laps,
+                        set,
+                      );
+                      if (href) router.push(href);
                     }}
                   />
                 </View>

@@ -8,6 +8,7 @@ import {toggle} from '@/src/state/lapSelection';
 import {PANEL_DIVIDER_W, PanelDivider, Pressable, Text} from '@/src/ui';
 
 import type {DaySet} from '@/src/data/sessions';
+import {sectionHeadHref, sectionTapsOf} from '../sectionTaps';
 import {useSessionDesktopModel} from '../desktopModel';
 import {
   factLabel,
@@ -217,21 +218,16 @@ export function SessionWorkspace({
                   width={innerW}
                   wide
                   heads={model.sections?.heads ?? model.sectorHeads}
-                  headTaps={
-                    day
-                      ? undefined
-                      : model.sections?.targets.map(t => t.corner != null)
-                  }
+                  headTaps={sectionTapsOf(model.sections)}
                   onHeadPress={i => {
-                    const corner = model.sections?.sections[i];
-                    if (!day && corner != null)
-                      router.push(
-                        compareHref(sessionId, {
-                          laps: selection.laps,
-                          corner,
-                          set: day ? 'day' : null,
-                        }),
-                      );
+                    const href = sectionHeadHref(
+                      sessionId,
+                      model.sections,
+                      i,
+                      selection.laps,
+                      day ? 'day' : null,
+                    );
+                    if (href) router.push(href);
                   }}
                 />
               </View>
