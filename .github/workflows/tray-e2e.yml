@@ -243,11 +243,18 @@ jobs:
       # The installer's last guard by construction: botracing.exe held with no
       # sharing for 3 s, and N must wait for it (hooks.nsh), not stop on
       # "Error opening file for writing" (pit wall thread 71).
+      # A rehearsal loop (rehearsals > 1) runs it as many times, so a flake
+      # shows in one run (same-branch dispatches cancel each other).
       - name: Install N over a held botracing.exe
         working-directory: .
+        env:
+          REHEARSALS: ${{ inputs.rehearsals || 1 }}
         run: |
-          ./desktop/scripts/e2e-exe-lock.ps1 -Installer (Join-Path $env:RUNNER_TEMP "rehearsal/$env:NEW-setup.exe")
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          for ($i = 1; $i -le [int]$env:REHEARSALS; $i++) {
+            Write-Host "exe lock $i of $env:REHEARSALS"
+            ./desktop/scripts/e2e-exe-lock.ps1 -Installer (Join-Path $env:RUNNER_TEMP "rehearsal/$env:NEW-setup.exe")
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
 
       - uses: actions/upload-artifact@v7
         if: ${{ always() && inputs.rehearsals > 1 }}
