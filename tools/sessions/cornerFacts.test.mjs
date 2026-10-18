@@ -307,8 +307,8 @@ const INPUT_WINDOWS = [
     fromM: 200,
     toM: INPUT_LENGTH,
     parts: [
-      {n: 1, turnInM: 300, fromM: 200, toM: 410},
-      {n: 2, turnInM: 430, fromM: 410, toM: INPUT_LENGTH},
+      {n: 1, turnInM: 300, apexM: 350, fromM: 200, toM: 410},
+      {n: 2, turnInM: 430, apexM: 470, fromM: 410, toM: INPUT_LENGTH},
     ],
   },
 ];
