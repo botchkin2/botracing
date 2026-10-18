@@ -62,3 +62,20 @@ Changed:
 - laps.1.comparable: false -> true
 - laps.15.reasons.0: "slow" -> undefined
 - laps.15.comparable: false -> true
+
+## 2026-10-18 lmu-practice-road-atlanta
+Why: lap 15 (83.445 s, alone in stint 1) was judged against its own one-lap curve, a residual of 0, so it could not be slow; a stint under MIN_CURVE_LAPS = 3 laps is now judged against the session pace (pit-wall thread 75 #5876, slowLaps 2), so it is slow (3 % over the 80.9 s median) and leaves the comparable set. The session limit is unchanged.
+Changed:
+- summary.comparableCount: 12 -> 11
+- summary.medianLapTime: 80.904 -> 80.853
+- summary.stdevLapTime: 1.179 -> 1.009
+- stints.1.comparable: 1 -> 0
+- stints.1.bestLapTime: 83.445 -> null
+- stints.1.medianLapTime: 83.445 -> null
+- cornerMedians.0: 6.797000000000001 -> 6.782
+- cornerMedians.1: 13.979 -> 13.963
+- cornerMedians.2: 10.603 -> 10.602
+- cornerMedians.3: 28.945 -> 28.944
+- cornerMedians.4: 16.454 -> 16.444
+- laps.15.reasons.0: undefined -> "slow"
+- laps.15.comparable: true -> false
