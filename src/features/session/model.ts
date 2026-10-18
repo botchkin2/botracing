@@ -1,3 +1,4 @@
+import {basisOf} from '@/src/analysis/lapBasis';
 import {useMemo} from 'react';
 
 import type {StripLap} from './lapStrip';
@@ -41,7 +42,6 @@ import {buildFuelUse, type FuelUse} from './fuelUse';
 import {optimumFacts} from './optimumFacts';
 import {type OptimumLine, optimumLines} from './optimumLines';
 import {
-  basisOf,
   lapTimeStats,
   segmentBasisStats,
   stintNumbers,

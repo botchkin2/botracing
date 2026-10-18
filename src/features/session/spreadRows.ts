@@ -4,7 +4,7 @@ import {formatWhole} from '@/src/design';
 
 import type {SectionTable} from './model';
 
-/** Rows shown: the biggest few; the rest are small by construction (the shares add to 100). */
+/** Rows shown: the biggest few; the rest are smaller (the shares add to 100). */
 export const SPREAD_ROWS = 4;
 
 /** One section's share of the set's lap-to-lap spread (analysis/spreadShare.ts). */
