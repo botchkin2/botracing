@@ -2,7 +2,13 @@ import {describe, expect, it} from '@jest/globals';
 
 import type {PlanSession} from '@/src/data/sessions/planBlock';
 
-import {MIN_BAR_LAPS, progressionLanes} from './progression';
+import {
+  dotLine,
+  MIN_BAR_LAPS,
+  nearestDot,
+  placeLanes,
+  progressionLanes,
+} from './progression';
 
 const session = (
   id: string,
@@ -77,5 +83,49 @@ describe('progressionLanes', () => {
     ]);
     expect(lanes.map(l => l.type)).toEqual(['P']);
     expect(lanes[0].dots.map(d => d.ids)).toEqual([['a'], ['b']]);
+  });
+});
+
+describe('dotLine', () => {
+  it('names the sessions of a sitting, the laps, the median and the spread', () => {
+    const [lane] = progressionLanes([
+      session('a', 'P', '2026-10-15T17:00:00Z', '2026-10-15T17:40:00Z', [121.2, 121.5, 121.8]),
+      session('b', 'P', '2026-10-15T18:00:00Z', null, [121.3, 121.49]),
+    ]);
+    expect(dotLine(lane.dots[0])).toMatch(/^Oct 1[56] · 2 sessions · 5 laps · 2:01\.490 · p10-p90 0\.44 s$/);
+  });
+
+  it('a session alone says no session count; a hollow dot no spread', () => {
+    const [lane] = progressionLanes([
+      session('r', 'R', '2026-10-15T18:00:00Z', null, [121.2, 121.4]),
+    ]);
+    expect(dotLine(lane.dots[0])).toMatch(/^Oct 1[56] · 2 laps · 2:01\.300$/);
+  });
+});
+
+describe('placeLanes', () => {
+  const lanes = progressionLanes([
+    session('p1', 'P', '2026-10-01T10:00:00Z', null, [122, 123, 124]),
+    session('p2', 'P', '2026-10-11T10:00:00Z', null, [120, 121, 122]),
+    session('r1', 'R', '2026-10-06T10:00:00Z', null, [125, 125.5]),
+  ]);
+  const placed = placeLanes(lanes, 200, 50, 10);
+
+  it('one date axis for every lane: a race between two practices sits between them', () => {
+    expect(placed[0].dots.map(d => d.x)).toEqual([10, 190]);
+    expect(placed[1].dots[0].x).toBe(100);
+  });
+
+  it("each lane's own times, faster up; a hollow dot has no bar", () => {
+    const [slow, fast] = placed[0].dots;
+    expect(fast.y).toBeLessThan(slow.y);
+    expect(fast.y10).toBeCloseTo(10);
+    expect(slow.y90).toBeCloseTo(40);
+    expect(placed[1].dots[0]).toMatchObject({y: 25, y10: null, y90: null});
+  });
+
+  it('a tap picks the nearest dot', () => {
+    expect(nearestDot(placed[0].dots, 120)?.dot.ids).toEqual(['p2']);
+    expect(nearestDot([], 5)).toBeNull();
   });
 });
