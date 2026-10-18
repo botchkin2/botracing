@@ -88,7 +88,7 @@ export async function buildPair(pairDir) {
       return folder;
     };
     // The capture path.
-    const liveStore = memoryStore(seed);
+    const liveStore = memoryStore(seed, {ownerKey: OWNER});
     await syncLive({
       captureDir: join(captureRoot, captureName),
       ownerId: OWNER,
@@ -130,7 +130,7 @@ export async function buildPair(pairDir) {
       log: () => {},
       resultsFolder: resultsFor(groups[0].files[0].info.driver),
     });
-    const gameStore = memoryStore(seed);
+    const gameStore = memoryStore(seed, {ownerKey: OWNER});
     const out = build(
       groups[0],
       catalog.track,

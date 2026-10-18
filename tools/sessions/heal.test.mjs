@@ -101,18 +101,21 @@ test('the game-file session takes the live id only for a defective capture, and 
 });
 
 test('the upload tombstones what it replaces, keeps the lone stretch and its laps, and hides both from the leftover cleanup', async () => {
-  const db = memoryStore({
-    'sessions/S': {
-      id: 'S',
-      ownerId: 'o',
-      recordingIds: ['L0', 'L1'],
-      archiveParts: 4,
+  const db = memoryStore(
+    {
+      'sessions/S': {
+        id: 'S',
+        ownerId: 'o',
+        recordingIds: ['L0', 'L1'],
+        archiveParts: 4,
+      },
+      'recordings/L0': {id: 'L0', ownerId: 'o', recordedAt: at(0)},
+      'recordings/L1': {id: 'L1', ownerId: 'o', recordedAt: at(3000)},
+      'laps/l0': {id: 'l0', ownerId: 'o', sessionId: 'S', recordingId: 'L0'},
+      'laps/l1': {id: 'l1', ownerId: 'o', sessionId: 'S', recordingId: 'L1'},
     },
-    'recordings/L0': {id: 'L0', ownerId: 'o', recordedAt: at(0)},
-    'recordings/L1': {id: 'L1', ownerId: 'o', recordedAt: at(3000)},
-    'laps/l0': {id: 'l0', ownerId: 'o', sessionId: 'S', recordingId: 'L0'},
-    'laps/l1': {id: 'l1', ownerId: 'o', sessionId: 'S', recordingId: 'L1'},
-  });
+    {ownerKey: 'o'},
+  );
   const out = {
     session: {
       id: 'S',
@@ -200,16 +203,19 @@ test('an adoption whose live session is gone from the store is undone, never re-
 });
 
 test('the hand rebuild is tombstoned after the healed session is up, and nothing writes it again', async () => {
-  const db = memoryStore({
-    'sessions/H': {
-      id: 'H',
-      ownerId: 'o',
-      recordingIds: ['h0'],
-      analysis: {v: 1, blocks: {}},
+  const db = memoryStore(
+    {
+      'sessions/H': {
+        id: 'H',
+        ownerId: 'o',
+        recordingIds: ['h0'],
+        analysis: {v: 1, blocks: {}},
+      },
+      'recordings/h0': {id: 'h0', ownerId: 'o', recordedAt: at(1)},
+      'laps/hl0': {id: 'hl0', ownerId: 'o', sessionId: 'H', recordingId: 'h0'},
     },
-    'recordings/h0': {id: 'h0', ownerId: 'o', recordedAt: at(1)},
-    'laps/hl0': {id: 'hl0', ownerId: 'o', sessionId: 'H', recordingId: 'h0'},
-  });
+    {ownerKey: 'o'},
+  );
   const store = createStore({
     ...db,
     deleteFile: async () => {},
