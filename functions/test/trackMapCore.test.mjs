@@ -6,6 +6,7 @@ import {
   notModified,
   surfaceEtag,
   trackIdOk,
+  trackMapPayload,
 } from '../src/trackMapCore.ts';
 
 test('a track id is a sim-prefixed layout slug, nothing that could be a path', () => {
@@ -75,4 +76,13 @@ test('the track routes check the id, send an ETag, answer a 304, and never cache
   assert.doesNotMatch(route, /public|s-maxage/);
   // After the owner check, like every other route: only signed-in users.
   assert.ok(api.indexOf('const trackRoute') > api.indexOf('resolveOwner('));
+});
+
+test('the map payload carries the curated elevation when the track has it, null when not', () => {
+  const elevation = {stepM: 10, heightM: [1, 2, 3]};
+  const withIt = trackMapPayload('lmu-x', 'X', {lengthM: 3000, elevation}, null);
+  assert.deepEqual(withIt.elevation, elevation);
+  const without = trackMapPayload('lmu-x', 'X', {lengthM: 3000}, null);
+  assert.equal(without.elevation, null);
+  assert.equal(without.lengthM, 3000);
 });
