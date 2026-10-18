@@ -49,7 +49,9 @@ before(async () => {
   // The combo: 100 sessions with 100 laps each, and fields the Plan must not get.
   for (let i = 0; i < 100; i++)
     batch.set(db.doc(`sessions/c${String(i).padStart(3, '0')}`), {
-      ...base, startedAt: when(i), plan, consistency: {overview: 'x'.repeat(2000)}, lapTable: laps(100),
+      ...base, startedAt: when(i), endedAt: when(i), plan, consistency: {overview: 'x'.repeat(2000)}, lapTable: laps(100),
+      // The opening set's lap times (S5 progression): 40 laps.
+      paceSet: {v: 3, lapTimesS: Array(40).fill(121.456)},
     });
   // Not the combo: another owner, sim, car and track.
   batch.set(db.doc('sessions/other-owner'), {...base, ownerId: 'someone-else', startedAt: when(0), plan});
@@ -76,8 +78,13 @@ test('a 101-session combo comes back in one request: newest first, only its own,
   assert.equal(body.items.at(-1).plan, null, 'no block = null, not zero');
   assert.equal(body.items.filter(r => r.plan?.laps).length, 8, 'laps for the newest 8 only');
   assert.ok(!body.items.some(r => r.id.startsWith('other')), 'nothing of another owner, sim, car or track');
-  for (const r of body.items) assert.deepEqual(Object.keys(r).sort(), ['id', 'plan', 'sessionType', 'startedAt']);
-  assert.ok(text.length < 130_000, `${text.length} bytes for a 101-session combo`);
+  for (const r of body.items)
+    assert.deepEqual(Object.keys(r).sort(), ['endedAt', 'id', 'paceSet', 'plan', 'sessionType', 'startedAt']);
+  assert.equal(body.items[0].paceSet.lapTimesS.length, 40, 'the opening set comes with every session');
+  assert.equal(body.items[0].endedAt, when(0));
+  assert.equal(body.items.at(-1).paceSet, null, 'no set = null');
+  // The opening set is about 8 bytes a lap: 40 laps on 100 sessions is ~32 KB of this.
+  assert.ok(text.length < 165_000, `${text.length} bytes for a 101-session combo`);
 });
 
 test('laps= sets how many of the newest keep their lap rows', async () => {
