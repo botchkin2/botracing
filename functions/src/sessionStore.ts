@@ -523,6 +523,7 @@ export async function readTrackMap(
     qualityNote: track.qualityNote ?? null,
     georef: track.georef ?? null,
     attribution: track.outline?.attribution ?? null,
+    elevation: track.elevation ?? null,
     outline,
   };
 }
@@ -565,6 +566,7 @@ export async function trackMapById(trackId: string): Promise<{
         qualityNote: track.qualityNote ?? null,
         georef: track.georef ?? null,
         attribution: track.outline?.attribution ?? null,
+        elevation: track.elevation ?? null,
         outline,
         // The measured surface's validator, so the client keys its copy by it.
         surfaceRev: surfaceEtag(track.surface),

@@ -20,7 +20,7 @@ import {
 
 import {type RaceDot} from '../model';
 import {ChaseView, chaseAvailable} from './ChaseView';
-import {type ChaseCar, type ChaseInputs} from './chaseTypes';
+import {type ChaseCar, type ChaseGaps, type ChaseInputs} from './chaseTypes';
 
 // Dot radii in points by class, fastest first, from handoff R1d (desktop
 // scale x1.15, phone x0.8); "other" takes the third size.
@@ -67,9 +67,12 @@ export type RaceChase = {
   rate: number;
   /** The player's recorded inputs for the lap in view; null until loaded. */
   inputs: ChaseInputs | null;
+  gaps: ChaseGaps | null;
   /** The race clock as the transport prints it, and its play toggle, for the full-screen view. */
   clockLabel: string;
   onToggle: () => void;
+  onStep: (deltaS: number) => void;
+  onCycleRate: () => void;
 };
 
 /** What Follow needs: where the view sits (no size), and the road under it. */
@@ -222,10 +225,13 @@ export function RaceMap({
           cars={chase.cars}
           focus={chase.focus}
           playing={chase.playing}
-          rate={chase.rate}
           inputs={chase.inputs}
+          gaps={chase.gaps}
           clockLabel={chase.clockLabel}
           onToggle={chase.onToggle}
+          onStep={chase.onStep}
+          onCycleRate={chase.onCycleRate}
+          rate={chase.rate}
           onPressCar={onPressCar}
         />
       ) : following ? (

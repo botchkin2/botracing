@@ -17,6 +17,15 @@ export type ChaseCar = {
   state: string;
 };
 
+/** The followed car's place and its gaps in its class, from the Race screen's own standings. */
+export type ChaseGaps = {
+  classTag: string;
+  classPlace: number;
+  /** Seconds to the car ahead in class / seconds the car behind in class is behind; null for a leader / a last car. */
+  aheadS: number | null;
+  behindS: number | null;
+};
+
 /** The player's lap as driven, in the sim's world metres, with throttle and brake per point (5 m apart). */
 export type ChaseRibbon = {
   x: number[];

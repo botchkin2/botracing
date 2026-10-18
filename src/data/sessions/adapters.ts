@@ -1223,6 +1223,8 @@ export type TrackMapData = {
   /** OSM pit lane lines as [lon, lat] pairs. */
   pitLane: [number, number][][];
   attribution: string | null;
+  /** The curated height along the lap, metres, one point per `stepM` of the map's distance; null when the track has none. */
+  elevation?: {stepM: number; heightM: number[]} | null;
 };
 
 // The kind of each LineString lineStrings returns for the same filter, in the
@@ -1314,7 +1316,17 @@ export function toTrackMap(raw: Record<string, unknown>): TrackMapData {
     outlineKinds: lineKinds(features, kind => kind !== 'pit'),
     pitLane: lineStrings(features, kind => kind === 'pit'),
     attribution: str(raw.attribution) || null,
+    elevation: toElevation(raw.elevation),
   };
+}
+
+function toElevation(raw: unknown): TrackMapData['elevation'] {
+  const e = obj(raw);
+  const step = num(e.stepM);
+  const h = Array.isArray(e.heightM) ? e.heightM.map(v => num(v)) : [];
+  return step != null && step > 0 && h.length > 3 && h.every(v => v != null)
+    ? {stepM: step, heightM: h as number[]}
+    : null;
 }
 
 /**

@@ -7,11 +7,11 @@ import {type ChaseRoad, gradeAt, heightAt} from '@/src/analysis/chaseRoad';
 import {radius, space, useTheme} from '@/src/design';
 import {Pressable, Segment, Text} from '@/src/ui';
 
-import {type ChaseCar, type ChaseInputs} from './chaseTypes';
+import {type ChaseCar, type ChaseGaps, type ChaseInputs} from './chaseTypes';
 
-// The 3D chase view (prototype). The engine is a plain module loaded at run time
-// from /follow-cam/ with three.js, so three.js stays out of the app bundle; the
-// proper path is the `three` dependency and a lazy import (pit wall thread 83).
+// The 3D chase view (prototype), drawn as an instrument: the engine is a plain module loaded at run time from
+// /follow-cam/ with three.js, so three.js stays out of the app bundle (the proper path is the `three` dependency and
+// a lazy import, pit wall thread 83). Everything on screen is the app's own tokens; nothing sits in the middle.
 export const chaseAvailable = true;
 
 type Engine = {
@@ -28,10 +28,10 @@ const load = new Function('u', 'return import(u)') as (u: string) => Promise<any
 const CAMS = [
   {value: '1', label: 'Chase'},
   {value: '2', label: 'High'},
-  {value: '3', label: 'Hood'},
-  {value: '4', label: 'TV'},
-  {value: '5', label: 'Heli'},
+  {value: '3', label: 'TV'},
+  {value: '4', label: 'Heli'},
 ] as const;
+type CamValue = '1' | '2' | '3' | '4';
 
 const BEHIND_M = 100;
 const AHEAD_M = 500;
@@ -45,19 +45,29 @@ type ChaseProps = {
   playing: boolean;
   rate: number;
   inputs: ChaseInputs | null;
+  gaps: ChaseGaps | null;
   clockLabel: string;
   onToggle: () => void;
+  onStep: (deltaS: number) => void;
+  onCycleRate: () => void;
   onPressCar: (index: number) => void;
 };
-type CamValue = '1' | '2' | '3' | '4' | '5';
 
 // Full screen is a portal to the page body: the view leaves the map's frame (and its stacking order),
 // so the engine is made again there. The camera choice is kept here.
 export function ChaseView(props: ChaseProps) {
   const [full, setFull] = useState(false);
   const [cam, setCam] = useState<CamValue>('1');
-  const surface = <ChaseSurface {...props} full={full} setFull={setFull} cam={cam} setCam={setCam} />;
-  return full && typeof document !== 'undefined' ? createPortal(surface, document.body) : surface;
+  const surface = (
+    <ChaseSurface {...props} full={full} setFull={setFull} cam={cam} setCam={setCam} />
+  );
+  return full && typeof document !== 'undefined'
+    ? createPortal(surface, document.body)
+    : surface;
+}
+
+function fmtGap(v: number | null, sign: string) {
+  return v == null ? '–' : `${sign}${v.toFixed(1)}`;
 }
 
 function ChaseSurface({
@@ -69,8 +79,11 @@ function ChaseSurface({
   playing,
   rate,
   inputs,
+  gaps,
   clockLabel,
   onToggle,
+  onStep,
+  onCycleRate,
   onPressCar,
   full,
   setFull,
@@ -95,7 +108,7 @@ function ChaseSurface({
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [full, onToggle]);
+  }, [full, onToggle, setFull]);
   const host = useRef<HTMLDivElement | null>(null);
   const engine = useRef<Engine | null>(null);
   const pick = useRef(onPressCar);
@@ -103,6 +116,21 @@ function ChaseSurface({
     pick.current = onPressCar;
   });
   const [failed, setFailed] = useState(false);
+  const theme = useMemo(
+    () => ({
+      bg: color.bg,
+      fill: color.trackFill,
+      edge: color.followEdge,
+      edgeFaint: color.trackEdge,
+      text: color.text,
+      muted: color.textMuted,
+      line: color.lineStrong,
+      accent: color.accent,
+      good: color.faster,
+      bad: color.slower,
+    }),
+    [color],
+  );
   useEffect(() => {
     let dead = false;
     let made: Engine | null = null;
@@ -110,11 +138,12 @@ function ChaseSurface({
       try {
         const [THREE, mod] = await Promise.all([
           load('/follow-cam/three.module.min.js'),
-          load('/follow-cam/chase.js'),
+          load(`/follow-cam/chase.js?v=${Date.now()}`),
         ]);
         if (dead || !host.current) return;
         made = (await mod.mountChase(host.current, THREE, {
           onPick: (i: number) => pick.current(i),
+          theme,
         })) as Engine;
         if (dead) {
           made.dispose();
@@ -147,13 +176,7 @@ function ChaseSurface({
     engine.current?.setInputs(ribbon);
   }, [ribbon]);
   useEffect(() => {
-    engine.current?.update({
-      cars,
-      focus,
-      playing,
-      rate,
-      inputIdx: inputs?.now?.idx ?? -1,
-    });
+    engine.current?.update({cars, focus, playing, rate, inputIdx: inputs?.now?.idx ?? -1});
   }, [cars, focus, playing, rate, inputs]);
   useEffect(() => {
     engine.current?.setCam(Number(cam));
@@ -163,12 +186,12 @@ function ChaseSurface({
     () => cars.find(c => c.index === focus) ?? cars.find(c => c.player) ?? null,
     [cars, focus],
   );
-  const mine = me?.player === true;
-  const now = mine ? inputs?.now ?? null : null;
+  const now = me?.player === true ? inputs?.now ?? null : null;
   const frac = me && road.lengthM > 0 ? me.lapDistM / road.lengthM : 0;
+  const hasHeight = road.elev !== null;
   const grade = road.elev && me ? gradeAt(road.elev, frac, road.lengthM) * 100 : null;
   const alt = road.elev && me ? heightAt(road.elev, frac) - Math.min(...road.elev) : null;
-  const narrow = (full ? (typeof window === 'undefined' ? width : window.innerWidth) : width) < 480;
+  const roomy = (full ? (typeof window === 'undefined' ? width : window.innerWidth) : width) >= 760;
 
   return (
     <View
@@ -188,55 +211,64 @@ function ChaseSurface({
       ) : null}
       <View style={styles.cams}>
         <Segment options={CAMS} value={cam} onChange={setCam} />
-      </View>
-      <View style={styles.tools}>
         {full ? (
-          <Pressable accessibilityLabel={playing ? 'Pause' : 'Play'} onPress={onToggle} style={[styles.tool, {borderColor: color.lineStrong, backgroundColor: color.surfaceOverlay}]}>
+          <Pressable
+            accessibilityLabel={playing ? 'Pause' : 'Play'}
+            onPress={onToggle}
+            style={[styles.tool, {borderColor: color.lineStrong, backgroundColor: color.surface}]}>
             <Text variant='dataStrong'>{playing ? '❚❚' : '▶'}</Text>
-            <Text variant='dataSmall' tone='textMuted'>{clockLabel}</Text>
+            <Text variant='dataSmall' tone='textMuted'>
+              {clockLabel}
+            </Text>
           </Pressable>
+        ) : null}
+        {full ? (
+          <>
+            {[-30, 30].map(d => (
+              <Pressable
+                key={d}
+                accessibilityLabel={`${d > 0 ? 'Forward' : 'Back'} 30 seconds`}
+                onPress={() => onStep(d)}
+                style={[styles.tool, {borderColor: color.lineStrong, backgroundColor: color.surface}]}>
+                <Text variant='dataSmall'>{d > 0 ? '+30 s' : '−30 s'}</Text>
+              </Pressable>
+            ))}
+            <Pressable
+              accessibilityLabel='Playback rate, tap for the next'
+              onPress={onCycleRate}
+              style={[styles.tool, {borderColor: color.lineStrong, backgroundColor: color.surface}]}>
+              <Text variant='dataSmall'>{`${rate}×`}</Text>
+            </Pressable>
+          </>
         ) : null}
         <Pressable
           accessibilityLabel={full ? 'Close full screen' : 'Full screen'}
           onPress={() => setFull(!full)}
-          style={[styles.tool, {borderColor: color.lineStrong, backgroundColor: color.surfaceOverlay}]}>
+          style={[styles.tool, {borderColor: color.lineStrong, backgroundColor: color.surface}]}>
           <Text variant='dataStrong'>{full ? '×' : '⤢'}</Text>
         </Pressable>
       </View>
       {me ? (
         <View
           pointerEvents='none'
-          style={[
-            styles.dash,
-            narrow && {right: undefined, left: space.sm, bottom: space.sm + 36},
-            {backgroundColor: color.surfaceOverlay, borderColor: color.lineStrong},
-          ]}>
-          {now ? (
-            <View style={styles.gear}>
-              <Text variant='display' tone='accentInk'>
-                {now.gear <= 0 ? (now.gear < 0 ? 'R' : 'N') : String(now.gear)}
-              </Text>
+          style={[styles.strip, {backgroundColor: color.surface, borderColor: color.lineStrong}]}>
+          {gaps ? (
+            <View style={styles.cell}>
+              <Text variant='dataStrong'>{`${gaps.classTag} P${gaps.classPlace}`}</Text>
+              <Text variant='dataSmall' tone='textMuted'>{`▲ ${fmtGap(gaps.aheadS, '−')}`}</Text>
+              <Text variant='dataSmall' tone='textMuted'>{`▼ ${fmtGap(gaps.behindS, '+')}`}</Text>
             </View>
           ) : null}
-          <View>
-            <View style={styles.row}>
-              <Text variant='display'>{`${Math.round(now ? now.speedKph : me.speedKmh)}`}</Text>
-              <Text variant='dataSmall' tone='textMuted'>
-                km/h
-              </Text>
-            </View>
-            {grade !== null ? (
-              <View style={styles.row}>
-                <Text
-                  variant='dataSmall'
-                  tone={grade > 2.5 ? 'accentInk' : grade < -2.5 ? 'textSecondary' : 'textMuted'}>
-                  {`${grade > 0 ? '+' : ''}${grade.toFixed(1)}%`}
-                </Text>
-                {alt !== null ? (
-                  <Text variant='dataSmall' tone='textMuted'>{`${Math.round(alt)} m`}</Text>
-                ) : null}
-              </View>
-            ) : null}
+          {now ? (
+            <Text variant='dataStrong' tone='accentInk'>
+              {now.gear <= 0 ? (now.gear < 0 ? 'R' : 'N') : String(now.gear)}
+            </Text>
+          ) : null}
+          <View style={styles.cell}>
+            <Text variant='dataStrong'>{`${Math.round(now ? now.speedKph : me.speedKmh)}`}</Text>
+            <Text variant='dataSmall' tone='textMuted'>
+              km/h
+            </Text>
           </View>
           {now ? (
             <>
@@ -244,19 +276,28 @@ function ChaseSurface({
                 <Pedal value={now.brakePct} fill={color.slower} track={color.median} />
                 <Pedal value={now.throttlePct} fill={color.faster} track={color.median} />
               </View>
-              <Wheel pct={now.steeringPct} ink={color.text} mark={color.accent} ring={color.lineStrong} />
+              {roomy ? <Wheel pct={now.steeringPct} ink={color.text} mark={color.accent} ring={color.lineStrong} /> : null}
             </>
           ) : null}
-          {road.elev && me ? (
+          {hasHeight && grade !== null ? (
+            <View style={styles.cell}>
+              <Text variant='dataSmall' tone={grade > 2.5 ? 'accentInk' : 'textMuted'}>
+                {`${grade > 0 ? '+' : ''}${grade.toFixed(1)}%`}
+              </Text>
+              {alt !== null ? (
+                <Text variant='dataSmall' tone='textMuted'>{`${Math.round(alt)} m`}</Text>
+              ) : null}
+            </View>
+          ) : null}
+          {hasHeight && roomy && road.elev ? (
             <Elevation
               elev={road.elev}
               frac={frac}
               lengthM={road.lengthM}
-              line={color.textSecondary}
+              line={color.textMuted}
               up={color.accent}
               down={color.class2}
               dot={color.text}
-              wide={!narrow}
             />
           ) : null}
         </View>
@@ -282,7 +323,7 @@ function Pedal({value, fill, track}: {value: number; fill: string; track: string
 function Wheel({pct, ink, mark, ring}: {pct: number; ink: string; mark: string; ring: string}) {
   const deg = Math.max(-100, Math.min(100, pct)) * 2.1;
   return (
-    <Svg width={44} height={44} viewBox='-26 -26 52 52'>
+    <Svg width={26} height={26} viewBox='-26 -26 52 52'>
       <Circle r={20} fill='none' stroke={ring} strokeWidth={3.5} />
       <G rotation={deg}>
         <Path d='M-20 0H20M0 0V20' stroke={ink} strokeWidth={3.5} strokeLinecap='round' />
@@ -292,7 +333,7 @@ function Wheel({pct, ink, mark, ring}: {pct: number; ink: string; mark: string; 
   );
 }
 
-// The road's height 100 m behind and 500 m ahead of the car, coloured by grade, the car a dot.
+// The measured height 100 m behind and 500 m ahead of the car, coloured by grade, the car a dot.
 function Elevation({
   elev,
   frac,
@@ -301,7 +342,6 @@ function Elevation({
   up,
   down,
   dot,
-  wide,
 }: {
   elev: number[];
   frac: number;
@@ -310,11 +350,10 @@ function Elevation({
   up: string;
   down: string;
   dot: string;
-  wide: boolean;
 }) {
-  const W = wide ? 190 : 120;
-  const H = 40;
-  const n = 60;
+  const W = 150;
+  const H = 26;
+  const n = 48;
   const span = BEHIND_M + AHEAD_M;
   const zs: number[] = [];
   for (let i = 0; i <= n; i++) zs.push(heightAt(elev, frac - BEHIND_M / lengthM + (span / lengthM) * (i / n)));
@@ -322,7 +361,7 @@ function Elevation({
   const hi = Math.max(...zs);
   const range = Math.max(hi - lo, 10);
   const mid = (hi + lo) / 2;
-  const y = (z: number) => H - 4 - ((z - (mid - range / 2)) / range) * (H - 8);
+  const y = (z: number) => H - 3 - ((z - (mid - range / 2)) / range) * (H - 6);
   const x = (i: number) => (i / n) * W;
   const segs = [];
   for (let i = 1; i <= n; i++) {
@@ -335,26 +374,40 @@ function Elevation({
         x2={x(i)}
         y2={y(zs[i])}
         stroke={g > 0.03 ? up : g < -0.03 ? down : line}
-        strokeWidth={2}
+        strokeWidth={1.6}
         strokeLinecap='round'
       />,
     );
   }
-  const cx = (BEHIND_M / span) * W;
   return (
     <Svg width={W} height={H}>
       {segs}
-      <Circle cx={cx} cy={y(zs[Math.round((BEHIND_M / span) * n)])} r={3.5} fill={dot} />
+      <Circle cx={(BEHIND_M / span) * W} cy={y(zs[Math.round((BEHIND_M / span) * n)])} r={3} fill={dot} />
     </Svg>
   );
 }
 
 const styles = StyleSheet.create({
   center: {...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center'},
-  cams: {position: 'absolute', left: space.sm, bottom: space.sm},
-  tools: {position: 'absolute', right: space.sm, top: space.sm + 0, flexDirection: 'row', gap: space.xs, alignItems: 'center'},
-  tool: {flexDirection: 'row', alignItems: 'center', gap: space.xs, borderWidth: 1, borderRadius: radius.md, paddingHorizontal: space.sm, minHeight: 32},
-  dash: {
+  cams: {
+    position: 'absolute',
+    left: space.sm,
+    bottom: space.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+  },
+  tool: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    borderWidth: 1,
+    borderRadius: radius.sm,
+    paddingHorizontal: space.sm,
+    minHeight: 28,
+  },
+  // One flat strip on the bottom edge: numerals in mono, nothing in the middle of the view.
+  strip: {
     position: 'absolute',
     right: space.sm,
     bottom: space.sm,
@@ -362,14 +415,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.md,
     borderWidth: 1,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
     paddingHorizontal: space.sm,
-    paddingVertical: space.xs,
-    maxWidth: '96%',
+    minHeight: 32,
+    maxWidth: '62%',
   },
-  gear: {minWidth: 22, alignItems: 'center'},
-  row: {flexDirection: 'row', alignItems: 'baseline', gap: space.xs},
-  pedals: {flexDirection: 'row', gap: 4, height: 40},
-  pedal: {width: 10, borderRadius: 3, overflow: 'hidden'},
+  cell: {flexDirection: 'row', alignItems: 'baseline', gap: space.xs},
+  pedals: {flexDirection: 'row', gap: 3, height: 22},
+  pedal: {width: 6, borderRadius: 1, overflow: 'hidden'},
   pedalFill: {position: 'absolute', left: 0, right: 0, bottom: 0},
 });

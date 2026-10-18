@@ -33,7 +33,7 @@ import {
 import {nextRate, raceClockLabel, snapClock, stepBy} from './clock';
 import {carLapsView} from './carLapsView';
 import {Leaderboard} from './components/Leaderboard';
-import {type ChaseNow, type ChaseRibbon} from './components/chaseTypes';
+import {type ChaseGaps, type ChaseNow, type ChaseRibbon} from './components/chaseTypes';
 import {RaceLegend} from './components/RaceLegend';
 import {
   type LabelMode,
@@ -395,7 +395,9 @@ function RaceView({
     };
   }, [chased, focus, placer, outlineUse, line, mapZoom]);
   // The player's own inputs for the lap in view (the stored field has none): the lap's trace, loaded only while the 3D chase is open.
-  const place = mapMode === 'chase' ? data.clock.playerAt(shownS) : null;
+  // 3D is a desktop view; the phone keeps the 2D Follow map. (`__chaseAnyWidth` lets a narrow test pane open it.)
+  const chaseOk = layout.isDesktop || (globalThis as {__chaseAnyWidth?: boolean}).__chaseAnyWidth === true;
+  const place = mapMode === 'chase' && chaseOk ? data.clock.playerAt(shownS) : null;
   const lapId = place ? data.laps.find(l => l.lapNumber === place.lapNumber)?.id ?? null : null;
   const [held, setHeld] = useState<GridTrace | null>(null);
   const traceLoad = useLapTraceLoad(lapId ? [lapId] : [], {lengthM: prep.trackM, stepM: 5});
@@ -408,16 +410,32 @@ function RaceView({
     const pts = placer.traceToWorld(trace, 0, trace.lat.length - 1, 1);
     return {x: pts.map(p => p.x), y: pts.map(p => p.y), th: trace.throttlePct, br: trace.brakePct, stepM: trace.stepM};
   }, [trace, placer]);
+  // The inputs are shown only where the lap's trace is where the player is: on the grid, in the pit lane or after a
+  // reset the trace is somewhere else, and its pedals would be another stretch's.
+  const player = cars.find(c => c.player) ?? null;
   const inputsNow = useMemo<ChaseNow | null>(() => {
-    if (!trace || !place || !loaded) return null;
+    if (!trace || !place || !loaded || !ribbon || !player) return null;
     const i = Math.max(0, Math.min(trace.distanceM.length - 1, Math.round(place.distanceM / trace.stepM)));
+    if (Math.hypot(ribbon.x[i] - player.xM, ribbon.y[i] - player.zM) > 20) return null;
     return {idx: i, throttlePct: trace.throttlePct[i], brakePct: trace.brakePct[i], steeringPct: trace.steeringPct[i], gear: trace.gear[i], speedKph: trace.speedKph[i]};
-  }, [trace, place, loaded]);
+  }, [trace, place, loaded, ribbon, player]);
   const inputs = ribbon ? {ribbon, now: inputsNow} : null;
+  // The followed car's class place and the gaps to the car ahead and behind in its class (the standings' own intervals).
+  const chaseGaps = useMemo<ChaseGaps | null>(() => {
+    const me = cars.find(c => c.index === focus) ?? cars.find(c => c.player);
+    if (!me || me.classPlace <= 0) return null;
+    const behind = cars.find(c => c.classKey === me.classKey && c.classPlace === me.classPlace + 1);
+    return {
+      classTag: classes.of(me.classKey).title,
+      classPlace: me.classPlace,
+      aheadS: me.intervalS,
+      behindS: behind?.intervalS ?? null,
+    };
+  }, [cars, focus, classes]);
   // The 3D chase: every car as the map has it, on the road the game measured.
   const chase = useMemo<RaceChase | null>(
     () =>
-      data.matches && data.chase
+      chaseOk && data.matches && data.chase
         ? {
             road: data.chase,
             cars: cars.map(c => ({
@@ -437,11 +455,14 @@ function RaceView({
             playing: clock.playing,
             rate: clock.rate,
             inputs,
+            gaps: chaseGaps,
             clockLabel: raceClockLabel(shownS, startS),
             onToggle: clock.toggle,
+            onStep: (d: number) => clock.setTimeS(stepBy(clock.timeS, d, endS)),
+            onCycleRate: () => clock.setRate(nextRate(clock.rate)),
           }
         : null,
-    [data.matches, data.chase, cars, focus, clock.playing, clock.rate, classes, color, labels, inputs, shownS, startS],
+    [data.matches, data.chase, cars, focus, clock.playing, clock.rate, classes, color, labels, inputs, shownS, startS, chaseGaps, chaseOk],
   );
   const toggleFocus = useCallback(
     (index: number) => setFocus(f => (f === index ? null : index)),
