@@ -52,6 +52,11 @@ export function checkSession(
     if (!distinct) miss('tyres', 'all four wheels equal on every lap');
   }
 
+  // The opening set's lap times (analysis/paceSet.ts), the track
+  // progression's dots: written whichever path built the session.
+  if (!Array.isArray(session.paceSet?.lapTimesS))
+    miss('opening set', 'no paceSet on the session');
+
   // The game wrote a results file for the drive: its rulings are stored on the
   // session and on every lap it covers (thread 70), whichever path built it.
   if (results) {
