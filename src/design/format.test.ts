@@ -7,6 +7,7 @@ import {
   formatDate,
   formatDayMonth,
   formatDayMonthTime,
+  formatClock,
   modeText,
   formatDistance,
   formatLength,
@@ -168,5 +169,14 @@ describe('modeText', () => {
     expect(modeText(true)).toBe('Online');
     expect(modeText(false)).toBe('Offline');
     expect(modeText(null)).toBeNull();
+  });
+});
+
+describe('formatClock', () => {
+  it('is the clock time here, and empty for a bad date', () => {
+    expect(formatClock(new Date(2026, 9, 15, 9, 5).toISOString())).toBe(
+      '09:05',
+    );
+    expect(formatClock('nope')).toBe('');
   });
 });

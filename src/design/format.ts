@@ -142,3 +142,12 @@ export function formatDayMonthTime(
 /** The session's connection as a word; null when the session does not know. */
 export const modeText = (online: boolean | null): string | null =>
   online == null ? null : online ? 'Online' : 'Offline';
+
+/** "21:40": the clock time of an ISO instant here; the empty string when it does not parse. */
+export function formatClock(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${String(d.getHours()).padStart(2, '0')}:${String(
+    d.getMinutes(),
+  ).padStart(2, '0')}`;
+}

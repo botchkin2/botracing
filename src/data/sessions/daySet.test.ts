@@ -3,6 +3,7 @@ import {describe, expect, it} from '@jest/globals';
 import {toLaps} from './adapters';
 import {
   dayLapId,
+  dayBestLapId,
   dayLapIds,
   daySlowIds,
   dayUsesSections,
@@ -128,6 +129,17 @@ describe('daySlowIds', () => {
       cornerBoundaries: {v: 9, rev: 9},
     });
     expect(dayUsesSections([rev('a', 3), pit])).toBe(true);
+  });
+});
+
+describe('dayBestLapId', () => {
+  it('is the fastest comparable lap of the merged day, null with none', () => {
+    const laps = mergeDayLaps([
+      session('a', [101, 100.5, 102]),
+      session('b', [100.2, 103]),
+    ]);
+    expect(dayBestLapId(laps)).toBe('b~b0');
+    expect(dayBestLapId([])).toBeNull();
   });
 });
 

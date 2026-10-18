@@ -46,7 +46,7 @@ export function useCornerTarget(
 export type WorkspaceTarget = {
   sessionId: string | null;
   /** The lap selection to carry between tabs. */
-  selection: {laps?: string; ref?: string; hl?: string};
+  selection: {laps?: string; ref?: string; hl?: string; set?: string};
   /** The corner the Corner tab opens. */
   cornerN: number;
   /** The Plan link's combo, when one is named. */
@@ -61,14 +61,15 @@ export function useUrlTarget(
   sessionId: string | null,
   tab: SessionTab | null,
 ): Omit<WorkspaceTarget, 'planCombo'> {
-  const {laps, ref, hl} = useGlobalSearchParams<{
+  const {laps, ref, hl, set} = useGlobalSearchParams<{
     laps?: string;
     ref?: string;
     hl?: string;
+    set?: string;
   }>();
   return {
     sessionId,
-    selection: {laps, ref, hl},
+    selection: {laps, ref, hl, set},
     cornerN: useCornerTarget(sessionId, tab).n,
   };
 }
@@ -85,8 +86,13 @@ export function useWorkspaceGo({
   planCombo,
 }: WorkspaceTarget) {
   const router = useRouter();
-  const {laps: lapIds, ref: refId, hl: hlId} = parseSelection(selection);
-  const sel = {laps: lapIds, ref: refId, hl: hlId};
+  const {
+    laps: lapIds,
+    ref: refId,
+    hl: hlId,
+    set: setKind,
+  } = parseSelection(selection);
+  const sel = {laps: lapIds, ref: refId, hl: hlId, set: setKind};
   return (name: TabName) => {
     const target = tabTarget(name, sessionId);
     switch (target.kind) {

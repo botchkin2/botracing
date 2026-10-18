@@ -31,6 +31,7 @@ export type ChromeBox = Omit<
 export function chromeBox({
   session,
   hasField,
+  cornerOff = false,
   laps,
   selection,
   cornerN,
@@ -44,6 +45,8 @@ export function chromeBox({
   >;
   /** Whether the session has a recorded field: the fourth tab is Race or Field. */
   hasField: boolean;
+  /** A day cut at different corner windows: the Corner tab is off. */
+  cornerOff?: boolean;
   laps: Pick<Lap, 'id' | 'lapIndex'>[] | undefined;
   selection: {laps?: string; ref?: string; hl?: string};
   cornerN: number | null;
@@ -81,6 +84,7 @@ export function chromeBox({
     tabs: sessionTabs(
       {sessionType: session.sessionType, hasField},
       cornerLabel,
+      cornerOff,
     ),
     activeTab: tab,
     laps: lapRows,
