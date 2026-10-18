@@ -93,3 +93,27 @@ Why: the same rule (thread 92). Lap 4's later application in this window (peak 5
 Changed:
 - laps.4.corners.2.parts.2.peakBrakePct: 55.8 -> 41.4
 - laps.4.corners.2.parts.2.throttlePickupAtM: 1473.6 -> null
+
+## 2026-10-18 lmu-race-road-atlanta
+Why: CORNER_INPUTS_VERSION 4 adds two facts per corner part, the line (`apexLateralM`, path_lateral_m at the slowest sample) and the steering size there (`apexSteerPct`), for the Corner card "what moves with the time" (pit-wall thread 88, S4); null where the slowest sample is on the window's edge. Nothing else moved.
+Changed:
+- laps.#.corners.#.parts.#.apexLateralM: undefined -> value or null (every part of every lap)
+- laps.#.corners.#.parts.#.apexSteerPct: undefined -> value or null (every part of every lap)
+
+## 2026-10-18 iracing-race-road-atlanta
+Why: CORNER_INPUTS_VERSION 4 adds two facts per corner part, the line (`apexLateralM`, path_lateral_m at the slowest sample) and the steering size there (`apexSteerPct`), for the Corner card "what moves with the time" (pit-wall thread 88, S4); null where the slowest sample is on the window's edge or has no line channel (iRacing records no path_lateral_m: apexLateralM is null on every part, apexSteerPct is set). Nothing else moved.
+Changed:
+- laps.#.corners.#.parts.#.apexLateralM: undefined -> value or null (every part of every lap)
+- laps.#.corners.#.parts.#.apexSteerPct: undefined -> value or null (every part of every lap)
+
+## 2026-10-18 lmu-race-daytona-tyres
+Why: CORNER_INPUTS_VERSION 4 adds two facts per corner part, the line (`apexLateralM`, path_lateral_m at the slowest sample) and the steering size there (`apexSteerPct`), for the Corner card "what moves with the time" (pit-wall thread 88, S4); null where the slowest sample is on the window's edge. Nothing else moved.
+Changed:
+- laps.#.corners.#.parts.#.apexLateralM: undefined -> value or null (every part of every lap)
+- laps.#.corners.#.parts.#.apexSteerPct: undefined -> value or null (every part of every lap)
+
+## 2026-10-18 lmu-practice-road-atlanta
+Why: CORNER_INPUTS_VERSION 4 adds two facts per corner part, the line (`apexLateralM`, path_lateral_m at the slowest sample) and the steering size there (`apexSteerPct`), for the Corner card "what moves with the time" (pit-wall thread 88, S4); null where the slowest sample is on the window's edge. Nothing else moved.
+Changed:
+- laps.#.corners.#.parts.#.apexLateralM: undefined -> value or null (every part of every lap)
+- laps.#.corners.#.parts.#.apexSteerPct: undefined -> value or null (every part of every lap)

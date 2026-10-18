@@ -41,7 +41,7 @@ const map = toTrackMap({
       exitM: 700,
       parts: [
         {n: 2, entryM: 500, apexM: 560, exitM: 600},
-        {n: 3, entryM: 600, apexM: 640, exitM: 700},
+        {n: 3, entryM: 600, apexM: 640, exitM: 700, direction: 'left'},
       ],
     },
   ],
@@ -800,5 +800,46 @@ describe('the Corner time counts as Compare and Session count it', () => {
     expect(time('e')).toBe(13);
     // 12, 13, 14: the median is 13, so a is 1 s under it.
     expect(m.rows.find(r => r.lapId === 'a')!.cells.time.gap).toBe('−1.000');
+  });
+});
+
+describe('what moves with the time (moves)', () => {
+  // C3 (a left-hander): the brake point rises with the time, the line (LMU:
+  // right is positive) drifts to the right, i.e. away from the inside.
+  const twelve = toLaps(
+    Array.from({length: 12}, (_, i) => {
+      const l = lap(`m${i}`, [10 + i * 0.1, 440 + i * 2, 100 + (i % 3), 650]);
+      const part = l.corners[1].parts[1] as Record<string, unknown>;
+      part.apexLateralM = 1 + i * 0.1;
+      part.apexSteerPct = 20 + (i % 4);
+      return l;
+    }),
+  );
+  const run = (lapCount: number, whole = false) =>
+    buildCornerModel({
+      laps: twelve,
+      map,
+      band: null,
+      traces: new Map(),
+      lapIds: twelve.slice(0, lapCount).map(l => l.id),
+      keyLapIds: [],
+      hl: null,
+      corner: 3,
+      whole,
+    })!.moves;
+
+  it('reads the part’s own facts over the set: brake before the apex, the line toward the inside', () => {
+    const m = run(12)!;
+    expect(m.n).toBe(12);
+    // Brake at 440 + 2i against the apex at 640: the distance before it falls as the time rises.
+    expect(m.rows.find(r => r.id === 'brake')!.rho).toBeCloseTo(-1);
+    // Left-hander: toward the inside is to the left, so the right drift reads as -1.
+    expect(m.rows.find(r => r.id === 'line')!.rho).toBeCloseTo(-1);
+    expect(m.apex!.kph).toBeCloseTo(101, 0);
+  });
+
+  it('is not drawn under 10 laps, nor over a whole compound section', () => {
+    expect(run(9)).toBeNull();
+    expect(run(12, true)).toBeNull();
   });
 });

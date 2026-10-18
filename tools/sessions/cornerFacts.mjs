@@ -26,6 +26,9 @@
 //                  section's single corner: the section's)
 //   fullThrottleAtM          the held full-throttle point (its own column; the
 //                  corner/exit split is the map's fixed exit, not this)
+//   apexLateralM, apexSteerPct   the line (path_lateral_m, signed) and the
+//                  steering size at the slowest sample; null when that sample
+//                  is on the window's edge (cornerInputs version 4)
 //   turnInAtM                steering on the corner's own side (cornerInputs.mjs;
 //                  steerRightSign: the adapter's, +1 when right is positive)
 //   throttlePickupAtM, minThrottlePct   where the closed-throttle phase ends,
@@ -255,6 +258,17 @@ export function cornerFacts({
       minSpeedAtM: round(distAt(minTick), 1),
       minSpeedPart: minPart,
       minSpeedAtEdge: minAtEdge,
+      // Where the car was at the slowest sample: the line (signed metres from
+      // the track's centre, the sim's sign) and the steering size there. Null
+      // for a corner slowest on its window's edge: that is not its apex.
+      apexLateralM:
+        minAtEdge || !s.path_lateral_m
+          ? null
+          : round(s.path_lateral_m[minTick], 2),
+      apexSteerPct:
+        minAtEdge || !s.steer_pct
+          ? null
+          : round(Math.abs(s.steer_pct[minTick]), 1),
       apexSpeedKmh: round(s.speed_kmh[apexTick], 1),
       brakeAtM: brake && round(brake.atM, 1),
       brakeAtResM: brake?.resM == null ? null : round(brake.resM, 1),

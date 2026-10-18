@@ -48,6 +48,7 @@ import {
 import {type CornerBlock, cornerLayout} from './layout';
 import {resetLapIds} from './keyLaps';
 import {useCornerModel} from './useCornerModel';
+import {MovesCard} from './MovesCard';
 import {SectionWindowCard} from './SectionWindowCard';
 import {ZoomTraces, type ZoomHeights} from './ZoomTraces';
 
@@ -529,6 +530,7 @@ function CornerView({
     />
   ) : null;
   const blocks: Record<CornerBlock, ReactNode> = {
+    moves: model.moves ? <MovesCard moves={model.moves} /> : null,
     charts: traces,
     shape,
     laps: lapTable,

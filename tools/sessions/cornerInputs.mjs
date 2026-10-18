@@ -12,7 +12,9 @@
 // 3: a brake application names its part by its peak: the first part whose
 //    apex is after it, not the part its onset falls in; one peaking past the
 //    last part's apex names none (thread 92).
-export const CORNER_INPUTS_VERSION = 3;
+// 4: apexLateralM and apexSteerPct, the line and the steering at the slowest
+//    sample (pit-wall thread 88, what moves with the time).
+export const CORNER_INPUTS_VERSION = 4;
 
 // Turn-in: going back from the peak steering on the corner's own side, the last
 // sample below this share of the peak. 10 % put Road Atlanta T1 on a pre-steer
