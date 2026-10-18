@@ -2,22 +2,28 @@ import {spreadShares} from '@/src/analysis/spreadShare';
 
 import {type Lap, type TrackMapData} from './adapters';
 import {firstCornerOf, trackCorners} from './corners';
-import {useSessionLaps, useTrackMapOfSession} from './queries';
+import {defaultSessionOf, openingLapIds} from './defaultLaps';
+import {useSession, useSessionLaps, useTrackMapOfSession} from './queries';
 import {turnSegmentTimes} from './segments';
 
 /**
- * The first corner of the section holding the most of the comparable laps'
- * lap-to-lap spread (analysis/spreadShare.ts), where the Corner tab opens when
- * nothing else says where; null without a map, sections or ten laps. Pure.
+ * The first corner of the section holding the most of the set's lap-to-lap
+ * spread (analysis/spreadShare.ts), where the Corner tab opens when nothing
+ * else says where; null without a map, sections or ten laps. `ticked` is the
+ * lap set the Session rows read: the ticked laps, else the comparable ones
+ * (the same fallback as the screen's basis). Pure.
  */
 export function topSpreadCorner(
   laps: Lap[],
   map: TrackMapData | null,
+  ticked: ReadonlySet<string>,
 ): number | null {
   if (!map) return null;
   const times = turnSegmentTimes(laps, map);
   if (!times) return null;
-  const picked = times.laps.filter(l => l.comparable);
+  const named = times.laps.filter(l => ticked.has(l.id));
+  const picked =
+    named.length > 0 ? named : times.laps.filter(l => l.comparable);
   const shares = spreadShares(
     times.segments.map((_, i) => picked.map(l => l.timesS[i] ?? null)),
   );
@@ -31,9 +37,22 @@ export function topSpreadCorner(
   return null;
 }
 
-/** `topSpreadCorner` of an open session; null while it loads. */
-export function useTopSpreadCorner(sessionId: string | null): number | null {
+/**
+ * `topSpreadCorner` of an open session, over the laps the URL ticks, else the
+ * laps the session opens on (`openingLapIds`: what the Session screen reads
+ * when the URL names none); null while it loads.
+ */
+export function useTopSpreadCorner(
+  sessionId: string | null,
+  urlLaps: string[],
+): number | null {
+  const session = useSession(sessionId ?? '', sessionId != null);
   const laps = useSessionLaps(sessionId);
   const map = useTrackMapOfSession(sessionId);
-  return laps.data ? topSpreadCorner(laps.data, map.data ?? null) : null;
+  if (!laps.data || !session.data) return null;
+  const ticked =
+    urlLaps.length > 0
+      ? urlLaps
+      : openingLapIds(laps.data, defaultSessionOf(session.data));
+  return topSpreadCorner(laps.data, map.data ?? null, new Set(ticked));
 }

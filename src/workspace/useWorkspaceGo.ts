@@ -29,9 +29,13 @@ export function useCornerTarget(
   sessionId: string | null,
   tab: SessionTab | null,
 ): {n: number; used: boolean} {
-  const {c, n} = useGlobalSearchParams<{c?: string; n?: string}>();
+  const {c, n, laps} = useGlobalSearchParams<{
+    c?: string;
+    n?: string;
+    laps?: string;
+  }>();
   const map = useTrackMapOfSession(sessionId);
-  const landing = useTopSpreadCorner(sessionId);
+  const landing = useTopSpreadCorner(sessionId, parseSelection({laps}).laps);
   if (tab === 'corner' && n) return {n: Number(n), used: true};
   const fromSection =
     map.data && c ? firstCornerOf(trackCorners(map.data), Number(c)) : null;
