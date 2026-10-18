@@ -252,6 +252,9 @@ jobs:
         run: |
           for ($i = 1; $i -le [int]$env:REHEARSALS; $i++) {
             Write-Host "exe lock $i of $env:REHEARSALS"
+            # Null when the script runs no native command, and `$null -ne 0`
+            # would end the loop with exit 0.
+            $global:LASTEXITCODE = 0
             ./desktop/scripts/e2e-exe-lock.ps1 -Installer (Join-Path $env:RUNNER_TEMP "rehearsal/$env:NEW-setup.exe")
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
