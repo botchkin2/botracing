@@ -863,9 +863,9 @@
       },
       {
        "brakeAtM": 1293.2,
-       "peakBrakePct": 55.8,
+       "peakBrakePct": 41.4,
        "turnInAtM": 1380.7,
-       "throttlePickupAtM": 1473.6,
+       "throttlePickupAtM": null,
        "minThrottlePct": 0,
        "fullThrottleAtM": 1478.5,
        "fullThrottleAtEdge": false,

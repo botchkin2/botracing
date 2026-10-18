@@ -207,12 +207,45 @@ describe('the start of a race from a grid behind the line (pit wall thread 91)',
     expect(raceStartS(f)).toBeCloseTo(startS, 6);
   });
   it('no start when no car completes its first lap in the field', () => {
-    const short = field(player(rows.length), 22);
-    rows.slice(0, 22).forEach(([d], u) => {
-      short.cars[0].lapDistM[u] = d;
-      short.cars[0].lapsDone[u] = 0;
+    const n = 22;
+    const short = player(n);
+    rows.slice(0, n).forEach(([d], u) => {
+      short.lapDistM[u] = d;
+      short.lapsDone[u] = 0;
     });
-    expect(raceStartS(short)).toBeNull();
+    expect(raceStartS(field(short, n))).toBeNull();
+  });
+});
+
+describe('a counter already at 1 when the flag drops (Daytona 10-07)', () => {
+  // 100 m track, 10 m an update. The formation wrap is more than 2 s before
+  // the start, and lapsDone is 1 from the green sample through the lap.
+  const rows: [number, number][] = [
+    [80, 0],
+    [90, 0],
+    [-10, 0],
+    ...Array.from({length: 12}, (): [number, number] => [-5, 0]),
+    [-5, 1],
+    [5, 1],
+    ...Array.from({length: 9}, (_, i): [number, number] => [15 + i * 10, 1]),
+    [5, 2],
+  ];
+  const car = player(rows.length);
+  rows.forEach(([d, laps], u) => {
+    car.lapDistM[u] = d;
+    car.lapsDone[u] = laps;
+  });
+  const f = field(car, rows.length);
+  // Grid ends at u 15 (-5 m); the next sample is across the line.
+  const startS = 15 / HZ + 0.5 / HZ;
+  // The next line is the last sample, coming from 95 m.
+  const lap2S = (rows.length - 2) / HZ + 0.5 / HZ;
+
+  it('lap 1 is the start crossing', () => {
+    expect(raceClock(f).timeAtLapDistance(0, 0)).toBeCloseTo(startS, 6);
+  });
+  it('lap 2 is the next start/finish, not a quarter of the lap', () => {
+    expect(raceClock(f).timeAtLapDistance(1, 0)).toBeCloseTo(lap2S, 6);
   });
 });
 

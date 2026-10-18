@@ -67,6 +67,11 @@ function lapsOf(
   };
   let lap = 0;
   let before = NaN;
+  // A confirmed wrap is what makes the counter trustworthy away from the line.
+  // Before that, a counter already reading 1 at the green flag is not a
+  // completed racing lap (Daytona 10-07): copying it puts lap 2 a quarter of
+  // a lap after the start.
+  let synced = false;
   for (let u = 0; u < n; u++) {
     const d = car.lapDistM[u];
     if (Number.isNaN(d)) {
@@ -81,10 +86,17 @@ function lapsOf(
       continue;
     }
     const nearLine = d < trackM * 0.25 || d > trackM * 0.75;
-    if (!nearLine || Number.isNaN(before)) lap = car.lapsDone[u];
-    else if (before > trackM * 0.75 && d < trackM * 0.25) {
-      if (counted(u, lap + 1)) lap++;
-      else restart[u] = 1;
+    if (!nearLine || Number.isNaN(before)) {
+      if (
+        car.lapsDone[u] !== ABSENT &&
+        (Number.isNaN(before) || synced || car.lapsDone[u] <= lap)
+      )
+        lap = car.lapsDone[u];
+    } else if (before > trackM * 0.75 && d < trackM * 0.25) {
+      if (counted(u, lap + 1)) {
+        lap++;
+        synced = true;
+      } else restart[u] = 1;
     }
     laps[u] = lap;
     before = d;

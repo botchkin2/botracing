@@ -9,7 +9,10 @@
 //    from the steering and throttle pickup / lowest throttle added (thread 58).
 // 2: a window's corner/exit split is the map's exit for the corner, the same
 //    distance on every lap, not the lap's own full-throttle point (D43).
-export const CORNER_INPUTS_VERSION = 2;
+// 3: a brake application names its part by its peak: the first part whose
+//    apex is after it, not the part its onset falls in; one peaking past the
+//    last part's apex names none (thread 92).
+export const CORNER_INPUTS_VERSION = 3;
 
 // Turn-in: going back from the peak steering on the corner's own side, the last
 // sample below this share of the peak. 10 % put Road Atlanta T1 on a pre-steer
