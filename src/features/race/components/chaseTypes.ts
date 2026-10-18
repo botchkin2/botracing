@@ -16,3 +16,25 @@ export type ChaseCar = {
   label: string;
   state: string;
 };
+
+/** The player's lap as driven, in the sim's world metres, with throttle and brake per point (5 m apart). */
+export type ChaseRibbon = {
+  x: number[];
+  y: number[];
+  th: number[];
+  br: number[];
+  stepM: number;
+};
+
+/** The player's recorded inputs at the race clock (from the lap's trace); null when not loaded or not the player's lap. */
+export type ChaseNow = {
+  /** Index into the ribbon: where the player is on this lap. */
+  idx: number;
+  throttlePct: number;
+  brakePct: number;
+  steeringPct: number;
+  gear: number;
+  speedKph: number;
+};
+
+export type ChaseInputs = {ribbon: ChaseRibbon; now: ChaseNow | null};

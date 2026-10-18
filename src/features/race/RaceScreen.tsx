@@ -9,6 +9,8 @@ import {fieldClasses} from '@/src/analysis/fieldClasses';
 import {carLapsOf} from '@/src/analysis/carLaps';
 import {updateAt} from '@/src/analysis/field';
 import {RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
+import {type GridTrace} from '@/src/analysis/resample';
+import {useLapTraceLoad} from '@/src/data/traces';
 import {classColor, size, space, useLayout, useTheme} from '@/src/design';
 import {SessionNav} from '@/src/workspace/SessionNav';
 import {sessionHref} from '@/src/nav/routes';
@@ -31,6 +33,7 @@ import {
 import {nextRate, raceClockLabel, snapClock, stepBy} from './clock';
 import {carLapsView} from './carLapsView';
 import {Leaderboard} from './components/Leaderboard';
+import {type ChaseNow, type ChaseRibbon} from './components/chaseTypes';
 import {RaceLegend} from './components/RaceLegend';
 import {
   type LabelMode,
@@ -391,6 +394,26 @@ function RaceView({
       fellBack: focus !== null && chased.index !== focus,
     };
   }, [chased, focus, placer, outlineUse, line, mapZoom]);
+  // The player's own inputs for the lap in view (the stored field has none): the lap's trace, loaded only while the 3D chase is open.
+  const place = mapMode === 'chase' ? data.clock.playerAt(shownS) : null;
+  const lapId = place ? data.laps.find(l => l.lapNumber === place.lapNumber)?.id ?? null : null;
+  const [held, setHeld] = useState<GridTrace | null>(null);
+  const traceLoad = useLapTraceLoad(lapId ? [lapId] : [], {lengthM: prep.trackM, stepM: 5});
+  const loaded = traceLoad.traces[0];
+  if (loaded && held !== loaded) setHeld(loaded);
+  // Between two laps the last lap's trace stays on screen until the next one arrives.
+  const trace = loaded ?? (mapMode === 'chase' ? held : null);
+  const ribbon = useMemo<ChaseRibbon | null>(() => {
+    if (!trace || trace.lat.length < 8) return null;
+    const pts = placer.traceToWorld(trace, 0, trace.lat.length - 1, 1);
+    return {x: pts.map(p => p.x), y: pts.map(p => p.y), th: trace.throttlePct, br: trace.brakePct, stepM: trace.stepM};
+  }, [trace, placer]);
+  const inputsNow = useMemo<ChaseNow | null>(() => {
+    if (!trace || !place || !loaded) return null;
+    const i = Math.max(0, Math.min(trace.distanceM.length - 1, Math.round(place.distanceM / trace.stepM)));
+    return {idx: i, throttlePct: trace.throttlePct[i], brakePct: trace.brakePct[i], steeringPct: trace.steeringPct[i], gear: trace.gear[i], speedKph: trace.speedKph[i]};
+  }, [trace, place, loaded]);
+  const inputs = ribbon ? {ribbon, now: inputsNow} : null;
   // The 3D chase: every car as the map has it, on the road the game measured.
   const chase = useMemo<RaceChase | null>(
     () =>
@@ -413,9 +436,12 @@ function RaceView({
             focus,
             playing: clock.playing,
             rate: clock.rate,
+            inputs,
+            clockLabel: raceClockLabel(shownS, startS),
+            onToggle: clock.toggle,
           }
         : null,
-    [data.matches, data.chase, cars, focus, clock.playing, clock.rate, classes, color, labels],
+    [data.matches, data.chase, cars, focus, clock.playing, clock.rate, classes, color, labels, inputs, shownS, startS],
   );
   const toggleFocus = useCallback(
     (index: number) => setFocus(f => (f === index ? null : index)),
