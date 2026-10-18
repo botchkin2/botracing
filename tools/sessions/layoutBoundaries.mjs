@@ -32,13 +32,18 @@ function pedalTrace(lap, lengthM) {
   };
 }
 
-// Which laps measure where laps agree: comparable, green and clean.
-const measures = lap =>
-  lap.comparable &&
-  lap.clean &&
-  !lap.pitlane &&
-  !lap.pitIn &&
-  !lap.pitOut;
+// Which laps measure where laps agree: comparable and clean; a yellow never
+// counts (decision 2026-10-11 #4).
+export function lapMeasures(lap) {
+  return (
+    lap.comparable &&
+    lap.clean &&
+    !lap.pitlane &&
+    !lap.pitIn &&
+    !lap.pitOut
+  );
+}
+const measures = lapMeasures;
 
 /** The sections' identity, so boundaries stored for another map are not reused. */
 export const mapKeyOf = sections =>
