@@ -48,6 +48,15 @@ export {
   useSessionsLaps,
 } from './queries';
 export {useNewUploads} from './useNewUploads';
+export {
+  dayLapSet,
+  type DaySet,
+  type DayState,
+  type LapSet,
+  splitDayLapId,
+  useDaySet,
+  useSessionLapSet,
+} from './lapSet';
 export {topSpreadCorner, useTopSpreadCorner} from './spreadLanding';
 export {
   type PlanBlock,

@@ -17,11 +17,14 @@ export function SpreadRows({
   rows,
   sessionId,
   laps,
+  open = true,
 }: {
   rows: SpreadRow[];
   sessionId: string;
   /** The ticked laps, carried to Corner. */
   laps: string[];
+  /** False in a day: its laps belong to several sessions, so a row opens nothing yet. */
+  open?: boolean;
 }) {
   const {color} = useTheme();
   const router = useRouter();
@@ -36,7 +39,7 @@ export function SpreadRows({
           key={r.head}
           accessibilityRole='link'
           accessibilityLabel={`${r.head} ${r.pct} of the spread`}
-          disabled={r.corner == null}
+          disabled={r.corner == null || !open}
           onPress={() => {
             if (r.corner != null)
               router.push(cornerHref(sessionId, r.corner, {laps}, r.whole));

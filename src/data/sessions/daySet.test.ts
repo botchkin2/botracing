@@ -37,10 +37,8 @@ const session = (
   sid: string,
   times: number[],
   over: Record<string, unknown> = {},
-  current = true,
 ) => ({
   sessionId: sid,
-  current,
   laps: toLaps(times.map((t, i) => raw(`${sid}${i}`, 1, i, t, over))),
 });
 
@@ -61,18 +59,25 @@ describe('daySlowIds', () => {
     const lone = session('b', [100, 100.1, 107]);
     // Alone: under MIN_EVENT_LAPS laps, nothing is slow (the uploader's rule).
     expect(daySlowIds([lone])).toEqual(new Set());
-    expect([
-      ...(daySlowIds([session('a', steady), lone]) as Set<string>),
-    ]).toEqual(['b~b2']);
+    expect([...daySlowIds([session('a', steady), lone])]).toEqual(['b~b2']);
   });
 
-  it('waits (null) when a member was analysed under other rules', () => {
-    expect(
-      daySlowIds([
-        session('a', steady),
-        session('b', [100, 101, 102], {}, false),
-      ]),
-    ).toBeNull();
+  it('a member with five or more judged laps keeps its own verdict: the day never calls clean what its session calls slow', () => {
+    // Session a zigzags by several seconds, so the day's limit is wide. Session
+    // b is tight with one lap 0.9 s off: slow alone.
+    const loose = session(
+      'a',
+      [100, 101, 99, 102, 98, 103, 97, 104, 96, 105, 95, 106],
+    );
+    const six = session('b', [100, 100.05, 99.95, 100.02, 99.98, 100.9]);
+    expect(daySlowIds([six]).has('b~b5')).toBe(true);
+    // Five or more laps: its own verdict stands inside the day.
+    expect(daySlowIds([loose, six]).has('b~b5')).toBe(true);
+    // Under five laps it judges nothing alone and is judged by the day's wide
+    // limit: the same 0.9 s lap reads clean there.
+    const four = session('b', [100, 100.05, 99.95, 100.9]);
+    expect(daySlowIds([four]).size).toBe(0);
+    expect(daySlowIds([loose, four]).has('b~b3')).toBe(false);
   });
 
   it('a stint is a session: a lap is judged against its own session curve, not another session’s', () => {
@@ -88,7 +93,6 @@ describe('daySlowIds', () => {
   it('leaves out laps with a stored reason other than slow', () => {
     const reasoned = {
       sessionId: 'a',
-      current: true,
       laps: toLaps([
         ...steady.map((t, i) => raw(`a${i}`, 1, i, t)),
         raw('x', 1, 8, 130, {reasons: ['pit-out'], comparable: false}),
@@ -96,13 +100,12 @@ describe('daySlowIds', () => {
     };
     expect(daySlowIds([reasoned])).toEqual(new Set());
     const plain = session('a', [...steady, 130]);
-    expect([...(daySlowIds([plain]) as Set<string>)]).toEqual(['a~a8']);
+    expect([...daySlowIds([plain])]).toEqual(['a~a8']);
   });
 
   it('sections count only when every lap was cut at the same boundaries, else the day is lap time only', () => {
     const rev = (sid: string, r: number) => ({
       sessionId: sid,
-      current: true,
       laps: toLaps(
         steady.map((t, i) =>
           raw(`${sid}${i}`, 1, i, t, {cornerBoundaries: {v: 1, rev: r}}),
@@ -114,7 +117,6 @@ describe('daySlowIds', () => {
     // A member with no windows at all (cut before them) is the same: no sections.
     const bare = {
       sessionId: 'c',
-      current: true,
       laps: toLaps(
         steady.map((t, i) => raw(`c${i}`, 1, i, t, {cornerBoundaries: null})),
       ),
@@ -134,14 +136,13 @@ describe('dayLapIds', () => {
     const ids = dayLapIds([
       session('a', steady),
       session('b', [100, 100.1, 107]),
-    ]) as string[];
+    ]);
     expect(ids).toHaveLength(10);
     expect(ids).not.toContain('b~b2');
     expect(ids).toContain('b~b0');
   });
 
-  it('is null while a member awaits re-analysis and empty under two laps', () => {
-    expect(dayLapIds([session('a', [100, 101], {}, false)])).toBeNull();
+  it('is empty under two laps', () => {
     expect(dayLapIds([session('a', [100])])).toEqual([]);
   });
 });
