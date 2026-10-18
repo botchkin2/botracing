@@ -225,11 +225,14 @@ export function StintRow({
   width,
   wide = false,
   onSelectStint,
+  onOpen,
 }: {
   row: StintRowModel;
   width: number;
   wide?: boolean;
   onSelectStint: () => void;
+  /** In a day: opens the stint's own session. */
+  onOpen?: () => void;
 }) {
   const {color} = useTheme();
   return (
@@ -240,12 +243,28 @@ export function StintRow({
         {width, borderColor: color.line},
       ]}>
       {/* The button sits beside the label, not at the far end of the row (triage #10). */}
-      <Text
-        variant='dataSmall'
-        style={[styles.stintText, styles.stintLabel]}
-        numberOfLines={1}>
-        {row.label}
-      </Text>
+      {onOpen ? (
+        <Pressable
+          accessibilityRole='link'
+          accessibilityLabel={`Open the session of ${row.label}`}
+          onPress={onOpen}
+          style={styles.stintText}>
+          <Text
+            variant='dataSmall'
+            tone='accentInk'
+            style={styles.stintLabel}
+            numberOfLines={1}>
+            {row.label}
+          </Text>
+        </Pressable>
+      ) : (
+        <Text
+          variant='dataSmall'
+          style={[styles.stintText, styles.stintLabel]}
+          numberOfLines={1}>
+          {row.label}
+        </Text>
+      )}
       {row.lapIds.length > 0 && (
         <Button kind='tertiary' label='Select stint' onPress={onSelectStint} />
       )}

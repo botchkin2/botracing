@@ -57,6 +57,12 @@ export const sessionHref = (
   params: {id: sessionId, ...selectionParams(sel)},
 });
 
+/** A session opened as its sitting: the day's laps as one set (`?set=day`). */
+export const sessionDayHref = (sessionId: string): Href => ({
+  pathname: '/session/[id]',
+  params: {id: sessionId, set: 'day'},
+});
+
 export const compareHref = (
   sessionId: string,
   sel: LapSelectionParams = {},
