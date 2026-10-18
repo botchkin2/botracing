@@ -29,6 +29,7 @@ const session = (
   finish: null,
   eventId: null,
   online: null,
+  endedAt: null,
   cornerMapSource: 'stored',
   updatedAt: startedAt,
   ...over,
