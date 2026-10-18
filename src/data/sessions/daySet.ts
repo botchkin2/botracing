@@ -1,4 +1,5 @@
 import {
+  MIN_EVENT_LAPS,
   type PaceLap,
   sectionTimesOf,
   slowLapIds,
@@ -15,8 +16,6 @@ import {paceCandidates} from './defaultLaps';
 /** One session of a sitting, as the day set reads it. */
 export type DayMember = {
   sessionId: string;
-  /** The session's analysis is current (the detail's `stale` is false): its stored slow verdicts come from the rules the app runs now. */
-  current: boolean;
   laps: Lap[];
 };
 
@@ -52,9 +51,9 @@ export function mergeDayLaps(members: readonly DayMember[]): Lap[] {
 const isJudged = (l: Lap) => l.reasons.every(r => r === 'slow');
 
 /**
- * Whether the day may read section times: every judged lap of every member was
- * cut at the same boundaries (version and revision). False when one has none or
- * they differ: the whole day is then lap time only, never a mix.
+ * Whether the members' judged laps may be read by their section times: every
+ * one was cut at the same boundaries (version and revision). False when one has
+ * none or they differ: the set is then lap time only, never a mix.
  */
 export function dayUsesSections(members: readonly DayMember[]): boolean {
   const laps = members.flatMap(m => paceCandidates(m.laps).filter(isJudged));
@@ -69,55 +68,74 @@ export function dayUsesSections(members: readonly DayMember[]): boolean {
   );
 }
 
-/**
- * The slow laps of the day (merged ids), the uploader's own rule run on all
- * the members' laps at once, so a session under MIN_EVENT_LAPS laps is judged
- * against the day's pace with the day's limit. Sections are used only when
- * every judged lap was cut at the same boundaries; one that was not makes the
- * whole day lap-time only, never a mix. Null when a member's stored verdicts
- * are from other rules: the day waits for its re-analysis on open.
- */
-export function daySlowIds(members: readonly DayMember[]): Set<string> | null {
-  if (members.some(m => !m.current)) return null;
-  const judged = members.flatMap(m =>
-    paceCandidates(m.laps)
-      .filter(isJudged)
-      .map(l => ({m, l})),
-  );
-  const useSections = dayUsesSections(members);
+/** The members' judged laps as the uploader's rule takes them: a stint per session stint, laps in order. */
+function paceOf(
+  members: readonly DayMember[],
+  useSections: boolean,
+): PaceLap[] {
   const stintOf = new Map<string, number>();
   const stintLaps = new Map<number, number>();
   const pace: PaceLap[] = [];
-  for (const {m, l} of judged) {
-    const key = `${m.sessionId}:${l.stint}`;
-    if (!stintOf.has(key)) stintOf.set(key, stintOf.size + 1);
-    const stint = stintOf.get(key) as number;
-    const stintLap = stintLaps.get(stint) ?? 0;
-    stintLaps.set(stint, stintLap + 1);
-    pace.push({
-      id: dayLapId(m.sessionId, l.id),
-      stint,
-      stintLap,
-      lapTime: l.timeS as number,
-      sections: useSections
-        ? sectionTimesOf(
-            l.startStraight?.segTimeS,
-            l.sections.map(s => s.segTimeS),
-          )
-        : null,
-    });
+  for (const m of members) {
+    for (const l of paceCandidates(m.laps).filter(isJudged)) {
+      const key = `${m.sessionId}:${l.stint}`;
+      if (!stintOf.has(key)) stintOf.set(key, stintOf.size + 1);
+      const stint = stintOf.get(key) as number;
+      const stintLap = stintLaps.get(stint) ?? 0;
+      stintLaps.set(stint, stintLap + 1);
+      pace.push({
+        id: dayLapId(m.sessionId, l.id),
+        stint,
+        stintLap,
+        lapTime: l.timeS as number,
+        sections: useSections
+          ? sectionTimesOf(
+              l.startStraight?.segTimeS,
+              l.sections.map(s => s.segTimeS),
+            )
+          : null,
+      });
+    }
   }
-  return slowLapIds(pace);
+  return pace;
+}
+
+/**
+ * The slow laps of the day (merged ids). The uploader's own rule, with the
+ * verdict rule of thread 88 (chord #6031, gauge #6035): a member with
+ * MIN_EVENT_LAPS or more judged laps keeps its own verdict, the one its session
+ * would give alone; only a shorter member, which judges nothing alone, is
+ * judged by the day, on the limit of every member's laps together. A lap the
+ * session already calls slow is never called clean by pooling it with others
+ * (the day's wider spread had turned 13 of 738 clearly slow laps clean).
+ * Sections are read only where the laps were cut at the same boundaries (a
+ * member's own, for its own verdict; every member's, for the day's); otherwise
+ * lap time alone, never a mix.
+ */
+export function daySlowIds(members: readonly DayMember[]): Set<string> {
+  const pooled = slowLapIds(paceOf(members, dayUsesSections(members)));
+  const out = new Set<string>();
+  for (const m of members) {
+    const own = paceCandidates(m.laps).filter(isJudged).length;
+    const verdict =
+      own >= MIN_EVENT_LAPS
+        ? slowLapIds(paceOf([m], dayUsesSections([m])))
+        : pooled;
+    for (const l of paceCandidates(m.laps)) {
+      const id = dayLapId(m.sessionId, l.id);
+      if (verdict.has(id)) out.add(id);
+    }
+  }
+  return out;
 }
 
 /**
  * The laps the day view opens on (merged ids): every candidate lap that is not
  * slow in the day, across all stints, as `paceSetLapIds` does for a session;
- * under two there is no set. Null while a member awaits re-analysis.
+ * under two there is no set.
  */
-export function dayLapIds(members: readonly DayMember[]): string[] | null {
+export function dayLapIds(members: readonly DayMember[]): string[] {
   const slow = daySlowIds(members);
-  if (!slow) return null;
   const set = members.flatMap(m =>
     paceCandidates(m.laps)
       .map(l => dayLapId(m.sessionId, l.id))
