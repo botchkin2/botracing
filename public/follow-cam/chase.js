@@ -112,20 +112,26 @@ export async function mountChase(container, THREE, { onPick, theme } = {}) {
     dirty = true;
   }
 
-  // ---- cars: a flat wedge in the class colour, the class footprint, pointing its heading ----
+  // ---- cars: a flat chevron on the road plane at the class footprint, a short heading tick, a thin edge; the player keeps
+  // the class colour and is marked by a white edge and a ring on the road ----
   const geos = {};
-  function wedge(cls) {
+  function chevron(cls) {
     if (geos[cls]) return geos[cls]; const [L, W] = SIZE[cls] || SIZE.GT3, s = new THREE.Shape();
     s.moveTo(L / 2, 0); s.lineTo(L * .12, W / 2); s.lineTo(-L / 2, W * .46); s.lineTo(-L / 2 + .55, 0); s.lineTo(-L / 2, -W * .46); s.lineTo(L * .12, -W / 2); s.closePath();
-    const g = new THREE.ExtrudeGeometry(s, { depth: .6, bevelEnabled: false }); g.rotateX(-Math.PI / 2);   // shape (x, y) becomes (x, -z); the extrusion stands up on +y
-    // a low wedge: full height at the tail, the nose sloping down to a third of it, so a car reads as a marker pointing its way
-    const pos = g.attributes.position; for (let i = 0; i < pos.count; i++) { const x = pos.getX(i), y = pos.getY(i); if (y > .3) pos.setY(i, .6 * (1 - .68 * clamp((x + L * .1) / (L * .6), 0, 1))); } g.computeVertexNormals();
-    g.userData = { edges: new THREE.EdgesGeometry(g, 25) }; return (geos[cls] = g);
+    const g = new THREE.ShapeGeometry(s); g.rotateX(-Math.PI / 2);   // shape (x, y) lies on the ground as (x, -z)
+    const pts = s.getPoints().map(p => new THREE.Vector3(p.x, 0, -p.y)), edge = new THREE.BufferGeometry().setFromPoints(pts);
+    const tick = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(L / 2, 0, 0), new THREE.Vector3(L / 2 + 1.3, 0, 0)]);
+    return (geos[cls] = { g, edge, tick });
   }
   const carObjs = new Map(), chipEls = new Map(), hist = new Map(), states = new Map(), tmpP = new THREE.Vector3();
+  const ringGeo = new THREE.RingGeometry(3.2, 3.3, 64); ringGeo.rotateX(-Math.PI / 2);
   function makeCar(c) {
-    const g = wedge(c.carClass), grp = new THREE.Group(), body = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: new THREE.Color(c.player ? T.accent : c.color) }));
-    grp.add(body, new THREE.LineSegments(g.userData.edges, new THREE.LineBasicMaterial({ color: new THREE.Color(T.bg) }))); grp.userData = { body }; return grp;
+    const { g, edge, tick } = chevron(c.carClass), grp = new THREE.Group(), line = c.player ? '#ffffff' : T.bg;
+    const body = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: new THREE.Color(c.color), polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    const outline = new THREE.LineLoop(edge, new THREE.LineBasicMaterial({ color: new THREE.Color(line) })), nose = new THREE.Line(tick, new THREE.LineBasicMaterial({ color: new THREE.Color(c.color) }));
+    outline.position.y = nose.position.y = .03; grp.add(body, outline, nose);
+    if (c.player) grp.add(new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffffff'), polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })));
+    grp.userData = { body, player: !!c.player }; return grp;
   }
 
   // ---- camera: a smoothed follow, no bounce ----
@@ -137,7 +143,7 @@ export async function mountChase(container, THREE, { onPick, theme } = {}) {
     const dirx = Math.cos(me.hd), diry = Math.sin(me.hd); let px, py, pz, lx, ly, lz, tp = .28, tl = .2;
     const hard = !cam.init || cam.mode !== camMode || !st.playing;
     if (camMode === 1 || camMode === 2) {
-      const back = camMode === 1 ? 8 : 16, up = camMode === 1 ? 2.6 : 7, ahead = 26;
+      const back = camMode === 1 ? 11 : 18, up = camMode === 1 ? 4.2 : 8, ahead = 32;
       if (hard) cam.yaw = me.hd; cam.yaw += angDiff(cam.yaw, me.hd + clamp(curvAt(me.ld + 30) * 18, -.12, .12)) * (hard ? 1 : ease(dt, .5));
       const cx = Math.cos(cam.yaw), cy = Math.sin(cam.yaw);
       px = me.x - cx * back; py = me.y - cy * back; pz = Math.max(me.z + up, roadZ(me.ld - back) + 1.4); lx = me.x + cx * ahead; ly = me.y + cy * ahead; lz = roadZ(me.ld + ahead) + .6;
@@ -149,7 +155,8 @@ export async function mountChase(container, THREE, { onPick, theme } = {}) {
     const kp = hard || tp === 0 ? 1 : ease(dt, tp), kl = hard ? 1 : ease(dt, tl), kz = hard || tp === 0 ? 1 : ease(dt, tp * 1.4);
     cam.x = lerp(cam.x, px, kp); cam.y = lerp(cam.y, py, kp); cam.z = lerp(cam.z, pz, kz); cam.lx = lerp(cam.lx, lx, kl); cam.ly = lerp(cam.ly, ly, kl); cam.lz = lerp(cam.lz, lz, kl); cam.mode = camMode; cam.init = true;
     setV(camera.position, cam.x, cam.y, cam.z); setV(camTarget, cam.lx, cam.ly, cam.lz); camera.up.set(0, 1, 0); camera.lookAt(camTarget);
-    const fov = camMode === 3 ? clamp(2 * Math.atan(14 / Math.max(Math.hypot(lx - px, ly - py, lz - pz), 1)) * 180 / Math.PI, 12, 55) : 55;
+    const fov = camMode === 3 ? clamp(2 * Math.atan(14 / Math.max(Math.hypot(lx - px, ly - py, lz - pz), 1)) * 180 / Math.PI, 12, 55) 
+      : camMode === 1 ? 50 + clamp(me.v / 80, 0, 1) * 9 : 55;
     if (Math.abs(camera.fov - fov) > .01) { camera.fov = lerp(camera.fov, fov, hard ? 1 : ease(dt, .3)); camera.updateProjectionMatrix(); }
   }
 
@@ -160,7 +167,7 @@ export async function mountChase(container, THREE, { onPick, theme } = {}) {
       if (c.state === 'garage' || !isFinite(c.xM)) continue; seen.add(c.index);
       const h = hist.get(c.index), x = c.xM, y = c.zM; let trav = h ? h.trav : null;
       if (h) { const dx = x - h.x, dy = y - h.y, d = Math.hypot(dx, dy); if (d > 40) trav = null; else if (d > .25) { const a = Math.atan2(dy, dx); trav = trav == null ? a : trav + angDiff(trav, a) * .5; } }
-      let onRoad = false, tan = null, z = 0, grade = 0, s = 0;
+      let onRoad = false, tan = null, z = R ? roadZ(mod(c.lapDistM || 0, LEN || 1)) : 0, grade = 0, s = 0;
       if (R && nearestRoad(x, y, 3)) { s = nr.s; tan = tangentAt(s); z = roadZ(s); if (nr.d < widthAt(s, nr.side) + 3) { onRoad = true; grade = (roadZ(s + 4) - roadZ(s - 4)) / 8; } }
       const yawG = c.headingRad == null ? null : Math.PI / 2 - c.headingRad; let hd;
       if (yawG != null && (!onRoad || tan == null || Math.abs(angDiff(yawG, tan)) < .9 || (trav != null && Math.abs(angDiff(yawG, trav)) < .9))) hd = yawG;
@@ -177,7 +184,7 @@ export async function mountChase(container, THREE, { onPick, theme } = {}) {
     // the 5 Hz field is interpolated by the app; the pose here glides toward it, so a car never steps
     for (const s of states.values()) { const t = s.tgt, jump = Math.hypot(t.x - s.x, t.y - s.y) > 12, k = !st.playing || jump ? 1 : ease(dt, .07); s.x = lerp(s.x, t.x, k); s.y = lerp(s.y, t.y, k); s.z = lerp(s.z, t.z, k); s.hd += angDiff(s.hd, t.hd) * k; s.pitch = lerp(s.pitch, t.pitch, k); s.ld = t.ld; s.onRoad = t.onRoad; }
     const me = states.get(me0);
-    for (const [k, s] of states) { let o = carObjs.get(k); if (!o) { o = makeCar(s.c); scene.add(o); carObjs.set(k, o); } o.userData.body.material.color.set(s.c.player ? T.accent : s.c.color); setV(o.position, s.x, s.y, s.z + .04); o.rotation.order = 'YZX'; o.rotation.set(0, s.hd, s.pitch); }
+    for (const [k, s] of states) { let o = carObjs.get(k); if (o && o.userData.player !== !!s.c.player) { scene.remove(o); o = null; } if (!o) { o = makeCar(s.c); scene.add(o); carObjs.set(k, o); } o.userData.body.material.color.set(s.c.color); setV(o.position, s.x, s.y, s.z + .06); o.rotation.order = 'YZX'; o.rotation.set(0, s.hd, s.pitch); }
     updateCam(dt, me);
     const mine = states.get(me0)?.c.player === true;
     if (ribbonMesh) { const i0 = clamp(inputIdx + 1, 0, ribbonN - 2), cnt = clamp(Math.min(70, ribbonN - 2 - i0), 0, 70); ribbonMesh.geometry.setDrawRange(i0 * 6, cnt * 6); ribbonMesh.visible = mine && inputIdx >= 0; }
