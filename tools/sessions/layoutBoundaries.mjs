@@ -33,9 +33,13 @@ function pedalTrace(lap, lengthM) {
 }
 
 // Which laps measure where laps agree: comparable, green and clean.
+// mapComparable / mapClean are the flags from the pass that built the map.
+// The second slow pass updates the live flags after that (analyze.mjs).
+const atMap = (lap, live, stamped) =>
+  Object.hasOwn(lap, stamped) ? lap[stamped] : lap[live];
 const measures = lap =>
-  lap.comparable &&
-  lap.clean &&
+  atMap(lap, 'comparable', 'mapComparable') &&
+  atMap(lap, 'clean', 'mapClean') &&
   !(lap.courseYellowSec > 0) &&
   !lap.pitlane &&
   !lap.pitIn &&

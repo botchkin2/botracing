@@ -790,8 +790,10 @@ export function topSpeed(s, i0, i1, dist) {
   };
 }
 
-// Resample one lap onto the distance grid: time, speed, throttle, brake.
-function onGrid(rec, lap, gridN) {
+// Resample one lap onto the distance grid: time, speed, throttle, brake,
+// lat, lon. Exported so a lap that did not come from a recording (the curate
+// loader) is gridded the same way as analyzeSession.
+export function onGrid(rec, lap, gridN) {
   const {s} = rec;
   const out = {
     time: new Float64Array(gridN),
@@ -1150,19 +1152,26 @@ export function analyzeSession(
   // corner facts settles the flag with the sections.
   markSlow(laps);
 
-  const comparable = laps.filter(l => l.comparable);
-  const pool = comparable.length
-    ? comparable
-    : laps.filter(l => l.timed && !l.partial);
-  const best = pool.reduce(
-    (a, b) => (b.lapTime < (a?.lapTime ?? Infinity) ? b : a),
-    null,
-  );
-
+  // The second markSlow, after the corners exist, changes `comparable`.
+  // The map uses this pass. Non-enumerable so a spread of the lap omits it
+  // (buildFromLaps.test.mjs). selectMapLaps reads it.
+  for (const lap of laps) {
+    Object.defineProperty(lap, 'mapComparable', {
+      value: lap.comparable,
+      enumerable: false,
+    });
+    Object.defineProperty(lap, 'mapClean', {
+      value: lap.clean,
+      enumerable: false,
+    });
+  }
+  const comparable = laps.filter(l => l.mapComparable);
+  // Best and grid count, before the grids exist. The lap set is empty here;
+  // buildTrackMap selects it again once the grids are attached.
+  const {best, gridN: counted} = selectMapLaps(laps);
   let band = null;
-  let gridN = 0;
-  if (best && best.distanceM > 100) {
-    gridN = Math.floor(best.distanceM / GRID_M) + 1;
+  let gridN = counted;
+  if (gridN) {
     for (const lap of laps) {
       if (!lap.partial && lap.distanceM > best.distanceM * 0.9) {
         lap.grid = onGrid(recs[lap.rec], lap, gridN);
@@ -1203,7 +1212,7 @@ export function analyzeSession(
   let layout = null;
   if (map?.corners.length) {
     const fitting = laps.filter(lap => cornersFit(lap, map));
-    layout = sessionBoundaries({
+    layout = boundariesFromLaps({
       laps: fitting,
       map,
       stored: trackMapSource === 'session' ? null : boundaries,
@@ -1411,14 +1420,47 @@ export function analyzeSession(
   };
 }
 
-function buildTrackMap(recs, comparable, best, gridN) {
-  if (!best || !gridN) return null;
-  if (!recs.every(r => r.s.lat_deg && r.s.lon_deg)) return null;
-  const laps = comparable.filter(
+/** How many 5 m points a lap of this length is resampled onto. 0 under 100 m. */
+export function gridNOf(distanceM) {
+  if (!(distanceM > 100)) return 0;
+  return Math.floor(distanceM / GRID_M) + 1;
+}
+
+/**
+ * The fastest lap and the comparable laps within 1% of its length that carry
+ * a grid. Same selection buildTrackMap used before it was split (thread 78).
+ */
+export function selectMapLaps(laps) {
+  const comparable = laps.filter(l =>
+    Object.hasOwn(l, 'mapComparable') ? l.mapComparable : l.comparable,
+  );
+  const pool = comparable.length
+    ? comparable
+    : laps.filter(l => l.timed && !l.partial);
+  const best = pool.reduce(
+    (a, b) => (b.lapTime < (a?.lapTime ?? Infinity) ? b : a),
+    null,
+  );
+  const gridN = best ? gridNOf(best.distanceM) : 0;
+  if (!best || !gridN) return {best: null, gridN: 0, laps: []};
+  return {best, gridN, laps: lapsWithinBest(comparable, best)};
+}
+
+function lapsWithinBest(comparable, best) {
+  return comparable.filter(
     l =>
       l.grid && Math.abs(l.distanceM - best.distanceM) < best.distanceM * 0.01,
   );
-  if (laps.length < 3) return null;
+}
+
+/**
+ * The track map from laps that already have a 5 m grid. `laps` is the set
+ * selectMapLaps kept. Null under 3 laps. One builder for every lap source.
+ */
+export function mapFromLaps(laps, gridN) {
+  if (!gridN || laps.length < 3) return null;
+  let best = laps[0];
+  for (const lap of laps) if (lap.lapTime < best.lapTime) best = lap;
   return {
     laps: laps.length,
     map: {
@@ -1429,6 +1471,34 @@ function buildTrackMap(recs, comparable, best, gridN) {
       corners: findTrackSections(profile(laps, gridN)),
     },
   };
+}
+
+/**
+ * This session's boundary state for a map, from the laps that fit it.
+ * `stored` is the layout's state so far (null on the first session). The
+ * catalog-only path passes readOnly and the stored state of this map.
+ */
+export function boundariesFromLaps({
+  laps,
+  map,
+  stored = null,
+  sessionId = '',
+  readOnly = false,
+}) {
+  if (!map?.corners.length) return null;
+  return sessionBoundaries({
+    laps: laps.filter(lap => cornersFit(lap, map)),
+    map,
+    stored,
+    sessionId,
+    readOnly,
+  });
+}
+
+function buildTrackMap(recs, comparable, best, gridN) {
+  if (!best || !gridN) return null;
+  if (!recs.every(r => r.s.lat_deg && r.s.lon_deg)) return null;
+  return mapFromLaps(lapsWithinBest(comparable, best), gridN);
 }
 
 // What src/analysis/consistency.ts needs to know about a lap. The lap doc
