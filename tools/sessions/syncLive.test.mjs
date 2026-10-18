@@ -97,3 +97,19 @@ test('the field and capture extract go up with the lap; a field that fails never
   assert.equal(failing.outs.length, 1, 'the lap still goes up');
   assert.equal(failing.outs[0].field, null);
 });
+
+test('the session doc carries the online flag with every lap', async () => {
+  const run = async extract => {
+    const store = memoryStore();
+    await syncLive({
+      captureDir: 'C:/cap', ownerId: 'o', work: mkdtempSync(join(tmpdir(), 'syncLive-')),
+      store, capture: fakeCapture(2), now: () => 'now',
+      makeInputs: () => ({field: null, fieldText: null, fieldReason: 'x', extract}),
+    });
+    return store.outs[0].session;
+  };
+  assert.equal((await run({v: 1, online: false})).online, false);
+  assert.equal((await run({v: 1, online: true})).online, true);
+  assert.equal('online' in (await run({v: 1, online: null})), false);
+  assert.equal('online' in (await run(null)), false);
+});

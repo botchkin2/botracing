@@ -52,6 +52,10 @@ import {describeCheck} from './irCapture.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {onlineFor} from './gameMode.mjs';
+import {
+  liveOnlineFlags,
+  uploadLiveOnlineBacklog,
+} from './liveOnlineBacklog.mjs';
 import {captureExtract} from './captureExtract.mjs';
 import {resultsForSpan} from './lmuResults.mjs';
 import {backlogCandidates, uploadResultsBacklog} from './resultsBacklog.mjs';
@@ -397,6 +401,18 @@ function describeSession(s) {
 // looked at once per start after its retry window. The watcher passes its own.
 const resultsRun = arg('--run', new Date().toISOString());
 
+// Each stored live session's online flag, once (liveOnlineBacklog.mjs).
+function keepOnline(state, store, liveIndex) {
+  return uploadLiveOnlineBacklog({
+    flags: liveOnlineFlags(liveIndex, captureRoot),
+    state,
+    store,
+    ownerId,
+    saveState: () => saveState(state),
+    log,
+  });
+}
+
 function keepResults(sessions, state, store, liveIndex) {
   const nowMs = Date.now();
   return uploadResultsBacklog({
@@ -436,6 +452,11 @@ async function main() {
     const liveStore = remoteStore ?? (await import('./store.mjs'));
     await keepResults(
       [],
+      state,
+      liveStore,
+      usableLiveIndex(readLiveIndex(work), captureRoot),
+    );
+    await keepOnline(
       state,
       liveStore,
       usableLiveIndex(readLiveIndex(work), captureRoot),
@@ -544,6 +565,7 @@ async function main() {
   }
   if (!local && !check) await uploadCaptureBacklog(sessions, state, store);
   if (!local && !check) await keepResults(sessions, state, store, liveIndex);
+  if (!local && !check) await keepOnline(state, store, liveIndex);
   if (!local && !check) await repairIracingArchives(sessions, state, store);
   // The watcher reads this line for the heartbeat's done/total.
   log(`to do ${todo.length}`);

@@ -77,3 +77,11 @@ test('the best lap is stored to 3 decimals, as an analysed session (the capture 
   const doc = liveSessionDoc({ownerId: 'o', sessionId: 's', recordings: [{...recording, parts}], nowIso: 'x'});
   assert.equal(doc.bestLapTime, 80.491);
 });
+
+test('the live doc carries online, offline as false, and leaves the key off when unknown', () => {
+  const doc = online => liveSessionDoc({ownerId: 'o', sessionId: 's', recordings: [recording], nowIso: 'x', online});
+  assert.equal(doc(false).online, false);
+  assert.equal(doc(true).online, true);
+  assert.equal('online' in doc(null), false);
+  assert.equal('online' in doc(undefined), false);
+});

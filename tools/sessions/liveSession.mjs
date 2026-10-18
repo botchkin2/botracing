@@ -19,8 +19,15 @@ export const LIVE_STAMP = analysisStamp(0, {});
  * @param {{id: string, info: object, parts: {lapNumber: number, t0: number, t1: number, lapTimeS?: number|null, partial?: boolean}[]}[]} input.recordings
  *   in order; `info` is the stretch's description (lmuCapture.describeCapture).
  * @param {string} input.nowIso
+ * @param {boolean|null} [input.online] the capture's game mode (gameMode.mjs); left off the doc when unknown, so a stored flag is never blanked
  */
-export function liveSessionDoc({ownerId, sessionId, recordings, nowIso}) {
+export function liveSessionDoc({
+  ownerId,
+  sessionId,
+  recordings,
+  nowIso,
+  online = null,
+}) {
   const first = recordings[0].info;
   const last = recordings[recordings.length - 1];
   const sim = first.sim;
@@ -48,6 +55,7 @@ export function liveSessionDoc({ownerId, sessionId, recordings, nowIso}) {
     lapCount: recordings.reduce((n, r) => n + r.parts.length, 0),
     // 3 decimals as every analysed doc; the capture's lap time is a float32.
     bestLapTime: timed.length ? Math.round(Math.min(...timed) * 1000) / 1000 : null,
+    ...(online == null ? {} : {online}),
     live: {updatedAt: nowIso},
     analysis: LIVE_STAMP,
     updatedAt: nowIso,
