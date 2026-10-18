@@ -20,7 +20,7 @@ import {
   useLayout,
   useTheme,
 } from '@/src/design';
-import {useDaySet, useSession} from '@/src/data/sessions';
+import {type DaySet, useDaySet, useSession} from '@/src/data/sessions';
 import {SessionNav} from '@/src/workspace/SessionNav';
 import {
   compareHref,
@@ -169,7 +169,7 @@ export function SessionScreen({
       onSelectionChange={onSelectionChange}
       renderPlanHalf={renderPlanHalf}
       renderPooledUse={renderPooledUse}
-      day={dayReady != null}
+      day={dayReady}
       setToggle={setToggle}
     />
   );
@@ -182,13 +182,13 @@ function SessionView({
   onSelectionChange,
   renderPlanHalf,
   renderPooledUse,
-  day = false,
+  day = null,
   setToggle = null,
 }: {
   sessionId: string;
   model: SessionScreenModel;
   /** The laps are a day: no session cards, grid or side panels, no jump to Corner by a cell. */
-  day?: boolean;
+  day?: DaySet | null;
   /** Session | Day, when the session is in a sitting. */
   setToggle?: ReactNode;
   selection: Selection;
@@ -200,6 +200,8 @@ function SessionView({
   const layout = useLayout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  // Carried to every link out of a day, so Corner and Compare follow the set.
+  const set = day ? 'day' : null;
   const listRef = useRef<FlatList<RowModel>>(null);
   // The lap table's rows and head scroll sideways as one (phone and tablet).
   const tableLink = useLinkedScroll();
@@ -445,7 +447,7 @@ function SessionView({
           rows={model.spread}
           sessionId={sessionId}
           laps={selection.laps}
-          open={!day}
+          set={set}
         />
       ) : null}
       {model.classTable ? <ClassTableView table={model.classTable} /> : null}
@@ -493,7 +495,7 @@ function SessionView({
         onSelectionChange({...selection, laps: replace(lapIds)})
       }
       onCompare={() =>
-        router.push(compareHref(sessionId, {laps: selection.laps}))
+        router.push(compareHref(sessionId, {laps: selection.laps, set}))
       }
     />
   );
@@ -506,9 +508,7 @@ function SessionView({
   };
 
   // Which section columns open something: the game's sectors and the start straight do not.
-  const sectionTaps = day
-    ? []
-    : model.sections?.targets.map(t => t.corner != null) ?? [];
+  const sectionTaps = model.sections?.targets.map(t => t.corner != null) ?? [];
   const renderRow = (item: RowModel, width: number, wide = false) =>
     item.kind === 'note' ? (
       <NoteRow
@@ -547,7 +547,7 @@ function SessionView({
               cornerHref(
                 sessionId,
                 target.corner,
-                {laps: target.laps, hl: item.lapId},
+                {laps: target.laps, hl: item.lapId, set},
                 target.whole,
               ),
             );
@@ -678,6 +678,7 @@ function SessionView({
                           compareHref(sessionId, {
                             laps: selection.laps,
                             corner,
+                            set,
                           }),
                         );
                     }}
@@ -690,6 +691,7 @@ function SessionView({
                 {/* The grid comes after the lap table (Botkin, 2 Oct screenshots). */}
                 <SessionGrid
                   id={sessionId}
+                  day={day}
                   ticked={selection.laps}
                   onTap={lapId =>
                     onSelectionChange({

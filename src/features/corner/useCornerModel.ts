@@ -2,8 +2,11 @@ import {useCallback, useMemo} from 'react';
 
 import {type GridTrace} from '@/src/analysis/resample';
 import {
+  dayBestLapId,
+  dayLapId,
   defaultSessionOf,
   openingLapIds,
+  useDaySet,
   useSession,
   useSessionBand,
   useSessionLaps,
@@ -16,6 +19,7 @@ import {
   sliceToGridTrace,
   type TraceLoad,
   useCornerSlices,
+  useDayCornerSlices,
 } from '@/src/data/traces';
 
 import {
@@ -53,35 +57,48 @@ export function useCornerModel(
   urlSelection: CornerSelection,
   allComparable: boolean,
   whole = false,
+  setKind: 'session' | 'day' = 'session',
 ): CornerResult {
-  const session = useSession(sessionId);
-  const laps = useSessionLaps(sessionId);
+  const route = useSession(sessionId);
+  const routeLaps = useSessionLaps(sessionId);
   const selection = urlSelection;
   const band = useSessionBand(sessionId);
-  const map = useTrackMap(session.data?.trackId);
+  const map = useTrackMap(route.data?.trackId);
+  // A day (data/sessions/lapSet.ts): its first member names the track and car,
+  // its merged laps are the laps, and each member's slice file draws its own.
+  const dayState = useDaySet(sessionId, route.data?.trackId, setKind === 'day');
+  const day = dayState.state === 'ready' ? dayState.set : null;
+  const session = day ? {...route, data: day.members[0]} : route;
+  const laps = day ? {...routeLaps, data: day.laps} : routeLaps;
 
   const lapIds = useMemo(
     () =>
       laps.data
-        ? cornerLapIds(
-            laps.data,
-            selection,
-            allComparable,
-            session.data ? defaultSessionOf(session.data) : null,
-          )
+        ? day && selection.laps.length === 0 && !allComparable
+          ? day.openingIds
+          : cornerLapIds(
+              laps.data,
+              selection,
+              allComparable,
+              session.data ? defaultSessionOf(session.data) : null,
+            )
         : [],
-    [laps.data, selection, allComparable, session.data],
+    [laps.data, selection, allComparable, session.data, day],
   );
   // What Reset goes back to: the opening set, as Session and Compare open.
   const openingIds = useMemo(
     () =>
-      laps.data && session.data
+      day
+        ? day.openingIds
+        : laps.data && session.data
         ? openingLapIds(laps.data, defaultSessionOf(session.data))
         : [],
-    [laps.data, session.data],
+    [laps.data, session.data, day],
   );
   // The laps on: drawn in their own colour and named on the strips.
-  const bestLapId = session.data?.bestLapId ?? null;
+  const bestLapId = day
+    ? dayBestLapId(day.laps)
+    : session.data?.bestLapId ?? null;
   // The drawn laps, fastest first: "the best" and "the next" come from here.
   const ranked = useMemo(
     () =>
@@ -106,7 +123,7 @@ export function useCornerModel(
   // Every lap comes from the corner's slice file (one small fetch), so every
   // comparable lap draws, not only the laps on. A session the uploader has
   // not resynced since analysis version 13 has no file: nothing to draw yet.
-  const slicePointer = session.data?.slices ?? null;
+  const slicePointer = day ? null : session.data?.slices ?? null;
   // "All" on a compound corner draws from its last part's file, which spans
   // the whole section (wholeCorner.ts).
   const sliceCorner = useMemo(
@@ -114,21 +131,40 @@ export function useCornerModel(
       map.data ? sliceCornerOf(trackCorners(map.data), corner, whole) : corner,
     [map.data, corner, whole],
   );
-  const hasFile = slicePointer?.corners.includes(sliceCorner) ?? false;
-  const slices = useCornerSlices(
+  // A day reads one file per member that has it for this corner.
+  const dayFiles = (day?.members ?? []).map(m => ({
+    id: m.id,
+    hash: m.slices?.corners.includes(sliceCorner) ? m.slices.hash : null,
+  }));
+  const daySlices = useDayCornerSlices(dayFiles, sliceCorner);
+  const hasFile = day
+    ? dayFiles.some(f => f.hash != null)
+    : slicePointer?.corners.includes(sliceCorner) ?? false;
+  const single = useCornerSlices(
     sessionId,
     sliceCorner,
-    hasFile ? slicePointer?.hash ?? null : null,
+    !day && hasFile ? slicePointer?.hash ?? null : null,
   );
-  const {refetch: refetchSlices} = slices;
+  const slices = day ? {...single, status: daySlices.status} : single;
+  const {refetch: refetchSlices} = single;
   const traces = useMemo(() => {
     const out = new Map<string, GridTrace>();
-    if (!slices.data) return out;
-    for (const lap of slices.data.laps)
-      if (sliceReachesApex(lap, slices.data))
-        out.set(lap.id, sliceToGridTrace(lap, slices.data));
+    if (day) {
+      day.members.forEach((m, i) => {
+        const data = daySlices.data[i];
+        if (!data) return;
+        for (const lap of data.laps)
+          if (sliceReachesApex(lap, data))
+            out.set(dayLapId(m.id, lap.id), sliceToGridTrace(lap, data));
+      });
+      return out;
+    }
+    if (!single.data) return out;
+    for (const lap of single.data.laps)
+      if (sliceReachesApex(lap, single.data))
+        out.set(lap.id, sliceToGridTrace(lap, single.data));
     return out;
-  }, [slices.data]);
+  }, [single.data, day, daySlices.data]);
   const traceLoad = useMemo(
     (): TraceLoad =>
       sliceLoad({

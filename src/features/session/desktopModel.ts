@@ -3,6 +3,7 @@ import {useMemo} from 'react';
 
 import {columnStats} from '@/src/analysis/segments';
 import {
+  type DaySet,
   type Lap,
   lapCornerTimes,
   type SessionDetail,
@@ -12,6 +13,7 @@ import {
   useTrackMap,
 } from '@/src/data/sessions';
 import {
+  formatClock,
   formatDistance,
   formatGap,
   formatLapTime,
@@ -66,7 +68,7 @@ const dash = '—';
  * line in the lap table (selectionStats.ts).
  */
 export function buildStintTable(
-  session: SessionDetail,
+  session: {stints: readonly {n: number; startedAt?: string}[]},
   laps: Lap[],
   ticked: ReadonlySet<string>,
 ): StintTableRow[] {
@@ -81,7 +83,8 @@ export function buildStintTable(
     const stats = lapTimeStats(picked);
     rows.push({
       n: s.n,
-      name: `Stint ${s.n}`,
+      // A day names a stint by when its session began.
+      name: s.startedAt ? formatClock(s.startedAt) : `Stint ${s.n}`,
       count: `${picked.length}/${stintLaps.length}`,
       median: stats.medianS == null ? dash : formatLapTime(stats.medianS),
       best: stats.bestS == null ? dash : formatLapTime(stats.bestS),
@@ -157,10 +160,13 @@ export type SessionDesktopModel = {
 export function useSessionDesktopModel(
   id: string,
   selection: Selection,
+  day: DaySet | null = null,
 ): SessionDesktopModel | null {
-  const session = useSession(id);
-  const laps = useSessionLaps(id);
-  const map = useTrackMap(session.data?.trackId);
+  const own = useSession(id);
+  const ownLaps = useSessionLaps(id);
+  const session = day ? {data: {stints: day.stints}} : own;
+  const laps = day ? {data: day.laps} : ownLaps;
+  const map = useTrackMap(own.data?.trackId ?? day?.members[0].trackId);
   return useMemo(() => {
     if (!session.data || !laps.data) return null;
     // Corner numbers are the map's parts (T1–T11), in lapCornerTimes order.

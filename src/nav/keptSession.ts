@@ -11,6 +11,8 @@ export type Kept = {
   laps?: string;
   ref?: string;
   hl?: string;
+  /** `day` when the session was open as its sitting. */
+  set?: string;
   /** The last corner used in this session, for the "Corner T5" tab. */
   corner: number | null;
 };
@@ -21,6 +23,7 @@ export type KeptRoute = {
   laps?: string;
   ref?: string;
   hl?: string;
+  set?: string;
   /** The open corner, on the Corner page. */
   n?: string;
   /** The first corner of the section open in Compare, once the map is in. */
@@ -38,6 +41,7 @@ export function nextKept(prev: Kept | null, route: KeptRoute): Kept | null {
       laps: route.laps,
       ref: route.ref,
       hl: route.hl,
+      set: route.set,
       corner: fromPage ?? route.sectionCorner ?? remembered,
     };
   }
@@ -53,4 +57,5 @@ export const sameKept = (a: Kept | null, b: Kept | null): boolean =>
     a.laps === b.laps &&
     a.ref === b.ref &&
     a.hl === b.hl &&
+    a.set === b.set &&
     a.corner === b.corner);

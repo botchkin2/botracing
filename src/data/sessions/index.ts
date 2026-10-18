@@ -48,6 +48,7 @@ export {
   useSessionsLaps,
 } from './queries';
 export {useNewUploads} from './useNewUploads';
+export {dayBestLapId, dayLapId} from './daySet';
 export {
   dayLapSet,
   type DaySet,

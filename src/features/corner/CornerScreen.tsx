@@ -100,6 +100,7 @@ export function CornerScreen({
   whole = false,
   selection,
   onSelectionChange,
+  setKind = 'session',
 }: {
   sessionId: string;
   corner: number;
@@ -107,6 +108,8 @@ export function CornerScreen({
   whole?: boolean;
   selection: CornerSelection;
   onSelectionChange: (next: CornerSelection) => void;
+  /** `day`: the laps are a sitting's, drawn from each session's own slice file. */
+  setKind?: 'session' | 'day';
 }) {
   const layout = useLayout();
   // Distributions pay off with many laps: on the desktop, default to every
@@ -120,6 +123,7 @@ export function CornerScreen({
     selection,
     allComparable,
     whole,
+    setKind,
   );
   const {color} = useTheme();
   const insets = useSafeAreaInsets();
@@ -167,6 +171,7 @@ export function CornerScreen({
       allComparable={allComparable}
       onAllComparable={setAllComparable}
       onSelectionChange={onSelectionChange}
+      set={setKind === 'day' ? 'day' : null}
     />
   );
 }
@@ -183,6 +188,7 @@ function CornerView({
   allComparable,
   onAllComparable,
   onSelectionChange,
+  set,
 }: {
   sessionId: string;
   model: CornerModel;
@@ -195,6 +201,8 @@ function CornerView({
   allComparable: boolean;
   onAllComparable: (on: boolean) => void;
   onSelectionChange: (next: CornerSelection) => void;
+  /** `day`: carried to every link, so the set follows the driver. */
+  set: 'day' | null;
 }) {
   const {color, scheme} = useTheme();
   const layout = useLayout();
@@ -238,7 +246,12 @@ function CornerView({
   const rowOf = new Map(model.rows.map(r => [r.lapId, r] as const));
   const go = (n: number, whole = false) =>
     router.replace(
-      cornerHref(sessionId, n, {laps: selection.laps, hl: selection.hl}, whole),
+      cornerHref(
+        sessionId,
+        n,
+        {laps: selection.laps, hl: selection.hl, set},
+        whole,
+      ),
     );
 
   // One chip per section; a compound one (the bus stop) opens on its first
@@ -287,6 +300,7 @@ function CornerView({
               laps: selection.laps,
               hl: selection.hl,
               corner: model.sectionN,
+              set,
             }),
           )
         }>

@@ -117,10 +117,13 @@ export function CompareScreen({
   sessionId,
   selection: urlSelection,
   onSelectionChange,
+  setKind = 'session',
 }: {
   sessionId: string;
   selection: UrlCompareSelection;
   onSelectionChange: (next: CompareSelection) => void;
+  /** `day`: the laps are a sitting's (`sessionId~lapId`); carried to the links out. */
+  setKind?: 'session' | 'day';
 }) {
   // A URL with no laps opens on a fair reference and the median lap.
   const sessionDoc = useSession(sessionId);
@@ -204,6 +207,7 @@ export function CompareScreen({
       windowSizeValue={size}
       onCursor={setCursorM}
       onSelectionChange={onSelectionChange}
+      setKind={setKind}
     />
   );
 }
@@ -218,6 +222,7 @@ function CompareView({
   windowSizeValue,
   onCursor,
   onSelectionChange,
+  setKind,
 }: {
   sessionId: string;
   model: CompareModel;
@@ -230,6 +235,7 @@ function CompareView({
   /** Takes an updater too, so steps in the same tick build on each other. */
   onCursor: Dispatch<SetStateAction<number>>;
   onSelectionChange: (next: CompareSelection) => void;
+  setKind: 'session' | 'day';
 }) {
   const {color, scheme} = useTheme();
   const layout = useLayout();
@@ -262,7 +268,11 @@ function CompareView({
       cornerHref(
         sessionId,
         model.sectionFirstCorner[section] ?? section,
-        {laps: selection.laps, hl: selection.hl},
+        {
+          laps: selection.laps,
+          hl: selection.hl,
+          set: setKind === 'day' ? 'day' : null,
+        },
         model.sectionCompound[section] === true,
       ),
     );
@@ -356,7 +366,12 @@ function CompareView({
         style={hitBox.link}
         hitSlop={space.md}
         onPress={() =>
-          router.navigate(sessionHref(sessionId, {laps: selection.laps}))
+          router.navigate(
+            sessionHref(sessionId, {
+              laps: selection.laps,
+              set: setKind === 'day' ? 'day' : null,
+            }),
+          )
         }>
         <Text variant='bodyStrong' tone='accentInk'>
           ‹ Session
