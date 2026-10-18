@@ -7,6 +7,7 @@ import {
   useSessions,
 } from '@/src/data/sessions';
 import type {FinishPosition} from '@/src/analysis/raceResult';
+import {sittings} from '@/src/analysis/sitting';
 import {
   carLabel,
   dayMonthOf,
@@ -69,11 +70,21 @@ export type TableCells = {
 };
 type SessionType = SessionSummary['sessionType'];
 
+/** A sitting of two or more sessions, the day's laps as one set (analysis/sitting.ts). */
+export type SittingRow = {
+  /** The first session of the sitting: what a tap opens as a day. */
+  firstId: string;
+  /** "Silverstone · P × 3 · 31 laps". */
+  text: string;
+};
+
 export type DayGroup = {
   key: string;
   title: string;
   date: string;
   rows: SessionRow[];
+  /** The sittings that began this day. */
+  sittings: SittingRow[];
 };
 
 export type SessionsModel =
@@ -155,6 +166,7 @@ export function buildSessionsModel(
         title: dayTitle(started, now),
         date: dayMonthOf(started),
         rows: [],
+        sittings: [],
       };
       groups.set(key, group);
     }
@@ -187,6 +199,29 @@ export function buildSessionsModel(
         classText: s.sessionType === 'R' && s.carClass ? s.carClass : null,
         place: s.finish?.overall ?? null,
       },
+    });
+  }
+  // A sitting is listed on the day its first session began.
+  const byId = new Map(sorted.map(s => [s.id, s]));
+  for (const set of sittings(
+    sorted.map(s => ({
+      id: s.id,
+      trackId: s.trackId,
+      carModel: s.car,
+      sessionType: s.sessionType,
+      startedAt: s.startedAt,
+      endedAt: s.endedAt,
+    })),
+  )) {
+    const first = byId.get(set[0].id) as SessionSummary;
+    const group = groups.get(dayKey(new Date(first.startedAt)));
+    if (!group) continue;
+    const laps = set.reduce((n, m) => n + (byId.get(m.id)?.lapCount ?? 0), 0);
+    group.sittings.push({
+      firstId: first.id,
+      text: `${shortTrackName(first.track)} · ${first.sessionType} × ${
+        set.length
+      } · ${laps} laps`,
     });
   }
   return [...groups.values()];

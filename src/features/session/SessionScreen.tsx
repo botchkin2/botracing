@@ -20,10 +20,12 @@ import {
   useLayout,
   useTheme,
 } from '@/src/design';
+import {useDaySet, useSession} from '@/src/data/sessions';
 import {SessionNav} from '@/src/workspace/SessionNav';
 import {
   compareHref,
   cornerHref,
+  sessionHref,
   sessionsHref,
   trackHref,
 } from '@/src/nav/routes';
@@ -48,6 +50,8 @@ import {SessionGrid} from './components/SessionGrid';
 import {ClassTableView} from './components/ClassTable';
 import {MovedLine, RebuiltLine} from './components/RebuiltLine';
 import {SessionHead} from './components/SessionHead';
+import {SetToggle} from './components/SetToggle';
+import type {SetKind} from './components/SetToggle';
 import {SpreadRows} from './components/SpreadRows';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
@@ -64,6 +68,7 @@ import {
   type RowModel,
   type Selection,
   type SessionScreenModel,
+  useDayScreenModel,
   useSessionOpeningLapIds,
   useSessionScreenModel,
 } from './model';
@@ -87,10 +92,16 @@ export function SessionScreen({
   onSelectionChange,
   renderPlanHalf,
   renderPooledUse,
+  setKind = 'session',
+  onSetChange,
 }: {
   sessionId: string;
   selection: Selection;
   onSelectionChange: (next: Selection) => void;
+  /** The set of laps the URL asks for (`?set=day`). */
+  setKind?: SetKind;
+  /** Switch set: the route clears the lap selection (ids differ between a session and a day). */
+  onSetChange?: (next: SetKind) => void;
   /** The planner against this race: another feature's half of the card, put here by the route. */
   renderPlanHalf?: (card: PitCardModel, facts: RaceFacts) => ReactNode;
   renderPooledUse?: (planKey: string, width: number) => ReactNode;
@@ -98,14 +109,37 @@ export function SessionScreen({
   // The one selection for this screen: the URL's laps, or the opening set when
   // the URL names none. The model, the table, the chart and the grid all read it.
   const openingIds = useSessionOpeningLapIds(sessionId);
-  const resolved = useMemo<Selection>(
-    () =>
-      selection.laps.length > 0 ? selection : {...selection, laps: openingIds},
-    [selection, openingIds],
-  );
-  const result = useSessionScreenModel(sessionId, resolved);
+  // The sitting this session is in (data/sessions/lapSet.ts): offered as a
+  // toggle, and read only when the URL asks for it.
+  const head = useSession(sessionId);
+  const day = useDaySet(sessionId, head.data?.trackId, setKind === 'day');
+  const dayReady = day.state === 'ready' ? day.set : null;
+  const resolved = useMemo<Selection>(() => {
+    if (selection.laps.length > 0) return selection;
+    return {...selection, laps: dayReady ? dayReady.openingIds : openingIds};
+  }, [selection, openingIds, dayReady]);
+  const sessionResult = useSessionScreenModel(sessionId, resolved);
+  const dayResult = useDayScreenModel(dayReady, resolved);
+  const result = dayReady ? dayResult : sessionResult;
   const {color} = useTheme();
   const insets = useSafeAreaInsets();
+  const setToggle =
+    day.ids.length > 1 && onSetChange ? (
+      <SetToggle value={dayReady ? 'day' : 'session'} onChange={onSetChange} />
+    ) : null;
+  // A day asked for is read in; until it is ready (members loading, or being
+  // analysed again) the screen waits rather than show a session as the day.
+  if (setKind === 'day' && (day.state === 'loading' || day.state === 'waiting'))
+    return (
+      <View
+        style={[
+          styles.screen,
+          styles.center,
+          {backgroundColor: color.bg, paddingTop: insets.top},
+        ]}>
+        <ActivityIndicator color={color.accent} />
+      </View>
+    );
 
   if (result.state !== 'ready') {
     return (
@@ -134,6 +168,8 @@ export function SessionScreen({
       onSelectionChange={onSelectionChange}
       renderPlanHalf={renderPlanHalf}
       renderPooledUse={renderPooledUse}
+      day={dayReady != null}
+      setToggle={setToggle}
     />
   );
 }
@@ -145,9 +181,15 @@ function SessionView({
   onSelectionChange,
   renderPlanHalf,
   renderPooledUse,
+  day = false,
+  setToggle = null,
 }: {
   sessionId: string;
   model: SessionScreenModel;
+  /** The laps are a day: no session cards, grid or side panels, no jump to Corner by a cell. */
+  day?: boolean;
+  /** Session | Day, when the session is in a sitting. */
+  setToggle?: ReactNode;
   selection: Selection;
   onSelectionChange: (next: Selection) => void;
   renderPlanHalf?: (card: PitCardModel, facts: RaceFacts) => ReactNode;
@@ -288,9 +330,9 @@ function SessionView({
       )
     );
 
-  const tiresCard = (
+  const tiresCard = model.tires ? (
     <TiresCard card={model.tires} width={tableW} titled={layout.isDesktop} />
-  );
+  ) : null;
   const fuelCard = model.fuelUse ? (
     <FuelUseCard
       card={model.fuelUse}
@@ -334,6 +376,7 @@ function SessionView({
       <Text variant='dataSmall' tone='textMuted'>
         {model.subtitle}
       </Text>
+      {!layout.isDesktop && setToggle}
       {!layout.isDesktop && <SessionNav sessionId={sessionId} />}
       {model.trackId ? (
         <Pressable
@@ -401,6 +444,7 @@ function SessionView({
           rows={model.spread}
           sessionId={sessionId}
           laps={selection.laps}
+          open={!day}
         />
       ) : null}
       {model.classTable ? <ClassTableView table={model.classTable} /> : null}
@@ -461,7 +505,9 @@ function SessionView({
   };
 
   // Which section columns open something: the game's sectors and the start straight do not.
-  const sectionTaps = model.sections?.targets.map(t => t.corner != null) ?? [];
+  const sectionTaps = day
+    ? []
+    : model.sections?.targets.map(t => t.corner != null) ?? [];
   const renderRow = (item: RowModel, width: number, wide = false) =>
     item.kind === 'note' ? (
       <NoteRow
@@ -477,6 +523,11 @@ function SessionView({
         wide={wide}
         onSelectStint={() =>
           onSelectionChange({...selection, laps: replace(item.lapIds)})
+        }
+        onOpen={
+          item.sessionId
+            ? () => router.push(sessionHref(item.sessionId as string))
+            : undefined
         }
       />
     ) : (
@@ -515,6 +566,8 @@ function SessionView({
     return (
       <SessionWorkspace
         sessionId={sessionId}
+        day={day}
+        setToggle={setToggle}
         model={model}
         selection={selection}
         onSelectionChange={onSelectionChange}
@@ -528,10 +581,12 @@ function SessionView({
               detail={model.detail}
               onAction={detailAction}
               extra={
-                <LapCandidates
-                  sessionId={sessionId}
-                  lapId={model.detail.lapId}
-                />
+                day ? null : (
+                  <LapCandidates
+                    sessionId={sessionId}
+                    lapId={model.detail.lapId}
+                  />
+                )
               }
             />
           )
@@ -551,7 +606,12 @@ function SessionView({
                 }
               />
             )}
-            <TiresCard card={model.tires} width={panel.width - 2 * space.xl} />
+            {model.tires && (
+              <TiresCard
+                card={model.tires}
+                width={panel.width - 2 * space.xl}
+              />
+            )}
             {model.fuelUse && (
               <FuelUseCard
                 card={model.fuelUse}
@@ -658,12 +718,14 @@ function SessionView({
                         {pitCard}
                       </FoldedSection>
                     ) : null}
-                    <FoldedSection
-                      title='Tires'
-                      summary={tiresSummary(model.tires)}
-                      defaultOpen>
-                      {tiresCard}
-                    </FoldedSection>
+                    {model.tires ? (
+                      <FoldedSection
+                        title='Tires'
+                        summary={tiresSummary(model.tires)}
+                        defaultOpen>
+                        {tiresCard}
+                      </FoldedSection>
+                    ) : null}
                     {model.fuelUse && fuelCard ? (
                       <FoldedSection
                         title='Fuel use'
@@ -690,10 +752,12 @@ function SessionView({
                 detail={model.detail}
                 onAction={detailAction}
                 extra={
-                  <LapCandidates
-                    sessionId={sessionId}
-                    lapId={model.detail.lapId}
-                  />
+                  day ? null : (
+                    <LapCandidates
+                      sessionId={sessionId}
+                      lapId={model.detail.lapId}
+                    />
+                  )
                 }
               />
             ) : null}

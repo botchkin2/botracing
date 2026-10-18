@@ -35,6 +35,8 @@ const PAD_X = space.xl + space.xs;
  */
 export function SessionWorkspace({
   sessionId,
+  day = false,
+  setToggle = null,
   model,
   selection,
   onSelectionChange,
@@ -51,6 +53,10 @@ export function SessionWorkspace({
   side,
 }: {
   sessionId: string;
+  /** A day: no grid or side panels (they read one session), and no jump to Compare by a section head. */
+  day?: boolean;
+  /** Session | Day, when the session is in a sitting. */
+  setToggle?: ReactNode;
   model: SessionScreenModel;
   selection: Selection;
   onSelectionChange: (next: Selection) => void;
@@ -126,6 +132,7 @@ export function SessionWorkspace({
             <View
               onLayout={e => (headerH.current = e.nativeEvent.layout.height)}>
               <View style={styles.head}>
+                {setToggle}
                 {/* The bar names the session (round 6), so the head is the stats row. */}
                 {model.trackId ? (
                   <Pressable
@@ -187,6 +194,7 @@ export function SessionWorkspace({
                     rows={model.spread}
                     sessionId={sessionId}
                     laps={selection.laps}
+                    open={!day}
                   />
                 ) : null}
                 {model.classTable ? (
@@ -199,10 +207,14 @@ export function SessionWorkspace({
                   width={innerW}
                   wide
                   heads={model.sections?.heads ?? model.sectorHeads}
-                  headTaps={model.sections?.targets.map(t => t.corner != null)}
+                  headTaps={
+                    day
+                      ? undefined
+                      : model.sections?.targets.map(t => t.corner != null)
+                  }
                   onHeadPress={i => {
                     const corner = model.sections?.sections[i];
-                    if (corner != null)
+                    if (!day && corner != null)
                       router.push(
                         compareHref(sessionId, {laps: selection.laps, corner}),
                       );
@@ -227,16 +239,18 @@ export function SessionWorkspace({
                 </View>
               ) : null}
               {/* The grid comes after the lap table (Botkin, 2 Oct screenshots). */}
-              <SessionGrid
-                id={sessionId}
-                ticked={selection.laps}
-                onTap={lapId =>
-                  onSelectionChange({
-                    ...selection,
-                    laps: toggle(selection.laps, lapId),
-                  })
-                }
-              />
+              {day ? null : (
+                <SessionGrid
+                  id={sessionId}
+                  ticked={selection.laps}
+                  onTap={lapId =>
+                    onSelectionChange({
+                      ...selection,
+                      laps: toggle(selection.laps, lapId),
+                    })
+                  }
+                />
+              )}
               {tagKey}
             </View>
           }
@@ -265,16 +279,18 @@ export function SessionWorkspace({
           ref={sideRef}
           style={styles.flex}
           contentContainerStyle={styles.sideScroll}>
-          <SidePanels
-            onCardsY={y => {
-              cardsY.current = y;
-            }}
-            sessionId={sessionId}
-            selection={selection}
-            colorOf={colorOf}
-            onHighlight={onHighlight}
-            cards={cards}
-          />
+          {day ? null : (
+            <SidePanels
+              onCardsY={y => {
+                cardsY.current = y;
+              }}
+              sessionId={sessionId}
+              selection={selection}
+              colorOf={colorOf}
+              onHighlight={onHighlight}
+              cards={cards}
+            />
+          )}
           {detail}
         </ScrollView>
       </View>

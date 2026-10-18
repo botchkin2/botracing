@@ -73,6 +73,24 @@ describe('buildSessionsModel', () => {
     expect(rowOf(null).modeText).toBeNull();
   });
 
+  it('lists a sitting of practice sessions on the day it began, and a race never joins one', () => {
+    const p = (id: string, startedAt: string, endedAt: string) =>
+      session({id, sessionType: 'P', startedAt, endedAt, lapCount: 10});
+    const days = buildSessionsModel(
+      [
+        p('p1', '2026-09-27T18:00:00', '2026-09-27T18:30:00'),
+        p('p2', '2026-09-27T18:45:00', '2026-09-27T19:30:00'),
+        session({id: 'r1', sessionType: 'R', startedAt: '2026-09-27T19:40:00'}),
+        session({id: 'r2', sessionType: 'R', startedAt: '2026-09-27T20:40:00'}),
+      ],
+      now,
+    );
+    expect(days).toHaveLength(1);
+    expect(days[0].sittings).toEqual([
+      {firstId: 'p1', text: 'Road Atlanta · P × 2 · 20 laps'},
+    ]);
+  });
+
   it('says "1 lap", not "1 laps"', () => {
     const [row] = buildSessionsModel([session({lapCount: 1})], now)[0].rows;
     expect(row.railSubline).toBe('21:40 · 1 lap');
