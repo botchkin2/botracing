@@ -215,3 +215,33 @@ describe('the start of a race from a grid behind the line (pit wall thread 91)',
     expect(raceStartS(short)).toBeNull();
   });
 });
+
+describe('a reset mid-lap is unchanged (chord #5980)', () => {
+  // Lap 1 driven to 30 m, a reset (absent two updates), then back on the same
+  // lap from 5 m. Only a wrap the counter never confirms restarts a lap's
+  // run; a reset does not, so the first run still answers, as on main.
+  const rows: [number, number][] = [
+    [0, 1],
+    [10, 1],
+    [20, 1],
+    [30, 1],
+    [NaN, ABSENT],
+    [NaN, ABSENT],
+    [5, 1],
+    [15, 1],
+    [25, 1],
+    [35, 1],
+  ];
+  const car = player(rows.length);
+  rows.forEach(([d, laps], u) => {
+    car.lapDistM[u] = d;
+    car.lapsDone[u] = laps;
+  });
+  const f = field(car, rows.length);
+  it('a distance in both attempts reads from the first', () => {
+    expect(raceClock(f).timeAtLapDistance(1, 20)).toBeCloseTo(2 / HZ, 6);
+  });
+  it('a distance only the second attempt reaches reads from it', () => {
+    expect(raceClock(f).timeAtLapDistance(1, 35)).toBeCloseTo(9 / HZ, 6);
+  });
+});
