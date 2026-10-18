@@ -204,7 +204,7 @@ export function SessionWorkspace({
                     rows={model.brake}
                     sessionId={sessionId}
                     laps={selection.laps}
-                    open={!day}
+                    set={day ? 'day' : null}
                   />
                 ) : null}
                 {model.classTable ? (
