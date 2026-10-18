@@ -1,5 +1,5 @@
 import {useQueryClient} from '@tanstack/react-query';
-import {useEffect, useMemo} from 'react';
+import {useEffect, useMemo, useRef} from 'react';
 
 import {sittingOf} from '@/src/analysis/sitting';
 
@@ -58,23 +58,28 @@ export function dayLapSet(
 ): DaySet {
   const dayMembers = members.map(m => ({
     sessionId: m.session.id,
-    current: !m.session.stale,
     laps: m.laps,
   }));
   const laps = mergeDayLaps(dayMembers);
-  const startedAt = new Map(members.map(m => [m.session.id, m.session.startedAt]));
+  const startedAt = new Map(
+    members.map(m => [m.session.id, m.session.startedAt]),
+  );
   const stints: DayStint[] = [];
   for (const lap of laps) {
     if (stints.some(s => s.n === lap.stint)) continue;
     const {sessionId} = splitDayLapId(lap.id);
-    stints.push({n: lap.stint, sessionId, startedAt: startedAt.get(sessionId) ?? ''});
+    stints.push({
+      n: lap.stint,
+      sessionId,
+      startedAt: startedAt.get(sessionId) ?? '',
+    });
   }
   return {
     kind: 'day',
     members: members.map(m => m.session),
     laps,
     stints,
-    openingIds: dayLapIds(dayMembers) ?? [],
+    openingIds: dayLapIds(dayMembers),
   };
 }
 
@@ -82,16 +87,17 @@ export type DayState =
   /** The session is in no sitting (or the list has not said): no day to offer. */
   | {state: 'none'}
   | {state: 'loading'}
-  /** Members are being analysed again before the day can be judged. */
-  | {state: 'waiting'; members: number}
   | {state: 'error'}
   | {state: 'ready'; set: DaySet};
 
 /**
  * The sitting a session is in, as a LapSet, when `wanted` (the URL says
  * `?set=day`) or only to know whether there is one (`wanted` false: the ids,
- * for the toggle). A member made under other rules is analysed again by the
- * existing analysis-on-open path and the day waits for it (daySet.ts).
+ * for the toggle). The day is computed from the members' stored laps as they
+ * are (daySet.ts reads section times only under identical boundary stamps); a
+ * member made under other rules is analysed again through the existing
+ * analysis-on-open path, one at a time, to bring it current, and the view does
+ * not wait for it (chord #6021, gauge #6019).
  */
 export function useDaySet(
   sessionId: string,
@@ -120,24 +126,52 @@ export function useDaySet(
   const load = wanted ? ids : [];
   const details = useSessionsDetail(load);
   const lapsOf = useSessionsLaps(load);
-  const stale = details.details.filter(d => d?.stale).map(d => (d as SessionDetail).id);
+  const stale = details.details
+    .filter(d => d?.stale)
+    .map(d => (d as SessionDetail).id);
+  const staleKey = stale.join(',');
+  // One cloud analysis at a time: a day can hold five stale sessions.
   useEffect(() => {
-    for (const id of stale) void analyzeOnce(id, analyzeDeps(client));
-  }, [stale.join(','), client]);
+    let live = true;
+    void (async () => {
+      for (const id of staleKey ? staleKey.split(',') : []) {
+        if (!live) return;
+        await analyzeOnce(id, analyzeDeps(client));
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [staleKey, client]);
+  // The query results are new arrays every render; the day is rebuilt only
+  // when a member's detail or laps are new data (the merge and the slow rule
+  // run over the whole day).
+  const detailList = useStableList(details.details);
+  const lapList = useStableList(lapsOf.laps);
   const result = useMemo((): DayState => {
     if (list.isError) return {state: 'error'};
-    if (ids.length < 2) return list.isPending ? {state: 'loading'} : {state: 'none'};
+    if (ids.length < 2)
+      return list.isPending ? {state: 'loading'} : {state: 'none'};
     if (!wanted) return {state: 'none'};
     if (details.failed > 0 || lapsOf.failed > 0) return {state: 'error'};
     if (details.pending || lapsOf.pending) return {state: 'loading'};
-    const members = details.details.map((session, i) => ({
+    const members = detailList.map((session, i) => ({
       session: session as SessionDetail,
-      laps: (lapsOf.laps[i] ?? []) as Lap[],
+      laps: (lapList[i] ?? []) as Lap[],
     }));
-    if (members.some(m => m.session.stale))
-      return {state: 'waiting', members: stale.length};
     return {state: 'ready', set: dayLapSet(members)};
-  }, [list.isError, list.isPending, ids, wanted, details, lapsOf, stale.length]);
+  }, [
+    list.isError,
+    list.isPending,
+    ids,
+    wanted,
+    detailList,
+    lapList,
+    details.failed,
+    details.pending,
+    lapsOf.failed,
+    lapsOf.pending,
+  ]);
   return {...result, ids};
 }
 
@@ -148,4 +182,14 @@ export function useSessionLapSet(id: string): LapSet | null {
   return session.data && laps.data
     ? {kind: 'session', session: session.data, laps: laps.data}
     : null;
+}
+
+/** The same array while its elements are the same objects: `useQueries` hands back a new one each render. */
+function useStableList<T>(items: readonly T[]): readonly T[] {
+  const last = useRef<readonly T[]>(items);
+  const same =
+    last.current.length === items.length &&
+    last.current.every((x, i) => x === items[i]);
+  if (!same) last.current = items;
+  return last.current;
 }

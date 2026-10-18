@@ -127,9 +127,10 @@ export function SessionScreen({
     day.ids.length > 1 && onSetChange ? (
       <SetToggle value={dayReady ? 'day' : 'session'} onChange={onSetChange} />
     ) : null;
-  // A day asked for is read in; until it is ready (members loading, or being
-  // analysed again) the screen waits rather than show a session as the day.
-  if (setKind === 'day' && (day.state === 'loading' || day.state === 'waiting'))
+  // A day asked for is read in; until its members have loaded the screen waits
+  // rather than show a session as the day. A member made under other rules is
+  // analysed again in the background and does not hold the view.
+  if (setKind === 'day' && day.state === 'loading')
     return (
       <View
         style={[
