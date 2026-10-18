@@ -1,3 +1,4 @@
+import {basisOf} from '@/src/analysis/lapBasis';
 // The session as a spread grid: rows are laps, columns are sections. Each
 // column's median, best and IQR come from the basis laps (the ticked ones, or
 // the comparable ones with none ticked: selectionStats.ts), so ticking or
@@ -8,7 +9,7 @@
 
 import {type SegmentTimes} from '@/src/analysis/segments';
 
-import {basisOf, segmentBasisStats} from './selectionStats';
+import {segmentBasisStats} from './selectionStats';
 import {MIN_COMPARISON_LAPS} from '@/src/analysis/setStats';
 
 export type GridSort =

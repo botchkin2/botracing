@@ -1,3 +1,4 @@
+import {basisOf} from '@/src/analysis/lapBasis';
 import {spreadShares} from '@/src/analysis/spreadShare';
 
 import {type Lap, type TrackMapData} from './adapters';
@@ -11,7 +12,7 @@ import {turnSegmentTimes} from './segments';
  * spread (analysis/spreadShare.ts), where the Corner tab opens when nothing
  * else says where; null without a map, sections or ten laps. `ticked` is the
  * lap set the Session rows read: the ticked laps, else the comparable ones
- * (the same fallback as the screen's basis). Pure.
+ * (`basisOf`, the one rule the screen's rows read too). Pure.
  */
 export function topSpreadCorner(
   laps: Lap[],
@@ -21,9 +22,7 @@ export function topSpreadCorner(
   if (!map) return null;
   const times = turnSegmentTimes(laps, map);
   if (!times) return null;
-  const named = times.laps.filter(l => ticked.has(l.id));
-  const picked =
-    named.length > 0 ? named : times.laps.filter(l => l.comparable);
+  const picked = basisOf(times.laps, ticked);
   const shares = spreadShares(
     times.segments.map((_, i) => picked.map(l => l.timesS[i] ?? null)),
   );
