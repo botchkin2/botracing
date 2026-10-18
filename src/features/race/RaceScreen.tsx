@@ -395,8 +395,8 @@ function RaceView({
     };
   }, [chased, focus, placer, outlineUse, line, mapZoom]);
   // The player's own inputs for the lap in view (the stored field has none): the lap's trace, loaded only while the 3D chase is open.
-  // 3D is a desktop view; the phone keeps the 2D Follow map. (`__chaseAnyWidth` lets a narrow test pane open it.)
-  const chaseOk = layout.isDesktop || (globalThis as {__chaseAnyWidth?: boolean}).__chaseAnyWidth === true;
+  // 3D is a desktop view; the phone keeps the 2D Follow map.
+  const chaseOk = layout.isDesktop;
   const place = mapMode === 'chase' && chaseOk ? data.clock.playerAt(shownS) : null;
   const lapId = place ? data.laps.find(l => l.lapNumber === place.lapNumber)?.id ?? null : null;
   const [held, setHeld] = useState<GridTrace | null>(null);

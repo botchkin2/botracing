@@ -7,23 +7,13 @@ import {type ChaseRoad, gradeAt, heightAt} from '@/src/analysis/chaseRoad';
 import {radius, space, useTheme} from '@/src/design';
 import {Pressable, Segment, Text} from '@/src/ui';
 
+import type {ChaseCamMode, ChaseEngine} from '../chase/chaseTypes';
 import {type ChaseCar, type ChaseGaps, type ChaseInputs} from './chaseTypes';
 
-// The 3D chase view (prototype), drawn as an instrument: the engine is a plain module loaded at run time from
-// /follow-cam/ with three.js, so three.js stays out of the app bundle (the proper path is the `three` dependency and
-// a lazy import, pit wall thread 83). Everything on screen is the app's own tokens; nothing sits in the middle.
+// The 3D chase view, drawn as an instrument. Web only: the engine and three.js load on first use (a lazy import), so
+// they stay out of the main bundle and out of the native app. Everything on screen is the app's own tokens; nothing
+// sits in the middle.
 export const chaseAvailable = true;
-
-type Engine = {
-  setRoad: (road: ChaseRoad) => void;
-  setInputs: (ribbon: ChaseInputs['ribbon'] | null) => void;
-  update: (state: Record<string, unknown>) => void;
-  setCam: (mode: number) => void;
-  debug?: () => unknown;
-  dispose: () => void;
-};
-// A dynamic import by URL: Metro must not try to bundle it.
-const load = new Function('u', 'return import(u)') as (u: string) => Promise<any>;
 
 const CAMS = [
   {value: '1', label: 'Chase'},
@@ -110,7 +100,7 @@ function ChaseSurface({
     return () => window.removeEventListener('keydown', key);
   }, [full, onToggle, setFull]);
   const host = useRef<HTMLDivElement | null>(null);
-  const engine = useRef<Engine | null>(null);
+  const engine = useRef<ChaseEngine | null>(null);
   const pick = useRef(onPressCar);
   useEffect(() => {
     pick.current = onPressCar;
@@ -133,26 +123,19 @@ function ChaseSurface({
   );
   useEffect(() => {
     let dead = false;
-    let made: Engine | null = null;
+    let made: ChaseEngine | null = null;
     (async () => {
       try {
-        const [THREE, mod] = await Promise.all([
-          load('/follow-cam/three.module.min.js'),
-          load(`/follow-cam/chase.js?v=${Date.now()}`),
-        ]);
+        const {mountChase} = await import('../chase/chaseEngine');
         if (dead || !host.current) return;
-        made = (await mod.mountChase(host.current, THREE, {
-          onPick: (i: number) => pick.current(i),
-          theme,
-        })) as Engine;
+        made = mountChase(host.current, {onPick: (i: number) => pick.current(i), theme});
         if (dead) {
           made.dispose();
           return;
         }
         engine.current = made;
-        (window as unknown as {__chase?: Engine}).__chase = made; // for checks in the pane
         made.setRoad(road);
-        made.setCam(Number(cam));
+        made.setCam(Number(cam) as ChaseCamMode);
         made.setInputs(inputs?.ribbon ?? null);
         made.update({cars, focus, playing, rate, inputIdx: inputs?.now?.idx ?? -1});
       } catch {
@@ -179,7 +162,7 @@ function ChaseSurface({
     engine.current?.update({cars, focus, playing, rate, inputIdx: inputs?.now?.idx ?? -1});
   }, [cars, focus, playing, rate, inputs]);
   useEffect(() => {
-    engine.current?.setCam(Number(cam));
+    engine.current?.setCam(Number(cam) as ChaseCamMode);
   }, [cam]);
 
   const me = useMemo(
