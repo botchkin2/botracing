@@ -22,6 +22,8 @@ $exe = Join-Path $data "botracing.exe"
 $installLog = Join-Path $data "install.log"
 function Fail($message) {
   Write-Host "EXE LOCK E2E FAILED: $message"
+  $t = Join-Path $env:RUNNER_TEMP "exe-lock-holder.log"
+  if (Test-Path $t) { Write-Host "-- holder"; Get-Content $t }
   if (Test-Path $installLog) { Write-Host "-- install.log"; Get-Content $installLog -Tail 20 }
   exit 1
 }
@@ -48,22 +50,30 @@ $before = [datetime]::new(2000, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)
 # (#641's rehearsal, 2026-10-16).
 $taken = Join-Path $env:RUNNER_TEMP "exe-lock-taken"
 Remove-Item $taken -ErrorAction SilentlyContinue
-$holder = Start-Job -ArgumentList $exe, $HoldS, $taken, $installLog -ScriptBlock {
-  param($path, $secs, $flag, $log)
+$trace = Join-Path $env:RUNNER_TEMP "exe-lock-holder.log"
+Remove-Item $trace -ErrorAction SilentlyContinue
+$holder = Start-Job -ArgumentList $exe, $HoldS, $taken, $installLog, $trace -ScriptBlock {
+  param($path, $secs, $flag, $log, $trace)
+  $mark = { param($what) Add-Content $trace "$((Get-Date).ToString('HH:mm:ss.fff')) $what (pid $PID)" }
   $fs = [IO.File]::Open($path, 'Open', 'Read', 'None')
+  & $mark 'taken'
   Set-Content $flag "taken"
   $deadline = (Get-Date).AddSeconds(60)
   while (-not ((Test-Path $log) -and (Select-String -Path $log -Pattern '^preinstall:' -Quiet)) -and (Get-Date) -lt $deadline) {
     Start-Sleep -Milliseconds 100
   }
+  & $mark 'preinstall seen'
   Start-Sleep -Seconds $secs
   $fs.Close()
+  & $mark 'released'
 }
 $deadline = (Get-Date).AddSeconds(15)
 while (-not (Test-Path $taken) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 50 }
 if (-not (Test-Path $taken)) { Receive-Job $holder -ErrorAction SilentlyContinue; Fail "the lock was never taken" }
 
+try { [IO.File]::Open($exe, 'Open', 'ReadWrite', 'None').Close(); Write-Host "probe: the exe is WRITABLE under the hold" } catch { Write-Host "probe: the exe is locked, as it should be" }
 $t0 = Get-Date
+Write-Host "installer start $($t0.ToString('HH:mm:ss.fff'))"
 $p = Start-Process -FilePath $Installer -ArgumentList "/S" -Wait -PassThru
 $secs = ((Get-Date) - $t0).TotalSeconds
 Wait-Job $holder | Out-Null
@@ -71,6 +81,7 @@ Wait-Job $holder | Out-Null
 # holder (seen on main's hooks): that is a finding, not a script error.
 if ($holder.State -ne 'Completed') { Write-Host "the holder was ended before it let go ($($holder.State))" }
 Receive-Job $holder -ErrorAction SilentlyContinue
+Write-Host "installer end $((Get-Date).ToString('HH:mm:ss.fff')), holder $($holder.State)"
 if ($p.ExitCode -ne 0) { Fail "install under the lock exit code $($p.ExitCode) after $([int]$secs) s" }
 if ((Get-Item $exe).LastWriteTimeUtc -le $before) { Fail "the exe was not replaced" }
 if (-not (Test-Path $installLog)) { Fail "no install.log: the installer never waited for the exe" }
