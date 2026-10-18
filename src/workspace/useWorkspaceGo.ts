@@ -3,6 +3,7 @@ import {useGlobalSearchParams, useRouter} from 'expo-router';
 import {
   firstCornerOf,
   trackCorners,
+  useTopSpreadCorner,
   useTrackMapOfSession,
 } from '@/src/data/sessions';
 import {type SessionTab} from '@/src/nav/activeTab';
@@ -21,7 +22,8 @@ import {type TabName, tabTarget} from '@/src/nav/tabTarget';
 
 /**
  * The corner the Corner tab opens, read from the URL: the open corner, else
- * the open section's first corner, else T1. `used` is false in the last case.
+ * the open section's first corner, else the corner of the section holding the
+ * most of the set's spread, else T1. `used` is false in the last two cases.
  */
 export function useCornerTarget(
   sessionId: string | null,
@@ -29,10 +31,11 @@ export function useCornerTarget(
 ): {n: number; used: boolean} {
   const {c, n} = useGlobalSearchParams<{c?: string; n?: string}>();
   const map = useTrackMapOfSession(sessionId);
+  const landing = useTopSpreadCorner(sessionId);
   if (tab === 'corner' && n) return {n: Number(n), used: true};
   const fromSection =
     map.data && c ? firstCornerOf(trackCorners(map.data), Number(c)) : null;
-  return {n: fromSection ?? 1, used: fromSection != null};
+  return {n: fromSection ?? landing ?? 1, used: fromSection != null};
 }
 
 /** Everything `go` needs, already resolved by the caller. */
