@@ -28,6 +28,10 @@ describe('buildSessionModel', () => {
     expect(m.title).toBe('Race · Road Atlanta');
     expect(m.subtitle).toMatch(/^Michelin Raceway Road Atlanta · /);
     expect(m.subtitle).toContain('Porsche 911 GT3 R · Custom #397 · LMU');
+    expect(m.subtitle).not.toMatch(/Online|Offline/);
+    expect(
+      buildSessionModel({...session, online: false}, laps, none).subtitle,
+    ).toMatch(/ · LMU · Offline$/);
     expect(m.facts).toEqual([
       {label: 'Laps', value: '22'},
       {label: 'Comparable', value: '16'},

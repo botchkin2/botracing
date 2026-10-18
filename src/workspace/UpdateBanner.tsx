@@ -6,8 +6,8 @@ import {Button, Text} from '@/src/ui';
 
 /**
  * A slim line on top of every screen while a newer tray is downloaded and
- * waiting: "Tray 0.1.12 ready" with Restart inside the tray's own window
- * (`restart` is set there only), and "Tray 0.1.12 ready on the PC" anywhere
+ * waiting: "Update 0.1.12 ready" with Restart inside the tray's own window
+ * (`restart` is set there only), and "Update 0.1.12 ready on the PC" anywhere
  * else: a phone cannot restart a PC. The words are `updateReady`'s; the same
  * row is in Settings.
  */

@@ -8,11 +8,9 @@
 // session and is named by its content, so a new lap replaces it.
 import {createHash} from 'node:crypto';
 import {dirname} from 'node:path';
-import {captureExtract} from './captureExtract.mjs';
+import {captureExtractFor} from './captureExtractFor.mjs';
 import * as duck from './duck.mjs';
 import {fieldFor} from './field.mjs';
-import {damageFor} from './playerDamage.mjs';
-import {raceLengthFor} from './raceLength.mjs';
 import {resultsForSpan} from './lmuResults.mjs';
 import {resultsInput} from './resultsInput.mjs';
 
@@ -57,13 +55,7 @@ export function liveInputs({
   const root = dirname(captureDir);
   const span = spanOfLive(files);
   const first = files[0].info;
-  const extract = captureExtract({
-    damage: damageFor(root, span),
-    raceLength:
-      first.sim === 'lmu' && /^r/i.test(first.sessionType ?? '')
-        ? raceLengthFor(root, span)
-        : null,
-  });
+  const extract = captureExtractFor(root, span, first);
   // The game's rulings: its results file exists once the session has ended, so
   // a lap during the drive finds none and the run at the close finds it.
   const results =

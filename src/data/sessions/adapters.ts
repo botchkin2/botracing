@@ -44,6 +44,8 @@ export type SessionSummary = {
   /** The player's finishing position in a race (the stored `result` block); null outside a race or before it is computed. */
   finish: FinishPlace | null;
   eventId: string | null;
+  /** LMU: played online (true) or offline (false), from the capture's game mode; null when unknown, never guessed from the event. */
+  online: boolean | null;
   /**
    * Where the session's corners came from: the track's stored map
    * ('stored', or 'new' when this session created it), or a map of its own
@@ -103,6 +105,7 @@ export function toSessionSummary(raw: RawSession): SessionSummary {
     classLaps: toClassLaps(raw.classLaps),
     finish: toFinishPlace(raw.result),
     eventId: str(raw.eventId) || null,
+    online: typeof raw.online === 'boolean' ? raw.online : null,
     cornerMapSource: toCornerMapSource(raw.trackMapSource),
     updatedAt: str(raw.updatedAt),
   };

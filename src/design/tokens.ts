@@ -411,7 +411,7 @@ export const size = {
   // share what is left. Body rows use `lapRow`.
   sessionsTable: {
     date: 128,
-    session: 104,
+    session: 152,
     class: 72,
     result: 232,
     laps: 56,

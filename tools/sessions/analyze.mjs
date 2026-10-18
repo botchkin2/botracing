@@ -110,6 +110,8 @@ export const blockVersions = {
   classBests: CLASS_BESTS_VERSION,
   offTrack: OFF_TRACK_VERSION,
   raceLength: RACE_LENGTH_VERSION,
+  // The session doc's `online` (gameMode.mjs): every session re-syncs once to read its capture.
+  online: 1,
   finish: FINISH_VERSION,
   plan: PLAN_VERSION,
   inFileReset: IN_FILE_RESET_VERSION,
@@ -122,7 +124,7 @@ export const blockVersions = {
   // iRacing's own sector times (sector_start events): every session re-syncs once.
   iracingSectors: 1,
   // Which laps are slow (src/analysis/paceEvents.ts replaced the median cut): every session re-analyses once.
-  slowLaps: 1,
+  slowLaps: 2,
   // The game's track-limit rulings per lap and the INV from its results file
   // (resultsInput.mjs): a session read stale re-analyses once on open.
   trackLimits: 1,
