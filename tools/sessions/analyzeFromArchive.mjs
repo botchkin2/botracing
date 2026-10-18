@@ -20,6 +20,7 @@ import {
 } from './cornerSlices.mjs';
 import {classBestsDoc, classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {finishDoc} from '../../src/analysis/raceResult.ts';
+import {paceFieldsOf, paceSetOf} from '../../src/analysis/paceSet.ts';
 import {carLabel} from '../../src/design/carModels.ts';
 import {lapTraffic} from './lapTraffic.mjs';
 import {adapter as adapterOf} from './sims.mjs';
@@ -372,6 +373,11 @@ export function analyzeFromArchive({
       excluded: lap.excluded,
       offPace: lap.consistency?.offPace ?? null,
     })),
+    // The opening set's lap times in driving order (analysis/paceSet.ts, the
+    // rule the session screens open on), for the track progression's dots
+    // (pit wall thread 88). Written beside the slow flags it reads, under
+    // their block version, so a change to the slow rule refills it.
+    paceSet: {v: blockVersions.slowLaps, lapTimesS: paceSetTimes(laps)},
     analysisVersion,
     // The rules this session was made under; store.mjs adds what it kept.
     // and the curated track it was cut at (catalogStamp.mjs): a curator's edit
@@ -411,4 +417,10 @@ export function analyzeFromArchive({
     boundariesRev: a.boundaries ? a.boundaries.state.rev : null,
     traces,
   };
+}
+
+// The lap docs as the opening set's rule reads them: the same mapping the
+// app's adapter uses (paceFieldsOf), so a dot and its screen agree.
+export function paceSetTimes(laps) {
+  return paceSetOf(laps.map(paceFieldsOf)).map(lap => lap.timeS);
 }

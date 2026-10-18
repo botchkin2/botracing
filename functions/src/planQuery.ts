@@ -8,7 +8,14 @@ export const PLAN_MAX_SESSIONS = 500;
 /** The newest sessions that keep their lap rows; older ones keep fuel and the race side. */
 export const PLAN_LAP_SESSIONS = 8;
 /** The only fields the query reads of a session doc (a projection, never lap docs). */
-export const PLAN_FIELDS = ['startedAt', 'sessionType', 'plan'] as const;
+export const PLAN_FIELDS = [
+  'startedAt',
+  'endedAt',
+  'sessionType',
+  'plan',
+  // The opening set's lap times, for the track progression (thread 88, S5).
+  'paceSet',
+] as const;
 
 export type PlanCombo = {sim: string; trackId: string; carModel: string};
 
@@ -40,7 +47,10 @@ export function parsePlanQuery(
 export type PlanRow = {
   id: string;
   startedAt: string;
+  endedAt: string | null;
   sessionType: string | null;
+  /** The opening set's lap times; null before the session re-analysed with it. */
+  paceSet: {v: number; lapTimesS: number[]} | null;
   /** Null for a session uploaded before the block existed: no data, not zero. */
   plan: {
     v: number;
@@ -66,7 +76,12 @@ export function planRows(
     return {
       id: doc.id,
       startedAt: String(d.startedAt ?? ''),
+      endedAt: typeof d.endedAt === 'string' ? d.endedAt : null,
       sessionType: typeof d.sessionType === 'string' ? d.sessionType : null,
+      paceSet:
+        d.paceSet && Array.isArray(d.paceSet.lapTimesS)
+          ? {v: d.paceSet.v, lapTimesS: d.paceSet.lapTimesS}
+          : null,
       plan:
         p && typeof p === 'object'
           ? {
