@@ -1,6 +1,6 @@
 # The installer's last guard, proven by construction (pit wall thread 71,
-# plank #5643): botracing.exe is held open with no sharing for 3 s, the way the
-# exe stayed unwritable for a moment after the tray exited in the update
+# plank #5643): botracing.exe is held open with no sharing until 3 s past the
+# installer's preinstall hook, the way the exe stayed unwritable for a moment after the tray exited in the update
 # rehearsal, and the installer must wait for it (hooks.nsh,
 # BOTRACING_WAIT_TRAY_GONE: "waited N ms for the exe to be writable") instead of
 # stopping on "Error opening file for writing". CI ONLY: it installs BotRacing
@@ -41,14 +41,21 @@ Remove-Item $installLog -ErrorAction SilentlyContinue
 $before = [datetime]::new(2000, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)
 (Get-Item $exe).LastWriteTimeUtc = $before
 
-# Hold the exe with no sharing for HoldS seconds, from another process, and
-# start the installer only once the hold is taken.
+# Hold the exe with no sharing, from another process, and start the installer
+# only once the hold is taken. The hold lasts HoldS seconds from the moment the
+# installer's preinstall hook logs: counted from the installer's start, a slow
+# runner's unpacking outlasted a 3 s hold and the guard never had to wait
+# (#641's rehearsal, 2026-10-16).
 $taken = Join-Path $env:RUNNER_TEMP "exe-lock-taken"
 Remove-Item $taken -ErrorAction SilentlyContinue
-$holder = Start-Job -ArgumentList $exe, $HoldS, $taken -ScriptBlock {
-  param($path, $secs, $flag)
+$holder = Start-Job -ArgumentList $exe, $HoldS, $taken, $installLog -ScriptBlock {
+  param($path, $secs, $flag, $log)
   $fs = [IO.File]::Open($path, 'Open', 'Read', 'None')
   Set-Content $flag "taken"
+  $deadline = (Get-Date).AddSeconds(60)
+  while (-not ((Test-Path $log) -and (Select-String -Path $log -Pattern '^preinstall:' -Quiet)) -and (Get-Date) -lt $deadline) {
+    Start-Sleep -Milliseconds 100
+  }
   Start-Sleep -Seconds $secs
   $fs.Close()
 }
