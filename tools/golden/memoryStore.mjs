@@ -5,7 +5,35 @@ import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {gzipSync} from 'node:zlib';
 
-export function memoryStore(seed = {}) {
+import {
+  TRACK_DATA,
+  isTheirs,
+  namesOwner,
+} from '../../functions/src/contract/ownership.ts';
+
+// The API's answer, as storeClient's HttpError words it.
+const refused = text => {
+  throw new Error(`POST /docs/write: 403 {"error":"${text}"}`);
+};
+
+/**
+ * Refuses a request as the upload API does (functions/src/uploadCore.ts
+ * writeDocs, the shared rule in functions/src/contract/ownership.ts): any op
+ * refused, nothing written. docs: path -> doc.
+ */
+export function refuseAsApi(ops, docs, ownerKey) {
+  for (const o of ops) {
+    if (TRACK_DATA.includes(o.coll))
+      refused('track data is curated, not uploaded');
+    if (isTheirs(docs.get(`${o.coll}/${o.id}`) ?? null, ownerKey, o.coll))
+      refused('document belongs to another owner');
+    if (o.op !== 'delete' && !namesOwner(o.coll, o.data ?? {}, ownerKey))
+      refused('document ownerId is not yours');
+  }
+}
+
+/** ownerKey: the signed-in user's, as the API knows it (GET /me). */
+export function memoryStore(seed = {}, {ownerKey}) {
   const docs = new Map(Object.entries(seed));
   const files = new Map();
   const key = (coll, id) => `${coll}/${id}`;
@@ -17,13 +45,16 @@ export function memoryStore(seed = {}) {
       return d ? structuredClone(d) : null;
     },
     async writeDocs(ops) {
+      refuseAsApi(ops, docs, ownerKey);
       for (const o of ops) {
         const k = key(o.coll, o.id);
         if (o.op === 'delete') docs.delete(k);
         else
           docs.set(
             k,
-            structuredClone(o.merge ? {...(docs.get(k) ?? {}), ...o.data} : o.data),
+            structuredClone(
+              o.merge ? {...(docs.get(k) ?? {}), ...o.data} : o.data,
+            ),
           );
       }
     },
@@ -31,6 +62,8 @@ export function memoryStore(seed = {}) {
       const failed = [];
       for (const o of ops) {
         const k = key(o.coll, o.id);
+        if (isTheirs(docs.get(k) ?? null, ownerKey, o.coll))
+          refused('document belongs to another owner');
         if (!docs.has(k)) failed.push(`${k}: missing`);
         else docs.set(k, {...docs.get(k), ...structuredClone(o.data)});
       }
@@ -40,7 +73,9 @@ export function memoryStore(seed = {}) {
       return [...docs]
         .filter(
           ([k, d]) =>
-            k.startsWith('laps/') && d.sessionId === sessionId && !d.supersededBy,
+            k.startsWith('laps/') &&
+            d.sessionId === sessionId &&
+            !d.supersededBy,
         )
         .map(([k]) => k.slice(5));
     },

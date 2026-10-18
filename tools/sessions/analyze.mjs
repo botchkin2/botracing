@@ -53,6 +53,7 @@ import {DELETING_OUTCOMES} from './resultsInput.mjs';
 import {SLICE_FORMAT, SLICE_FRAME_VERSION} from './cornerSlices.mjs';
 import {
   CORNER_BOUNDARIES_VERSION,
+  lapMeasures,
   mapKeyOf,
   sessionBoundaries,
 } from './layoutBoundaries.mjs';
@@ -792,8 +793,10 @@ export function topSpeed(s, i0, i1, dist) {
   };
 }
 
-// Resample one lap onto the distance grid: time, speed, throttle, brake.
-function onGrid(rec, lap, gridN) {
+// Resample one lap onto the distance grid: time, speed, throttle, brake,
+// lat, lon. Exported so a lap that did not come from a recording (the curate
+// loader) is gridded the same way as analyzeSession.
+export function onGrid(rec, lap, gridN) {
   const {s} = rec;
   const out = {
     time: new Float64Array(gridN),
@@ -1153,18 +1156,12 @@ export function analyzeSession(
   markSlow(laps);
 
   const comparable = laps.filter(l => l.comparable);
-  const pool = comparable.length
-    ? comparable
-    : laps.filter(l => l.timed && !l.partial);
-  const best = pool.reduce(
-    (a, b) => (b.lapTime < (a?.lapTime ?? Infinity) ? b : a),
-    null,
-  );
-
+  // Best and grid count, before the grids exist. The lap set is empty here;
+  // buildTrackMap selects it again once the grids are attached.
+  const {best, gridN: counted} = selectMapLaps(laps);
   let band = null;
-  let gridN = 0;
-  if (best && best.distanceM > 100) {
-    gridN = Math.floor(best.distanceM / GRID_M) + 1;
+  let gridN = counted;
+  if (gridN) {
     for (const lap of laps) {
       if (!lap.partial && lap.distanceM > best.distanceM * 0.9) {
         lap.grid = onGrid(recs[lap.rec], lap, gridN);
@@ -1186,8 +1183,14 @@ export function analyzeSession(
     catalogOnly,
   });
   const fits = plan.fits;
-  const built = plan.mayBuild
+  const made = plan.mayBuild
     ? buildTrackMap(recs, comparable, best, gridN)
+    : null;
+  const built = made?.result ?? null;
+  // Indexes into `laps`, from this pass. The second markSlow below changes
+  // `comparable`; these ids are the set the map used (buildFromLaps.golden.mjs).
+  const trackMapLapIds = built
+    ? made.chosen.map(lap => String(laps.indexOf(lap)))
     : null;
   const map = plan.usable ? trackMap : built?.map ?? null;
   const trackMapSource = trackMapSourceOf({
@@ -1203,9 +1206,13 @@ export function analyzeSession(
   // fold their onsets into what the layout keeps; a lap on a map of this
   // session's own (not stored) is cut at boundaries made from it alone.
   let layout = null;
+  let boundaryLapIds = null;
   if (map?.corners.length) {
     const fitting = laps.filter(lap => cornersFit(lap, map));
-    layout = sessionBoundaries({
+    boundaryLapIds = fitting
+      .filter(lapMeasures)
+      .map(lap => String(laps.indexOf(lap)));
+    layout = boundariesFromLaps({
       laps: fitting,
       map,
       stored: trackMapSource === 'session' ? null : boundaries,
@@ -1373,6 +1380,10 @@ export function analyzeSession(
     trackMapSource,
     // Clean laps the built map used (null when none was built); the curator needs it.
     trackMapLaps: built?.laps ?? null,
+    // Indexes into `laps` for the map set, and for the laps that measured
+    // the boundary onsets. Null when that set was not built.
+    trackMapLapIds,
+    boundaryLapIds,
     trackMapMismatch: Boolean(trackMap && !fits),
     consistency: {
       summary: consistency.summary,
@@ -1413,14 +1424,45 @@ export function analyzeSession(
   };
 }
 
-function buildTrackMap(recs, comparable, best, gridN) {
-  if (!best || !gridN) return null;
-  if (!recs.every(r => r.s.lat_deg && r.s.lon_deg)) return null;
-  const laps = comparable.filter(
+/** How many 5 m points a lap of this length is resampled onto. 0 under 100 m. */
+export function gridNOf(distanceM) {
+  if (!(distanceM > 100)) return 0;
+  return Math.floor(distanceM / GRID_M) + 1;
+}
+
+/**
+ * The fastest lap and the comparable laps within 1% of its length that carry
+ * a grid. Same selection buildTrackMap used before it was split (thread 78).
+ */
+export function selectMapLaps(laps) {
+  const comparable = laps.filter(l => l.comparable);
+  const pool = comparable.length
+    ? comparable
+    : laps.filter(l => l.timed && !l.partial);
+  const best = pool.reduce(
+    (a, b) => (b.lapTime < (a?.lapTime ?? Infinity) ? b : a),
+    null,
+  );
+  const gridN = best ? gridNOf(best.distanceM) : 0;
+  if (!best || !gridN) return {best: null, gridN: 0, laps: []};
+  return {best, gridN, laps: lapsWithinBest(comparable, best)};
+}
+
+function lapsWithinBest(comparable, best) {
+  return comparable.filter(
     l =>
       l.grid && Math.abs(l.distanceM - best.distanceM) < best.distanceM * 0.01,
   );
-  if (laps.length < 3) return null;
+}
+
+/**
+ * The track map from laps that already have a 5 m grid. `laps` is the set
+ * selectMapLaps kept. Null under 3 laps. One builder for every lap source.
+ */
+export function mapFromLaps(laps, gridN) {
+  if (!gridN || laps.length < 3) return null;
+  let best = laps[0];
+  for (const lap of laps) if (lap.lapTime < best.lapTime) best = lap;
   return {
     laps: laps.length,
     map: {
@@ -1431,6 +1473,35 @@ function buildTrackMap(recs, comparable, best, gridN) {
       corners: findTrackSections(profile(laps, gridN)),
     },
   };
+}
+
+/**
+ * This session's boundary state for a map, from the laps that fit it.
+ * `stored` is the layout's state so far (null on the first session). The
+ * catalog-only path passes readOnly and the stored state of this map.
+ */
+export function boundariesFromLaps({
+  laps,
+  map,
+  stored = null,
+  sessionId = '',
+  readOnly = false,
+}) {
+  if (!map?.corners.length) return null;
+  return sessionBoundaries({
+    laps: laps.filter(lap => cornersFit(lap, map)),
+    map,
+    stored,
+    sessionId,
+    readOnly,
+  });
+}
+
+function buildTrackMap(recs, comparable, best, gridN) {
+  if (!best || !gridN) return null;
+  if (!recs.every(r => r.s.lat_deg && r.s.lon_deg)) return null;
+  const chosen = lapsWithinBest(comparable, best);
+  return {result: mapFromLaps(chosen, gridN), chosen};
 }
 
 // What src/analysis/consistency.ts needs to know about a lap. The lap doc

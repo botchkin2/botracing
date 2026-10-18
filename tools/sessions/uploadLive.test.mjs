@@ -7,6 +7,7 @@ import {createHash} from 'node:crypto';
 import {createStore} from './store.mjs';
 import {LIVE_STAMP} from './liveSession.mjs';
 import {analysisStamp} from './versionKey.mjs';
+import {refuseAsApi} from '../golden/memoryStore.mjs';
 
 // A bucket and a database in memory; `offline` makes every putFile fail.
 function backend(docs = new Map()) {
@@ -18,6 +19,7 @@ function backend(docs = new Map()) {
     offline: false,
     getDoc: async (c, id) => docs.get(`${c}/${id}`) ?? null,
     writeDocs: async ops => {
+      refuseAsApi(ops, docs, 'o');
       for (const op of ops) {
         const key = `${op.coll}/${op.id}`;
         docs.set(
@@ -49,13 +51,18 @@ function lapsOut(n) {
   return {
     session: {
       id: 's1',
+      ownerId: 'o',
       recordingIds: ['r1'],
       archiveParts: n,
       lapCount: n,
       analysis: LIVE_STAMP,
     },
     recordings: [
-      {id: 'r1', archive: {parts: files.map(f => ({samples: f.dest}))}},
+      {
+        id: 'r1',
+        ownerId: 'o',
+        archive: {parts: files.map(f => ({samples: f.dest}))},
+      },
     ],
     files,
   };
@@ -94,6 +101,7 @@ test('a lap over a session the cloud analysed keeps its analysed fields and read
     [
       'sessions/s1',
       {
+        ownerId: 'o',
         analysis: analysisStamp(17, {}),
         archiveParts: 1,
         recordingIds: ['r1'],
@@ -128,7 +136,12 @@ test('a lap that lands while the cloud analyses is not taken as analysed', async
   const docs = new Map([
     [
       'sessions/s1',
-      {analysis: {v: 0, blocks: {}}, archiveParts: 5, recordingIds: ['r1']},
+      {
+        ownerId: 'o',
+        analysis: {v: 0, blocks: {}},
+        archiveParts: 5,
+        recordingIds: ['r1'],
+      },
     ],
   ]);
   const b = backend(docs);
@@ -210,6 +223,7 @@ test('a stored live session with no field gets it once, with no new lap, and rea
         'sessions/s1',
         {
           id: 's1',
+          ownerId: 'o',
           recordingIds: ['r1'],
           archiveParts: 2,
           analysis: analysisStamp(17, {}),
@@ -334,34 +348,30 @@ test("the game's results input goes up with a live lap to the path analysis read
     coveredFrom: 7.1,
     coveredTo: 99,
   };
-  const withOwner = o => ({...o, session: {...o.session, ownerId: 'o1'}});
   const b = backend();
   await createStore(b).uploadLive({
-    ...withOwner(lapsOut(1)),
+    ...lapsOut(1),
     resultsInput: input,
   });
-  assert.ok(b.files.has('inputs/o1/s1/results.json.gz'));
+  assert.ok(b.files.has('inputs/o/s1/results.json.gz'));
   const none = backend();
-  await createStore(none).uploadLive(withOwner(lapsOut(1)));
+  await createStore(none).uploadLive(lapsOut(1));
   assert.ok(![...none.files.keys()].some(k => k.startsWith('inputs/')));
 });
 
 test('putResultsInput stores the input alone, and markStale keeps every stored block but the stamp', async () => {
   const b = backend(
     new Map([
-      [
-        'sessions/s1',
-        {id: 's1', ownerId: 'o1', lapCount: 4, analysis: {v: 17}},
-      ],
+      ['sessions/s1', {id: 's1', ownerId: 'o', lapCount: 4, analysis: {v: 17}}],
     ]),
   );
   const store = createStore(b);
-  await store.putResultsInput('o1', 's1', {v: 1, strikes: [], unplaced: 0});
-  assert.ok(b.files.has('inputs/o1/s1/results.json.gz'));
-  await store.markStale('s1', 'o1');
+  await store.putResultsInput('o', 's1', {v: 1, strikes: [], unplaced: 0});
+  assert.ok(b.files.has('inputs/o/s1/results.json.gz'));
+  await store.markStale('s1', 'o');
   assert.deepEqual(b.docs.get('sessions/s1'), {
     id: 's1',
-    ownerId: 'o1',
+    ownerId: 'o',
     lapCount: 4,
     analysis: {v: 0},
   });
