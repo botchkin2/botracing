@@ -138,3 +138,7 @@ export function formatDayMonthTime(
   const mm = String(d.getMinutes()).padStart(2, '0');
   return `${formatDayMonth(iso)}, ${hh}:${mm}`;
 }
+
+/** The session's connection as a word; null when the session does not know. */
+export const modeText = (online: boolean | null): string | null =>
+  online == null ? null : online ? 'Online' : 'Offline';

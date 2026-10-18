@@ -11,6 +11,7 @@ import {
   carLabel,
   dayMonthOf,
   formatLapTime,
+  modeText,
   shortTrackName,
 } from '@/src/design';
 
@@ -40,6 +41,8 @@ export type SessionRow = {
   entry: string | null;
   /** "21:40 · 44 laps", for the desktop rail. */
   railSubline: string;
+  /** "Online" or "Offline"; null when the session does not know. */
+  modeText: string | null;
   laps: string;
   best: string;
   median: string;
@@ -161,9 +164,13 @@ export function buildSessionsModel(
       badge: s.sessionType,
       track: shortTrackName(s.track),
       typeLabel: TYPE_LABEL[s.sessionType],
-      railSubline: `${hhmm(started)} · ${s.lapCount} ${
-        s.lapCount === 1 ? 'lap' : 'laps'
-      }`,
+      railSubline: [
+        `${hhmm(started)} · ${s.lapCount} ${s.lapCount === 1 ? 'lap' : 'laps'}`,
+        modeText(s.online),
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      modeText: modeText(s.online),
       subline: [hhmm(started), car.shortModel].filter(Boolean).join(' · '),
       entry: car.entry,
       laps: String(s.lapCount),

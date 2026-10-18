@@ -141,7 +141,7 @@ function Cell({col, row}: {col: (typeof COLS)[number]; row: SessionRow}) {
     date: t.dateText,
     track: row.track,
     car: t.carText,
-    type: row.typeLabel,
+    type: [row.typeLabel, row.modeText].filter(Boolean).join(' · '),
     class: t.classText ?? '',
     result: row.resultText ?? '',
     laps: row.laps,

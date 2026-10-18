@@ -63,6 +63,7 @@ const tyresDefect = info => info?.defects?.includes('mergedWheels') ?? false;
  * @param {boolean} [input.foldOnly]     analyse for the boundary fold, no docs
  * @param {object|null} input.damage     the car's damage series, null without one
  * @param {{minutes: number}|null} input.raceLength
+ * @param {boolean|null} [input.online] LMU: played online (the capture's game mode, gameMode.mjs); null where unknown
  * @param {{strikes: object[], unplaced: number, deletedLaps: number[]}|null} input.results
  *   the game's track-limit rulings for the player (resultsInput.mjs), null without its results file
  * @param {{series: string|null, eventId: string|null}} input.event
@@ -79,6 +80,7 @@ export function analyzeFromArchive({
   foldOnly = false,
   damage,
   raceLength,
+  online = null,
   results = null,
   event,
   fieldFor,
@@ -290,6 +292,7 @@ export function analyzeFromArchive({
     trackLimits: results ? trackLimitsOf(a.laps, results) : undefined,
     series: event.series,
     eventId: event.eventId,
+    online,
     startedAt: first.recordedAt,
     endedAt: new Date(endMs).toISOString(),
     recordingIds: recordings.map(r => r.id),

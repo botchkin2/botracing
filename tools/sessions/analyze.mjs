@@ -110,6 +110,8 @@ export const blockVersions = {
   classBests: CLASS_BESTS_VERSION,
   offTrack: OFF_TRACK_VERSION,
   raceLength: RACE_LENGTH_VERSION,
+  // The session doc's `online` (gameMode.mjs): every session re-syncs once to read its capture.
+  online: 1,
   finish: FINISH_VERSION,
   plan: PLAN_VERSION,
   inFileReset: IN_FILE_RESET_VERSION,
