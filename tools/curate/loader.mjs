@@ -110,33 +110,44 @@ export function buildFromSession({adapter, session, workDir, deps = real}) {
   };
 }
 
-const sampleGps = laps =>
-  laps.some(lap => {
-    const lat = lap.grid?.lat;
-    const lon = lap.grid?.lon;
-    if (!lat || !lon) return false;
-    for (let i = 0; i < lat.length; i++) {
-      if (Number.isFinite(lat[i]) && Number.isFinite(lon[i])) return true;
-    }
+// Every grid point finite. One NaN becomes a NaN median in the map profile.
+function lapGps(lap) {
+  const lat = lap.grid?.lat;
+  const lon = lap.grid?.lon;
+  if (!lat || !lon || lat.length === 0 || lon.length !== lat.length)
     return false;
-  });
+  for (let i = 0; i < lat.length; i++) {
+    if (!Number.isFinite(lat[i]) || !Number.isFinite(lon[i])) return false;
+  }
+  return true;
+}
 
 /**
  * The same `built` plan.mjs takes, from laps that already carry an onGrid
  * grid. `sessions` is `{id, laps}[]`, folded in order into the boundary
- * state (one session per driver, later). `laps`, when passed, is the set the
- * map is built from; otherwise every session's laps.
+ * state (one session per driver, later). Each session's `laps` is required.
+ * `laps`, when passed, is the set the map is built from; otherwise every
+ * session's laps.
  * buildFromLaps.golden.mjs checks one Road Atlanta session: the map and
  * boundary state match buildFromSession.
  */
 export function buildFromLaps({laps, sim, track, sessions}) {
-  const groups = sessions?.length
-    ? sessions.map(s => ({id: s.id ?? '', laps: s.laps ?? laps ?? []}))
-    : [{id: '', laps: laps ?? []}];
+  if (!sessions?.length)
+    throw new LoaderError('buildFromLaps needs at least one session');
+  for (const s of sessions) {
+    if (!s.laps)
+      throw new LoaderError(`session ${s.id || '(no id)'} has no laps`);
+  }
+  const groups = sessions.map(s => ({id: s.id ?? '', laps: s.laps}));
   const all = laps ?? groups.flatMap(s => s.laps);
-  const gps = sampleGps(all);
   const selected = selectMapLaps(all);
-  const built = gps ? mapFromLaps(selected.laps, selected.gridN) : null;
+  const missingGps = selected.laps.filter(lap => !lapGps(lap));
+  if (missingGps.length)
+    throw new LoaderError(
+      `${missingGps.length} of ${selected.laps.length} laps have no GPS`,
+    );
+  const gps = selected.laps.length > 0;
+  const built = mapFromLaps(selected.laps, selected.gridN);
   const source = trackMapSourceOf({
     usable: false,
     catalogOnly: false,

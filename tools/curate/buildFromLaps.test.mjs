@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {mapFromLaps, selectMapLaps} from '../sessions/analyze.mjs';
-import {buildFromLaps} from './loader.mjs';
+import {buildFromLaps, LoaderError} from './loader.mjs';
 
 const distanceM = 1000;
 const gridN = Math.floor(distanceM / 5) + 1;
@@ -76,27 +76,29 @@ test('buildFromLaps returns the plan shape: under 8 laps the map is kept and the
   assert.equal(none.boundaries, null);
 });
 
-test('a lap marked slow after the map was chosen still counts toward the map', () => {
-  const laps = [lap(1), lap(2), lap(3)];
-  for (const l of laps) {
-    Object.defineProperty(l, 'mapComparable', {
-      value: true,
-      enumerable: false,
-    });
-  }
-  laps[2].comparable = false;
-  assert.equal(selectMapLaps(laps).laps.length, 3);
-  assert.equal(Object.keys(laps[0]).includes('mapComparable'), false);
+test('a session with no laps is refused', () => {
+  assert.throws(
+    () =>
+      buildFromLaps({
+        sim: 'iracing',
+        track,
+        sessions: [{id: 'sess-a'}],
+      }),
+    err => err instanceof LoaderError && /has no laps/.test(err.message),
+  );
 });
 
-test('a grid with no finite position is no GPS, and no map', () => {
-  const built = buildFromLaps({
-    laps: [lap(1, {gps: false}), lap(2, {gps: false}), lap(3, {gps: false})],
-    sim: 'iracing',
-    track,
-    sessions: [{id: 'sess-a'}],
-  });
-  assert.equal(built.gps, false);
-  assert.equal(built.map, null);
-  assert.equal(built.lapsUsed, 0);
+test('a selected lap with a non-finite position is refused, with the count', () => {
+  const laps = [lap(1), lap(2), lap(3, {gps: false})];
+  assert.throws(
+    () =>
+      buildFromLaps({
+        laps,
+        sim: 'iracing',
+        track,
+        sessions: [{id: 'sess-a', laps}],
+      }),
+    err =>
+      err instanceof LoaderError && err.message === '1 of 3 laps have no GPS',
+  );
 });

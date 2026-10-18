@@ -53,11 +53,21 @@ test('Road Atlanta iRacing: buildFromSession and buildFromLaps match', t => {
       sessionId: session.id,
       sessionType: first.sessionType,
     });
+    const mapIds = new Set(analyzed.trackMapLapIds ?? []);
+    const boundIds = new Set(analyzed.boundaryLapIds ?? []);
+    const laps = analyzed.laps.map((lap, i) => {
+      const id = String(i);
+      return {
+        ...lap,
+        comparable: mapIds.has(id) || boundIds.has(id),
+        clean: boundIds.has(id),
+      };
+    });
     const fromLaps = buildFromLaps({
-      laps: analyzed.laps,
+      laps,
       sim: first.sim,
       track: {name: first.track, variant: first.layout},
-      sessions: [{id: session.id, laps: analyzed.laps}],
+      sessions: [{id: session.id, laps}],
     });
     assert.equal(fromLaps.gps, fromSession.gps);
     assert.equal(fromLaps.lapsUsed, fromSession.lapsUsed);
