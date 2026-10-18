@@ -16,12 +16,15 @@ interface Shape {
   tick: THREE.BufferGeometry;
 }
 
-const shapes = new Map<string, Shape>();
+type Local = {x: number; z: number};
 
-function shapeFor(carClass: string): Shape {
-  const cached = shapes.get(carClass);
-  if (cached) return cached;
-  const [L, W] = SIZE[carClass] ?? SIZE.GT3;
+function footprint(carClass: string): [number, number] {
+  return SIZE[carClass] ?? SIZE.GT3;
+}
+
+/** The chevron's outline on the ground in the car's own frame: x forward (the nose at +L/2), z to the right. */
+function chevronShape(carClass: string): THREE.Shape {
+  const [L, W] = footprint(carClass);
   const s = new THREE.Shape();
   s.moveTo(L / 2, 0);
   s.lineTo(L * 0.12, W / 2);
@@ -30,10 +33,35 @@ function shapeFor(carClass: string): Shape {
   s.lineTo(-L / 2, -W * 0.46);
   s.lineTo(L * 0.12, -W / 2);
   s.closePath();
-  const fill = new THREE.ShapeGeometry(s);
-  fill.rotateX(-Math.PI / 2); // shape (x, y) lies on the ground as (x, -z)
-  const edge = new THREE.BufferGeometry().setFromPoints(s.getPoints().map(p => new THREE.Vector3(p.x, 0, -p.y)));
-  const tick = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(L / 2, 0, 0), new THREE.Vector3(L / 2 + L * TICK_OF_LENGTH, 0, 0)]);
+  return s;
+}
+
+export function carOutline(carClass: string): Local[] {
+  // shape (x, y) lies on the ground as (x, -z)
+  return chevronShape(carClass)
+    .getPoints()
+    .map(p => ({x: p.x, z: -p.y}));
+}
+
+/** The heading tick: from the nose, forward, a fraction of the car's length. */
+export function tickSegment(carClass: string): [Local, Local] {
+  const [L] = footprint(carClass);
+  return [
+    {x: L / 2, z: 0},
+    {x: L / 2 + L * TICK_OF_LENGTH, z: 0},
+  ];
+}
+
+const shapes = new Map<string, Shape>();
+
+function shapeFor(carClass: string): Shape {
+  const cached = shapes.get(carClass);
+  if (cached) return cached;
+  const fill = new THREE.ShapeGeometry(chevronShape(carClass));
+  fill.rotateX(-Math.PI / 2);
+  const toVec = (p: Local) => new THREE.Vector3(p.x, 0, p.z);
+  const edge = new THREE.BufferGeometry().setFromPoints(carOutline(carClass).map(toVec));
+  const tick = new THREE.BufferGeometry().setFromPoints(tickSegment(carClass).map(toVec));
   const made = {fill, edge, tick};
   shapes.set(carClass, made);
   return made;
