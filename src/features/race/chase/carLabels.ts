@@ -1,8 +1,8 @@
 // Class position over the nearest cars: mono, flat, in the app's tokens. One small element per car, positioned in
 // screen pixels by the engine each frame; a label is shown only for a car that is drawn and in view.
 
-import {clamp} from '../../../analysis/chaseMath';
-import type {ChaseTheme} from './chaseTypes';
+import {clamp} from '@/src/analysis/chaseMath';
+import type {ChaseTheme} from '@/src/features/race/chase/chaseTypes';
 
 const FADE_START = 1.5;
 const FADE_M = 100;

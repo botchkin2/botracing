@@ -20,7 +20,7 @@ import {
 
 import {type RaceDot} from '../model';
 import {ChaseView, chaseAvailable} from './ChaseView';
-import {type ChaseCar, type ChaseGaps, type ChaseInputs} from './chaseTypes';
+import {type ChaseCar, type ChaseGaps, type ChaseInputs} from '@/src/features/race/chase/chaseTypes';
 
 // Dot radii in points by class, fastest first, from handoff R1d (desktop
 // scale x1.15, phone x0.8); "other" takes the third size.

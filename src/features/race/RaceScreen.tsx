@@ -33,7 +33,7 @@ import {
 import {nextRate, raceClockLabel, snapClock, stepBy} from './clock';
 import {carLapsView} from './carLapsView';
 import {Leaderboard} from './components/Leaderboard';
-import {type ChaseGaps, type ChaseNow, type ChaseRibbon} from './components/chaseTypes';
+import {type ChaseGaps, type ChaseNow, type ChaseRibbon} from '@/src/features/race/chase/chaseTypes';
 import {RaceLegend} from './components/RaceLegend';
 import {
   type LabelMode,

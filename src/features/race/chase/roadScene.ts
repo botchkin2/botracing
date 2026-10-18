@@ -2,9 +2,9 @@
 // a measured height profile, a faint drop line from each edge every 20 m so the height reads without scenery.
 
 import * as THREE from 'three';
-import type {ChaseRoad} from '../../../analysis/chaseRoad';
-import type {RoadIndex} from '../../../analysis/chaseRoadIndex';
-import type {ChaseTheme} from './chaseTypes';
+import type {ChaseRoad} from '@/src/analysis/chaseRoad';
+import type {RoadIndex} from '@/src/analysis/chaseRoadIndex';
+import type {ChaseTheme} from '@/src/features/race/chase/chaseTypes';
 
 type Point = {x: number; y: number; z: number};
 type At = (row: number, col: number, out: Point) => void;
@@ -69,7 +69,7 @@ export function buildRoadScene(road: ChaseRoad, ix: RoadIndex, T: ChaseTheme): T
           const hw = side < 0 ? road.hl[r % n] : road.hr[r % n];
           rowPoint(r, side * (hw - (k ? 0 : EDGE_WIDTH_M)), 0.02, out);
         },
-        flat(T.edge),
+        flat(T.edge, {side: THREE.DoubleSide}), // the left strip's triangles wind the other way
         1,
       ),
     );

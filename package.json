@@ -59,6 +59,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.10",
+    "@types/react-dom": "19.2.3",
     "@types/three": "0.160.0",
     "cross-env": "^7.0.3",
     "eslint": "^9.25.0",

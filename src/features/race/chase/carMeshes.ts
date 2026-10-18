@@ -5,9 +5,9 @@ import * as THREE from 'three';
 
 /** Class footprints (length x width, metres): the class nominal, the data carries no model dimensions. */
 const SIZE: Record<string, [number, number]> = {Hyper: [5.0, 2.0], LMP2: [4.75, 1.9], GT3: [4.65, 1.95]};
-const TICK_M = 1.3;
-const RING_INNER_M = 3.2;
-const RING_OUTER_M = 3.3;
+const TICK_OF_LENGTH = 0.3;
+const RING_INNER_M = 3.3;
+const RING_OUTER_M = 3.36;
 const PLAYER_EDGE = '#ffffff';
 
 interface Shape {
@@ -33,7 +33,7 @@ function shapeFor(carClass: string): Shape {
   const fill = new THREE.ShapeGeometry(s);
   fill.rotateX(-Math.PI / 2); // shape (x, y) lies on the ground as (x, -z)
   const edge = new THREE.BufferGeometry().setFromPoints(s.getPoints().map(p => new THREE.Vector3(p.x, 0, -p.y)));
-  const tick = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(L / 2, 0, 0), new THREE.Vector3(L / 2 + TICK_M, 0, 0)]);
+  const tick = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(L / 2, 0, 0), new THREE.Vector3(L / 2 + L * TICK_OF_LENGTH, 0, 0)]);
   const made = {fill, edge, tick};
   shapes.set(carClass, made);
   return made;

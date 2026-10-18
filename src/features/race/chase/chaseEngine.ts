@@ -6,18 +6,18 @@
 // World frame: x east, y north, z up (the sim's x and z); three.js is (x, z, -y), see sceneFrame.ts.
 
 import * as THREE from 'three';
-import {angDiff, clamp, ease, lerp, mod} from '../../../analysis/chaseMath';
-import {chaseHeading, stepTravel} from '../../../analysis/chaseHeading';
-import type {ChaseRoad} from '../../../analysis/chaseRoad';
-import {roadIndex, type RoadIndex} from '../../../analysis/chaseRoadIndex';
-import type {ChaseCar, ChaseRibbon} from '../components/chaseTypes';
+import {angDiff, clamp, ease, lerp, mod} from '@/src/analysis/chaseMath';
+import {chaseHeading, stepTravel} from '@/src/analysis/chaseHeading';
+import type {ChaseRoad} from '@/src/analysis/chaseRoad';
+import {roadIndex, type RoadIndex} from '@/src/analysis/chaseRoadIndex';
+import type {ChaseCar, ChaseRibbon} from '@/src/features/race/chase/chaseTypes';
 import {createCarLabels} from './carLabels';
 import {makeCar, type CarObject} from './carMeshes';
 import {createCameraRig} from './cameraRig';
 import {buildInputsScene, type InputsScene} from './inputsScene';
 import {buildRoadScene, disposeGroup} from './roadScene';
 import {setWorld} from './sceneFrame';
-import type {ChaseCamMode, ChaseEngine, ChaseTheme, ChaseUpdate} from './chaseTypes';
+import type {ChaseCamMode, ChaseEngine, ChaseTheme, ChaseUpdate} from '@/src/features/race/chase/chaseTypes';
 
 const FOG_NEAR_M = 260;
 const FOG_FAR_M = 1500;

@@ -3,12 +3,14 @@ import {createPortal} from 'react-dom';
 import {StyleSheet, View} from 'react-native';
 import Svg, {Circle, G, Line, Path} from 'react-native-svg';
 
-import {type ChaseRoad, gradeAt, heightAt} from '@/src/analysis/chaseRoad';
+import {chaseHudNumbers, elevationWindow, slopeKind} from '@/src/analysis/chaseHud';
+import type {ChaseRoad} from '@/src/analysis/chaseRoad';
 import {radius, space, useTheme} from '@/src/design';
+import {formatGap} from '@/src/design/format';
 import {Pressable, Segment, Text} from '@/src/ui';
 
-import type {ChaseCamMode, ChaseEngine} from '../chase/chaseTypes';
-import {type ChaseCar, type ChaseGaps, type ChaseInputs} from './chaseTypes';
+import type {ChaseCamMode, ChaseEngine} from '@/src/features/race/chase/chaseTypes';
+import {type ChaseCar, type ChaseGaps, type ChaseInputs} from '@/src/features/race/chase/chaseTypes';
 
 // The 3D chase view, drawn as an instrument. Web only: the engine and three.js load on first use (a lazy import), so
 // they stay out of the main bundle and out of the native app. Everything on screen is the app's own tokens; nothing
@@ -54,10 +56,6 @@ export function ChaseView(props: ChaseProps) {
   return full && typeof document !== 'undefined'
     ? createPortal(surface, document.body)
     : surface;
-}
-
-function fmtGap(v: number | null, sign: string) {
-  return v == null ? '–' : `${sign}${v.toFixed(1)}`;
 }
 
 function ChaseSurface({
@@ -170,10 +168,8 @@ function ChaseSurface({
     [cars, focus],
   );
   const now = me?.player === true ? inputs?.now ?? null : null;
-  const frac = me && road.lengthM > 0 ? me.lapDistM / road.lengthM : 0;
+  const {gradePct: grade, altM: alt} = chaseHudNumbers(road.elev, me?.lapDistM ?? null, road.lengthM);
   const hasHeight = road.elev !== null;
-  const grade = road.elev && me ? gradeAt(road.elev, frac, road.lengthM) * 100 : null;
-  const alt = road.elev && me ? heightAt(road.elev, frac) - Math.min(...road.elev) : null;
   const roomy = (full ? (typeof window === 'undefined' ? width : window.innerWidth) : width) >= 760;
 
   return (
@@ -238,8 +234,8 @@ function ChaseSurface({
           {gaps ? (
             <View style={styles.cell}>
               <Text variant='dataStrong'>{`${gaps.classTag} P${gaps.classPlace}`}</Text>
-              <Text variant='dataSmall' tone='textMuted'>{`▲ ${fmtGap(gaps.aheadS, '−')}`}</Text>
-              <Text variant='dataSmall' tone='textMuted'>{`▼ ${fmtGap(gaps.behindS, '+')}`}</Text>
+              <Text variant='dataSmall' tone='textMuted'>{`▲ ${gaps.aheadS === null ? '–' : formatGap(-gaps.aheadS, 1)}`}</Text>
+              <Text variant='dataSmall' tone='textMuted'>{`▼ ${gaps.behindS === null ? '–' : formatGap(gaps.behindS, 1)}`}</Text>
             </View>
           ) : null}
           {now ? (
@@ -275,7 +271,7 @@ function ChaseSurface({
           {hasHeight && roomy && road.elev ? (
             <Elevation
               elev={road.elev}
-              frac={frac}
+              lapDistM={me?.lapDistM ?? 0}
               lengthM={road.lengthM}
               line={color.textMuted}
               up={color.accent}
@@ -319,7 +315,7 @@ function Wheel({pct, ink, mark, ring}: {pct: number; ink: string; mark: string; 
 // The measured height 100 m behind and 500 m ahead of the car, coloured by grade, the car a dot.
 function Elevation({
   elev,
-  frac,
+  lapDistM,
   lengthM,
   line,
   up,
@@ -327,7 +323,7 @@ function Elevation({
   dot,
 }: {
   elev: number[];
-  frac: number;
+  lapDistM: number;
   lengthM: number;
   line: string;
   up: string;
@@ -338,8 +334,7 @@ function Elevation({
   const H = 26;
   const n = 48;
   const span = BEHIND_M + AHEAD_M;
-  const zs: number[] = [];
-  for (let i = 0; i <= n; i++) zs.push(heightAt(elev, frac - BEHIND_M / lengthM + (span / lengthM) * (i / n)));
+  const {heights: zs, stepM, carIndex} = elevationWindow(elev, lapDistM, lengthM, BEHIND_M, AHEAD_M, n);
   const lo = Math.min(...zs);
   const hi = Math.max(...zs);
   const range = Math.max(hi - lo, 10);
@@ -348,7 +343,7 @@ function Elevation({
   const x = (i: number) => (i / n) * W;
   const segs = [];
   for (let i = 1; i <= n; i++) {
-    const g = (zs[i] - zs[i - 1]) / (span / n);
+    const g = (zs[i] - zs[i - 1]) / stepM;
     segs.push(
       <Line
         key={i}
@@ -356,7 +351,7 @@ function Elevation({
         y1={y(zs[i - 1])}
         x2={x(i)}
         y2={y(zs[i])}
-        stroke={g > 0.03 ? up : g < -0.03 ? down : line}
+        stroke={slopeKind(g) === 'up' ? up : slopeKind(g) === 'down' ? down : line}
         strokeWidth={1.6}
         strokeLinecap='round'
       />,
@@ -365,7 +360,7 @@ function Elevation({
   return (
     <Svg width={W} height={H}>
       {segs}
-      <Circle cx={(BEHIND_M / span) * W} cy={y(zs[Math.round((BEHIND_M / span) * n)])} r={3} fill={dot} />
+      <Circle cx={(BEHIND_M / span) * W} cy={y(zs[carIndex])} r={3} fill={dot} />
     </Svg>
   );
 }

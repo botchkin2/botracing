@@ -2,10 +2,10 @@
 // at 150, 100 and 50 m before each of his brake-ons. Measured from his trace, not scenery.
 
 import * as THREE from 'three';
-import type {RoadIndex} from '../../../analysis/chaseRoadIndex';
-import type {ChaseRibbon} from '../components/chaseTypes';
+import type {RoadIndex} from '@/src/analysis/chaseRoadIndex';
+import type {ChaseRibbon} from '@/src/features/race/chase/chaseTypes';
 import {setWorld} from './sceneFrame';
-import type {ChaseTheme} from './chaseTypes';
+import type {ChaseTheme} from '@/src/features/race/chase/chaseTypes';
 
 const HALF_WIDTH_M = 0.3;
 const BRAKE_ON_PCT = 55;

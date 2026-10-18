@@ -3,10 +3,10 @@
 // camera snaps to its exact place so nothing drifts on a still frame.
 
 import * as THREE from 'three';
-import {angDiff, clamp, ease, lerp, mod} from '../../../analysis/chaseMath';
-import type {RoadIndex} from '../../../analysis/chaseRoadIndex';
+import {angDiff, clamp, ease, lerp, mod} from '@/src/analysis/chaseMath';
+import type {RoadIndex} from '@/src/analysis/chaseRoadIndex';
 import {setWorld} from './sceneFrame';
-import type {ChaseCamMode} from './chaseTypes';
+import type {ChaseCamMode} from '@/src/features/race/chase/chaseTypes';
 
 const CHASE_BACK_M = 11;
 const CHASE_UP_M = 4.2;
