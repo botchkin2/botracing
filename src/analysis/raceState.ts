@@ -9,6 +9,7 @@
 // The field is 5 Hz. Playing interpolates between two updates; paused snaps
 // to the nearest one, so every dot is a real sample (handoff R1, 5 Hz honesty).
 import {classOfCar} from './fieldClasses';
+import {raceStartS} from './raceClock';
 import {trackLengthM} from './classLaps';
 import {ABSENT, type Field, type FieldCar, updateAt} from './field';
 
@@ -139,13 +140,21 @@ export function progressOf(
 }
 
 /**
- * The first update from which some car has completed a lap, held for at least
- * `stableS` seconds: the race has started. A single update where every car
- * reads laps done (da3e, 0.4 s: the previous session's state) is not a start.
- * The length of the field when it never starts.
+ * The update the race starts at: the first car's start crossing (raceStartS,
+ * the stand-in for the green flag). A field that begins mid-race has none; then
+ * the first update from which some car has completed a lap, held for at least
+ * `stableS` seconds. A single update where every car reads laps done (da3e,
+ * 0.4 s: the previous session's state) is not a start. The length of the field
+ * when it never starts.
  */
 export function raceStartUpdate(field: Field, stableS = 3): number {
   const n = field.timeS.length;
+  const startS = raceStartS(field);
+  if (startS !== null) {
+    let u = 0;
+    while (u < n && field.timeS[u] < startS) u++;
+    return u;
+  }
   const need = Math.max(2, Math.ceil(stableS * field.hz));
   let run = 0;
   for (let u = 0; u < n; u++) {

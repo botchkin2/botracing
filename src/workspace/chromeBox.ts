@@ -7,6 +7,7 @@ import {
 import {
   carLabel,
   formatDayMonth,
+  modeText,
   lapStroke,
   type Scheme,
   shortTrackName,
@@ -30,6 +31,7 @@ export type ChromeBox = Omit<
 export function chromeBox({
   session,
   hasField,
+  cornerOff = false,
   laps,
   selection,
   cornerN,
@@ -37,9 +39,14 @@ export function chromeBox({
   tab,
   scheme,
 }: {
-  session: Pick<SessionDetail, 'sessionType' | 'track' | 'car' | 'startedAt'>;
+  session: Pick<
+    SessionDetail,
+    'sessionType' | 'track' | 'car' | 'startedAt' | 'online'
+  >;
   /** Whether the session has a recorded field: the fourth tab is Race or Field. */
   hasField: boolean;
+  /** A day cut at different corner windows: the Corner tab is off. */
+  cornerOff?: boolean;
   laps: Pick<Lap, 'id' | 'lapIndex'>[] | undefined;
   selection: {laps?: string; ref?: string; hl?: string};
   cornerN: number | null;
@@ -66,12 +73,18 @@ export function chromeBox({
   return {
     badge: session.sessionType,
     track: shortTrackName(session.track),
-    detail: [car.model, car.entry, formatDayMonth(session.startedAt)]
+    detail: [
+      car.model,
+      car.entry,
+      formatDayMonth(session.startedAt),
+      modeText(session.online),
+    ]
       .filter(Boolean)
       .join(' · '),
     tabs: sessionTabs(
       {sessionType: session.sessionType, hasField},
       cornerLabel,
+      cornerOff,
     ),
     activeTab: tab,
     laps: lapRows,

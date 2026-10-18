@@ -12,6 +12,7 @@ import {FactTiles} from './components/FactTiles';
 import {HistoryPanel} from './components/HistoryPanel';
 import {LayoutChips} from './components/LayoutChips';
 import {PlanBlock} from './components/PlanBlock';
+import {ProgressionCard} from './components/ProgressionCard';
 import {TrackMapPanel} from './components/TrackMapPanel';
 import {type MapPart} from './mapLoad';
 import {type Combo} from '../plan/model';
@@ -159,6 +160,7 @@ function TrackPhone({
         loading={mapLoading}
         failed={mapFailed}
       />
+      <ProgressionCard combos={plans} width={width} />
       <FactTiles facts={model.facts} layout='grid' />
       {model.corners.length > 0 ? (
         <View>
@@ -298,6 +300,7 @@ function TrackDesktop({
             loading={mapLoading}
             failed={mapFailed}
           />
+          <ProgressionCard combos={plans} width={mapW} />
           <LayoutChips layouts={model.layouts} onOpen={actions.openLayout} />
         </ScrollView>
         <View

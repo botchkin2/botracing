@@ -139,21 +139,33 @@ export function formatDayMonthTime(
   return `${formatDayMonth(iso)}, ${hh}:${mm}`;
 }
 
+/** The session's connection as a word; null when the session does not know. */
+export const modeText = (online: boolean | null): string | null =>
+  online == null ? null : online ? 'Online' : 'Offline';
+
+/** "21:40": the clock time of an ISO instant here; the empty string when it does not parse. */
+export function formatClock(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${String(d.getHours()).padStart(2, '0')}:${String(
+    d.getMinutes(),
+  ).padStart(2, '0')}`;
+}
+
 /**
- * A moment's clock time: "00:41" today, "Oct 13, 00:41" on an earlier day this
- * year, "Oct 13, 2025" before that; device time zone.
+ * Since when, for a moment in ms: "00:41" today, "Oct 13, 00:41" on an earlier
+ * day this year, "Oct 13, 2025" before that; device time zone.
  */
-export function formatClock(ms: number, now: Date = new Date()): string {
+export function formatSince(ms: number, now: Date = new Date()): string {
   const d = new Date(ms);
   if (Number.isNaN(d.getTime())) return '';
   const sameDay =
     d.getFullYear() === now.getFullYear() &&
     d.getMonth() === now.getMonth() &&
     d.getDate() === now.getDate();
-  if (!sameDay) return formatDayMonthTime(d.toISOString(), now);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(
-    d.getMinutes(),
-  ).padStart(2, '0')}`;
+  return sameDay
+    ? formatClock(d.toISOString())
+    : formatDayMonthTime(d.toISOString(), now);
 }
 
 /**
@@ -167,5 +179,5 @@ export function formatOffline(
 ): string | null {
   return offlineSince == null
     ? null
-    : `Offline · ${formatClock(offlineSince, now)}`;
+    : `Offline · ${formatSince(offlineSince, now)}`;
 }

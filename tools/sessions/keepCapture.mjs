@@ -18,6 +18,14 @@ export function raceAfterSync(fresh, stored, {sim, sessionType}) {
 }
 
 /**
+ * The online flag (gameMode.mjs): a stored value is replaced by a new one,
+ * never by the absence of one, since only the capture knows it.
+ */
+export function onlineAfterSync(fresh, stored) {
+  return fresh ?? stored ?? null;
+}
+
+/**
  * Whether a stored visit holds a fact only the damage record gives: the stop
  * repaired something, or it was a stop-go (stopped, nothing done, no repair).
  * A visit read without damage can say neither.

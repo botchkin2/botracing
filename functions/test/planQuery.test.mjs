@@ -35,8 +35,19 @@ test('laps sets how many of the newest sessions keep their lap rows; anything od
     assert.equal(q(bad).lapSessions, PLAN_LAP_SESSIONS, String(bad));
 });
 
-test('the query reads only the plan block, the start time and the session type', () => {
-  assert.deepEqual([...PLAN_FIELDS], ['startedAt', 'sessionType', 'plan']);
+test('the query reads only the plan block, the opening set, the times and the session type', () => {
+  assert.deepEqual([...PLAN_FIELDS], ['startedAt', 'endedAt', 'sessionType', 'plan', 'paceSet']);
+});
+
+test('a session carries its end and its opening set; one analysed before the set reads null', () => {
+  const rows = planRows([
+    doc('a', {startedAt: '2026-10-15T18:00:00Z', endedAt: '2026-10-15T19:05:00Z', sessionType: 'Race', paceSet: {v: 3, lapTimesS: [121.4, 121.6]}}),
+    doc('b', {startedAt: '2026-10-14T18:00:00Z', sessionType: 'Practice', paceSet: {v: 3}}),
+  ], 0);
+  assert.equal(rows[0].endedAt, '2026-10-15T19:05:00Z');
+  assert.deepEqual(rows[0].paceSet, {v: 3, lapTimesS: [121.4, 121.6]});
+  assert.equal(rows[1].endedAt, null);
+  assert.equal(rows[1].paceSet, null, 'no lap times is no set');
 });
 
 const doc = (id, data) => ({id, data: () => data});
@@ -62,15 +73,16 @@ test('only the newest sessions keep their laps; a session with no block reads nu
   assert.equal(rows[2].sessionType, 'Practice');
 });
 
-test('100 sessions of 100 laps come back small: 8 with laps, 92 with fuel and race only', () => {
+test('100 sessions of 100 laps come back small: 8 with laps, 92 with fuel and race only, each with its opening set', () => {
   const docs = Array.from({length: 100}, (_, i) =>
-    doc(`s${i}`, {startedAt: new Date(Date.UTC(2026, 9, 9) - i * 86400000).toISOString(), sessionType: 'Practice', plan: block(100)}),
+    doc(`s${i}`, {startedAt: new Date(Date.UTC(2026, 9, 9) - i * 86400000).toISOString(), sessionType: 'Practice', plan: block(100), paceSet: {v: 3, lapTimesS: Array(80).fill(121.456)}}),
   );
   const rows = planRows(docs, PLAN_LAP_SESSIONS);
   assert.equal(rows.length, 100);
   assert.equal(rows.filter(r => r.plan.laps).length, PLAN_LAP_SESSIONS);
   const bytes = JSON.stringify({items: rows}).length;
   const full = JSON.stringify({items: docs.map(d => d.data())}).length;
-  assert.ok(bytes < 120_000, `${bytes} bytes`);
+  // The opening set is about 8 bytes a lap: 80 laps a session is ~64 KB of the 160.
+  assert.ok(bytes < 160_000, `${bytes} bytes`);
   assert.ok(bytes < full / 5, `${bytes} against ${full} with every lap`);
 });

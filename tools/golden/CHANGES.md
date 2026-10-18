@@ -62,3 +62,34 @@ Changed:
 - laps.1.comparable: false -> true
 - laps.15.reasons.0: "slow" -> undefined
 - laps.15.comparable: false -> true
+
+## 2026-10-18 lmu-practice-road-atlanta
+Why: lap 15 (83.445 s, alone in stint 1) was judged against its own one-lap curve, a residual of 0, so it could not be slow; a stint under MIN_CURVE_LAPS = 3 laps is now judged against the session pace (pit-wall thread 75 #5876, slowLaps 2), so it is slow (3 % over the 80.9 s median) and leaves the comparable set. The session limit is unchanged.
+Changed:
+- summary.comparableCount: 12 -> 11
+- summary.medianLapTime: 80.904 -> 80.853
+- summary.stdevLapTime: 1.179 -> 1.009
+- stints.1.comparable: 1 -> 0
+- stints.1.bestLapTime: 83.445 -> null
+- stints.1.medianLapTime: 83.445 -> null
+- cornerMedians.0: 6.797000000000001 -> 6.782
+- cornerMedians.1: 13.979 -> 13.963
+- cornerMedians.2: 10.603 -> 10.602
+- cornerMedians.3: 28.945 -> 28.944
+- cornerMedians.4: 16.454 -> 16.444
+- laps.15.reasons.0: undefined -> "slow"
+- laps.15.comparable: true -> false
+
+## 2026-10-18 lmu-race-road-atlanta
+Why: a brake application now brakes for the first part whose apex is after its peak (pit-wall thread 92, CORNER_INPUTS_VERSION 3), not the first part turning in after its onset. Lap 7's 11 % touch at 1148.6 m peaks before the first part's apex, so it is that part's, not the second's.
+Changed:
+- laps.7.corners.2.parts.0.brakeAtM: null -> 1148.6
+- laps.7.corners.2.parts.0.peakBrakePct: null -> 11.1
+- laps.7.corners.2.parts.1.brakeAtM: 1148.6 -> null
+- laps.7.corners.2.parts.1.peakBrakePct: 11.1 -> null
+
+## 2026-10-18 iracing-race-road-atlanta
+Why: the same rule (thread 92). Lap 4's later application in this window (peak 55.8 %) peaks past the last part's apex: it brakes for the next section, so it is no part's. The last part keeps its own stop at 1293.2 m (peak 41.4 %), and with the throttle closed from it to the next section's braking, the window holds no throttle pickup.
+Changed:
+- laps.4.corners.2.parts.2.peakBrakePct: 55.8 -> 41.4
+- laps.4.corners.2.parts.2.throttlePickupAtM: 1473.6 -> null

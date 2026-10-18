@@ -13,6 +13,7 @@ import {openIbt} from './ibt.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {captureExtract} from './captureExtract.mjs';
+import {onlineFor} from './gameMode.mjs';
 import {resultsForSpan} from './lmuResults.mjs';
 import {resultsInput} from './resultsInput.mjs';
 
@@ -156,6 +157,9 @@ export function makeBuilder({
               resultsFolder,
             ),
           );
+    // Online or offline, from the capture's game mode; null where it is gone.
+    const online =
+      foldOnly || sim !== 'lmu' ? null : onlineFor(captureRoot, span);
     const out = analyzeFromArchive({
       ownerId,
       sessionId: s.id,
@@ -171,6 +175,7 @@ export function makeBuilder({
       foldOnly,
       damage,
       raceLength,
+      online,
       results,
       event: joined.session,
       // Every car in the session, when the recorder ran (field.mjs, irField.mjs).
@@ -195,6 +200,7 @@ export function makeBuilder({
       captureExtract: captureExtract({
         damage,
         raceLength: sim === 'lmu' ? raceLength : null,
+        online,
       }),
       // The game's rulings, kept in the store for analysis on open
       // (resultsInput.mjs); null with no results file.

@@ -9,6 +9,7 @@ const race = {
   track: 'Circuit de la Sarthe',
   car: 'Porsche 911 GT3 R - Manthey #91',
   startedAt: '2026-09-14T12:00:00Z',
+  online: null,
 };
 const laps = [
   {id: 'a', lapIndex: 16},
@@ -101,5 +102,13 @@ describe('chromeBox', () => {
     const box = chromeBox(base);
     expect(box.track).toBe('Le Mans');
     expect(box.detail).toContain('Sep 14');
+  });
+
+  it('adds offline or online to the detail, and nothing when unknown', () => {
+    const detail = (online: boolean | null) =>
+      chromeBox({...base, session: {...base.session, online}}).detail;
+    expect(detail(false)).toMatch(/ · Offline$/);
+    expect(detail(true)).toMatch(/ · Online$/);
+    expect(detail(null)).not.toMatch(/line/);
   });
 });

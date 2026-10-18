@@ -3,6 +3,7 @@ import {describe, expect, it} from '@jest/globals';
 import {
   distanceAtTime,
   gridStepM,
+  minorStepM,
   loopRange,
   loopStep,
   panCursor,
@@ -107,6 +108,34 @@ describe('gridStepM', () => {
   it('picks a nice step with room between lines', () => {
     expect(gridStepM(100, 358)).toBe(20);
     expect(gridStepM(1000, 358)).toBe(200);
+  });
+});
+
+describe('labelled and minor distance gridlines (Botkin: 100 m was too coarse)', () => {
+  // Corner's chart at 1440 wide (798 pt for ~700 m) and at 375 (343 pt).
+  it('Corner at 1440: labels every 50 m, a line every 25 m', () => {
+    const step = gridStepM(700, 798);
+    expect(step).toBe(50);
+    expect(minorStepM(step, (step / 700) * 798)).toBe(25);
+  });
+  it('Corner at 375: labels every 100 m, a line every 50 m', () => {
+    const step = gridStepM(700, 343);
+    expect(step).toBe(100);
+    expect(minorStepM(step, (step / 700) * 343)).toBe(50);
+  });
+  it('a minor step always divides the labelled one, and none when it would crowd', () => {
+    expect(minorStepM(100, 30)).toBeNull();
+    for (const [step, pt] of [
+      [20, 400],
+      [50, 130],
+      [200, 105],
+      [1000, 58],
+    ] as const) {
+      const m = minorStepM(step, pt);
+      expect(m).not.toBeNull();
+      expect(step % m!).toBe(0);
+      expect((m! / step) * pt).toBeGreaterThanOrEqual(16);
+    }
   });
 });
 

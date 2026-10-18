@@ -12,7 +12,6 @@ import {buildStintTable} from './desktopModel';
 import {sessionGrid} from './grid';
 import {buildSessionModel} from './model';
 import {
-  basisOf,
   lapTimeStats,
   segmentBasisStats,
   stintNumbers,
@@ -36,15 +35,6 @@ const small = (): SegmentTimes => ({
     {id: 'e', stint: 1, comparable: true, timesS: [13, 22]},
     {id: 'x', stint: 1, comparable: false, timesS: [9, 18]},
   ],
-});
-
-describe('basisOf', () => {
-  it('is the ticked laps, comparable or not; the comparable ones when none is ticked', () => {
-    expect(basisOf(laps, new Set([laps[0].id])).map(l => l.id)).toEqual([
-      laps[0].id,
-    ]);
-    expect(basisOf(laps, new Set())).toHaveLength(16);
-  });
 });
 
 describe('segmentBasisStats', () => {

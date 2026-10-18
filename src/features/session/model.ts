@@ -1,3 +1,4 @@
+import {basisOf} from '@/src/analysis/lapBasis';
 import {useMemo} from 'react';
 
 import type {StripLap} from './lapStrip';
@@ -14,6 +15,8 @@ import {
   firstCornerOf,
   openingLapIds,
   raceFactsOfPlan,
+  dayBestLapId,
+  type DaySet,
   type Lap,
   type SessionDetail,
   sectorSegmentTimes,
@@ -29,8 +32,10 @@ import {
   dayMonthOf,
   formatDayMonthTime,
   formatGap,
+  formatClock,
   formatLapTime,
   formatOffline,
+  modeText,
   shortTrackName,
 } from '@/src/design';
 import {planComboKey} from '@/src/nav/routes';
@@ -41,12 +46,7 @@ import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
 import {buildFuelUse, type FuelUse} from './fuelUse';
 import {optimumFacts} from './optimumFacts';
 import {type OptimumLine, optimumLines} from './optimumLines';
-import {
-  basisOf,
-  lapTimeStats,
-  segmentBasisStats,
-  stintNumbers,
-} from './selectionStats';
+import {lapTimeStats, segmentBasisStats, stintNumbers} from './selectionStats';
 import {energyLine, type EnergyLine} from './energyLine';
 import {classTable, type ClassTable} from './classTable';
 import {buildPitCard, type PitCard} from './pitCard';
@@ -60,6 +60,8 @@ import {
   trafficRows,
 } from './trafficFacts';
 import {isCompound} from '@/src/data/sessions/corners';
+import {type BrakeRow, brakeLedger} from './brakeLedger';
+import {type SpreadRow, spreadRows} from './spreadRows';
 import {MIN_COMPARISON_LAPS} from '@/src/analysis/setStats';
 
 // Session screen view model (handoff §2). buildSessionModel is pure: session,
@@ -146,6 +148,8 @@ export type StintRowModel = {
   label: string;
   /** Comparable lap ids in the stint, for "Select stint". */
   lapIds: string[];
+  /** In a day, the session the stint belongs to: a tap opens it. */
+  sessionId?: string;
 };
 
 /** A line of text under a stint header or a pit lap: same height as a lap row. */
@@ -218,6 +222,10 @@ export type SessionScreenModel = {
   optimumLines: OptimumLine[];
   /** Null while no lap has sections or sector times. */
   sections: SectionTable | null;
+  /** The sections that hold the most of the set's lap-to-lap spread; empty under 10 laps (spreadRows.ts). */
+  spread: SpreadRow[];
+  /** The loosest braking zones: where each lap began to brake against the median; empty under 10 laps (brakeLedger.ts). */
+  brake: BrakeRow[];
   /** The game's sector columns (S1..Sn) when laps carry sector times; none otherwise. */
   sectorHeads: string[];
   chart: ChartModel | null;
@@ -232,7 +240,7 @@ export type SessionScreenModel = {
   /** Races with a stop only. */
   pitCard: PitCard | null;
   /** Per-wheel wear, pressure and rubber temperature by stint. */
-  tires: TiresCard;
+  tires: TiresCard | null;
   /** A heal replaced this session's live copy: its one header line and the detail a tap opens; null otherwise. */
   rebuilt: {line: string; detail: string} | null;
   /** This session was replaced by a healed one: its link goes there. */
@@ -480,6 +488,13 @@ export function buildSessionModel(
   map: TrackMapData | null = null,
   /** Which segments the desktop table and the optimal lap read (Settings). */
   sectionMode: SectionMode = 'turns',
+  /**
+   * Set when the laps are a day (data/sessions/lapSet.ts): `session` is its
+   * first member (it names the track and car) and `laps` the merged laps. The
+   * set cards read the laps; the session cards (fuel, tyres, the field, Race,
+   * the pit review) are not set facts and are left out.
+   */
+  day: DaySet | null = null,
 ): SessionScreenModel {
   // Every median, gap, bar and stint line, the head's Median included, is of
   // the basis laps (the ticked ones): one answer to "the median" on the screen
@@ -500,7 +515,12 @@ export function buildSessionModel(
   // The game's sectors for the phone table; the desktop table reads the
   // segments the Settings toggle picks. Best = fastest among comparable laps.
   const sectorTimes = sectorSegmentTimes(laps);
-  const sectionTimes = segmentTimesFor(sectionMode, laps, map);
+  // A day cut at different corner windows has no section numbers at all: the
+  // columns, optimum, spread and brake rows are lap times only (daySet.ts).
+  const bySections = day == null || day.usesSections;
+  const sectionTimes = bySections
+    ? segmentTimesFor(sectionMode, laps, map)
+    : null;
   const sectorCells = cellsOf(sectorTimes, basis, 1);
   const sectionCells = cellsOf(sectionTimes, basis, 2);
   const stintLines = new Map(
@@ -558,15 +578,27 @@ export function buildSessionModel(
         }
       : null;
 
+  // The best lap of the set: the session's own, or the fastest comparable lap
+  // of a day (a day has no stored best).
+  const bestLapId = day ? dayBestLapId(laps) : session.bestLapId;
+
   const rows: RowModel[] = [];
-  for (const stint of session.stints.length
+  const stintList: {n: number; sessionId?: string; startedAt?: string}[] = day
+    ? day.stints
+    : session.stints.length
     ? session.stints
-    : [{n: 1} as SessionDetail['stints'][number]]) {
+    : [{n: 1}];
+  const stintCount = stintList.length;
+  for (const stint of stintList) {
     const stintLaps = laps.filter(l => l.stint === stint.n);
     if (stintLaps.length === 0) continue;
     const first = stintLaps[0].lapIndex;
     const last = stintLaps[stintLaps.length - 1].lapIndex;
-    const bits = [`Stint ${stint.n}`, `L${first}–L${last}`];
+    // A day names a stint by when its session began.
+    const bits = [
+      stint.startedAt ? formatClock(stint.startedAt) : `Stint ${stint.n}`,
+      `L${first}–L${last}`,
+    ];
     const line = stintLines.get(stint.n);
     if (line?.lapTimes.medianS != null) {
       bits.push(`med ${formatLapTime(line.lapTimes.medianS)}`);
@@ -580,8 +612,9 @@ export function buildSessionModel(
       key: `stint-${stint.n}`,
       label: bits.join(' · ') + split,
       lapIds: stintLaps.filter(l => l.comparable).map(l => l.id),
+      ...(stint.sessionId ? {sessionId: stint.sessionId} : {}),
     });
-    const stintNote = stintFuelLine(stintLaps);
+    const stintNote = day ? null : stintFuelLine(stintLaps);
     if (stintNote)
       rows.push({kind: 'note', key: `stint-${stint.n}-fuel`, text: stintNote});
     for (const l of stintLaps) {
@@ -599,12 +632,12 @@ export function buildSessionModel(
         gapFaster: gap != null && gap < 0,
         sectors: sectorCells(l.id),
         sections: sectionCells(l.id),
-        tags: tagsFor(l, session.bestLapId),
+        tags: tagsFor(l, bestLapId),
         comparable: l.comparable,
         selIndex: selIndexOf(l.id),
         highlighted: l.id === selection.hl,
       });
-      const stopNote = l.pitStop ? pitLine(l.pitStop) : null;
+      const stopNote = !day && l.pitStop ? pitLine(l.pitStop) : null;
       if (stopNote)
         rows.push({
           kind: 'note',
@@ -647,10 +680,11 @@ export function buildSessionModel(
         }
       : null;
 
-  const bestLap = laps.find(l => l.id === session.bestLapId);
-  const trafficPace = trafficPaceFacts(session, basisLaps);
-  const pitCard = buildPitCard(session.sessionType, laps, session);
-  const fuelUse = buildFuelUseCard(session, laps);
+  const bestLap = laps.find(l => l.id === bestLapId);
+  const sections = sectionTable(sectionTimes, basis, map);
+  const trafficPace = day ? [] : trafficPaceFacts(session, basisLaps);
+  const pitCard = day ? null : buildPitCard(session.sessionType, laps, session);
+  const fuelUse = day ? null : buildFuelUseCard(session, laps);
   return {
     trackId: session.trackId,
     sectorHeads: sectorTimes ? sectorTimes.segments.map(s => s.label) : [],
@@ -661,9 +695,9 @@ export function buildSessionModel(
       comparable: l.comparable,
       pit: l.pitIn || l.pitOut,
     })),
-    title: `${TYPE_TITLE[session.sessionType]} · ${shortTrackName(
-      session.track,
-    )}`,
+    title: `${day ? 'Day · ' : ''}${
+      TYPE_TITLE[session.sessionType]
+    } · ${shortTrackName(session.track)}`,
     subtitle: [
       session.trackVariant || session.track,
       dayMonthOf(started) +
@@ -673,6 +707,7 @@ export function buildSessionModel(
       car.model,
       car.entry,
       session.sim.toUpperCase(),
+      day ? `${day.members.length} sessions` : modeText(session.online),
     ]
       .filter(Boolean)
       .join(' · '),
@@ -681,7 +716,7 @@ export function buildSessionModel(
       {label: 'Comparable', value: String(comparable.length)},
       {
         label: 'Best',
-        value: timeOrDash(bestLap?.timeS ?? session.bestTimeS),
+        value: timeOrDash(bestLap?.timeS ?? (day ? null : session.bestTimeS)),
         best: true,
         // A fact of the session: it can be a lap outside the selection.
         basis: 'session',
@@ -693,29 +728,32 @@ export function buildSessionModel(
       },
       ...trafficPace,
     ],
-    optimum: optimumFacts([...stintLines.values()], session.stints.length),
-    optimumLines: optimumLines([...stintLines.values()], session.stints.length),
-    sections: sectionTable(sectionTimes, basis, map),
+    optimum: optimumFacts([...stintLines.values()], stintCount),
+    optimumLines: optimumLines([...stintLines.values()], stintCount),
+    sections,
+    spread: spreadRows(sectionTimes, basis, sections),
+    brake: brakeLedger(laps, basis, bySections ? map : null),
     chart,
     noComparable,
     rows,
     detail,
     tray,
-    classTable: classTable(
-      session.classBests,
-      bestLap?.timeS ?? session.bestTimeS,
-    ),
-    energy: energyLine(
-      session.sessionType,
-      laps,
-      pitCard ? 'pit' : fuelUse ? 'fuel' : null,
-    ),
+    classTable: day
+      ? null
+      : classTable(session.classBests, bestLap?.timeS ?? session.bestTimeS),
+    energy: day
+      ? null
+      : energyLine(
+          session.sessionType,
+          laps,
+          pitCard ? 'pit' : fuelUse ? 'fuel' : null,
+        ),
     pitCard,
-    tires: buildTiresCard(session, laps),
-    rebuilt: rebuiltOf(session),
-    movedTo: session.supersededBy ?? null,
+    tires: day ? null : buildTiresCard(session, laps),
+    rebuilt: day ? null : rebuiltOf(session),
+    movedTo: day ? null : session.supersededBy ?? null,
     fuelUse,
-    planVsRace: raceFactsOfPlan(session, planKeyOf(session)),
+    planVsRace: day ? null : raceFactsOfPlan(session, planKeyOf(session)),
   };
 }
 
@@ -743,6 +781,45 @@ export function useSessionSegmentTimes(id: string): SegmentTimes | null {
         ? segmentTimesFor(sectionMode, laps.data, map.data ?? null)
         : null,
     [laps.data, map.data, sectionMode],
+  );
+}
+
+/** The screen model of a day (data/sessions/lapSet.ts); loading until it is ready. */
+export function useDayScreenModel(set: DaySet | null, selection: Selection) {
+  const map = useTrackMap(set?.members[0].trackId);
+  const sectionMode = useSectionMode();
+  return useMemo(
+    () =>
+      set
+        ? {
+            state: 'ready' as const,
+            model: buildSessionModel(
+              set.members[0],
+              set.laps,
+              selection,
+              map.data ?? null,
+              sectionMode,
+              set,
+            ),
+            // A day reads its members' kept queries (data/sessions/lapSet.ts);
+            // no offline line for it yet.
+            offlineText: null as string | null,
+          }
+        : {state: 'loading' as const},
+    [set, selection, map.data, sectionMode],
+  );
+}
+
+/** The segment times of a day's merged laps: the same sections the session table shows. */
+export function useDaySegmentTimes(day: DaySet | null): SegmentTimes | null {
+  const map = useTrackMap(day?.members[0].trackId);
+  const sectionMode = useSectionMode();
+  return useMemo(
+    () =>
+      day?.usesSections
+        ? segmentTimesFor(sectionMode, day.laps, map.data ?? null)
+        : null,
+    [day, map.data, sectionMode],
   );
 }
 

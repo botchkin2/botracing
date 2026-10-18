@@ -11,12 +11,7 @@ import {
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {
-  accountLabel,
-  trayRestart,
-  useAuthStore,
-  useSignIn,
-} from '@/src/auth';
+import {accountLabel, trayRestart, useAuthStore, useSignIn} from '@/src/auth';
 import {radius, size, space, useLayout, useTheme} from '@/src/design';
 import {androidDownloadUrl, useAndroidRelease} from '@/src/data/android';
 import {trayDownloadUrl, useTrayRelease} from '@/src/data/tray';
@@ -153,6 +148,7 @@ function WindowsApp() {
   const {color} = useTheme();
   const release = useTrayRelease();
   const uploaders = useUploaders();
+  const restart = typeof window === 'undefined' ? null : trayRestart(window);
   const card = trayCard({
     isPending: release.isPending,
     isError: release.isError,
@@ -160,8 +156,8 @@ function WindowsApp() {
     data: release.data,
     pcs: uploaders.data,
     nowMs: uploaders.dataUpdatedAt || undefined,
+    inTray: restart != null,
   });
-  const restart = typeof window === 'undefined' ? null : trayRestart(window);
   const ready = updateReady(
     uploaders.data,
     uploaders.dataUpdatedAt,
@@ -186,7 +182,7 @@ function WindowsApp() {
             {line}
           </Text>
         ))}
-        {card.version ? (
+        {card.canDownload ? (
           <Button
             label='Download for Windows'
             onPress={() => void Linking.openURL(trayDownloadUrl())}

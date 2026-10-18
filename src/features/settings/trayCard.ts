@@ -12,6 +12,8 @@ export type TrayCard = {
   version: string | null;
   /** One line per PC: its tray version against the latest, or not reporting. */
   pcs: string[];
+  /** The Download button shows: a release exists and this user has no tray running (not seen in 10 minutes) and is not inside one. */
+  canDownload: boolean;
 };
 
 /**
@@ -49,6 +51,8 @@ export function trayCard(q: {
   /** Every PC's uploader status; undefined while it loads or when it failed. */
   pcs?: Uploader[];
   nowMs?: number;
+  /** Inside the tray's own window. */
+  inTray?: boolean;
 }): TrayCard {
   const latest = q.data?.version ?? null;
   const nowMs = q.nowMs ?? Date.now();
@@ -59,14 +63,24 @@ export function trayCard(q: {
           .sort((a, b) => (b.lastSeenAt ?? 0) - (a.lastSeenAt ?? 0))
           .map(u => pcLine(u, latest, nowMs, q.pcs!.length > 1))
     : [];
+  const hasTray =
+    q.inTray === true ||
+    (q.pcs ?? []).some(
+      u => u.lastSeenAt != null && nowMs - u.lastSeenAt <= SEEN_MS,
+    );
+  const none = {version: null, pcs, canDownload: false};
   if (q.data)
-    return {status: `Latest v${q.data.version}`, version: q.data.version, pcs};
-  if (q.isPending) return {status: 'Checking…', version: null, pcs};
+    return {
+      status: `Latest v${q.data.version}`,
+      version: q.data.version,
+      pcs,
+      canDownload: !hasTray,
+    };
+  if (q.isPending) return {status: 'Checking…', ...none};
   if (q.isError)
     return {
       status: q.offline ? 'Offline' : 'Couldn’t check for the Windows app',
-      version: null,
-      pcs,
+      ...none,
     };
-  return {status: 'Not released yet', version: null, pcs};
+  return {status: 'Not released yet', ...none};
 }

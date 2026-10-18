@@ -20,6 +20,8 @@ const row: SessionSummary = {
   carClass: 'GT3',
   sessionType: 'R',
   startedAt: '2026-10-13T23:15:00Z',
+  endedAt: null,
+  online: null,
   lapCount: 13,
   comparableCount: 11,
   bestTimeS: 81.2,

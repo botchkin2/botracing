@@ -20,10 +20,11 @@ import {
   useLayout,
   useTheme,
 } from '@/src/design';
+import {type DaySet, useDaySet, useSession} from '@/src/data/sessions';
 import {SessionNav} from '@/src/workspace/SessionNav';
 import {
   compareHref,
-  cornerHref,
+  sessionHref,
   sessionsHref,
   trackHref,
 } from '@/src/nav/routes';
@@ -54,6 +55,10 @@ import {SessionGrid} from './components/SessionGrid';
 import {ClassTableView} from './components/ClassTable';
 import {MovedLine, RebuiltLine} from './components/RebuiltLine';
 import {SessionHead} from './components/SessionHead';
+import {BrakeLedger} from './components/BrakeLedger';
+import {SetToggle} from './components/SetToggle';
+import type {SetKind} from './components/SetToggle';
+import {SpreadRows} from './components/SpreadRows';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
   LapRow,
@@ -64,14 +69,15 @@ import {
 } from './components/LapTableRow';
 import {
   BAR_CLAMP_S,
-  gridCellTargetOf,
   type NoteRowModel,
   type RowModel,
   type Selection,
   type SessionScreenModel,
+  useDayScreenModel,
   useSessionOpeningLapIds,
   useSessionScreenModel,
 } from './model';
+import {sectionCellHref, sectionHeadHref, sectionTapsOf} from './sectionTaps';
 
 const CHART_H = 166;
 const DESKTOP_SIDE_W = 340;
@@ -92,10 +98,16 @@ export function SessionScreen({
   onSelectionChange,
   renderPlanHalf,
   renderPooledUse,
+  setKind = 'session',
+  onSetChange,
 }: {
   sessionId: string;
   selection: Selection;
   onSelectionChange: (next: Selection) => void;
+  /** The set of laps the URL asks for (`?set=day`). */
+  setKind?: SetKind;
+  /** Switch set: the route clears the lap selection (ids differ between a session and a day). */
+  onSetChange?: (next: SetKind) => void;
   /** The planner against this race: another feature's half of the card, put here by the route. */
   renderPlanHalf?: (card: PitCardModel, facts: RaceFacts) => ReactNode;
   renderPooledUse?: (planKey: string, width: number) => ReactNode;
@@ -103,14 +115,38 @@ export function SessionScreen({
   // The one selection for this screen: the URL's laps, or the opening set when
   // the URL names none. The model, the table, the chart and the grid all read it.
   const openingIds = useSessionOpeningLapIds(sessionId);
-  const resolved = useMemo<Selection>(
-    () =>
-      selection.laps.length > 0 ? selection : {...selection, laps: openingIds},
-    [selection, openingIds],
-  );
-  const result = useSessionScreenModel(sessionId, resolved);
+  // The sitting this session is in (data/sessions/lapSet.ts): offered as a
+  // toggle, and read only when the URL asks for it.
+  const head = useSession(sessionId);
+  const day = useDaySet(sessionId, head.data?.trackId, setKind === 'day');
+  const dayReady = day.state === 'ready' ? day.set : null;
+  const resolved = useMemo<Selection>(() => {
+    if (selection.laps.length > 0) return selection;
+    return {...selection, laps: dayReady ? dayReady.openingIds : openingIds};
+  }, [selection, openingIds, dayReady]);
+  const sessionResult = useSessionScreenModel(sessionId, resolved);
+  const dayResult = useDayScreenModel(dayReady, resolved);
+  const result = dayReady ? dayResult : sessionResult;
   const {color} = useTheme();
   const insets = useSafeAreaInsets();
+  const setToggle =
+    day.ids.length > 1 && onSetChange ? (
+      <SetToggle value={dayReady ? 'day' : 'session'} onChange={onSetChange} />
+    ) : null;
+  // A day asked for is read in; until its members have loaded the screen waits
+  // rather than show a session as the day. A member made under other rules is
+  // analysed again in the background and does not hold the view.
+  if (setKind === 'day' && day.state === 'loading')
+    return (
+      <View
+        style={[
+          styles.screen,
+          styles.center,
+          {backgroundColor: color.bg, paddingTop: insets.top},
+        ]}>
+        <ActivityIndicator color={color.accent} />
+      </View>
+    );
 
   if (result.state !== 'ready') {
     return (
@@ -142,6 +178,8 @@ export function SessionScreen({
       onSelectionChange={onSelectionChange}
       renderPlanHalf={renderPlanHalf}
       renderPooledUse={renderPooledUse}
+      day={dayReady}
+      setToggle={setToggle}
     />
   );
 }
@@ -154,11 +192,17 @@ function SessionView({
   onSelectionChange,
   renderPlanHalf,
   renderPooledUse,
+  day = null,
+  setToggle = null,
 }: {
   sessionId: string;
   model: SessionScreenModel;
   /** "Offline · 00:41" while a refetch could not renew what is shown. */
   offlineText: string | null;
+  /** The laps are a day: no session cards, grid or side panels, no jump to Corner by a cell. */
+  day?: DaySet | null;
+  /** Session | Day, when the session is in a sitting. */
+  setToggle?: ReactNode;
   selection: Selection;
   onSelectionChange: (next: Selection) => void;
   renderPlanHalf?: (card: PitCardModel, facts: RaceFacts) => ReactNode;
@@ -168,6 +212,8 @@ function SessionView({
   const layout = useLayout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  // Carried to every link out of a day, so Corner and Compare follow the set.
+  const set = day ? 'day' : null;
   const listRef = useRef<FlatList<RowModel>>(null);
   // The lap table's rows and head scroll sideways as one (phone and tablet).
   const tableLink = useLinkedScroll();
@@ -299,9 +345,9 @@ function SessionView({
       )
     );
 
-  const tiresCard = (
+  const tiresCard = model.tires ? (
     <TiresCard card={model.tires} width={tableW} titled={layout.isDesktop} />
-  );
+  ) : null;
   const fuelCard = model.fuelUse ? (
     <FuelUseCard
       card={model.fuelUse}
@@ -345,7 +391,8 @@ function SessionView({
       <Text variant='dataSmall' tone='textMuted'>
         {model.subtitle}
       </Text>
-      {!layout.isDesktop && <SessionNav sessionId={sessionId} />}
+      {!layout.isDesktop && setToggle}
+      {!layout.isDesktop && <SessionNav sessionId={sessionId} set={set} />}
       {model.trackId ? (
         <Pressable
           accessibilityRole='link'
@@ -408,6 +455,22 @@ function SessionView({
       {!layout.isDesktop && model.rebuilt ? (
         <RebuiltLine rebuilt={model.rebuilt} />
       ) : null}
+      {model.spread.length > 0 ? (
+        <SpreadRows
+          rows={model.spread}
+          sessionId={sessionId}
+          laps={selection.laps}
+          set={set}
+        />
+      ) : null}
+      {model.brake.length > 0 ? (
+        <BrakeLedger
+          rows={model.brake}
+          sessionId={sessionId}
+          laps={selection.laps}
+          set={day ? 'day' : null}
+        />
+      ) : null}
       {model.classTable ? <ClassTableView table={model.classTable} /> : null}
 
       {chartBlock(tableW)}
@@ -453,7 +516,7 @@ function SessionView({
         onSelectionChange({...selection, laps: replace(lapIds)})
       }
       onCompare={() =>
-        router.push(compareHref(sessionId, {laps: selection.laps}))
+        router.push(compareHref(sessionId, {laps: selection.laps, set}))
       }
     />
   );
@@ -466,7 +529,7 @@ function SessionView({
   };
 
   // Which section columns open something: the game's sectors and the start straight do not.
-  const sectionTaps = model.sections?.targets.map(t => t.corner != null) ?? [];
+  const sectionTaps = sectionTapsOf(model.sections);
   const renderRow = (item: RowModel, width: number, wide = false) =>
     item.kind === 'note' ? (
       <NoteRow
@@ -483,6 +546,11 @@ function SessionView({
         onSelectStint={() =>
           onSelectionChange({...selection, laps: replace(item.lapIds)})
         }
+        onOpen={
+          item.sessionId
+            ? () => router.push(sessionHref(item.sessionId as string))
+            : undefined
+        }
       />
     ) : (
       <LapRow
@@ -492,18 +560,15 @@ function SessionView({
         sectionTaps={sectionTaps}
         sectionNames={model.sections?.heads}
         onSectionPress={i => {
-          const target =
-            model.sections &&
-            gridCellTargetOf(model.sections, i, item.lapId, selection.laps);
-          if (target)
-            router.push(
-              cornerHref(
-                sessionId,
-                target.corner,
-                {laps: target.laps, hl: item.lapId},
-                target.whole,
-              ),
-            );
+          const href = sectionCellHref(
+            sessionId,
+            model.sections,
+            i,
+            item.lapId,
+            selection.laps,
+            set,
+          );
+          if (href) router.push(href);
         }}
         lapColor={item.selIndex != null ? colorOf(item.selIndex) : undefined}
         onPress={() => highlight(item.lapId, false)}
@@ -520,6 +585,8 @@ function SessionView({
     return (
       <SessionWorkspace
         sessionId={sessionId}
+        day={day}
+        setToggle={setToggle}
         model={model}
         selection={selection}
         onSelectionChange={onSelectionChange}
@@ -533,10 +600,12 @@ function SessionView({
               detail={model.detail}
               onAction={detailAction}
               extra={
-                <LapCandidates
-                  sessionId={sessionId}
-                  lapId={model.detail.lapId}
-                />
+                day ? null : (
+                  <LapCandidates
+                    sessionId={sessionId}
+                    lapId={model.detail.lapId}
+                  />
+                )
               }
             />
           )
@@ -556,7 +625,12 @@ function SessionView({
                 }
               />
             )}
-            <TiresCard card={model.tires} width={panel.width - 2 * space.xl} />
+            {model.tires && (
+              <TiresCard
+                card={model.tires}
+                width={panel.width - 2 * space.xl}
+              />
+            )}
             {model.fuelUse && (
               <FuelUseCard
                 card={model.fuelUse}
@@ -616,14 +690,14 @@ function SessionView({
                     heads={model.sections?.heads ?? model.sectorHeads}
                     headTaps={sectionTaps}
                     onHeadPress={i => {
-                      const corner = model.sections?.sections[i];
-                      if (corner != null)
-                        router.push(
-                          compareHref(sessionId, {
-                            laps: selection.laps,
-                            corner,
-                          }),
-                        );
+                      const href = sectionHeadHref(
+                        sessionId,
+                        model.sections,
+                        i,
+                        selection.laps,
+                        set,
+                      );
+                      if (href) router.push(href);
                     }}
                   />
                 </View>
@@ -634,6 +708,7 @@ function SessionView({
                 {/* The grid comes after the lap table (Botkin, 2 Oct screenshots). */}
                 <SessionGrid
                   id={sessionId}
+                  day={day}
                   ticked={selection.laps}
                   onTap={lapId =>
                     onSelectionChange({
@@ -663,12 +738,14 @@ function SessionView({
                         {pitCard}
                       </FoldedSection>
                     ) : null}
-                    <FoldedSection
-                      title='Tires'
-                      summary={tiresSummary(model.tires)}
-                      defaultOpen>
-                      {tiresCard}
-                    </FoldedSection>
+                    {model.tires ? (
+                      <FoldedSection
+                        title='Tires'
+                        summary={tiresSummary(model.tires)}
+                        defaultOpen>
+                        {tiresCard}
+                      </FoldedSection>
+                    ) : null}
                     {model.fuelUse && fuelCard ? (
                       <FoldedSection
                         title='Fuel use'
@@ -695,10 +772,12 @@ function SessionView({
                 detail={model.detail}
                 onAction={detailAction}
                 extra={
-                  <LapCandidates
-                    sessionId={sessionId}
-                    lapId={model.detail.lapId}
-                  />
+                  day ? null : (
+                    <LapCandidates
+                      sessionId={sessionId}
+                      lapId={model.detail.lapId}
+                    />
+                  )
                 }
               />
             ) : null}

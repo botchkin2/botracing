@@ -22,6 +22,7 @@ export default function SessionRoute() {
     laps?: string;
     ref?: string;
     hl?: string;
+    set?: string;
   }>();
   const router = useRouter();
   const {update} = useLapSelection();
@@ -43,6 +44,16 @@ export default function SessionRoute() {
         <PooledUseCard planKey={planKey} sessionId={params.id} width={width} />
       )}
       onSelectionChange={next => update({laps: next.laps, hl: next.hl})}
+      setKind={params.set === 'day' ? 'day' : 'session'}
+      // The ticked laps belong to one set: a switch starts from the opening laps.
+      onSetChange={next =>
+        router.setParams({
+          set: next === 'day' ? 'day' : undefined,
+          laps: undefined,
+          hl: undefined,
+          ref: undefined,
+        })
+      }
     />
   );
   if (!isWide) return screen;

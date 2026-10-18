@@ -353,6 +353,14 @@ export const size = {
   gutter: 16,
   contentWidth: 358,
   lapRow: 32,
+  // The Session screen's spread rows: head column, percent column, bar height.
+  spreadHead: 56,
+  spreadPct: 44,
+  spreadBar: 6,
+  // The brake ledger's strip (a dot per lap, a tick at the median): height, dot, tick width.
+  brakeStrip: 16,
+  brakeDot: 6,
+  brakeTick: 2,
   // The Plan's Race timeline (round 6, section 2): lane label column, lane height, gap, axis row.
   timelineLabel: 72,
   timelineLane: 26,
@@ -411,7 +419,7 @@ export const size = {
   // share what is left. Body rows use `lapRow`.
   sessionsTable: {
     date: 128,
-    session: 104,
+    session: 152,
     class: 72,
     result: 232,
     laps: 56,

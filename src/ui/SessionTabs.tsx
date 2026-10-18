@@ -5,7 +5,11 @@ import {radius, size, space, useTheme} from '@/src/design';
 import {Text} from './Text';
 import {Pressable} from './Pressable';
 
-export type SessionTabItem<T extends string> = {key: T; label: string};
+export type SessionTabItem<T extends string> = {
+  key: T;
+  label: string;
+  disabled?: boolean;
+};
 
 /**
  * Laps / Compare / Corner / Race as one full-width segmented row (round 4
@@ -31,10 +35,15 @@ export function SessionTabs<T extends string>({
           <Pressable
             key={item.key}
             accessibilityRole='tab'
-            accessibilityState={{selected: on}}
+            accessibilityState={{selected: on, disabled: item.disabled}}
+            disabled={item.disabled}
             onPress={() => onSelect(item.key)}
             style={[styles.option, on && {backgroundColor: color.accentTint}]}>
-            <Text variant='bodyStrong' tone={on ? 'accentInk' : 'textMuted'}>
+            <Text
+              variant='bodyStrong'
+              tone={
+                on ? 'accentInk' : item.disabled ? 'textFaint' : 'textMuted'
+              }>
               {item.label}
             </Text>
           </Pressable>

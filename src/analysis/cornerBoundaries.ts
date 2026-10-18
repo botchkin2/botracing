@@ -84,6 +84,8 @@ export interface MapSection {
   n: number;
   entryM: number;
   turnInM: number;
+  /** Where the corner is slowest: a brake application belongs to the first part whose apex is after its peak. */
+  apexM: number;
   exitM: number;
   parts?: MapSection[];
 }
@@ -102,8 +104,10 @@ export interface PedalTrace {
 export interface PartWindow {
   /** The part's number along the lap (the map's corner number). */
   n: number;
-  /** Where the part turns in: a brake application belongs to the first part that turns in after its onset. */
+  /** Where the part turns in. */
   turnInM: number;
+  /** The part's apex: a brake application whose peak comes before it brakes for this part (applicationPart). */
+  apexM: number;
   fromM: number;
   toM: number;
 }
@@ -587,6 +591,7 @@ function partWindows(s: MapSection, fromM: number, toM: number): PartWindow[] {
   return parts.map((p, i) => ({
     n: p.n,
     turnInM: p.turnInM,
+    apexM: p.apexM,
     fromM: i === 0 ? fromM : Math.min(Math.max(p.entryM, fromM), toM),
     toM:
       i + 1 < parts.length
@@ -683,7 +688,7 @@ export interface BrakeApplication {
   onsetM: number;
   /** The highest brake pressure of the application, percent. */
   peakPct: number;
-  /** The number of the part the onset falls in; null for a single corner. */
+  /** The part it brakes for (brakeApplications); null for a single corner, or braking for a corner past this window. */
   part: number | null;
 }
 
@@ -692,9 +697,11 @@ export interface BrakeApplication {
  * the first sample at or past BRAKE_ON_PCT until the pedal is released below
  * BRAKE_RELEASED_PCT (trail braking hovering near 10 % does not split it, the
  * rule `pedalPoints.mjs` uses). An application belongs to the corner it is
- * braking FOR: the first part that turns in after its onset (or the last), not
- * the part whose window holds it, which starts at the map's median entry, so a
- * lap that brakes for T9 earlier than the median would read as braking in T8.
+ * braking FOR (applicationPart: the first part whose apex is after its peak),
+ * not the part its onset falls in: an onset a few metres either side of a
+ * turn-in flipped parts lap to lap (his Portimão practice, the same stop in
+ * part 6 on 7 laps and part 7 on 6), and one in the window's last metres,
+ * braking for the next section, was given the last part (pit wall thread 92).
  * The bus stop is two of these across three parts.
  */
 export function brakeApplications(
@@ -702,8 +709,12 @@ export function brakeApplications(
   window: CornerWindow,
 ): BrakeApplication[] {
   const out: BrakeApplication[] = [];
-  let on = false;
   let current: BrakeApplication | null = null;
+  let peakAtM = 0;
+  const close = () => {
+    if (current) current.part = applicationPart(window.parts, peakAtM);
+    current = null;
+  };
   for (let i = 0; i < lap.distM.length; i++) {
     const d = lap.distM[i];
     if (d < window.fromM || d >= window.toM) {
@@ -711,19 +722,32 @@ export function brakeApplications(
       continue;
     }
     const v = lap.brakePct[i];
-    if (!on && v >= BRAKE_ON_PCT) {
-      on = true;
-      const part =
-        window.parts.find(p => p.turnInM > d) ??
-        window.parts[window.parts.length - 1];
-      current = {onsetM: d, peakPct: v, part: part ? part.n : null};
+    if (!current && v >= BRAKE_ON_PCT) {
+      current = {onsetM: d, peakPct: v, part: null};
+      peakAtM = d;
       out.push(current);
-    } else if (on && v < BRAKE_RELEASED_PCT) {
-      on = false;
-      current = null;
-    } else if (on && current && v > current.peakPct) {
+    } else if (current && v < BRAKE_RELEASED_PCT) {
+      close();
+    } else if (current && v > current.peakPct) {
       current.peakPct = v;
+      peakAtM = d;
     }
   }
+  close();
   return out;
+}
+
+/**
+ * The part a brake application whose pressure peaks at `peakM` brakes for:
+ * the first part whose apex comes after the peak (you brake for a corner up
+ * to its apex, never past it); null past the last part's apex (braking for the
+ * next section) and for a single corner (no parts). A rule on the peak and the
+ * apex, not on turn-in or exit edges: those split one stop between two parts
+ * by a few metres (pit wall thread 92, gauge #6034, chord #6038).
+ */
+export function applicationPart(
+  parts: readonly PartWindow[],
+  peakM: number,
+): number | null {
+  return parts.find(p => p.apexM > peakM)?.n ?? null;
 }

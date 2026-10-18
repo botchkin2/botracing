@@ -60,6 +60,7 @@ test('the capture extract keeps damage and race length, and nothing when the cap
   assert.deepEqual(readCaptureExtract(JSON.stringify(x)), {
     damage,
     raceLength: {minutes: 40},
+    online: null,
   });
   assert.equal(captureExtract({damage: null, raceLength: null}), null);
   assert.equal(readCaptureExtract('{"v":99}'), null);

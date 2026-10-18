@@ -22,7 +22,28 @@ describe('trayCard', () => {
         isError: false,
         data: {version: '0.2.0', notes: ''},
       }),
-    ).toEqual({status: 'Latest v0.2.0', version: '0.2.0', pcs: []});
+    ).toEqual({
+      status: 'Latest v0.2.0',
+      version: '0.2.0',
+      pcs: [],
+      canDownload: true,
+    });
+  });
+
+  it('hides the download once a tray reports, or inside the tray', () => {
+    const q = {
+      isPending: false,
+      isError: false,
+      data: {version: '0.2.0', notes: ''},
+    };
+    expect(trayCard({...q, pcs: [pc({})], nowMs: NOW}).canDownload).toBe(false);
+    expect(trayCard({...q, inTray: true}).canDownload).toBe(false);
+    // A tray not heard from for 11 minutes is not connected: the download stays.
+    expect(
+      trayCard({...q, pcs: [pc({lastSeenAt: NOW - 11 * 60_000})], nowMs: NOW})
+        .canDownload,
+    ).toBe(true);
+    expect(trayCard({...q, pcs: [], nowMs: NOW}).canDownload).toBe(true);
   });
 
   it('says why there is nothing to download', () => {
@@ -31,6 +52,7 @@ describe('trayCard', () => {
       status: 'Not released yet',
       version: null,
       pcs: [],
+      canDownload: false,
     });
     expect(trayCard({...none, isPending: true, data: undefined}).status).toBe(
       'Checking…',

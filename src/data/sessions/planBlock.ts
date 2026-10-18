@@ -81,8 +81,14 @@ export type PlanBlock = {
 export type PlanSession = {
   id: string;
   startedAt: string;
+  endedAt: string | null;
   sessionType: SessionType;
   plan: PlanBlock | null;
+  /**
+   * The opening set's lap times (analysis/paceSet.ts), stored by the uploader
+   * for the track progression; null before the session re-analysed with it.
+   */
+  paceSetS: number[] | null;
 };
 
 /** The same reading as adapters.ts (a type is 'R', 'Q' or else 'P'); not imported, adapters imports this file. */
@@ -189,6 +195,12 @@ export function toPlanBlock(v: unknown): PlanBlock | null {
   };
 }
 
+function toPaceSet(v: unknown): number[] | null {
+  const times = obj(v).lapTimesS;
+  if (!Array.isArray(times)) return null;
+  return times.filter((t): t is number => typeof t === 'number' && t > 0);
+}
+
 /** The response of GET /plan: sessions newest first, and whether the cap cut it. */
 export function toPlanSessions(raw: unknown): {
   items: PlanSession[];
@@ -205,8 +217,10 @@ export function toPlanSessions(raw: unknown): {
         {
           id: x.id,
           startedAt: x.startedAt,
+          endedAt: typeof x.endedAt === 'string' ? x.endedAt : null,
           sessionType: toSessionType(x.sessionType),
           plan: toPlanBlock(x.plan),
+          paceSetS: toPaceSet(x.paceSet),
         },
       ];
     }),
