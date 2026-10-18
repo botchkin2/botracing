@@ -296,3 +296,39 @@ test('the hand rebuild never tombstones a recording the healed session holds (sa
   assert.equal(db.docs.get('laps/l0').supersededBy, undefined);
   assert.equal(db.docs.get('sessions/H').supersededBy, 'L');
 });
+
+test('a re-upload of the healed session clears a stray mark on its own recording (his 5 drives repair on their next sync)', async () => {
+  const db = memoryStore(
+    {
+      'sessions/L': {id: 'L', ownerId: 'o', recordingIds: ['r0']},
+      'recordings/r0': {
+        id: 'r0',
+        ownerId: 'o',
+        recordedAt: at(1),
+        supersededBy: 'L',
+        supersededAt: 'then',
+      },
+    },
+    {ownerKey: 'o'},
+  );
+  await createStore({
+    ...db,
+    deleteFile: async () => {},
+    listFiles: async () => [],
+  }).upload({
+    session: {
+      id: 'L',
+      ownerId: 'o',
+      recordingIds: ['r0'],
+      analysis: {v: 1, blocks: {}},
+    },
+    recordings: [{id: 'r0', ownerId: 'o', recordedAt: at(1)}],
+    laps: [],
+    traces: [],
+    files: [],
+    band: null,
+    track: null,
+    boundaries: null,
+  });
+  assert.equal(db.docs.get('recordings/r0').supersededBy, undefined);
+});

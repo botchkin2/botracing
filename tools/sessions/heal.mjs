@@ -85,7 +85,11 @@ export function healPlan({
 /** A tombstoned doc is hidden from reads and from "leftover" cleanups. */
 export const isSuperseded = doc => Boolean(doc?.supersededBy);
 
-/** Whether a tombstone is old enough to be swept (a later job; none runs yet). */
+/**
+ * Whether a tombstone is old enough to be swept (a later job; none runs yet).
+ * The sweep must also skip any doc a live session still lists: a recording
+ * marked before #658 can belong to the session that replaced its owner.
+ */
 export const tombstoneExpired = (doc, nowMs) =>
   isSuperseded(doc) &&
   nowMs - Date.parse(doc.supersededAt) > TOMBSTONE_DAYS * 86_400_000;
