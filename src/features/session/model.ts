@@ -58,6 +58,7 @@ import {
   trafficRows,
 } from './trafficFacts';
 import {isCompound} from '@/src/data/sessions/corners';
+import {type BrakeRow, brakeLedger} from './brakeLedger';
 import {type SpreadRow, spreadRows} from './spreadRows';
 import {MIN_COMPARISON_LAPS} from '@/src/analysis/setStats';
 
@@ -221,6 +222,8 @@ export type SessionScreenModel = {
   sections: SectionTable | null;
   /** The sections that hold the most of the set's lap-to-lap spread; empty under 10 laps (spreadRows.ts). */
   spread: SpreadRow[];
+  /** The loosest braking zones: where each lap began to brake against the median; empty under 10 laps (brakeLedger.ts). */
+  brake: BrakeRow[];
   /** The game's sector columns (S1..Sn) when laps carry sector times; none otherwise. */
   sectorHeads: string[];
   chart: ChartModel | null;
@@ -722,6 +725,7 @@ export function buildSessionModel(
     optimumLines: optimumLines([...stintLines.values()], stintCount),
     sections,
     spread: spreadRows(sectionTimes, basis, sections),
+    brake: brakeLedger(laps, basis, map),
     chart,
     noComparable,
     rows,
