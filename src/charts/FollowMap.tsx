@@ -225,7 +225,10 @@ export function FollowMap({
           </Svg>
         </View>
       </View>
-      <Svg width={width} height={height}>
+      {/* Absolute like the world layer above it: on the web a positioned layer
+          paints over an unpositioned one whatever the order, which put the road
+          over the cars (Botkin, 2026-10-18: "the dots are below the map"). */}
+      <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
         {corners.map(c => {
           const q = project(c.at);
           if (q.x < 8 || q.x > width - 8 || q.y < 8 || q.y > height - 8)
