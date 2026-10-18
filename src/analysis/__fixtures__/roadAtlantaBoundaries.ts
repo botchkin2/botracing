@@ -3,6 +3,8 @@
 // the stored map's sections, each lap's onset per section
 // (onsetsOfLaps), and the median speed every 5 m.
 
+// apexM: the midpoint of turn-in and exit (this excerpt of the stored map kept
+// no apex); the brake-part rule reads it (cornerBoundaries.ts applicationPart).
 export const lengthM = 4078.8;
 
 export const sections = [
@@ -10,47 +12,52 @@ export const sections = [
     n: 1,
     entryM: 305,
     turnInM: 345,
+    apexM: 485,
     exitM: 625,
-    parts: [{n: 1, entryM: 305, turnInM: 345, exitM: 625}],
+    parts: [{n: 1, entryM: 305, turnInM: 345, apexM: 485, exitM: 625}],
   },
   {
     n: 2,
     entryM: 655,
     turnInM: 655,
+    apexM: 930,
     exitM: 1205,
     parts: [
-      {n: 2, entryM: 655, turnInM: 655, exitM: 765},
-      {n: 3, entryM: 770, turnInM: 790, exitM: 875},
-      {n: 4, entryM: 890, turnInM: 890, exitM: 1025},
-      {n: 5, entryM: 1050, turnInM: 1050, exitM: 1205},
+      {n: 2, entryM: 655, turnInM: 655, apexM: 710, exitM: 765},
+      {n: 3, entryM: 770, turnInM: 790, apexM: 832, exitM: 875},
+      {n: 4, entryM: 890, turnInM: 890, apexM: 958, exitM: 1025},
+      {n: 5, entryM: 1050, turnInM: 1050, apexM: 1128, exitM: 1205},
     ],
   },
   {
     n: 3,
     entryM: 1340,
     turnInM: 1375,
+    apexM: 1438,
     exitM: 1500,
-    parts: [{n: 6, entryM: 1340, turnInM: 1375, exitM: 1500}],
+    parts: [{n: 6, entryM: 1340, turnInM: 1375, apexM: 1438, exitM: 1500}],
   },
   {
     n: 4,
     entryM: 1870,
     turnInM: 1910,
+    apexM: 2075,
     exitM: 2240,
     parts: [
-      {n: 7, entryM: 1870, turnInM: 1910, exitM: 2080},
-      {n: 8, entryM: 2085, turnInM: 2085, exitM: 2240},
+      {n: 7, entryM: 1870, turnInM: 1910, apexM: 1995, exitM: 2080},
+      {n: 8, entryM: 2085, turnInM: 2085, apexM: 2162, exitM: 2240},
     ],
   },
   {
     n: 5,
     entryM: 3365,
     turnInM: 3460,
+    apexM: 3758,
     exitM: 4055,
     parts: [
-      {n: 9, entryM: 3365, turnInM: 3460, exitM: 3540},
-      {n: 10, entryM: 3550, turnInM: 3550, exitM: 3780},
-      {n: 11, entryM: 3785, turnInM: 3785, exitM: 4055},
+      {n: 9, entryM: 3365, turnInM: 3460, apexM: 3500, exitM: 3540},
+      {n: 10, entryM: 3550, turnInM: 3550, apexM: 3665, exitM: 3780},
+      {n: 11, entryM: 3785, turnInM: 3785, apexM: 3920, exitM: 4055},
     ],
   },
 ];

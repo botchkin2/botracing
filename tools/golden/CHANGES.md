@@ -79,3 +79,17 @@ Changed:
 - cornerMedians.4: 16.454 -> 16.444
 - laps.15.reasons.0: undefined -> "slow"
 - laps.15.comparable: true -> false
+
+## 2026-10-18 lmu-race-road-atlanta
+Why: a brake application now brakes for the first part whose apex is after its peak (pit-wall thread 92, CORNER_INPUTS_VERSION 3), not the first part turning in after its onset. Lap 7's 11 % touch at 1148.6 m peaks before the first part's apex, so it is that part's, not the second's.
+Changed:
+- laps.7.corners.2.parts.0.brakeAtM: null -> 1148.6
+- laps.7.corners.2.parts.0.peakBrakePct: null -> 11.1
+- laps.7.corners.2.parts.1.brakeAtM: 1148.6 -> null
+- laps.7.corners.2.parts.1.peakBrakePct: 11.1 -> null
+
+## 2026-10-18 iracing-race-road-atlanta
+Why: the same rule (thread 92). Lap 4's later application in this window (peak 55.8 %) peaks past the last part's apex: it brakes for the next section, so it is no part's. The last part keeps its own stop at 1293.2 m (peak 41.4 %), and with the throttle closed from it to the next section's braking, the window holds no throttle pickup.
+Changed:
+- laps.4.corners.2.parts.2.peakBrakePct: 55.8 -> 41.4
+- laps.4.corners.2.parts.2.throttlePickupAtM: 1473.6 -> null
