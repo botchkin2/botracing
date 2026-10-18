@@ -882,8 +882,12 @@ export function createStore(backend) {
     // open analyses it again from the new archive (analysis on open). Merged:
     // only the stamp's version goes, every stored block stays.
     // ownerId: the upload API refuses a doc that does not name its owner.
-    markStale: (sessionId, ownerId) =>
-      backend.writeDocs([
+    // A session that is not stored (deleted, or a live drive whose first lap
+    // never went up) is left alone: a merge would create a session doc that
+    // holds nothing but the stamp. Returns whether it marked one.
+    async markStale(sessionId, ownerId) {
+      if (!(await backend.getDoc('sessions', sessionId))) return false;
+      await backend.writeDocs([
         {
           op: 'set',
           coll: 'sessions',
@@ -891,7 +895,9 @@ export function createStore(backend) {
           data: {ownerId, analysis: {v: 0}},
           merge: true,
         },
-      ]),
+      ]);
+      return true;
+    },
     // A session's capture extract on its own (captureExtract.mjs), for the
     // sessions uploaded before extracts were kept.
     putCaptureExtract: (ownerId, sessionId, extract) =>
