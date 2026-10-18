@@ -64,8 +64,19 @@ const lap = (i: number, over: {pit?: boolean} = {}) => ({
   cornerBoundaries: {v: 1, rev: 3},
   startStraight: {...seg(5, 0, 150, null), pit: false},
   corners: [
-    seg(40, 150, 600, 300 + (i % 5) - 2),
-    {...seg(55, 600, 1000, 800 + 10 * ((i % 5) - 2)), pit: over.pit ?? false},
+    {
+      // The section's own brake-on is wherever the lap first braked: part 1 on
+      // even laps, part 2 on odd ones, 100 m apart (the mix chord ruled out).
+      ...seg(40, 150, 600, i % 2 === 0 ? 300 + (i % 5) - 2 : 400 + (i % 5) - 2),
+      parts: [
+        seg(20, 150, 350, 300 + (i % 5) - 2),
+        seg(20, 350, 600, 400 + (i % 5) - 2),
+      ],
+    },
+    {
+      ...seg(55, 600, 1000, 800 + 10 * ((i % 5) - 2)),
+      pit: over.pit ?? false,
+    },
   ],
   traffic: null,
 });
@@ -74,26 +85,36 @@ const laps = (n = 12, over = {}) =>
 const all = (ls: ReturnType<typeof laps>) => new Set(ls.map(l => l.id));
 
 describe('brakeLedger', () => {
-  it('lists the loosest zone first, in metres, on one scale for every row', () => {
+  it('a zone is a corner part: the compound section splits into its two boards, none reading 100 m', () => {
     const ls = laps();
     const rows = brakeLedger(ls, all(ls), map());
-    expect(rows.map(r => r.head)).toEqual(['T3', 'T1–2']);
-    expect(rows[0].corner).toBe(3);
-    expect(rows[1].whole).toBe(true);
+    expect(rows.map(r => r.head)).toEqual(['T3', 'T1', 'T2']);
+    expect(rows.every(r => parseInt(r.spread, 10) < 60)).toBe(true);
+    // Each part opens its own corner, not the section whole; the single corner does.
+    expect(rows.map(r => [r.corner, r.whole])).toEqual([
+      [3, false],
+      [1, false],
+      [2, false],
+    ]);
+  });
+
+  it('lists the loosest first, in metres, on one scale for every row', () => {
+    const ls = laps();
+    const rows = brakeLedger(ls, all(ls), map());
     const widest = Math.max(...rows[0].dots.map(d => Math.abs(d ?? 0)));
     expect(widest).toBe(1);
-    // Ten times looser: the tight zone's widest dot sits a tenth of the way out.
+    // Ten times looser: the tight zones' widest dot sits a tenth of the way out.
     const tight = Math.max(...rows[1].dots.map(d => Math.abs(d ?? 0)));
     expect(tight).toBeCloseTo(0.1, 1);
-    expect(parseInt(rows[0].spread, 10)).toBeGreaterThan(
-      parseInt(rows[1].spread, 10),
-    );
   });
 
   it('leaves out a window that does not count, and a zone under ten laps', () => {
     const ls = laps(12, {pit: true});
-    // Section 3 is a pit window on every lap: only section 1 is left.
-    expect(brakeLedger(ls, all(ls), map()).map(r => r.head)).toEqual(['T1–2']);
+    // Section 3 is a pit window on every lap: only the two parts are left.
+    expect(brakeLedger(ls, all(ls), map()).map(r => r.head)).toEqual([
+      'T1',
+      'T2',
+    ]);
     const few = laps(9);
     expect(brakeLedger(few, all(few), map())).toEqual([]);
   });
