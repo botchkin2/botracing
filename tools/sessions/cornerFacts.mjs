@@ -67,6 +67,7 @@ export function cornerFacts({
   lengthM,
   onsets,
   steerRightSign = 1,
+  lateralRightSign = 1,
 }) {
   const {grid} = lap;
   const {s} = rec;
@@ -258,12 +259,12 @@ export function cornerFacts({
       minSpeedPart: minPart,
       minSpeedAtEdge: minAtEdge,
       // Where the car was at the slowest sample: the line (signed metres from
-      // the track's centre, the sim's sign) and the steering size there. Null
+      // the track's centre, right positive: the adapter's lateralRightSign) and the steering size there. Null
       // for a corner slowest on its window's edge: that is not its apex.
       apexLateralM:
         minAtEdge || !s.path_lateral_m
           ? null
-          : round(s.path_lateral_m[minTick], 2),
+          : round(s.path_lateral_m[minTick] * lateralRightSign, 2),
       apexSteerPct:
         minAtEdge || !s.steer_pct
           ? null

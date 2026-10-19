@@ -1078,6 +1078,7 @@ export function analyzeSession(
     splitFiles = false,
     catalogOnly = false,
     steerRightSign = 1,
+    lateralRightSign = 1,
     results = null,
   } = {},
 ) {
@@ -1251,6 +1252,7 @@ export function analyzeSession(
         lengthM: map.lengthM,
         onsets: layout.onsets.get(lap),
         steerRightSign,
+        lateralRightSign,
       });
       lap.corners = facts.corners;
       lap.startStraight = facts.startStraight;

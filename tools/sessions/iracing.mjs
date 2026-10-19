@@ -36,6 +36,10 @@ export const gameExe = 'iRacingSim64DX11.exe';
 // corners; the tests check it against this constant.
 export const steerRightSign = -1;
 
+// iRacing records no path_lateral_m (golden slice: 0 of 110 parts), so there is
+// no line to sign; +1 until a channel exists and is measured.
+export const lateralRightSign = 1;
+
 export const watcher = {
   legacyLayout: false,
   quietMin: 0,

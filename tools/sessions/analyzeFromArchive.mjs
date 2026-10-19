@@ -104,6 +104,7 @@ export function analyzeFromArchive({
     splitFiles: sim === 'iracing',
     catalogOnly,
     steerRightSign: adapter.steerRightSign,
+    lateralRightSign: adapter.lateralRightSign,
     results,
   });
   if (foldOnly) return {a};

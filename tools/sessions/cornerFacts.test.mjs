@@ -376,7 +376,7 @@ function drive({rightPositive = true} = {}) {
     },
   };
 }
-const inputsOf = ({rec, lap}, steerRightSign = 1) =>
+const inputsOf = ({rec, lap}, steerRightSign = 1, lateralRightSign = 1) =>
   cornerFacts({
     rec,
     lap,
@@ -387,6 +387,7 @@ const inputsOf = ({rec, lap}, steerRightSign = 1) =>
     lengthM: INPUT_LENGTH,
     onsets: [210],
     steerRightSign,
+    lateralRightSign,
   }).corners[0];
 
 test('each corner of a section reads the brake application braking for it, and no other', () => {
@@ -467,4 +468,12 @@ test('the line and the steering at the slowest sample, per corner part; none wit
   const [b1] = inputsOf(bare).parts;
   assert.equal(b1.apexLateralM, null);
   assert.ok(b1.apexSteerPct > 0);
+});
+
+test('the line is stored right-positive whatever the sim’s own sign: the adapter’s lateralRightSign turns it', () => {
+  // The channel reads right as negative here (a sim like iRacing's steering):
+  // with lateralRightSign -1 the stored value is the right-positive one.
+  const [p1] = inputsOf(dipped(), 1, -1).parts;
+  assert.equal(p1.apexLateralM, -2.5);
+  assert.equal(inputsOf(dipped(), 1, 1).parts[0].apexLateralM, 2.5);
 });

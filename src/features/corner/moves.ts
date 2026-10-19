@@ -16,7 +16,7 @@ export type MoveId = 'brake' | 'line' | 'steer' | 'throttle';
 export type MovesLap = {
   time: number | null;
   brake: number | null;
-  /** path_lateral_m at the slowest sample, signed as the sim stores it (LMU: right is positive). */
+  /** path_lateral_m at the slowest sample, right of the centre positive (the analysis stores it so, whatever the sim's own sign). */
   lateral: number | null;
   /** Steering size at the slowest sample, % of lock. */
   steerPct: number | null;
@@ -45,7 +45,7 @@ const LABEL: Record<MoveId, string> = {
   brake: 'Brake',
   line: 'Line',
   steer: 'Steer',
-  throttle: 'Pedal',
+  throttle: 'Throttle',
 };
 
 /** Robust spread in the units of a standard deviation (IQR / 1.349), null under the spread floor. */
@@ -85,6 +85,9 @@ export function buildMoves(
       label: LABEL[id],
       rho: r.rho,
       n: r.n,
+      // Four rows a part are tested at once, so about one part in five shows
+      // one undimmed row by chance alone (1 - 0.95^4 = 0.19): a lone row near
+      // the floor is no finding; the card claims nothing, it prints the number.
       dimmed: Math.abs(r.rho) < critical,
     });
   }

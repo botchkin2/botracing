@@ -745,7 +745,7 @@ export type CornerFacts = {
   fullThrottleAtEdge: boolean;
   /** Speed at the apex sample, km/h (#82). */
   apexSpeedKph: number | null;
-  /** The line at the slowest sample: path_lateral_m, signed as the sim stores it (LMU: right is positive; iRacing has none). Null on the window's edge and before cornerInputs 4. */
+  /** The line at the slowest sample: path_lateral_m, right of the centre positive (the sim adapter's lateralRightSign; iRacing has none). Null on the window's edge and before cornerInputs 4. */
   apexLateralM: number | null;
   /** The steering size there, % of lock; null likewise. */
   apexSteerPct: number | null;
