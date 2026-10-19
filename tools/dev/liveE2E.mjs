@@ -20,6 +20,7 @@ import {fileURLToPath} from 'node:url';
 import {liveVerdict, screenLapCount} from './liveGate.mjs';
 import {openPane} from './livePane.mjs';
 import {seatSession} from './seatSession.mjs';
+import {newestCleanBeat} from '../../contract/payloads.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const arg = (name, fallback) => {
@@ -33,12 +34,16 @@ const from = resolve(arg('--from', ''));
 // (seatSession.mjs), so neither --token nor --custom-token is needed.
 const refreshTokenFile = arg('--refresh-token', '');
 const session = refreshTokenFile
-  ? await seatSession({refreshToken: readFileSync(resolve(refreshTokenFile), 'utf8')})
+  ? await seatSession({
+      refreshToken: readFileSync(resolve(refreshTokenFile), 'utf8'),
+    })
   : null;
 // The watcher the release ships (roadmap 2w): the installed tray's own node and
 // app folder, not this checkout's (--node <node.exe> --app <install>\app).
 const nodeExe = arg('--node', process.execPath);
-const appDir = arg('--app', '') ? resolve(arg('--app', '')) : resolve(here, '../..');
+const appDir = arg('--app', '')
+  ? resolve(arg('--app', ''))
+  : resolve(here, '../..');
 const laps = Number(arg('--laps', '4'));
 const speed = arg('--speed', '1');
 // 30 s from the line to the app and the screen (Botkin, 2026-10-15: "30
@@ -58,15 +63,16 @@ const customToken = arg('--custom-token', '')
   ? resolve(arg('--custom-token', ''))
   : '';
 const noScreen = process.argv.includes('--no-screen');
+// The release saves the installed tray's own beat here: the next release needs
+// it in contract/payloads/heartbeat (contract/heartbeat.test.mjs).
+const beatOut = arg('--beat-out', '');
 if (!customToken && !session && !noScreen) {
   console.log(
     'FAIL: --custom-token <file> or --refresh-token <file> is needed for the screen check (--no-screen skips it; the release gate does not accept that)',
   );
   process.exit(1);
 }
-const paneOptions = session
-  ? {session}
-  : {customTokenFile: customToken};
+const paneOptions = session ? {session} : {customTokenFile: customToken};
 const api = process.env.LAP_API_BASE || 'https://botracing-61.web.app';
 // The app the panes open: the API's own host by default; --pane-origin
 // http://localhost:<live slot port> checks a branch's app against the same API
@@ -316,6 +322,7 @@ const problems = alreadyStored
     ]
   : verdicts.flatMap(v => v.problems);
 for (const p of problems) console.log(`FAIL: ${p}`);
+if (beatOut) saveBeat(resolve(dirs.home, 'heartbeat.jsonl'), resolve(beatOut));
 const pass = problems.length === 0;
 console.log(
   pass
@@ -325,3 +332,25 @@ console.log(
     : 'FAIL: live laps gate',
 );
 process.exit(pass ? 0 : 1);
+
+/**
+ * The newest clean beat the watcher wrote (contract/payloads.mjs), saved to
+ * `out`. A note, not a failure, when there is none: the release's preflight
+ * is what enforces the payload.
+ */
+function saveBeat(beatsFile, out) {
+  let text;
+  try {
+    text = readFileSync(beatsFile, 'utf8');
+  } catch {
+    console.log(`beat: no ${beatsFile}`);
+    return;
+  }
+  const beat = newestCleanBeat(text);
+  if (!beat) {
+    console.log('beat: none scrubs clean');
+    return;
+  }
+  writeFileSync(out, JSON.stringify(beat, null, 2) + '\n');
+  console.log(`beat: ${beat.version} ${beat.state} saved to ${out}`);
+}

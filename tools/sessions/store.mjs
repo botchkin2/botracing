@@ -369,13 +369,21 @@ async function supersedeSession(backend, oldId, byId, nowIso) {
   const ops = [
     {op: 'set', coll: 'sessions', id: oldId, data: mark, merge: true},
   ];
-  for (const id of old.recordingIds ?? [])
+  // A hand rebuild of the same game files has the same recording ids as the
+  // healed session (an id is the owner and the file's own content): those
+  // recordings are the healed session's now and stay live. Its laps are
+  // already the healed session's too (sessionLapIds asks by session id).
+  const kept = new Set(
+    (await backend.getDoc('sessions', byId))?.recordingIds ?? [],
+  );
+  const recordingIds = (old.recordingIds ?? []).filter(id => !kept.has(id));
+  for (const id of recordingIds)
     ops.push({op: 'set', coll: 'recordings', id, data: mark, merge: true});
   const lapIds = await backend.sessionLapIds(oldId);
   for (const id of lapIds)
     ops.push({op: 'set', coll: 'laps', id, data: mark, merge: true});
   await backend.writeDocs(ops);
-  return {recordings: (old.recordingIds ?? []).length, laps: lapIds.length};
+  return {recordings: recordingIds.length, laps: lapIds.length};
 }
 
 async function uploadSession(backend, out, {log = () => {}} = {}) {
