@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {test} from 'node:test';
 import {
+  MAP_PAYLOAD_V,
   mapEtag,
   notModified,
   surfaceEtag,
@@ -33,8 +34,15 @@ test('a track id is a sim-prefixed layout slug, nothing that could be a path', (
     assert.equal(trackIdOk(bad), false, String(bad));
 });
 
-test("the map's validator is the track doc's last write", () => {
-  assert.equal(mapEtag({seconds: 1791595919, nanoseconds: 12}), '"m-1791595919.12"');
+test("the map's validator is the payload's shape and the track doc's last write", () => {
+  assert.equal(
+    mapEtag({seconds: 1791595919, nanoseconds: 12}),
+    `"m${MAP_PAYLOAD_V}-1791595919.12"`,
+  );
+  // A map cached before the payload gained `elevation` ("m-…", version 1)
+  // must not be answered with a 304: it has no elevation.
+  assert.equal(notModified('"m-1791595919.12"', mapEtag({seconds: 1791595919, nanoseconds: 12})), false);
+  assert.ok(MAP_PAYLOAD_V >= 2);
   assert.notEqual(
     mapEtag({seconds: 1, nanoseconds: 1}),
     mapEtag({seconds: 1, nanoseconds: 2}),
