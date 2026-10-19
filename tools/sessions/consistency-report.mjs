@@ -43,7 +43,6 @@ function facts(lap) {
     offTrackSec: lap.offTrackSec,
     impactMax: lap.impactMax,
     tyreCarcassC: lap.tyreCarcassC,
-    courseYellowSec: lap.courseYellowSec,
     compound: lap.compound,
     wetness: lap.wetness,
     corners: lap.corners?.length ? lap.corners : null,
