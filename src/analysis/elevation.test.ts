@@ -1,6 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {heightAt, heightRange, heightsOnGrid} from './elevation';
+import {heightAt, heightOnLap, heightRange, heightsOnGrid} from './elevation';
 
 const e = {stepM: 10, heightM: [0, 10, 4, 4, 8]};
 
@@ -24,3 +24,18 @@ describe('elevation', () => {
     expect(heightRange(e, 12, 18).hi).toBeCloseTo(8.8);
   });
 });
+
+describe('heightOnLap', () => {
+  // Points every 10 m on a 45 m lap: the last point is at 40 m, and 40..45 m runs back to the first.
+  const lap = {stepM: 10, heightM: [0, 10, 20, 30, 40]};
+  it('reads like heightAt inside the profile', () => {
+    expect(heightOnLap(lap, 15, 45)).toBeCloseTo(15);
+    expect(heightOnLap(lap, 40, 45)).toBeCloseTo(40);
+  });
+  it('wraps: past the last point the height runs back to the first, and laps repeat', () => {
+    expect(heightOnLap(lap, 42.5, 45)).toBeCloseTo(20);
+    expect(heightOnLap(lap, 45 + 15, 45)).toBeCloseTo(15);
+    expect(heightOnLap(lap, -2.5, 45)).toBeCloseTo(20);
+  });
+});
+

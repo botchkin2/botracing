@@ -45,3 +45,17 @@ export function heightRange(
   }
   return {lo, hi};
 }
+
+/**
+ * The height at `m` metres on a lap of `lapM` metres, for a reader that goes round and round (the 3D chase): `m` wraps
+ * into the lap, and past the last point the height runs back to the first over what is left of the lap.
+ */
+export function heightOnLap(e: Elevation, m: number, lapM: number): number {
+  const at = ((m % lapM) + lapM) % lapM;
+  const last = e.heightM.length - 1;
+  const lastM = last * e.stepM;
+  if (at <= lastM) return heightAt(e, at);
+  const tail = lapM - lastM;
+  const t = tail > 0 ? Math.min(1, (at - lastM) / tail) : 0;
+  return e.heightM[last] + (e.heightM[0] - e.heightM[last]) * t;
+}
