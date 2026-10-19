@@ -108,6 +108,8 @@ export function androidCard(q: {
   installedVersionCode: number | null;
   isPending: boolean;
   isError: boolean;
+  /** The check failed for want of a network (src/data/queryState.ts). */
+  offline?: boolean;
   data: AndroidRelease | null | undefined;
 }): AndroidCard | null {
   if (q.surface === 'none') return null;
@@ -119,6 +121,9 @@ export function androidCard(q: {
   if (q.data) return {status: `v${q.data.version}`, version: q.data.version};
   if (q.isPending) return {status: 'Checking…', version: null};
   if (q.isError)
-    return {status: 'Couldn’t check for the Android app', version: null};
+    return {
+      status: q.offline ? 'Offline' : 'Couldn’t check for the Android app',
+      version: null,
+    };
   return {status: 'Not released yet', version: null};
 }

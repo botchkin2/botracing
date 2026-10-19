@@ -51,6 +51,7 @@ import {
   Button,
   Chip,
   hitFor,
+  OfflineLine,
   Pressable,
   Segment,
   Skeleton,
@@ -184,6 +185,8 @@ export function CompareScreen({
         ]}>
         {result.state === 'loading' ? (
           <ActivityIndicator color={color.accent} />
+        ) : result.state === 'offline' ? (
+          <Text tone='textMuted'>Offline</Text>
         ) : (
           <View style={styles.banner}>
             <StatusBanner
@@ -200,6 +203,7 @@ export function CompareScreen({
     <CompareView
       sessionId={sessionId}
       model={result.model}
+      offlineText={result.offlineText}
       traceLoad={result.traceLoad}
       onRetryTraces={result.retryTraces}
       selection={shownSelection}
@@ -215,6 +219,7 @@ export function CompareScreen({
 function CompareView({
   sessionId,
   model,
+  offlineText,
   traceLoad,
   onRetryTraces,
   selection,
@@ -226,6 +231,8 @@ function CompareView({
 }: {
   sessionId: string;
   model: CompareModel;
+  /** "Offline · 00:41" while a refetch could not renew what is drawn. */
+  offlineText: string | null;
   traceLoad: TraceLoad;
   onRetryTraces: () => void;
   selection: CompareSelection;
@@ -804,6 +811,7 @@ function CompareView({
 
   const charts = (
     <View style={styles.charts}>
+      <OfflineLine text={offlineText} />
       {chartsBar}
       {oneChartTabs}
       {(traceLoad.kind === 'failed' || traceLoad.kind === 'partial') && (

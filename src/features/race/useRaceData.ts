@@ -12,6 +12,7 @@ import {
 import {measuredHalfWidths} from '@/src/analysis/trackSurface';
 import {worldMatches, worldMatchM} from '@/src/analysis/worldMatch';
 import {useField} from '@/src/data/field';
+import {readFailure} from '@/src/data/queryState';
 import {
   mapPlacer,
   type MapPlacer,
@@ -47,7 +48,7 @@ export type RaceData =
   /** The best lap's trace failed to load. */
   | {kind: 'line-error'; title: string; retry: () => void}
   | {kind: 'field-loading'; title: string}
-  | {kind: 'field-error'; title: string; retry: () => void}
+  | {kind: 'field-error'; title: string; retry: () => void; offline: boolean}
   | {
       kind: 'ready';
       title: string;
@@ -158,7 +159,8 @@ export function useRaceData(sessionId: string): RaceData {
     sessionPending: session.isPending,
     hasDetail: detail != null,
     hasField: hash !== null,
-    fieldError: field.isError,
+    // A field kept from a good read stays shown when its refetch fails (6b).
+    fieldError: readFailure(field) !== null,
     hasBestLap: !noBestLap,
     line: line
       ? 'drawn'
@@ -171,13 +173,25 @@ export function useRaceData(sessionId: string): RaceData {
     readyInputs: !!(prep && clock && !laps.isPending),
   });
   if (gate === 'loading') return {kind: 'loading'};
-  if (!detail) return {kind: 'error', message: 'Could not load this session.'};
+  if (!detail)
+    return {
+      kind: 'error',
+      message:
+        readFailure(session) === 'offline'
+          ? 'Offline'
+          : 'Could not load this session.',
+    };
   const title = `${shortTrackName(detail.track)} · ${
     SESSION_TITLE[detail.sessionType]
   }`;
   if (gate === 'no-field') return {kind: 'no-field', title};
   if (gate === 'field-error')
-    return {kind: 'field-error', title, retry: () => void field.refetch()};
+    return {
+      kind: 'field-error',
+      title,
+      retry: () => void field.refetch(),
+      offline: readFailure(field) === 'offline',
+    };
   if (gate === 'no-lap') return {kind: 'no-lap', title};
   if (gate === 'no-line') return {kind: 'no-line', title};
   if (gate === 'line-error')

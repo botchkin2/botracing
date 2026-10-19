@@ -7,8 +7,11 @@ import {
   nextSort,
   raceResultText,
   type SessionRow,
+  sessionsModelOf,
   sortRows,
 } from './model';
+import {NO_FILTER} from './filter';
+import {HttpError} from '@/src/data/http';
 
 const session = (over: Partial<SessionSummary>): SessionSummary => ({
   id: 's1',
@@ -274,5 +277,51 @@ describe('finishing position', () => {
       's2',
       's1',
     ]);
+  });
+});
+
+// Roadmap 6b: the phone after the car, signal gone mid-refetch.
+describe('sessionsModelOf with the network gone', () => {
+  const now = new Date(2026, 9, 14, 1, 0);
+  const keptAt = new Date(2026, 9, 14, 0, 41).getTime();
+  const failedAt = keptAt + 60_000;
+  const read = (data: unknown, error: unknown) => ({
+    isError: error !== null,
+    isPending: false,
+    error,
+    data: data as {items: SessionSummary[]} | undefined,
+    dataUpdatedAt: data ? keptAt : 0,
+    errorUpdatedAt: error ? failedAt : 0,
+  });
+  const model = (list: ReturnType<typeof read>) =>
+    sessionsModelOf({
+      list,
+      facets: undefined,
+      filter: NO_FILTER,
+      now,
+      answeredAt: keptAt,
+    });
+
+  it('keeps the list it had and says since when, when a refetch fails', () => {
+    const m = model(
+      read({items: [session({})]}, new TypeError('Network request failed')),
+    );
+    expect(m.state).toBe('ready');
+    if (m.state !== 'ready') return;
+    expect(m.days.flatMap(d => d.rows)).toHaveLength(1);
+    expect(m.offlineText).toBe('Offline · 00:41');
+  });
+
+  it('reads Offline, not an error, with nothing kept', () => {
+    expect(model(read(undefined, new TypeError('Failed to fetch')))).toEqual({
+      state: 'offline',
+    });
+  });
+
+  it('keeps the server’s error when it answered', () => {
+    expect(model(read(undefined, new HttpError(500, '/sessions')))).toEqual({
+      state: 'error',
+      message: 'GET /sessions → 500',
+    });
   });
 });
