@@ -237,6 +237,13 @@ export function mountChase(
       },
       state.playing,
     );
+    // a car nearer the camera than the followed one would hide it: draw it see-through
+    const meObj = [...states].find(([, s]) => s === me)?.[0];
+    const meAt = meObj !== undefined ? objects.get(meObj) : undefined;
+    if (meAt) {
+      const reach = camera.position.distanceTo(meAt.position) - 1;
+      for (const [k, o] of objects) kit.fade(o, k !== meObj && camera.position.distanceTo(o.position) < reach);
+    }
     const mine = me.car.player;
     if (inputs) {
       const first = clamp(inputIdx + 1, 0, inputs.count - 2);

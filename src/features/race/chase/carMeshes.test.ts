@@ -60,6 +60,25 @@ describe('car bodies', () => {
 });
 
 describe('car kit', () => {
+  it('fades a car see-through and back, every material', () => {
+    const kit = createCarKit({bg: '#000000', edge: '#ffffff', mark: '#ffffff'});
+    const car = kit.make('LMP2', '#3366ff', false);
+    const mats = () => {
+      const out: THREE.Material[] = [];
+      car.traverse(o => {
+        const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+        if (m) out.push(m);
+      });
+      return out;
+    };
+    kit.fade(car, true);
+    expect(mats().every(m => m.transparent && m.opacity < 0.5 && !m.depthWrite)).toBe(true);
+    kit.fade(car, false);
+    expect(mats().every(m => !m.transparent && m.opacity === 1 && m.depthWrite)).toBe(true);
+    kit.release(car);
+    kit.dispose();
+  });
+
   it('frees the materials of released cars and the shared geometries on dispose, nothing earlier', () => {
     const kit = createCarKit({bg: '#000000', edge: '#ffffff', mark: '#fea92f'});
     const player = kit.make('GT3', '#ff0000', true);

@@ -225,8 +225,11 @@ function mergeAll(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
 const onTop = {polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2};
 
 export interface CarObject extends THREE.Group {
-  userData: {player: boolean};
+  userData: {player: boolean; faded: boolean};
 }
+
+/** A car between the camera and the followed car is drawn see-through, so it never hides the one being followed. */
+const FADED_OPACITY = 0.18;
 
 /**
  * The cars of one engine: geometries are shared per class (and the ring), materials belong to each car. `release`
@@ -235,6 +238,8 @@ export interface CarObject extends THREE.Group {
 export interface CarKit {
   make(carClass: string, color: string, player: boolean): CarObject;
   release(car: CarObject): void;
+  /** Draw the car see-through (between the camera and the followed car) or solid. */
+  fade(car: CarObject, faded: boolean): void;
   dispose(): void;
 }
 
@@ -273,8 +278,19 @@ export function createCarKit(colors: {bg: string; edge: string; mark: string}): 
       if (player) {
         group.add(new THREE.Mesh(ringGeometry(), new THREE.MeshBasicMaterial({color: new THREE.Color(colors.mark), ...onTop})));
       }
-      group.userData = {player};
+      group.userData = {player, faded: false};
       return group;
+    },
+    fade(car, faded) {
+      if (car.userData.faded === faded) return;
+      car.userData.faded = faded;
+      car.traverse(o => {
+        const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+        if (!m) return;
+        m.transparent = faded;
+        m.opacity = faded ? FADED_OPACITY : 1;
+        m.depthWrite = !faded;
+      });
     },
     release(car) {
       car.traverse(o => {
