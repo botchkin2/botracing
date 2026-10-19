@@ -6,6 +6,8 @@ import {
   confirmAdoptions,
   healPlan,
   settleSupersedes,
+  tombstoneExpired,
+  TOMBSTONE_DAYS,
   DEFECT,
 } from './heal.mjs';
 import {liveCover} from './liveSession.mjs';
@@ -263,4 +265,90 @@ test('a tombstone that fails after the healed upload stays pending and goes thro
   await settleSupersedes(pending, supersede, () => {});
   assert.deepEqual(pending, {});
   assert.deepEqual(calls, ['H1', 'H2', 'H1']);
+});
+
+test('the hand rebuild never tombstones a recording the healed session holds (same game file, same id)', async () => {
+  // His 5 drives, 2026-10-18: each hand rebuild H and its healed session L
+  // were built from the same game files, so they share recording ids.
+  const db = memoryStore(
+    {
+      'sessions/H': {id: 'H', ownerId: 'o', recordingIds: ['r0', 'h1']},
+      'sessions/L': {id: 'L', ownerId: 'o', recordingIds: ['r0']},
+      'recordings/r0': {id: 'r0', ownerId: 'o', recordedAt: at(1)},
+      'recordings/h1': {id: 'h1', ownerId: 'o', recordedAt: at(900)},
+      'laps/l0': {id: 'l0', ownerId: 'o', sessionId: 'L', recordingId: 'r0'},
+    },
+    {ownerKey: 'o'},
+  );
+  const store = createStore({
+    ...db,
+    deleteFile: async () => {},
+    listFiles: async () => [],
+  });
+  assert.deepEqual(await store.supersedeSession('H', 'L', 'now'), {
+    recordings: 1,
+    laps: 0,
+  });
+  assert.equal(
+    db.docs.get('recordings/r0').supersededBy,
+    undefined,
+    'L keeps r0',
+  );
+  assert.equal(db.docs.get('recordings/h1').supersededBy, 'L');
+  assert.equal(db.docs.get('laps/l0').supersededBy, undefined);
+  assert.equal(db.docs.get('sessions/H').supersededBy, 'L');
+});
+
+test('a re-upload of the healed session clears a stray mark on its own recording (his 5 drives repair on their next sync)', async () => {
+  const db = memoryStore(
+    {
+      'sessions/L': {id: 'L', ownerId: 'o', recordingIds: ['r0']},
+      'recordings/r0': {
+        id: 'r0',
+        ownerId: 'o',
+        recordedAt: at(1),
+        supersededBy: 'L',
+        supersededAt: 'then',
+      },
+    },
+    {ownerKey: 'o'},
+  );
+  await createStore({
+    ...db,
+    deleteFile: async () => {},
+    listFiles: async () => [],
+  }).upload({
+    session: {
+      id: 'L',
+      ownerId: 'o',
+      recordingIds: ['r0'],
+      analysis: {v: 1, blocks: {}},
+    },
+    recordings: [{id: 'r0', ownerId: 'o', recordedAt: at(1)}],
+    laps: [],
+    traces: [],
+    files: [],
+    band: null,
+    track: null,
+    boundaries: null,
+  });
+  assert.equal(db.docs.get('recordings/r0').supersededBy, undefined);
+});
+
+test('a sweep never takes a doc a live session lists, however old its mark', () => {
+  const old = Date.parse('2026-10-01T00:00:00Z');
+  const now = old + (TOMBSTONE_DAYS + 1) * 86_400_000;
+  const mark = {supersededBy: 'L', supersededAt: new Date(old).toISOString()};
+  assert.equal(
+    tombstoneExpired({id: 'h1', ...mark}, now, new Set(['r0'])),
+    true,
+  );
+  assert.equal(
+    tombstoneExpired({id: 'r0', ...mark}, now, new Set(['r0'])),
+    false,
+  );
+  assert.equal(
+    tombstoneExpired({id: 'h1', ...mark}, old + 86_400_000, new Set()),
+    false,
+  );
 });
