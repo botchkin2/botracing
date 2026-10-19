@@ -4,7 +4,7 @@ import {StyleSheet, View} from 'react-native';
 import {TraceChart, type TraceSeries} from '@/src/charts';
 import {screenLateralOnce, screenValuesOnce} from '@/src/charts/screenLateral';
 import {drawnGear} from './drawnGear';
-import {cornerScales, pedalScale, steeringScale} from './scales';
+import {cornerScales, heightScale, pedalScale, steeringScale} from './scales';
 import {lapColor, space, useTheme} from '@/src/design';
 import {type TraceLoad} from '@/src/data/traces';
 import {Skeleton, StatusBanner, Text, TraceRetryBanner} from '@/src/ui';
@@ -28,6 +28,8 @@ export type ZoomHeights = {
   delta: number;
   steering: number;
   line: number;
+  /** The curated height strip, drawn only where the track has one. */
+  height: number;
 };
 
 type LapStyle = (
@@ -118,6 +120,9 @@ export function ZoomTraces({
   );
   const {speed, delta} = scales;
   const pedal = pedalScale();
+  const heightLine = zoom.elevation
+    ? heightScale(zoom.elevation, zoom.windowM, zoom.stepM)
+    : null;
   const steering = steeringScale();
   // The road's own half width: its measured edges in the window.
   const lateral = scales.lateral;
@@ -363,6 +368,29 @@ export function ZoomTraces({
           )}
         </>
       )}
+      {zoom.elevation && heightLine ? (
+        <>
+          <Text variant='label' tone='textMuted'>
+            Height m
+          </Text>
+          <TraceChart
+            {...common}
+            height={heights.height}
+            domain={[heightLine.lo, heightLine.hi]}
+            yTicks={heightLine.ticks}
+            series={[
+              {
+                key: 'height',
+                values: zoom.elevation,
+                color: color.textSecondary,
+                width: STEERING_WIDTH,
+                opacity: 1,
+              },
+            ]}
+            marks={apex}
+          />
+        </>
+      ) : null}
     </View>
   );
 }
