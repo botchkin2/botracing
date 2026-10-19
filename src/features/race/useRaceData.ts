@@ -23,6 +23,7 @@ import {
   useTrackSurface,
 } from '@/src/data/sessions';
 import {chaseRoad, type ChaseRoad} from '@/src/analysis/chaseRoad';
+import {devElevation} from '@/src/data/elevation';
 import {useLapTraceLoad} from '@/src/data/traces';
 import {shortTrackName} from '@/src/design';
 
@@ -166,10 +167,10 @@ export function useRaceData(sessionId: string): RaceData {
             edges,
             surfaceStepM,
             surface.data?.lengthM ?? 0,
-            map.data?.elevation?.heightM ?? null,
+            map.data?.elevation?.heightM ?? devElevation(detail?.trackId),
           )
         : null,
-    [centreWorld, edges, surfaceStepM, surface.data, stored, map.data],
+    [centreWorld, edges, surfaceStepM, surface.data, stored, detail?.trackId, map.data],
   );
   const gate = raceGate({
     sessionPending: session.isPending,
