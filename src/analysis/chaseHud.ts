@@ -1,10 +1,7 @@
 // The numbers the chase view's strip shows for the followed car, from the road's measured height profile. Plain
 // TypeScript, imports one file.
 
-import {gradeAt, heightAt, type ChaseRoad} from './chaseRoad.ts';
-
-/** Grade steeper than this (rise over run) is drawn as a climb or a drop on the profile. */
-export const SLOPE_DRAW = 0.03;
+import {gradeOnLap, heightOnLap, type ChaseRoad} from './chaseRoad.ts';
 
 export interface ChaseHudNumbers {
   /** Grade under the car, percent, + uphill; null on a road without a profile. */
@@ -15,8 +12,10 @@ export interface ChaseHudNumbers {
 
 export function chaseHudNumbers(road: ChaseRoad, lapDistM: number | null): ChaseHudNumbers {
   if (!road.elev || lapDistM === null || !(road.lengthM > 0)) return {gradePct: null, altM: null};
-  const frac = lapDistM / road.lengthM;
-  return {gradePct: gradeAt(road.elev, frac, road.lengthM) * 100, altM: heightAt(road.elev, frac) - road.elevMin};
+  return {
+    gradePct: gradeOnLap(road.elev, lapDistM, road.lengthM) * 100,
+    altM: heightOnLap(road.elev, lapDistM, road.lengthM) - road.elevMin,
+  };
 }
 
 /** "R", "N" or the gear number. */
@@ -54,24 +53,32 @@ export interface ElevationWindow {
   stepM: number;
   /** Index of the car's own point. */
   carIndex: number;
+  /** The vertical scale: `spanM` metres from `baseM`, at least PROFILE_FLOOR_M so curation noise never fills it like a hill. */
+  baseM: number;
+  spanM: number;
 }
 
+/** The smallest height span the profile strip draws (a 0.4 m wobble stays flat). */
+export const PROFILE_FLOOR_M = 10;
+
 export function elevationWindow(
-  elev: number[],
+  road: ChaseRoad,
   lapDistM: number,
-  lengthM: number,
   behindM: number,
   aheadM: number,
   n: number,
-): ElevationWindow {
+): ElevationWindow | null {
+  const elev = road.elev;
+  if (!elev || !(road.lengthM > 0)) return null;
   const span = behindM + aheadM;
-  const frac = lapDistM / lengthM;
   const heights: number[] = [];
-  for (let i = 0; i <= n; i++) heights.push(heightAt(elev, frac - behindM / lengthM + (span / lengthM) * (i / n)));
-  return {heights, stepM: span / n, carIndex: Math.round((behindM / span) * n)};
-}
-
-/** Whether a stretch of the profile climbs, drops or is level, for its colour. */
-export function slopeKind(grade: number): 'up' | 'down' | 'flat' {
-  return grade > SLOPE_DRAW ? 'up' : grade < -SLOPE_DRAW ? 'down' : 'flat';
+  for (let i = 0; i <= n; i++) heights.push(heightOnLap(elev, lapDistM - behindM + (span * i) / n, road.lengthM));
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const h of heights) {
+    lo = Math.min(lo, h);
+    hi = Math.max(hi, h);
+  }
+  const spanM = Math.max(hi - lo, PROFILE_FLOOR_M);
+  return {heights, stepM: span / n, carIndex: Math.round((behindM / span) * n), baseM: (hi + lo) / 2 - spanM / 2, spanM};
 }

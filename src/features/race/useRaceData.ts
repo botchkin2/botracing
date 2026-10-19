@@ -166,7 +166,8 @@ export function useRaceData(sessionId: string): RaceData {
             edges,
             surfaceStepM,
             surface.data?.lengthM ?? 0,
-            map.data?.elevation?.heightM ?? null,
+            map.data?.elevation ?? null,
+            map.data?.lengthM ?? 0,
           )
         : null,
     [centreWorld, edges, surfaceStepM, surface.data, stored, map.data],

@@ -3,9 +3,8 @@
 
 import * as THREE from 'three';
 import type {RoadIndex} from '@/src/analysis/chaseRoadIndex';
-import type {ChaseRibbon} from '@/src/features/race/chase/chaseTypes';
+import type {ChaseRibbon, ChaseTheme} from '@/src/features/race/chase/chaseTypes';
 import {setWorld} from './sceneFrame';
-import type {ChaseTheme} from '@/src/features/race/chase/chaseTypes';
 
 const HALF_WIDTH_M = 0.3;
 const BRAKE_ON_PCT = 55;

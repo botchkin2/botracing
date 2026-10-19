@@ -1,12 +1,12 @@
 import {describe, expect, it} from '@jest/globals';
-import {altitudeLabel, gapSeconds, chaseHudNumbers, elevationWindow, gearLabel, gradeLabel, slopeKind} from './chaseHud';
+import {altitudeLabel, gapSeconds, chaseHudNumbers, elevationWindow, gearLabel, gradeLabel, PROFILE_FLOOR_M} from './chaseHud';
 import {chaseRoad} from './chaseRoad';
 
-// 10 m of climb over a 1000 m lap (heights every 100 m), linear then back down.
-const elev = [0, 2, 4, 6, 8, 10, 8, 6, 4, 2];
+// 10 m of climb over a 1000 m lap (heights every 100 m), linear then back down; the road measures the lap as 400 m.
+const elev = {stepM: 100, heightM: [0, 2, 4, 6, 8, 10, 8, 6, 4, 2]};
 
 const centre = Array.from({length: 40}, (_, i) => ({x: i * 10, y: 0}));
-const roadWith = (e: number[] | null) => chaseRoad(centre, null, 10, 400, e)!;
+const roadWith = (e: typeof elev | null) => chaseRoad(centre, null, 10, 400, e, 1000)!;
 
 describe('chaseHudNumbers', () => {
   it('is empty without a profile or a position', () => {
@@ -15,29 +15,31 @@ describe('chaseHudNumbers', () => {
   });
   it('reads grade and height above the lowest point', () => {
     const road = roadWith(elev);
-    const up = chaseHudNumbers(road, 100);
-    expect(up.gradePct).toBeCloseTo(5, 0); // 2 m per 40 m
-    expect(up.altM).toBeCloseTo(5, 0); // index 2.5 of a 40 m step: between 4 and 6
-    expect(chaseHudNumbers(road, 300).gradePct).toBeCloseTo(-5, 0);
+    const up = chaseHudNumbers(road, 100); // the profile's 250 m
+    expect(up.gradePct).toBeCloseTo(2, 1); // 2 m per 100 m
+    expect(up.altM).toBeCloseTo(5, 1);
+    expect(chaseHudNumbers(road, 300).gradePct).toBeCloseTo(-2, 1);
     expect(road.elevMin).toBe(0);
   });
 });
 
 describe('elevationWindow', () => {
   it('samples from behind to ahead of the car, the car at its own index', () => {
-    const w = elevationWindow(elev, 500, 1000, 100, 500, 6);
+    const w = elevationWindow(roadWith(elev), 200, 40, 200, 6)!;
     expect(w.heights).toHaveLength(7);
-    expect(w.stepM).toBeCloseTo(100);
+    expect(w.stepM).toBeCloseTo(40);
     expect(w.carIndex).toBe(1);
-    expect(w.heights[1]).toBeCloseTo(10, 0); // at 500 m the road is at its top
+    expect(w.heights[1]).toBeCloseTo(10, 1); // at 200 of 400 m the road is at its top
   });
-});
-
-describe('slopeKind', () => {
-  it('colours climbs, drops and level stretches', () => {
-    expect(slopeKind(0.05)).toBe('up');
-    expect(slopeKind(-0.05)).toBe('down');
-    expect(slopeKind(0.01)).toBe('flat');
+  it('never scales less than the floor, so a small wobble stays flat', () => {
+    const tiny = {stepM: 100, heightM: [0, 0.2, 0.4, 0.2, 0, 0, 0, 0, 0, 0]};
+    const w = elevationWindow(roadWith(tiny), 40, 40, 200, 12)!;
+    expect(w.spanM).toBe(PROFILE_FLOOR_M);
+    expect(w.baseM).toBeLessThan(0);
+    expect(w.baseM + w.spanM).toBeGreaterThan(0.4);
+  });
+  it('is null on a road without a profile', () => {
+    expect(elevationWindow(roadWith(null), 100, 40, 200, 6)).toBeNull();
   });
 });
 

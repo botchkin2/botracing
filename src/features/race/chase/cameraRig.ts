@@ -1,6 +1,9 @@
-// The camera: a smoothed follow with a little lag, no bounce. Chase sits behind and above the followed car; High is the
-// same from further up; TV stands trackside ahead and turns to watch; Heli hovers and can be dragged round. Paused, the
-// camera snaps to its exact place so nothing drifts on a still frame.
+// The camera rides the road, not the car. Chase and High sit on the road behind the followed car, at its own offset
+// from the centre line, and look down the road ahead of it, so the car's angle to the road is what shows: the camera
+// never turns with the car's yaw, and it has no lag that would invent one (thread 83, chord #6138: the real body is
+// within 2.7 degrees of its travel at p95 in corners). Paused is the same frame as playing. TV stands trackside ahead
+// and turns to watch; Heli hovers behind along the road and can be dragged round. Off the road (pits, a spin into the
+// gravel) the camera follows the car's direction of travel instead.
 
 import * as THREE from 'three';
 import {angDiff, clamp, ease, lerp, mod} from '@/src/analysis/chaseMath';
@@ -8,12 +11,15 @@ import type {RoadIndex} from '@/src/analysis/chaseRoadIndex';
 import {setWorld} from './sceneFrame';
 import type {ChaseCamMode} from '@/src/features/race/chase/chaseTypes';
 
-const CHASE_BACK_M = 11;
-const CHASE_UP_M = 4.2;
-const HIGH_BACK_M = 18;
-const HIGH_UP_M = 8;
-const LOOK_AHEAD_M = 32;
-const MIN_ABOVE_ROAD_M = 1.4;
+const CHASE_BACK_M = 10;
+const CHASE_UP_M = 3.2;
+const HIGH_BACK_M = 20;
+const HIGH_UP_M = 9;
+/** Look-ahead down the road: grows with speed (metres plus seconds of travel), within bounds. */
+const LOOK_MIN_M = 18;
+const LOOK_S = 0.45;
+const LOOK_MAX_M = 55;
+const LOOK_LIFT_M = 0.9;
 const BASE_FOV = 50;
 const SPEED_FOV_GAIN = 9;
 const FULL_SPEED_MS = 80;
@@ -31,8 +37,13 @@ export interface FollowedCar {
   z: number;
   /** World angle, 0 along +x. */
   heading: number;
-  /** Lap distance, metres. */
+  /** Direction of travel (world angle), null until known. */
+  travel: number | null;
+  /** Lap distance, metres: the nearest road point's when on the road. */
   ld: number;
+  /** Signed metres from the centre line, + to the right of the road's direction. */
+  lateral: number;
+  onRoad: boolean;
   /** m/s. */
   v: number;
 }
@@ -51,6 +62,21 @@ interface TvRig {
   x: number;
   y: number;
   z: number;
+}
+
+/** A point on the road at lap distance `s`, `lateral` metres right of the centre line, on the road's surface. */
+function roadPoint(ix: RoadIndex, s: number, lateral: number): {x: number; y: number; z: number} {
+  const f = mod(s / ix.stepM, ix.heading.length);
+  const i = Math.floor(f);
+  const j = (i + 1) % ix.heading.length;
+  const t = f - i;
+  const nx = lerp(ix.normalX[i], ix.normalX[j], t);
+  const ny = lerp(ix.normalY[i], ix.normalY[j], t);
+  return {
+    x: lerp(ix.centreX[i], ix.centreX[j], t) + nx * lateral,
+    y: lerp(ix.centreY[i], ix.centreY[j], t) + ny * lateral,
+    z: ix.heightAt(s),
+  };
 }
 
 export function createCameraRig(camera: THREE.PerspectiveCamera, getIndex: () => RoadIndex | null): CameraRig {
@@ -86,8 +112,6 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, getIndex: () =>
       if (!ix) return;
       const mode = rig.mode;
       const hard = !init || lastMode !== mode || !playing;
-      const dirx = Math.cos(me.heading);
-      const diry = Math.sin(me.heading);
       let px: number;
       let py: number;
       let pz: number;
@@ -99,17 +123,32 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, getIndex: () =>
       if (mode === 1 || mode === 2) {
         const back = mode === 1 ? CHASE_BACK_M : HIGH_BACK_M;
         const up = mode === 1 ? CHASE_UP_M : HIGH_UP_M;
-        if (hard) at.yaw = me.heading;
-        const lead = clamp(ix.curvatureAt(me.ld + 30) * 18, -0.12, 0.12);
-        at.yaw += angDiff(at.yaw, me.heading + lead) * (hard ? 1 : ease(dt, 0.5));
-        const cx = Math.cos(at.yaw);
-        const cy = Math.sin(at.yaw);
-        px = me.x - cx * back;
-        py = me.y - cy * back;
-        pz = Math.max(me.z + up, ix.heightAt(me.ld - back) + MIN_ABOVE_ROAD_M);
-        lx = me.x + cx * LOOK_AHEAD_M;
-        ly = me.y + cy * LOOK_AHEAD_M;
-        lz = ix.heightAt(me.ld + LOOK_AHEAD_M) + 0.6;
+        const look = clamp(LOOK_MIN_M + me.v * LOOK_S, LOOK_MIN_M, LOOK_MAX_M);
+        if (me.onRoad) {
+          // both ends on the road at the car's own offset: the view turns with the road, never with the car
+          const cam = roadPoint(ix, me.ld - back, me.lateral);
+          const ahead = roadPoint(ix, me.ld + look, me.lateral);
+          px = cam.x;
+          py = cam.y;
+          pz = cam.z + up;
+          lx = ahead.x;
+          ly = ahead.y;
+          lz = ahead.z + LOOK_LIFT_M;
+          tp = 0;
+          tl = 0;
+        } else {
+          const dir = me.travel ?? me.heading;
+          if (hard) at.yaw = dir;
+          at.yaw += angDiff(at.yaw, dir) * (hard ? 1 : ease(dt, 0.35));
+          const cx = Math.cos(at.yaw);
+          const cy = Math.sin(at.yaw);
+          px = me.x - cx * back;
+          py = me.y - cy * back;
+          pz = me.z + up;
+          lx = me.x + cx * look;
+          ly = me.y + cy * look;
+          lz = me.z + LOOK_LIFT_M;
+        }
       } else if (mode === 3) {
         const bins = (s: number) => s / ix.stepM / TV_EVERY_BINS;
         if (!tv) tv = tvAt(ix, (Math.floor(bins(me.ld)) + 1) * TV_EVERY_BINS);
@@ -118,22 +157,23 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, getIndex: () =>
         px = tv.x;
         py = tv.y;
         pz = tv.z;
-        lx = me.x + dirx * 3;
-        ly = me.y + diry * 3;
-        lz = me.z + 0.4;
+        lx = me.x;
+        ly = me.y;
+        lz = me.z + 0.6;
         tp = 0;
         tl = 0.25;
       } else {
         if (hard && lastMode !== mode) rig.orbit = 0;
-        const oa = me.heading + Math.PI + rig.orbit;
+        const along = me.onRoad ? ix.tangentAt(me.ld) : (me.travel ?? me.heading);
+        const oa = along + Math.PI + rig.orbit;
         px = me.x + Math.cos(oa) * HELI_BACK_M;
         py = me.y + Math.sin(oa) * HELI_BACK_M;
         pz = me.z + HELI_UP_M;
-        lx = me.x + dirx * 8;
-        ly = me.y + diry * 8;
+        lx = me.x + Math.cos(along) * 8;
+        ly = me.y + Math.sin(along) * 8;
         lz = me.z;
-        tp = 0.6;
-        tl = 0.3;
+        tp = 0;
+        tl = 0;
       }
       const kp = hard || tp === 0 ? 1 : ease(dt, tp);
       const kl = hard ? 1 : ease(dt, tl);

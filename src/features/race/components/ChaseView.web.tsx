@@ -1,16 +1,15 @@
-import {createElement, useEffect, useMemo, useRef, useState} from 'react';
+import {createElement, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {StyleSheet, View} from 'react-native';
-import Svg, {Circle, G, Line, Path} from 'react-native-svg';
+import Svg, {Circle, G, Path} from 'react-native-svg';
 
-import {altitudeLabel, chaseHudNumbers, elevationWindow, gearLabel, gradeLabel, slopeKind} from '@/src/analysis/chaseHud';
+import {altitudeLabel, chaseHudNumbers, elevationWindow, type ElevationWindow, gearLabel, gradeLabel} from '@/src/analysis/chaseHud';
 import type {ChaseRoad} from '@/src/analysis/chaseRoad';
 import {radius, space, useTheme} from '@/src/design';
 import {formatGap} from '@/src/design/format';
 import {Pressable, Segment, Text} from '@/src/ui';
 
-import type {ChaseCamMode, ChaseEngine} from '@/src/features/race/chase/chaseTypes';
-import {type ChaseCar, type ChaseGaps, type ChaseInputs} from '@/src/features/race/chase/chaseTypes';
+import type {ChaseCamMode, ChaseCar, ChaseEngine, ChaseGaps, ChaseInputs} from '@/src/features/race/chase/chaseTypes';
 
 // The 3D chase view, drawn as an instrument. Web only: the engine and three.js load on first use (a lazy import), so
 // they stay out of the main bundle and out of the native app. Everything on screen is the app's own tokens; nothing
@@ -45,59 +44,32 @@ type ChaseProps = {
   onPressCar: (index: number) => void;
 };
 
-// Full screen is a portal to the page body: the view leaves the map's frame (and its stacking order),
-// so the engine is made again there. The camera choice is kept here.
+// Full screen is a portal to the page body: the view leaves the map's frame (and its stacking order). The engine and
+// its canvas belong here, made once, and the canvas's host element moves between the two frames, so toggling full
+// screen never makes a second WebGL context (a browser keeps only a handful). The camera choice is kept here too.
 export function ChaseView(props: ChaseProps) {
   const [full, setFull] = useState(false);
   const [cam, setCam] = useState<CamValue>('1');
+  const {failed, host} = useChaseEngine(props, cam);
   const surface = (
-    <ChaseSurface {...props} full={full} setFull={setFull} cam={cam} setCam={setCam} />
+    <ChaseSurface {...props} full={full} setFull={setFull} cam={cam} setCam={setCam} host={host} failed={failed} />
   );
   return full && typeof document !== 'undefined'
     ? createPortal(surface, document.body)
     : surface;
 }
 
-function ChaseSurface({
-  width,
-  height,
-  road,
-  cars,
-  focus,
-  playing,
-  rate,
-  inputs,
-  gaps,
-  clockLabel,
-  onToggle,
-  onStep,
-  onCycleRate,
-  onPressCar,
-  full,
-  setFull,
-  cam,
-  setCam,
-}: ChaseProps & {
-  full: boolean;
-  setFull: (f: boolean) => void;
-  cam: CamValue;
-  setCam: (c: CamValue) => void;
-}) {
+/** The engine, made once for the life of the view, and the element its canvas lives in. */
+function useChaseEngine(
+  {road, cars, focus, playing, rate, inputs, onPressCar}: ChaseProps,
+  cam: CamValue,
+): {failed: boolean; host: HTMLDivElement} {
   const {color} = useTheme();
-  // Full screen: its own play toggle (Space) and a way out (Esc).
-  useEffect(() => {
-    if (!full) return;
-    const key = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setFull(false);
-      else if (e.key === ' ') {
-        e.preventDefault();
-        onToggle();
-      }
-    };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
-  }, [full, onToggle, setFull]);
-  const host = useRef<HTMLDivElement | null>(null);
+  const [host] = useState(() => {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%';
+    return el;
+  });
   const engine = useRef<ChaseEngine | null>(null);
   const pick = useRef(onPressCar);
   useEffect(() => {
@@ -110,6 +82,7 @@ function ChaseSurface({
       fill: color.trackFill,
       edge: color.followEdge,
       edgeFaint: color.trackEdge,
+      grid: color.grid,
       text: color.text,
       muted: color.textMuted,
       line: color.lineStrong,
@@ -125,12 +98,8 @@ function ChaseSurface({
     (async () => {
       try {
         const {mountChase} = await import('../chase/chaseEngine');
-        if (dead || !host.current) return;
-        made = mountChase(host.current, {onPick: (i: number) => pick.current(i), theme});
-        if (dead) {
-          made.dispose();
-          return;
-        }
+        if (dead) return;
+        made = mountChase(host, {onPick: (i: number) => pick.current(i), theme});
         engine.current = made;
         made.setRoad(road);
         made.setCam(Number(cam) as ChaseCamMode);
@@ -162,7 +131,58 @@ function ChaseSurface({
   useEffect(() => {
     engine.current?.setCam(Number(cam) as ChaseCamMode);
   }, [cam]);
+  return {failed, host};
+}
 
+function ChaseSurface({
+  width,
+  height,
+  road,
+  cars,
+  focus,
+  playing,
+  rate,
+  inputs,
+  gaps,
+  clockLabel,
+  onToggle,
+  onStep,
+  onCycleRate,
+  onPressCar,
+  full,
+  setFull,
+  cam,
+  setCam,
+  host,
+  failed,
+}: ChaseProps & {
+  full: boolean;
+  setFull: (f: boolean) => void;
+  cam: CamValue;
+  setCam: (c: CamValue) => void;
+  host: HTMLDivElement;
+  failed: boolean;
+}) {
+  const {color} = useTheme();
+  // Full screen: its own play toggle (Space) and a way out (Esc).
+  useEffect(() => {
+    if (!full) return;
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFull(false);
+      else if (e.key === ' ') {
+        e.preventDefault();
+        onToggle();
+      }
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [full, onToggle, setFull]);
+  // the engine's canvas moves into whichever frame is showing
+  const slot = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    slot.current?.appendChild(host);
+    return () => host.remove();
+  }, [host]);
   const me = useMemo(
     () => cars.find(c => c.index === focus) ?? cars.find(c => c.player) ?? null,
     [cars, focus],
@@ -170,6 +190,10 @@ function ChaseSurface({
   const now = me?.player === true ? inputs?.now ?? null : null;
   const {gradePct: grade, altM: alt} = chaseHudNumbers(road, me?.lapDistM ?? null);
   const hasHeight = road.elev !== null;
+  const profile = useMemo(
+    () => (me && Number.isFinite(me.lapDistM) ? elevationWindow(road, me.lapDistM, BEHIND_M, AHEAD_M, 48) : null),
+    [road, me],
+  );
   const roomy = (full ? (typeof window === 'undefined' ? width : window.innerWidth) : width) >= 760;
 
   return (
@@ -180,7 +204,7 @@ function ChaseSurface({
           : {width, height, backgroundColor: color.bg}
       }>
       {createElement('div', {
-        ref: host,
+        ref: slot,
         style: {position: 'absolute', left: 0, top: 0, width: '100%', height: '100%'},
       })}
       {failed ? (
@@ -239,7 +263,7 @@ function ChaseSurface({
             </View>
           ) : null}
           {now ? (
-            <Text variant='dataStrong' tone='accentInk'>
+            <Text variant='dataStrong'>
               {gearLabel(now.gear)}
             </Text>
           ) : null}
@@ -260,7 +284,7 @@ function ChaseSurface({
           ) : null}
           {hasHeight && grade !== null ? (
             <View style={styles.cell}>
-              <Text variant='dataSmall' tone={grade > 2.5 ? 'accentInk' : 'textMuted'}>
+              <Text variant='dataSmall' tone='textMuted'>
                 {gradeLabel(grade)}
               </Text>
               {alt !== null ? (
@@ -268,17 +292,7 @@ function ChaseSurface({
               ) : null}
             </View>
           ) : null}
-          {hasHeight && roomy && road.elev ? (
-            <Elevation
-              elev={road.elev}
-              lapDistM={me?.lapDistM ?? 0}
-              lengthM={road.lengthM}
-              line={color.textMuted}
-              up={color.accent}
-              down={color.class2}
-              dot={color.text}
-            />
-          ) : null}
+          {roomy && profile ? <Elevation win={profile} line={color.textMuted} dot={color.accent} /> : null}
         </View>
       ) : null}
     </View>
@@ -312,55 +326,17 @@ function Wheel({pct, ink, mark, ring}: {pct: number; ink: string; mark: string; 
   );
 }
 
-// The measured height 100 m behind and 500 m ahead of the car, coloured by grade, the car a dot.
-function Elevation({
-  elev,
-  lapDistM,
-  lengthM,
-  line,
-  up,
-  down,
-  dot,
-}: {
-  elev: number[];
-  lapDistM: number;
-  lengthM: number;
-  line: string;
-  up: string;
-  down: string;
-  dot: string;
-}) {
+// The curated height 100 m behind and 500 m ahead of the car, the car a dot.
+function Elevation({win, line, dot}: {win: ElevationWindow; line: string; dot: string}) {
   const W = 150;
   const H = 26;
-  const n = 48;
-  const span = BEHIND_M + AHEAD_M;
-  const {heights: zs, stepM, carIndex} = elevationWindow(elev, lapDistM, lengthM, BEHIND_M, AHEAD_M, n);
-  const lo = Math.min(...zs);
-  const hi = Math.max(...zs);
-  const range = Math.max(hi - lo, 10);
-  const mid = (hi + lo) / 2;
-  const y = (z: number) => H - 3 - ((z - (mid - range / 2)) / range) * (H - 6);
-  const x = (i: number) => (i / n) * W;
-  const segs = [];
-  for (let i = 1; i <= n; i++) {
-    const g = (zs[i] - zs[i - 1]) / stepM;
-    segs.push(
-      <Line
-        key={i}
-        x1={x(i - 1)}
-        y1={y(zs[i - 1])}
-        x2={x(i)}
-        y2={y(zs[i])}
-        stroke={slopeKind(g) === 'up' ? up : slopeKind(g) === 'down' ? down : line}
-        strokeWidth={1.6}
-        strokeLinecap='round'
-      />,
-    );
-  }
+  const n = win.heights.length - 1;
+  const y = (z: number) => H - 3 - ((z - win.baseM) / win.spanM) * (H - 6);
+  const d = win.heights.map((z, i) => `${i ? 'L' : 'M'}${((i / n) * W).toFixed(1)} ${y(z).toFixed(1)}`).join('');
   return (
     <Svg width={W} height={H}>
-      {segs}
-      <Circle cx={(BEHIND_M / span) * W} cy={y(zs[carIndex])} r={3} fill={dot} />
+      <Path d={d} stroke={line} strokeWidth={1.2} fill='none' />
+      <Circle cx={(win.carIndex / n) * W} cy={y(win.heights[win.carIndex])} r={3} fill={dot} />
     </Svg>
   );
 }

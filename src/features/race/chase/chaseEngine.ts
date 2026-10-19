@@ -1,7 +1,8 @@
 // Chase view engine for the Race screen. The app owns the data and the clock; this draws one frame of it as an
-// instrument: near-black ground, the road at its measured width as a flat fill with thin edges, every car a flat
-// chevron in its class colour, the player's inputs painted on the road. Nothing is drawn that the data does not hold:
-// no sky, grass, kerbs, gravel, liveries, banking, or height the track does not have. Web only (three.js).
+// instrument: near-black space, a faint datum grid under the road, the road at its measured width and curated height
+// with thin edges and cross rungs, every car a lit low-poly body in its class colour standing on the road at the road's
+// grade, the player's inputs painted on the road. Nothing is drawn that the data does not hold: no sky, grass, kerbs,
+// gravel, liveries, banking, roll, or height the track does not have. Web only (three.js).
 //
 // World frame: x east, y north, z up (the sim's x and z); three.js is (x, z, -y), see sceneFrame.ts.
 
@@ -10,14 +11,14 @@ import {angDiff, clamp, ease, lerp, mod} from '@/src/analysis/chaseMath';
 import {chaseHeading, stepTravel} from '@/src/analysis/chaseHeading';
 import type {ChaseRoad} from '@/src/analysis/chaseRoad';
 import {roadIndex, type RoadIndex} from '@/src/analysis/chaseRoadIndex';
-import type {ChaseCar, ChaseRibbon} from '@/src/features/race/chase/chaseTypes';
+import type {ChaseCamMode, ChaseCar, ChaseEngine, ChaseRibbon, ChaseTheme, ChaseUpdate} from '@/src/features/race/chase/chaseTypes';
 import {createCarLabels} from './carLabels';
 import {createCarKit, type CarObject} from './carMeshes';
 import {createCameraRig} from './cameraRig';
 import {buildInputsScene, type InputsScene} from './inputsScene';
 import {buildRoadScene, disposeGroup} from './roadScene';
 import {setWorld} from './sceneFrame';
-import type {ChaseCamMode, ChaseEngine, ChaseTheme, ChaseUpdate} from '@/src/features/race/chase/chaseTypes';
+
 
 const FOG_NEAR_M = 260;
 const FOG_FAR_M = 1500;
@@ -83,7 +84,12 @@ export function mountChase(
   const states = new Map<number, CarState>();
   const objects = new Map<number, CarObject>();
   const rig = createCameraRig(camera, () => ix);
-  const kit = createCarKit(T.bg);
+  const kit = createCarKit({bg: T.bg, edge: T.text, mark: T.text});
+  // one soft light from above and ahead, so a body's facets and the road's slopes read; nothing glows
+  scene.add(new THREE.HemisphereLight(0xffffff, new THREE.Color(T.bg), 0.9));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+  sun.position.set(0.7, 1, 0.25);
+  scene.add(sun);
   const probe = new THREE.Vector3();
 
   function freeInputs(i: InputsScene) {
@@ -210,11 +216,27 @@ export function mountChase(
         scene.add(o);
         objects.set(k, o);
       }
-      setWorld(o.position, s.x, s.y, s.z + 0.06);
+      setWorld(o.position, s.x, s.y, s.z + 0.02);
       o.rotation.order = 'YZX';
       o.rotation.set(0, s.heading, s.pitch);
     }
-    rig.update(dt, {x: me.x, y: me.y, z: me.z, heading: me.heading, ld: me.ld, v: me.v}, state.playing);
+    // the camera rides the road where the followed car is drawn (after its glide), so the two never drift apart
+    const drawn = me.onRoad ? ix.nearest(me.x, me.y, 1) : null;
+    rig.update(
+      dt,
+      {
+        x: me.x,
+        y: me.y,
+        z: me.z,
+        heading: me.heading,
+        travel: me.travel,
+        ld: drawn ? drawn.s : me.ld,
+        lateral: drawn ? drawn.side * drawn.dist : 0,
+        onRoad: drawn !== null,
+        v: me.v,
+      },
+      state.playing,
+    );
     const mine = me.car.player;
     if (inputs) {
       const first = clamp(inputIdx + 1, 0, inputs.count - 2);

@@ -10,7 +10,7 @@ const centre = Array.from({length: N}, (_, i) => ({
   y: R * Math.sin((i / N) * 2 * Math.PI),
 }));
 const elev = Array.from({length: 10}, (_, i) => i);
-const road = chaseRoad(centre, null, 10, 400, elev)!;
+const road = chaseRoad(centre, null, 10, 400, {stepM: 40, heightM: elev}, 400)!;
 const idx = roadIndex(road);
 
 describe('roadIndex', () => {
@@ -36,7 +36,7 @@ describe('roadIndex', () => {
     expect(idx.curvatureAt(100)).toBeCloseTo(1 / R, 2);
   });
   it('is flat with no profile', () => {
-    const flat = roadIndex(chaseRoad(centre, null, 10, 400, null)!);
+    const flat = roadIndex(chaseRoad(centre, null, 10, 400, null, 0)!);
     expect(flat.hasHeight).toBe(false);
     expect(flat.heightAt(123)).toBe(0);
   });

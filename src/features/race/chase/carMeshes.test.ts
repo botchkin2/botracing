@@ -43,9 +43,25 @@ describe('car geometry', () => {
   });
 });
 
+describe('car bodies', () => {
+  it('stand on the road, nose forward: the body spans its class length and sits between 0 and 1.4 m', () => {
+    const kit = createCarKit({bg: '#000000', edge: '#ffffff', mark: '#fea92f'});
+    const car = kit.make('Hyper', '#ff0000', false);
+    const box = new THREE.Box3().setFromObject(car);
+    expect(box.min.y).toBeGreaterThanOrEqual(-1e-9);
+    expect(box.max.y).toBeLessThan(1.4);
+    expect(box.max.x).toBeGreaterThan(2.4); // the tick runs past the nose
+    expect(box.min.x).toBeLessThan(-2.4); // the tail, or the wing just behind it
+    expect(box.min.x).toBeGreaterThan(-2.7);
+    expect(box.max.z - box.min.z).toBeCloseTo(2.0, 1);
+    kit.release(car);
+    kit.dispose();
+  });
+});
+
 describe('car kit', () => {
   it('frees the materials of released cars and the shared geometries on dispose, nothing earlier', () => {
-    const kit = createCarKit('#000000');
+    const kit = createCarKit({bg: '#000000', edge: '#ffffff', mark: '#fea92f'});
     const player = kit.make('GT3', '#ff0000', true);
     const other = kit.make('GT3', '#ff0000', false);
     const geos = new Set<THREE.BufferGeometry>();
@@ -61,14 +77,14 @@ describe('car kit', () => {
     const matDisposed: THREE.Material[] = [];
     geos.forEach(g => g.addEventListener('dispose', () => geoDisposed.push(g)));
     mats.forEach(m => m.addEventListener('dispose', () => matDisposed.push(m)));
-    // two cars of one class share their geometries: one set of three, plus the player's ring
-    expect(geos.size).toBe(4);
+    // two cars of one class share their geometries (footprint, body, cabin, two edge sets, tick), plus the player's ring
+    expect(geos.size).toBe(7);
     kit.release(other);
-    expect(matDisposed.length).toBe(3);
+    expect(matDisposed.length).toBe(6);
     expect(geoDisposed.length).toBe(0);
     kit.release(player);
     kit.dispose();
-    expect(matDisposed.length).toBe(3 + 4);
-    expect(geoDisposed.length).toBe(4);
+    expect(matDisposed.length).toBe(6 + 7);
+    expect(geoDisposed.length).toBe(7);
   });
 });

@@ -8,6 +8,8 @@ export interface ChaseTheme {
   fill: string;
   edge: string;
   edgeFaint: string;
+  /** The datum grid under the road. */
+  grid: string;
   text: string;
   muted: string;
   line: string;
