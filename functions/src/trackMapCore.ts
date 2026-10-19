@@ -11,10 +11,17 @@ export function trackIdOk(id: unknown): id is string {
   return typeof id === 'string' && TRACK_ID.test(id) && !id.includes('..');
 }
 
-// The map's validator: the track doc's last write. The map changes only when
-// the curator writes the doc (corners, boundaries, georef, the outline path).
+// The shape of the map body (trackMapPayload). Bump it whenever the payload
+// gains or changes a field: a client holding the old body then misses on its
+// If-None-Match and downloads the new one, instead of a 304 for a body without
+// the field until a curator happens to write the track (2: `elevation`).
+export const MAP_PAYLOAD_V = 2;
+
+// The map's validator: the payload's shape and the track doc's last write. The
+// map changes only when the curator writes the doc (corners, boundaries,
+// georef, the outline path) or when the payload's shape does.
 export function mapEtag(updateTime: {seconds: number; nanoseconds: number}) {
-  return `"m-${updateTime.seconds}.${updateTime.nanoseconds}"`;
+  return `"m${MAP_PAYLOAD_V}-${updateTime.seconds}.${updateTime.nanoseconds}"`;
 }
 
 // The surface's validator: what surface.mjs records on the track doc each time
