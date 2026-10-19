@@ -24,7 +24,13 @@ const FOG_NEAR_M = 260;
 const FOG_FAR_M = 1500;
 const ON_ROAD_MARGIN_M = 3;
 /** A car whose pose moves further than this in one sample has been placed (pits, a rewind), not driven. */
-const JUMP_M = 12;
+/**
+ * A car further from its target than this has been placed (pits, a rewind), not driven: it snaps. The glide's own lag
+ * is speed x playback rate x GLIDE_S (14 m at 200 km/h and 4x), so the threshold grows with both, or a car at speed
+ * alternates between gliding and snapping and the view stutters (measured: 4x steps 1.9 m median, 12.4 m p95).
+ */
+const JUMP_M = 30;
+const JUMP_S = 0.5;
 const GLIDE_S = 0.07;
 const LABELLED_CARS = 8;
 const LABEL_RANGE_M = 120;
@@ -198,7 +204,8 @@ export function mountChase(
     // the 5 Hz field is interpolated by the app; the pose here glides toward it, so a car never steps
     for (const s of states.values()) {
       const t = s.target;
-      const k = !state.playing || Math.hypot(t.x - s.x, t.y - s.y) > JUMP_M ? 1 : ease(dt, GLIDE_S);
+      const placed = JUMP_M + s.v * Math.max(1, state.rate) * JUMP_S;
+      const k = !state.playing || Math.hypot(t.x - s.x, t.y - s.y) > placed ? 1 : ease(dt, GLIDE_S);
       s.x = lerp(s.x, t.x, k);
       s.y = lerp(s.y, t.y, k);
       s.z = lerp(s.z, t.z, k);
