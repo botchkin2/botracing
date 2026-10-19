@@ -55,6 +55,16 @@ test('every released tray from the oldest with payloads on has payloads', () => 
     .map(t => t.trim().replace(/^tray-v/, ''))
     .filter(v => /^\d+\.\d+\.\d+$/.test(v));
   assert.ok(tags.length > 0, 'no tray-v tags: fetch them (fetch-depth: 0)');
+  // The release run sets RELEASE_CANDIDATE to the version it is about to tag,
+  // so this runs as if the tag existed: the release refuses while the last
+  // released tray has no beat, instead of its tag turning main red (it did
+  // three times: 0.1.11, 0.1.13, 0.1.14). The candidate's own beat is saved
+  // by the release's live gate (artifact heartbeat-<version>; README).
+  const candidate = process.env.RELEASE_CANDIDATE;
+  if (candidate) {
+    assert.match(candidate, /^\d+\.\d+\.\d+$/, 'RELEASE_CANDIDATE');
+    if (!tags.includes(candidate)) tags.push(candidate);
+  }
   // Not the newest tag: its beats reach the repo in a PR after its release,
   // and until then every open PR would be red (torsion on #611).
   const newest = [...tags].sort((a, b) => (older(a, b) ? -1 : 1)).at(-1);
@@ -64,7 +74,7 @@ test('every released tray from the oldest with payloads on has payloads', () => 
   assert.deepEqual(
     missing,
     [],
-    'save a real beat of each in contract/payloads/heartbeat',
+    'save a real beat of each in contract/payloads/heartbeat (contract/README.md, "Adding a payload")',
   );
 });
 
@@ -75,5 +85,8 @@ test('a real beat with a tray update waiting is accepted; a non-string or over-l
   assert.ok(ok.ok, ok.ok ? '' : ok.error);
   assert.equal(ok.doc.updateWaiting, '0.1.13');
   assert.equal(checkHeartbeat(mutate(real, 'updateWaiting', 12)).ok, false);
-  assert.equal(checkHeartbeat(mutate(real, 'updateWaiting', 'x'.repeat(33))).ok, false);
+  assert.equal(
+    checkHeartbeat(mutate(real, 'updateWaiting', 'x'.repeat(33))).ok,
+    false,
+  );
 });
