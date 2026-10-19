@@ -1,0 +1,29 @@
+// The 3D chase's own race clock. The app's clock moves every frame too, but React may skip a frame; the engine runs on
+// from its last anchor and takes the app's time only when the two part (a seek, play or pause, a new rate), so a car
+// never stands still or steps (thread 93). Plain TypeScript, no imports.
+
+/** A gap larger than this (seconds of race time per unit of rate) between the two clocks is a seek. */
+export const SEEK_S = 0.25;
+
+export interface ChaseClock {
+  /** Race time at wall time `atMs`. */
+  timeS: number;
+  atMs: number;
+  playing: boolean;
+  rate: number;
+}
+
+/** Race time now: running at `rate` from the anchor while playing, held while paused. */
+export function clockAt(c: ChaseClock, nowMs: number): number {
+  return c.playing ? c.timeS + ((nowMs - c.atMs) / 1000) * c.rate : c.timeS;
+}
+
+/** The clock after the app reports its time, play state and rate at wall time `nowMs`. */
+export function followApp(c: ChaseClock, app: {timeS: number; playing: boolean; rate: number}, nowMs: number): ChaseClock {
+  const ran = clockAt(c, nowMs);
+  const changed = app.playing !== c.playing || app.rate !== c.rate;
+  const parted = Math.abs(app.timeS - ran) > SEEK_S * Math.max(1, app.rate);
+  if (!app.playing || parted) return {timeS: app.timeS, atMs: nowMs, playing: app.playing, rate: app.rate};
+  if (changed) return {timeS: ran, atMs: nowMs, playing: app.playing, rate: app.rate};
+  return c;
+}

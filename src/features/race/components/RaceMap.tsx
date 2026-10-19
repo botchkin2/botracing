@@ -20,7 +20,7 @@ import {
 
 import {type RaceDot} from '../model';
 import {ChaseView, chaseAvailable} from './ChaseView';
-import {type ChaseCar, type ChaseGaps, type ChaseInputs} from '@/src/features/race/chase/chaseTypes';
+import {type ChaseCar, type ChaseGaps, type ChaseInputs, type ChaseSampler} from '@/src/features/race/chase/chaseTypes';
 
 // Dot radii in points by class, fastest first, from handoff R1d (desktop
 // scale x1.15, phone x0.8); "other" takes the third size.
@@ -60,7 +60,11 @@ export type MapMode = 'track' | 'follow' | 'chase';
 /** What the 3D chase needs beyond the cars: the road, and whose eyes. */
 export type RaceChase = {
   road: ChaseRoad;
+  /** The cars now, for the strip; the engine samples its own with `sample`. */
   cars: ChaseCar[];
+  sample: ChaseSampler;
+  /** The race clock, seconds from the field's first update. */
+  timeS: number;
   /** The car to follow: the focused one, else you. */
   focus: number | null;
   playing: boolean;
@@ -223,6 +227,8 @@ export function RaceMap({
           height={height - 2}
           road={chase.road}
           cars={chase.cars}
+          sample={chase.sample}
+          timeS={chase.timeS}
           focus={chase.focus}
           playing={chase.playing}
           inputs={chase.inputs}

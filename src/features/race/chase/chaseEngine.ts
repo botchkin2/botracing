@@ -7,7 +7,8 @@
 // World frame: x east, y north, z up (the sim's x and z); three.js is (x, z, -y), see sceneFrame.ts.
 
 import * as THREE from 'three';
-import {angDiff, clamp, ease, lerp, mod} from '@/src/analysis/chaseMath';
+import {clamp, mod} from '@/src/analysis/chaseMath';
+import {clockAt, followApp, type ChaseClock} from '@/src/analysis/chaseClock';
 import {chaseHeading, stepTravel} from '@/src/analysis/chaseHeading';
 import type {ChaseRoad} from '@/src/analysis/chaseRoad';
 import {roadIndex, type RoadIndex} from '@/src/analysis/chaseRoadIndex';
@@ -24,14 +25,9 @@ const FOG_NEAR_M = 260;
 const FOG_FAR_M = 1500;
 const ON_ROAD_MARGIN_M = 3;
 /** A car whose pose moves further than this in one sample has been placed (pits, a rewind), not driven. */
-/**
- * A car further from its target than this has been placed (pits, a rewind), not driven: it snaps. The glide's own lag
- * is speed x playback rate x GLIDE_S (14 m at 200 km/h and 4x), so the threshold grows with both, or a car at speed
- * alternates between gliding and snapping and the view stutters (measured: 4x steps 1.9 m median, 12.4 m p95).
- */
-const JUMP_M = 30;
-const JUMP_S = 0.5;
-const GLIDE_S = 0.07;
+/** A car is see-through once nearer the camera than the followed car less this, solid again past it plus FADE_BAND_M. */
+const FADE_IN_M = 1;
+const FADE_BAND_M = 2;
 const LABELLED_CARS = 8;
 const LABEL_RANGE_M = 120;
 const LABEL_LIFT_M = 1.6;
@@ -40,13 +36,12 @@ const INPUT_WINDOW = 70;
 const DRAG_RAD_PER_PX = 0.008;
 
 interface CarState {
-  /** The pose drawn; it glides toward `target`. */
+  /** The pose drawn: the data's own at the engine's clock. */
   x: number;
   y: number;
   z: number;
   heading: number;
   pitch: number;
-  target: {x: number; y: number; z: number; heading: number; pitch: number};
   car: ChaseCar;
   /** m/s. */
   v: number;
@@ -83,7 +78,8 @@ export function mountChase(
   let inputs: InputsScene | null = null;
   let ribbon: ChaseRibbon | null = null;
   let inputIdx = -1;
-  let state: ChaseUpdate = {cars: [], focus: null, playing: false, rate: 1, inputIdx: -1};
+  let state: ChaseUpdate = {sample: () => [], timeS: 0, focus: null, playing: false, rate: 1, inputIdx: -1};
+  let clock: ChaseClock = {timeS: 0, atMs: performance.now(), playing: false, rate: 1};
   let dirty = true;
   let alive = true;
   let last = performance.now();
@@ -156,7 +152,7 @@ export function mountChase(
           grade = (ix.heightAt(near.s + 4) - ix.heightAt(near.s - 4)) / 8;
         }
       }
-      const target = {
+      const pose = {
         x,
         y,
         z,
@@ -170,9 +166,9 @@ export function mountChase(
         pitch: onRoad ? Math.atan(grade) : 0,
       };
       if (prior) {
-        Object.assign(prior, {target, car: c, v: c.speedKmh / 3.6, ld, onRoad, travel, prev: {x, y}});
+        Object.assign(prior, pose, {car: c, v: c.speedKmh / 3.6, ld, onRoad, travel, prev: {x, y}});
       } else {
-        states.set(c.index, {...target, target, car: c, v: c.speedKmh / 3.6, ld, onRoad, travel, prev: {x, y}});
+        states.set(c.index, {...pose, car: c, v: c.speedKmh / 3.6, ld, onRoad, travel, prev: {x, y}});
       }
     }
     for (const k of [...states.keys()]) {
@@ -200,17 +196,6 @@ export function mountChase(
     if (!road || !ix || !me) {
       renderer.render(scene, camera);
       return;
-    }
-    // the 5 Hz field is interpolated by the app; the pose here glides toward it, so a car never steps
-    for (const s of states.values()) {
-      const t = s.target;
-      const placed = JUMP_M + s.v * Math.max(1, state.rate) * JUMP_S;
-      const k = !state.playing || Math.hypot(t.x - s.x, t.y - s.y) > placed ? 1 : ease(dt, GLIDE_S);
-      s.x = lerp(s.x, t.x, k);
-      s.y = lerp(s.y, t.y, k);
-      s.z = lerp(s.z, t.z, k);
-      s.heading += angDiff(s.heading, t.heading) * k;
-      s.pitch = lerp(s.pitch, t.pitch, k);
     }
     for (const [k, s] of states) {
       let o = objects.get(k);
@@ -249,8 +234,12 @@ export function mountChase(
     const meObj = [...states].find(([, s]) => s === me)?.[0];
     const meAt = meObj !== undefined ? objects.get(meObj) : undefined;
     if (meAt) {
-      const reach = camera.position.distanceTo(meAt.position) - 1;
-      for (const [k, o] of objects) kit.fade(o, k !== meObj && camera.position.distanceTo(o.position) < reach);
+      const reach = camera.position.distanceTo(meAt.position);
+      for (const [k, o] of objects) {
+        const d = camera.position.distanceTo(o.position);
+        const faded = o.userData.faded ? d < reach - FADE_IN_M + FADE_BAND_M : d < reach - FADE_IN_M;
+        kit.fade(o, k !== meObj && faded);
+      }
     }
     const mine = me.car.player;
     if (inputs) {
@@ -295,6 +284,8 @@ export function mountChase(
     last = now;
     if (dirty || state.playing) {
       dirty = false;
+      // every car where the data puts it at this instant: the field interpolated (paused: the nearest update)
+      ingest(state.sample(clockAt(clock, now), !clock.playing));
       render(dt);
     }
     requestAnimationFrame(frame);
@@ -355,9 +346,11 @@ export function mountChase(
     update(u) {
       const was = state.focus;
       state = {...state, ...u};
+      if (u.timeS !== undefined || u.playing !== undefined || u.rate !== undefined) {
+        clock = followApp(clock, {timeS: state.timeS, playing: state.playing, rate: state.rate}, performance.now());
+      }
       if (u.inputIdx !== undefined) inputIdx = u.inputIdx;
       if (u.focus !== undefined && u.focus !== was) rig.reset();
-      ingest(state.cars);
       dirty = true;
     },
     setCam(mode: ChaseCamMode) {
