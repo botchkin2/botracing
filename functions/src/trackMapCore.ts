@@ -34,3 +34,30 @@ export function notModified(ifNoneMatch: unknown, etag: string): boolean {
     .map(v => v.trim().replace(/^W\//, ''))
     .some(v => v === '*' || v === etag);
 }
+
+// The map a client draws from: the track doc's fields plus its outline. One
+// builder for the owner's and the shared route, so a field added here reaches
+// both. `elevation` is the curated height profile (stepM, heightM[]), null for
+// a track without one.
+export function trackMapPayload(
+  trackId: string,
+  name: string | null,
+  track: Record<string, any>,
+  outline: unknown,
+) {
+  return {
+    trackId,
+    track: name,
+    lengthM: track.lengthM ?? null,
+    corners: track.corners ?? [],
+    // Where each section's window starts and the windows that tile the lap
+    // (tools/sessions/layoutBoundaries.mjs); null before the first resync.
+    boundaries: track.boundaries ?? null,
+    quality: track.quality ?? null,
+    qualityNote: track.qualityNote ?? null,
+    georef: track.georef ?? null,
+    attribution: track.outline?.attribution ?? null,
+    elevation: track.elevation ?? null,
+    outline,
+  };
+}
