@@ -88,8 +88,9 @@ const SHAPES: Record<string, ClassShape> = {
 };
 
 const TICK_OF_LENGTH = 0.3;
-const RING_INNER_M = 2.9;
-const RING_OUTER_M = 2.95;
+/** The ring's diameter is about a car's length (chord, thread 83 #6151). */
+const RING_INNER_M = 2.35;
+const RING_OUTER_M = 2.4;
 /** The body is the class colour dimmed, so its lit edges carry the colour; the glasshouse is darker still. */
 const BODY_SHADE = 0.42;
 const CABIN_SHADE = 0.14;

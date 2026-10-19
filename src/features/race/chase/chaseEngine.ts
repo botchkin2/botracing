@@ -85,11 +85,12 @@ export function mountChase(
   const objects = new Map<number, CarObject>();
   const rig = createCameraRig(camera, () => ix);
   const kit = createCarKit({bg: T.bg, edge: T.text, mark: T.text});
-  // one soft light from above and ahead, so a body's facets and the road's slopes read; nothing glows
-  scene.add(new THREE.HemisphereLight(0xffffff, new THREE.Color(T.bg), 0.9));
-  const sun = new THREE.DirectionalLight(0xffffff, 1.6);
-  sun.position.set(0.7, 1, 0.25);
-  scene.add(sun);
+  // a key light high and to one side, a weak fill: a body's top, flanks and tail come out in three tones and the road's
+  // slopes shade; nothing glows
+  scene.add(new THREE.HemisphereLight(0xffffff, new THREE.Color(T.bg), 0.45));
+  const key = new THREE.DirectionalLight(0xffffff, 2.6);
+  key.position.set(0.9, 1.3, -0.4);
+  scene.add(key);
   const probe = new THREE.Vector3();
 
   function freeInputs(i: InputsScene) {

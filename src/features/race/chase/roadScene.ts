@@ -1,7 +1,6 @@
 // The road as an instrument: the measured width as a lit fill (so its slopes shade), thin edges, a cross rung every
 // bin so the surface's rise and fall reads, the start line, and a faint grid on a flat datum below the lowest point of
-// the lap as the ground to read height and speed against. Only where the track has a curated height profile, a faint
-// drop line runs from each edge to the datum every 20 m. No scenery.
+// the lap as the ground to read height and speed against. No scenery.
 
 import * as THREE from 'three';
 import type {ChaseRoad} from '@/src/analysis/chaseRoad';
@@ -13,7 +12,6 @@ type At = (row: number, col: number, out: Point) => void;
 
 const EDGE_WIDTH_M = 0.38;
 const START_LINE_DEPTH_M = 1.2;
-const DROP_EVERY_M = 20;
 const GRID_M = 50;
 const GRID_MARGIN_M = 400;
 /** The datum sits this far under the lowest point of the road. */
@@ -101,18 +99,6 @@ export function buildRoadScene(road: ChaseRoad, ix: RoadIndex, T: ChaseTheme): T
   let lowest = Infinity;
   for (let i = 0; i < n; i++) lowest = Math.min(lowest, ix.height[i]);
   const datum = lowest - DATUM_BELOW_M;
-  if (ix.hasHeight) {
-    const pos: number[] = [];
-    for (let i = 0; i < n; i += Math.max(1, Math.round(DROP_EVERY_M / road.stepM))) {
-      for (const side of [-1, 1]) {
-        const hw = side < 0 ? road.hl[i] : road.hr[i];
-        const x = road.cx[i] + ix.normalX[i] * side * hw;
-        const y = road.cy[i] + ix.normalY[i] * side * hw;
-        pos.push(x, ix.height[i], -y, x, datum, -y);
-      }
-    }
-    group.add(lines(pos, T.edgeFaint));
-  }
   group.add(datumGrid(road, datum, T.grid));
   // the start line, flat on the road
   group.add(
