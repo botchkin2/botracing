@@ -212,9 +212,6 @@ function ChaseSurface({
       {failed !== null ? (
         <View style={styles.center}>
           <Text tone='textMuted'>3D unavailable</Text>
-          <Text variant='dataSmall' tone='textMuted'>
-            {failed}
-          </Text>
           <Pressable
             accessibilityLabel='Reload the page'
             onPress={() => window.location.reload()}
