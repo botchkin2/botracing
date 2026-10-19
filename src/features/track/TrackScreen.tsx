@@ -8,6 +8,7 @@ import {OfflineLine, Pressable, Text} from '@/src/ui';
 
 import {AboutBlock} from './components/AboutBlock';
 import {CornerList} from './components/CornerList';
+import {ElevationCard} from './components/ElevationCard';
 import {FactTiles} from './components/FactTiles';
 import {HistoryPanel} from './components/HistoryPanel';
 import {LayoutChips} from './components/LayoutChips';
@@ -160,6 +161,9 @@ function TrackPhone({
         loading={mapLoading}
         failed={mapFailed}
       />
+      {model.elevation ? (
+        <ElevationCard elevation={model.elevation} width={width} />
+      ) : null}
       <ProgressionCard combos={plans} width={width} />
       <FactTiles facts={model.facts} layout='grid' />
       {model.corners.length > 0 ? (
@@ -300,6 +304,9 @@ function TrackDesktop({
             loading={mapLoading}
             failed={mapFailed}
           />
+          {model.elevation ? (
+            <ElevationCard elevation={model.elevation} width={mapW} />
+          ) : null}
           <ProgressionCard combos={plans} width={mapW} />
           <LayoutChips layouts={model.layouts} onOpen={actions.openLayout} />
         </ScrollView>

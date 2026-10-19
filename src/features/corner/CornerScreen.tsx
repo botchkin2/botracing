@@ -63,6 +63,7 @@ const PHONE_H: ZoomHeights = {
   delta: 0,
   steering: 40,
   line: 0,
+  height: 40,
 };
 // Landscape phone: 375 pt of height, so the speed trace is the first screen's
 // chart and the pedals are tall enough to read, not 52 pt ribbons.
@@ -74,6 +75,7 @@ const LANDSCAPE_H: ZoomHeights = {
   delta: 0,
   steering: 60,
   line: 0,
+  height: 40,
 };
 // Desktop: the whole snapshot (delta, speed, brake, throttle, steering, line)
 // has to sit in a scrolling column, so the pedals are shorter than before.
@@ -85,6 +87,7 @@ const DESK_H: ZoomHeights = {
   delta: 100,
   steering: 60,
   line: 130,
+  height: 56,
 };
 // The wide layout's charts are kept at least this wide when the left column
 // is dragged out: what the old layout gave them at 1280 (layout.width 1000,

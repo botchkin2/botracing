@@ -1,3 +1,4 @@
+import {buildElevation, type ElevationModel} from './elevationProfile';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
 import {matchCornerNames} from '@/src/analysis/cornerNames';
 import {applyGeoref, canDrawOnRealMap} from '@/src/analysis/geo';
@@ -58,6 +59,8 @@ export type TrackModel = {
   corners: TrackCornerGroup[];
   selection: {n: number; label: string} | null;
   map: TrackMapModel | null;
+  /** The curated height along the lap; null where none is curated. */
+  elevation: ElevationModel | null;
   history: HistoryModel | null;
   about: {text: string; url: string; attribution: string} | null;
   layouts: {trackId: string; name: string; current: boolean}[];
@@ -176,6 +179,7 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
         }
       : null,
     map: mapModel,
+    elevation: buildElevation(map),
     history: buildHistory(input.sessions),
     about: info?.summary
       ? {

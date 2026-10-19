@@ -54,6 +54,18 @@ export function steeringScale(): Scale {
   return fixedScale(-100, 100, 50, withUnit('%'));
 }
 
+/** Height (m): fitted to the window, min to max; a stretch that never changes still gets a few metres of room (fitScale's unit span). */
+export function heightScale(
+  heights: readonly number[],
+  window: [number, number],
+  stepM: number,
+): Scale {
+  return fitScale(valuesInWindow([heights], window, stepM), {
+    symmetric: false,
+    format: withUnit('m'),
+  });
+}
+
 /** Racing line (m): ±the road's own half width, from the measured road edges in the window. */
 export function lateralScale(
   edges: readonly (readonly number[])[],
