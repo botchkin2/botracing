@@ -2,6 +2,7 @@
 // call 2026-10-09: charts first, numbers below, seek controls always visible).
 
 export type CornerBlock =
+  | 'moves'
   | 'charts'
   | 'shape'
   | 'laps'
@@ -19,7 +20,9 @@ export type CornerLayout = {
 };
 
 /**
- * Phone: charts, the corner shape, the lap table, the dot strips (always
+ * What moves with the time leads the cards (Corner's first one, thread 88
+ * S4): on the phone right under the charts, on the wide left bar first.
+ * Phone: charts, the card, the corner shape, the lap table, the dot strips (always
  * shown), then the folded spread (the section window); nothing is cut, it is
  * just below the first read. Wide: the shape and the table lead the left bar
  * (the charts are the right column), the strips under them, the spread folds
@@ -29,12 +32,12 @@ export function cornerLayout(wide: boolean): CornerLayout {
   if (wide)
     return {
       pinnedSeek: false,
-      order: ['shape', 'laps', 'strips', 'spread'],
+      order: ['moves', 'shape', 'laps', 'strips', 'spread'],
       folded: ['spread'],
     };
   return {
     pinnedSeek: true,
-    order: ['charts', 'shape', 'laps', 'strips', 'spread', 'nav'],
+    order: ['charts', 'moves', 'shape', 'laps', 'strips', 'spread', 'nav'],
     folded: ['spread'],
   };
 }

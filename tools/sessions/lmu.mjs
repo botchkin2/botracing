@@ -33,6 +33,11 @@ export const gameExe = 'Le Mans Ultimate.exe';
 // every left-hander negative (pit wall thread 58 #3925).
 export const steerRightSign = 1;
 
+// Which sign of path_lateral_m is right of the centre: +1 here. Measured on the
+// golden slices: right-handers' apex line averages +3.8 m, left-handers' -3.6 m
+// (pit wall thread 88, S4). cornerFacts stores apexLateralM right-positive.
+export const lateralRightSign = 1;
+
 export const watcher = {
   legacyLayout: true,
   quietMin: 0,

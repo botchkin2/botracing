@@ -745,6 +745,10 @@ export type CornerFacts = {
   fullThrottleAtEdge: boolean;
   /** Speed at the apex sample, km/h (#82). */
   apexSpeedKph: number | null;
+  /** The line at the slowest sample: path_lateral_m, right of the centre positive (the sim adapter's lateralRightSign; iRacing has none). Null on the window's edge and before cornerInputs 4. */
+  apexLateralM: number | null;
+  /** The steering size there, % of lock; null likewise. */
+  apexSteerPct: number | null;
   offTrackS: number;
   /** Seconds under a local yellow in this window; 0 on laps analysed before it. */
   localYellowS: number;
@@ -896,6 +900,8 @@ function toCornerFacts(raw: unknown): CornerFacts {
     minSpeedAtEdge: x.minSpeedAtEdge === true,
     fullThrottleAtEdge: x.fullThrottleAtEdge === true,
     apexSpeedKph: num(x.apexSpeedKmh),
+    apexLateralM: num(x.apexLateralM),
+    apexSteerPct: num(x.apexSteerPct),
     offTrackS: num(x.offTrackSec) ?? 0,
     localYellowS: num(x.localYellowSec) ?? 0,
     window: toWindowFacts(x),
@@ -1158,6 +1164,8 @@ export type MapCorner = {
   entryM: number;
   apexM: number;
   exitM: number;
+  /** Which way the corner turns; 'mixed' for a section of both, absent on a map stored without it. */
+  direction?: 'left' | 'right' | 'mixed';
 };
 
 export type MapSection = MapCorner & {parts: MapCorner[]};
@@ -1280,6 +1288,11 @@ function toMapCorner(raw: unknown, labels: Record<number, string>): MapCorner {
     entryM: num(x.entryM) ?? 0,
     apexM: num(x.apexM) ?? 0,
     exitM: num(x.exitM) ?? 0,
+    ...(x.direction === 'left' ||
+    x.direction === 'right' ||
+    x.direction === 'mixed'
+      ? {direction: x.direction}
+      : {}),
   };
 }
 

@@ -88,6 +88,8 @@ export function summaryOf(a) {
           'fullThrottleAtEdge',
           'minSpeedKmh',
           'minSpeedAtEdge',
+          'apexLateralM',
+          'apexSteerPct',
         ]),
       ),
     })),

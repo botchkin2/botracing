@@ -41,6 +41,7 @@ import {
 } from './wholeCorner';
 import {buildSectionWindow, type SectionWindowModel} from './sectionWindow';
 import {brakeZone} from './brakeZone';
+import {buildMoves, type MovesCard} from './moves';
 import {buildStrips, type StripModel} from './strips';
 import {type EdgeRun, edgeRuns} from './trackEdges';
 import {
@@ -172,6 +173,8 @@ export type CornerModel = {
   mode: LapMode;
   rows: CornerRow[];
   strips: StripModel[] | null;
+  /** What moves with the time in this corner part (moves.ts); null under the floor, and over a whole compound section. */
+  moves: MovesCard | null;
   /** The section's window, split and compared; null until the track has boundaries. */
   window: SectionWindowModel | null;
   zoom: {
@@ -487,6 +490,25 @@ export function buildCornerModel(input: {
     };
   });
 
+  // The part's inputs against its window time, over the set; a whole compound
+  // section mixes parts, so it has none (per part, thread 88 S4).
+  const moves = whole
+    ? null
+    : buildMoves(
+        set.map((l, i) => {
+          const f = sourcesOf(l).whole.facts;
+          return {
+            time: allValues[i].time,
+            brake: allValues[i].brake,
+            lateral: f?.apexLateralM ?? null,
+            steerPct: f?.apexSteerPct ?? null,
+            throttle: allValues[i].throttle,
+            minSpeedKph: allValues[i].minSpeed,
+          };
+        }),
+        sec.direction ?? 'mixed',
+      );
+
   const strips: StripModel[] | null =
     set.length >= STRIP_MODE_FROM
       ? buildStrips(
@@ -644,6 +666,7 @@ export function buildCornerModel(input: {
     mode,
     rows,
     strips,
+    moves,
     window: buildSectionWindow({
       map,
       sectionN: sec.sectionN,

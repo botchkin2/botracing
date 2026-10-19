@@ -321,7 +321,8 @@ function drive({rightPositive = true} = {}) {
     speed = [],
     brake = [],
     throttle = [],
-    steer = [];
+    steer = [],
+    lateral = [];
   let d = 0;
   let time = 1000;
   while (d < INPUT_LENGTH) {
@@ -337,6 +338,9 @@ function drive({rightPositive = true} = {}) {
     const right = ramp(d, 280, 350, 30) || ramp(d, 400, 350, 30);
     const left = ramp(d, 440, 470, 25) || ramp(d, 520, 470, 25);
     steer.push(sign * (right - left));
+    // The line: 2.5 m right of the centre through the right-hander's slow
+    // stretch, 1.5 m left through the left-hander's.
+    lateral.push(d >= 300 && d < 400 ? 2.5 : d >= 430 && d < 520 ? -1.5 : 0);
     d += v / 100;
     time += 0.01;
   }
@@ -356,6 +360,7 @@ function drive({rightPositive = true} = {}) {
         brake_pct: Float64Array.from(brake),
         throttle_pct: Float64Array.from(throttle),
         steer_pct: Float64Array.from(steer),
+        path_lateral_m: Float64Array.from(lateral),
       },
       hz: {brake_pct: 100, throttle_pct: 100},
       baseHz: 100,
@@ -371,7 +376,7 @@ function drive({rightPositive = true} = {}) {
     },
   };
 }
-const inputsOf = ({rec, lap}, steerRightSign = 1) =>
+const inputsOf = ({rec, lap}, steerRightSign = 1, lateralRightSign = 1) =>
   cornerFacts({
     rec,
     lap,
@@ -382,6 +387,7 @@ const inputsOf = ({rec, lap}, steerRightSign = 1) =>
     lengthM: INPUT_LENGTH,
     onsets: [210],
     steerRightSign,
+    lateralRightSign,
   }).corners[0];
 
 test('each corner of a section reads the brake application braking for it, and no other', () => {
@@ -435,4 +441,39 @@ test('full throttle is the held point the split uses, one definition', () => {
   const [p1] = c.parts;
   assert.ok(Math.abs(p1.fullThrottleAtM - 355) <= 1, `${p1.fullThrottleAtM}`);
   assert.equal(p1.fullThrottleAtEdge, false);
+});
+
+// A dip at each apex, so the slowest sample is inside the corner, not on its edge.
+const dipped = opts => {
+  const lap = drive(opts);
+  lap.lap.dist.forEach((d, i) => {
+    if (Math.abs(d - 340) < 1 || Math.abs(d - 460) < 1)
+      lap.rec.s.speed_kmh[i] -= 3;
+  });
+  return lap;
+};
+
+test('the line and the steering at the slowest sample, per corner part; none without the channel', () => {
+  const [p1, p2] = inputsOf(dipped()).parts;
+  assert.equal(p1.apexLateralM, 2.5);
+  assert.equal(p2.apexLateralM, -1.5);
+  // The wheel is at 6-30 % through the right-hander's slow stretch, 5-25 % through the left's.
+  assert.ok(p1.apexSteerPct > 5 && p1.apexSteerPct <= 30, `${p1.apexSteerPct}`);
+  assert.ok(p2.apexSteerPct > 0 && p2.apexSteerPct <= 25, `${p2.apexSteerPct}`);
+  // The steering size is unsigned: the same in either sign convention.
+  const flipped = inputsOf(dipped({rightPositive: false}), -1).parts;
+  assert.equal(flipped[0].apexSteerPct, p1.apexSteerPct);
+  const bare = dipped();
+  delete bare.rec.s.path_lateral_m;
+  const [b1] = inputsOf(bare).parts;
+  assert.equal(b1.apexLateralM, null);
+  assert.ok(b1.apexSteerPct > 0);
+});
+
+test('the line is stored right-positive whatever the sim’s own sign: the adapter’s lateralRightSign turns it', () => {
+  // The channel reads right as negative here (a sim like iRacing's steering):
+  // with lateralRightSign -1 the stored value is the right-positive one.
+  const [p1] = inputsOf(dipped(), 1, -1).parts;
+  assert.equal(p1.apexLateralM, -2.5);
+  assert.equal(inputsOf(dipped(), 1, 1).parts[0].apexLateralM, 2.5);
 });

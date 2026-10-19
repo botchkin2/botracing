@@ -94,7 +94,9 @@
        "fullThrottleAtM": 493.2,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 176.9,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 13.2
       }
      ]
     },
@@ -110,7 +112,9 @@
        "fullThrottleAtM": 863.8,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 129.9,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 18.3
       },
       {
        "brakeAtM": null,
@@ -121,7 +125,9 @@
        "fullThrottleAtM": 935,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 144.6,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     },
@@ -137,7 +143,9 @@
        "fullThrottleAtM": 1045.1,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 185.3,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": null,
@@ -148,7 +156,9 @@
        "fullThrottleAtM": 1220.6,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 214,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": 1309.1,
@@ -159,7 +169,9 @@
        "fullThrottleAtM": 1412.9,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 131.5,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 4.8
       }
      ]
     },
@@ -175,7 +187,9 @@
        "fullThrottleAtM": 2006.3,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 123.9,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 6.2
       }
      ]
     },
@@ -191,7 +205,9 @@
        "fullThrottleAtM": 2145.6,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 84.8,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 24.6
       }
      ]
     },
@@ -207,7 +223,9 @@
        "fullThrottleAtM": 3513.8,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 109.7,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 14.1
       },
       {
        "brakeAtM": null,
@@ -218,7 +236,9 @@
        "fullThrottleAtM": 3572.6,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 118.8,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 23.2
       },
       {
        "brakeAtM": null,
@@ -229,7 +249,9 @@
        "fullThrottleAtM": 3660.4,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 150.3,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     }
@@ -268,7 +290,9 @@
        "fullThrottleAtM": 478.1,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 174.3,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 14.5
       }
      ]
     },
@@ -284,7 +308,9 @@
        "fullThrottleAtM": 867.9,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 127.5,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 9.5
       },
       {
        "brakeAtM": null,
@@ -295,7 +321,9 @@
        "fullThrottleAtM": 890.5,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 146.5,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     },
@@ -311,7 +339,9 @@
        "fullThrottleAtM": 1125.6,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 186.7,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": null,
@@ -322,7 +352,9 @@
        "fullThrottleAtM": 1220.1,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 209,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": 1306,
@@ -333,7 +365,9 @@
        "fullThrottleAtM": 1425.3,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 137.1,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 14.9
       }
      ]
     },
@@ -349,7 +383,9 @@
        "fullThrottleAtM": 1992,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 137,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 13.4
       }
      ]
     },
@@ -365,7 +401,9 @@
        "fullThrottleAtM": 2146.8,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 72.5,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 26.9
       }
      ]
     },
@@ -381,7 +419,9 @@
        "fullThrottleAtM": 3510.5,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 101.4,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 20.5
       },
       {
        "brakeAtM": null,
@@ -392,7 +432,9 @@
        "fullThrottleAtM": 3571.8,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 116.2,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": null,
@@ -403,7 +445,9 @@
        "fullThrottleAtM": 3660.3,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 153.4,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     }
@@ -442,7 +486,9 @@
        "fullThrottleAtM": 520.8,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 182.7,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 10.8
       }
      ]
     },
@@ -458,7 +504,9 @@
        "fullThrottleAtM": 868,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 134.1,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 13.3
       },
       {
        "brakeAtM": null,
@@ -469,7 +517,9 @@
        "fullThrottleAtM": 943.9,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 148.2,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     },
@@ -485,7 +535,9 @@
        "fullThrottleAtM": 1126.6,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 187.4,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": null,
@@ -496,7 +548,9 @@
        "fullThrottleAtM": 1220.5,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 207.8,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": 1308.5,
@@ -507,7 +561,9 @@
        "fullThrottleAtM": 1420.7,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 144.9,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 11.3
       }
      ]
     },
@@ -523,7 +579,9 @@
        "fullThrottleAtM": null,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 133.3,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     },
@@ -539,7 +597,9 @@
        "fullThrottleAtM": 2158.5,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 89.1,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 22.3
       }
      ]
     },
@@ -555,7 +615,9 @@
        "fullThrottleAtM": null,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 105.6,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 19.9
       },
       {
        "brakeAtM": null,
@@ -566,7 +628,9 @@
        "fullThrottleAtM": 3618,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 118.9,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": null,
@@ -577,7 +641,9 @@
        "fullThrottleAtM": 3660.3,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 149.9,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     }
@@ -616,7 +682,9 @@
        "fullThrottleAtM": 488.8,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 171.8,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 9.6
       }
      ]
     },
@@ -632,7 +700,9 @@
        "fullThrottleAtM": 864.2,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 102.7,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 3.9
       },
       {
        "brakeAtM": null,
@@ -643,7 +713,9 @@
        "fullThrottleAtM": 890.1,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 135.3,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     },
@@ -659,7 +731,9 @@
        "fullThrottleAtM": 1149.6,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 183.2,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 9.2
       },
       {
        "brakeAtM": null,
@@ -670,7 +744,9 @@
        "fullThrottleAtM": 1220,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 200.1,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": 1298.7,
@@ -681,7 +757,9 @@
        "fullThrottleAtM": 1419.8,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 144.1,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 12.9
       }
      ]
     },
@@ -697,7 +775,9 @@
        "fullThrottleAtM": 1990,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 138.8,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 17
       }
      ]
     },
@@ -713,7 +793,9 @@
        "fullThrottleAtM": 2149.6,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 82.9,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 24.2
       }
      ]
     },
@@ -729,7 +811,9 @@
        "fullThrottleAtM": 3517.2,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 101.4,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 16.2
       },
       {
        "brakeAtM": null,
@@ -740,7 +824,9 @@
        "fullThrottleAtM": 3582.2,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 113.2,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": null,
@@ -751,7 +837,9 @@
        "fullThrottleAtM": 3660,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 150.4,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     }
@@ -805,7 +893,9 @@
        "fullThrottleAtM": 517.6,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 173.5,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 14.3
       }
      ]
     },
@@ -821,7 +911,9 @@
        "fullThrottleAtM": 849.2,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 108.7,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 14.6
       },
       {
        "brakeAtM": null,
@@ -832,7 +924,9 @@
        "fullThrottleAtM": 890,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 140.6,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     },
@@ -848,7 +942,9 @@
        "fullThrottleAtM": 1093.8,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 178.3,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 8.5
       },
       {
        "brakeAtM": null,
@@ -859,7 +955,9 @@
        "fullThrottleAtM": 1244,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 204.2,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": 1293.2,
@@ -870,7 +968,9 @@
        "fullThrottleAtM": 1478.5,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 43.1,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 8.3
       }
      ]
     },
@@ -886,7 +986,9 @@
        "fullThrottleAtM": null,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 130.3,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     },
@@ -902,7 +1004,9 @@
        "fullThrottleAtM": 2171.3,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 81.6,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 21.4
       }
      ]
     },
@@ -918,7 +1022,9 @@
        "fullThrottleAtM": null,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 111.1,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 11.8
       },
       {
        "brakeAtM": null,
@@ -929,7 +1035,9 @@
        "fullThrottleAtM": 3593.6,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 116.8,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 17.1
       },
       {
        "brakeAtM": 3801.6,
@@ -940,7 +1048,9 @@
        "fullThrottleAtM": 3888.2,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 38.6,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 0.5
       }
      ]
     }
@@ -981,7 +1091,9 @@
        "fullThrottleAtM": 361.7,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 72.4,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 3.5
       }
      ]
     },
@@ -997,7 +1109,9 @@
        "fullThrottleAtM": 863.7,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 121,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 11.9
       },
       {
        "brakeAtM": null,
@@ -1008,7 +1122,9 @@
        "fullThrottleAtM": 890.2,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 142.3,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     },
@@ -1024,7 +1140,9 @@
        "fullThrottleAtM": 1045,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 183.8,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": null,
@@ -1035,7 +1153,9 @@
        "fullThrottleAtM": 1220.6,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 210.7,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": 1307,
@@ -1046,7 +1166,9 @@
        "fullThrottleAtM": 1438.4,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 128.5,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 4.6
       }
      ]
     },
@@ -1062,7 +1184,9 @@
        "fullThrottleAtM": null,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 136.4,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     },
@@ -1078,7 +1202,9 @@
        "fullThrottleAtM": 2155.5,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 85.2,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 25.3
       }
      ]
     },
@@ -1094,7 +1220,9 @@
        "fullThrottleAtM": null,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 112,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 17.4
       },
       {
        "brakeAtM": null,
@@ -1105,7 +1233,9 @@
        "fullThrottleAtM": 3603.9,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 115.5,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 15.3
       },
       {
        "brakeAtM": null,
@@ -1116,7 +1246,9 @@
        "fullThrottleAtM": 3660.3,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 146.6,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     }
@@ -1155,7 +1287,9 @@
        "fullThrottleAtM": 497,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 173.8,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 16.5
       }
      ]
     },
@@ -1171,7 +1305,9 @@
        "fullThrottleAtM": 859,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 93.8,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 14.6
       },
       {
        "brakeAtM": null,
@@ -1182,7 +1318,9 @@
        "fullThrottleAtM": 890.4,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 123.9,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     },
@@ -1198,7 +1336,9 @@
        "fullThrottleAtM": 1045.8,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 178.3,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": null,
@@ -1209,7 +1349,9 @@
        "fullThrottleAtM": 1220.3,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 205.8,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": 1310.8,
@@ -1220,7 +1362,9 @@
        "fullThrottleAtM": 1421,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 136,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 14.2
       }
      ]
     },
@@ -1236,7 +1380,9 @@
        "fullThrottleAtM": 1993.1,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 137.7,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 16.9
       }
      ]
     },
@@ -1252,7 +1398,9 @@
        "fullThrottleAtM": 2156.8,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 84.7,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 25.9
       }
      ]
     },
@@ -1268,7 +1416,9 @@
        "fullThrottleAtM": null,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 103.1,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": null,
@@ -1279,7 +1429,9 @@
        "fullThrottleAtM": 3575.4,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 106.3,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": null,
@@ -1290,7 +1442,9 @@
        "fullThrottleAtM": 3660.5,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 145.9,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     }
@@ -1329,7 +1483,9 @@
        "fullThrottleAtM": 543.3,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 174.6,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 18.5
       }
      ]
     },
@@ -1345,7 +1501,9 @@
        "fullThrottleAtM": 854.2,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 114.4,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 13.7
       },
       {
        "brakeAtM": null,
@@ -1356,7 +1514,9 @@
        "fullThrottleAtM": 896.1,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 142.4,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     },
@@ -1372,7 +1532,9 @@
        "fullThrottleAtM": 1045.2,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 182.7,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": null,
@@ -1383,7 +1545,9 @@
        "fullThrottleAtM": null,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 197.6,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": 1321.9,
@@ -1394,7 +1558,9 @@
        "fullThrottleAtM": 1415.4,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 134.5,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 13.5
       }
      ]
     },
@@ -1410,7 +1576,9 @@
        "fullThrottleAtM": 1979.2,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 137.2,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 16.4
       }
      ]
     },
@@ -1426,7 +1594,9 @@
        "fullThrottleAtM": 2157.3,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 86.7,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 26.1
       }
      ]
     },
@@ -1442,7 +1612,9 @@
        "fullThrottleAtM": 3513.5,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 95.2,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 19.9
       },
       {
        "brakeAtM": null,
@@ -1453,7 +1625,9 @@
        "fullThrottleAtM": 3581.4,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 114,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": null,
@@ -1464,7 +1638,9 @@
        "fullThrottleAtM": 3660.3,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 147.1,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     }
@@ -1503,7 +1679,9 @@
        "fullThrottleAtM": 484.2,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 168.1,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 14.2
       }
      ]
     },
@@ -1519,7 +1697,9 @@
        "fullThrottleAtM": 867.5,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 128.2,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 18.7
       },
       {
        "brakeAtM": null,
@@ -1530,7 +1710,9 @@
        "fullThrottleAtM": 890.1,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 146.4,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     },
@@ -1546,7 +1728,9 @@
        "fullThrottleAtM": 1064.3,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 186.8,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": null,
@@ -1557,7 +1741,9 @@
        "fullThrottleAtM": 1220.5,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 210.6,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": 1308.7,
@@ -1568,7 +1754,9 @@
        "fullThrottleAtM": 1428.8,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 141.9,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 11.1
       }
      ]
     },
@@ -1584,7 +1772,9 @@
        "fullThrottleAtM": 1985,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 132.1,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 13.8
       }
      ]
     },
@@ -1600,7 +1790,9 @@
        "fullThrottleAtM": 2167.9,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 89.1,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 27
       }
      ]
     },
@@ -1616,7 +1808,9 @@
        "fullThrottleAtM": 3520.1,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 106.8,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 19.1
       },
       {
        "brakeAtM": null,
@@ -1627,7 +1821,9 @@
        "fullThrottleAtM": 3601.9,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 118.2,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": null,
@@ -1638,7 +1834,9 @@
        "fullThrottleAtM": 3659.6,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 148.7,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     }
@@ -1677,7 +1875,9 @@
        "fullThrottleAtM": 472,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 170.9,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 14.7
       }
      ]
     },
@@ -1693,7 +1893,9 @@
        "fullThrottleAtM": 868,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 122,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 22.7
       },
       {
        "brakeAtM": null,
@@ -1704,7 +1906,9 @@
        "fullThrottleAtM": 890.4,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 142.9,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     },
@@ -1720,7 +1924,9 @@
        "fullThrottleAtM": 1045.2,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 185.5,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": null,
@@ -1731,7 +1937,9 @@
        "fullThrottleAtM": 1220.8,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 206.1,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": 1304.5,
@@ -1742,7 +1950,9 @@
        "fullThrottleAtM": 1428,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 129.9,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 3.5
       }
      ]
     },
@@ -1758,7 +1968,9 @@
        "fullThrottleAtM": 1972.3,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 134.7,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 16.4
       }
      ]
     },
@@ -1774,7 +1986,9 @@
        "fullThrottleAtM": 2157.2,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 81.9,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 30
       }
      ]
     },
@@ -1790,7 +2004,9 @@
        "fullThrottleAtM": 3512.1,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 104.7,
-       "minSpeedAtEdge": false
+       "minSpeedAtEdge": false,
+       "apexLateralM": null,
+       "apexSteerPct": 20.6
       },
       {
        "brakeAtM": null,
@@ -1801,7 +2017,9 @@
        "fullThrottleAtM": 3579.9,
        "fullThrottleAtEdge": false,
        "minSpeedKmh": 116.8,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       },
       {
        "brakeAtM": null,
@@ -1812,7 +2030,9 @@
        "fullThrottleAtM": 3660.5,
        "fullThrottleAtEdge": true,
        "minSpeedKmh": 149.6,
-       "minSpeedAtEdge": true
+       "minSpeedAtEdge": true,
+       "apexLateralM": null,
+       "apexSteerPct": null
       }
      ]
     }
