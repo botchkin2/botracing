@@ -561,9 +561,6 @@ export async function trackMapById(trackId: string): Promise<{
         lengthM: track.lengthM ?? null,
         corners: track.corners ?? [],
         boundaries: track.boundaries ?? null,
-        // The curated height along the lap (tools/curate plan-elevation), in the
-        // corner map's frame; null where none has been curated.
-        elevation: track.elevation ?? null,
         quality: track.quality ?? null,
         qualityNote: track.qualityNote ?? null,
         georef: track.georef ?? null,

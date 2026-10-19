@@ -54,16 +54,30 @@ export function steeringScale(): Scale {
   return fixedScale(-100, 100, 50, withUnit('%'));
 }
 
-/** Height (m): fitted to the window, min to max; a stretch that never changes still gets a few metres of room (fitScale's unit span). */
+/** The least span the height strip shows, metres: under it the profile's measurement noise would read as a hill. */
+export const MIN_HEIGHT_SPAN_M = 5;
+
+/**
+ * Height (m): fitted to the window, min to max, but never tighter than
+ * MIN_HEIGHT_SPAN_M, centred on the window's middle height: a flat stretch
+ * draws flat, not as a hill stretched to the strip's height.
+ */
 export function heightScale(
   heights: readonly number[],
   window: [number, number],
   stepM: number,
 ): Scale {
-  return fitScale(valuesInWindow([heights], window, stepM), {
-    symmetric: false,
-    format: withUnit('m'),
-  });
+  const v = valuesInWindow([heights], window, stepM);
+  const lo = Math.min(...v);
+  const hi = Math.max(...v);
+  const fitted =
+    v.length > 0 && hi - lo < MIN_HEIGHT_SPAN_M
+      ? [
+          (lo + hi) / 2 - MIN_HEIGHT_SPAN_M / 2,
+          (lo + hi) / 2 + MIN_HEIGHT_SPAN_M / 2,
+        ]
+      : v;
+  return fitScale(fitted, {symmetric: false, format: withUnit('m')});
 }
 
 /** Racing line (m): ±the road's own half width, from the measured road edges in the window. */

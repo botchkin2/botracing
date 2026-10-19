@@ -3,7 +3,9 @@ import {describe, expect, test} from '@jest/globals';
 import {
   cornerScales,
   deltaScale,
+  heightScale,
   lateralScale,
+  MIN_HEIGHT_SPAN_M,
   pedalScale,
   speedScale,
   steeringScale,
@@ -111,5 +113,30 @@ describe('cornerScales', () => {
     );
     expect(s.speed.hi).toBeGreaterThanOrEqual(240);
     expect(s.speed.lo).toBeLessThanOrEqual(200);
+  });
+});
+
+describe('heightScale', () => {
+  test('a flat stretch keeps a 5 m span centred on its height: noise is not a hill', () => {
+    // 0.3 m of measurement wobble around 8.1 m.
+    const s = heightScale([8.0, 8.3, 8.1, 8.2, 8.1], WIN, STEP);
+    expect(MIN_HEIGHT_SPAN_M).toBe(5);
+    expect(s.hi - s.lo).toBeGreaterThanOrEqual(MIN_HEIGHT_SPAN_M);
+    // Centred: the middle of the scale is within a tick step of the height.
+    expect(Math.abs((s.lo + s.hi) / 2 - 8.15)).toBeLessThanOrEqual(s.step);
+    // The 0.3 m wobble is under 10 % of the scale's span.
+    expect(0.3 / (s.hi - s.lo)).toBeLessThan(0.1);
+  });
+
+  test('a real climb is fitted to its own range, wider than the minimum', () => {
+    const s = heightScale([0, 4, 9, 14, 20], WIN, STEP);
+    expect(s.lo).toBeLessThanOrEqual(0);
+    expect(s.hi).toBeGreaterThanOrEqual(20);
+    expect(s.hi - s.lo).toBeLessThan(40);
+  });
+
+  test('reads only the window', () => {
+    const s = heightScale([0, 0, 0, 0, 0, 100, 100], [0, 20], STEP);
+    expect(s.hi).toBeLessThan(50);
   });
 });
