@@ -56,7 +56,8 @@ const get = (path, headers = {}) =>
 test('signed in: the map by track id, with its validator and the surface revision', async () => {
   const res = await get(`/tracks/${TRACK}/map`);
   assert.equal(res.status, 200);
-  assert.match(res.headers.get('etag') ?? '', /^"m-\d+\.\d+"$/);
+  // The payload's shape, then the track doc's write (trackMapCore.ts mapEtag).
+  assert.match(res.headers.get('etag') ?? '', /^"m\d+-\d+\.\d+"$/);
   assert.equal(res.headers.get('cache-control'), 'private, max-age=3600');
   const body = await res.json();
   assert.equal(body.trackId, TRACK);
