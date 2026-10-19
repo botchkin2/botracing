@@ -37,7 +37,6 @@ interface Over {
   pit?: boolean;
   offTrackSec?: number;
   localYellowSec?: number;
-  courseYellowSec?: number;
   flagged?: boolean;
 }
 
@@ -54,7 +53,6 @@ const rawLap = (id: string, o: Over = {}) => ({
     toM: 150,
     offTrackSec: 0,
     localYellowSec: 0,
-    courseYellowSec: 0,
     pit: false,
   },
   corners: [
@@ -62,7 +60,6 @@ const rawLap = (id: string, o: Over = {}) => ({
       segTime: o.sectionS ?? 95,
       offTrackSec: o.offTrackSec ?? 0,
       localYellowSec: o.localYellowSec ?? 0,
-      courseYellowSec: o.courseYellowSec ?? 0,
       parts: [],
       brakeApps: [],
       fromM: 150,
@@ -106,15 +103,6 @@ describe('sessionOptimum', () => {
     const w = optimum(laps)?.stints[0].windows;
     expect(w?.[1]).toMatchObject({n: 5, bestS: 95});
     expect(w?.[0].n).toBe(7);
-  });
-
-  it('keeps a window under a full-course yellow: a yellow never removes a time', () => {
-    const laps = [
-      ...five(),
-      rawLap('fcy', {courseYellowSec: 12, sectionS: 80}),
-    ];
-    const w = optimum(laps)?.stints[0].windows[1];
-    expect(w).toMatchObject({n: 6, bestS: 80, bestLapId: 'fcy'});
   });
 
   it('keeps a sector-level local yellow and a 0.2 s off as times, tagged not dropped', () => {

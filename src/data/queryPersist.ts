@@ -14,7 +14,7 @@ import {
 } from '@tanstack/react-query';
 
 /** Bump when a kept query's data shape changes: the old snapshot is dropped. */
-export const PERSIST_VERSION = 1;
+export const PERSIST_VERSION = 3;
 const STORAGE_KEY = 'query-cache';
 /** A snapshot older than this is dropped rather than drawn. */
 export const MAX_AGE_MS = 7 * 24 * 60 * 60_000;

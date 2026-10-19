@@ -22,7 +22,7 @@ import {
   CHANNELS,
   RESET_LEAD_S,
   RESET_REFILL_L,
-  YELLOW,
+  CAUTION,
   fuelSetupOf,
   lapCrossings,
   mapSessionType,
@@ -353,7 +353,7 @@ CREATE TEMP TABLE p AS SELECT tick, ${channels.join(', ')},
     'PlayerTrackSurface',
     'coalesce(PlayerTrackSurfaceMaterial, 0)',
   )})::DOUBLE AS surf,
-  (CASE WHEN (SessionFlags & ${YELLOW}) <> 0 THEN 1 ELSE 0 END)::DOUBLE AS y, LapDistPct::DOUBLE AS pct
+  (CASE WHEN (SessionFlags & ${CAUTION}) <> 0 THEN 1 ELSE 0 END)::DOUBLE AS y, LapDistPct::DOUBLE AS pct
   FROM ${P} WHERE ${own} AND SessionTime >= greatest(${S0}, ${num(
     t0 - PAD_S,
   )}) AND SessionTime < ${num(t1)};

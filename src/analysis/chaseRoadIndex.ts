@@ -2,7 +2,7 @@
 // point of the centre path). Built once per road. Plain TypeScript, imports two files.
 
 import {angDiff, clamp, lerp, mod} from './chaseMath.ts';
-import {heightOnLap, type ChaseRoad} from './chaseRoad.ts';
+import {roadHeight, type ChaseRoad} from './chaseRoad.ts';
 
 const CELL_M = 100;
 const cellKey = (a: number, b: number) => a * 100003 + b;
@@ -66,7 +66,7 @@ export function roadIndex(road: ChaseRoad): RoadIndex {
   const elev = road.elev;
   const hasHeight = elev !== null;
   const lapM = n * bin;
-  if (elev) for (let i = 0; i < n; i++) height[i] = heightOnLap(elev, i * bin, lapM);
+  if (elev) for (let i = 0; i < n; i++) height[i] = roadHeight(elev, i * bin, lapM);
   const between = (s: number): [number, number, number] => {
     const f = mod(s / bin, n);
     const i = Math.floor(f);

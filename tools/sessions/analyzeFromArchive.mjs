@@ -214,7 +214,6 @@ export function analyzeFromArchive({
         ? {tyresAbsent: TYRES_DEFECT_WHY}
         : {}),
       tyreCarcassC: lap.tyreCarcassC,
-      courseYellowSec: lap.courseYellowSec,
       compound: lap.compound,
       wetness: lap.wetness,
       corners: lap.corners || [],

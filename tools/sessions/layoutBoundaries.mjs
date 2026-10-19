@@ -32,12 +32,12 @@ function pedalTrace(lap, lengthM) {
   };
 }
 
-// Which laps measure where laps agree: comparable, green and clean.
+// Which laps measure where laps agree: comparable and clean; a yellow never
+// counts (decision 2026-10-11 #4).
 export function lapMeasures(lap) {
   return (
     lap.comparable &&
     lap.clean &&
-    !(lap.courseYellowSec > 0) &&
     !lap.pitlane &&
     !lap.pitIn &&
     !lap.pitOut

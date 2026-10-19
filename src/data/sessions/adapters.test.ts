@@ -580,6 +580,7 @@ describe('toTrackMap elevation', () => {
     const base = {trackId: 'lmu-x', lengthM: 1000};
     expect(toTrackMap(base).elevation).toBeNull();
     expect(toTrackMap({...base, elevation: {stepM: 10, heightM: [1, 2, 3, 4, 5]}}).elevation).toEqual({stepM: 10, heightM: [1, 2, 3, 4, 5]});
-    expect(toTrackMap({...base, elevation: {stepM: 10, heightM: [1, 2]}}).elevation).toBeNull();
+    expect(toTrackMap({...base, elevation: {stepM: 10, heightM: [1]}}).elevation).toBeNull();
+    expect(toTrackMap({...base, elevation: {stepM: 0, heightM: [1, 2]}}).elevation).toBeNull();
   });
 });

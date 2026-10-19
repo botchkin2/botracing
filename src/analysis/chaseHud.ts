@@ -1,7 +1,7 @@
 // The numbers the chase view's strip shows for the followed car, from the road's measured height profile. Plain
 // TypeScript, imports one file.
 
-import {gradeOnLap, heightOnLap, type ChaseRoad} from './chaseRoad.ts';
+import {roadGrade, roadHeight, type ChaseRoad} from './chaseRoad.ts';
 
 export interface ChaseHudNumbers {
   /** Grade under the car, percent, + uphill; null on a road without a profile. */
@@ -13,8 +13,8 @@ export interface ChaseHudNumbers {
 export function chaseHudNumbers(road: ChaseRoad, lapDistM: number | null): ChaseHudNumbers {
   if (!road.elev || lapDistM === null || !(road.lengthM > 0)) return {gradePct: null, altM: null};
   return {
-    gradePct: gradeOnLap(road.elev, lapDistM, road.lengthM) * 100,
-    altM: heightOnLap(road.elev, lapDistM, road.lengthM) - road.elevMin,
+    gradePct: roadGrade(road.elev, lapDistM, road.lengthM) * 100,
+    altM: roadHeight(road.elev, lapDistM, road.lengthM) - road.elevMin,
   };
 }
 
@@ -72,7 +72,7 @@ export function elevationWindow(
   if (!elev || !(road.lengthM > 0)) return null;
   const span = behindM + aheadM;
   const heights: number[] = [];
-  for (let i = 0; i <= n; i++) heights.push(heightOnLap(elev, lapDistM - behindM + (span * i) / n, road.lengthM));
+  for (let i = 0; i <= n; i++) heights.push(roadHeight(elev, lapDistM - behindM + (span * i) / n, road.lengthM));
   let lo = Infinity;
   let hi = -Infinity;
   for (const h of heights) {
