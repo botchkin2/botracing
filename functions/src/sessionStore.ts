@@ -10,7 +10,7 @@ import {
   listVersion,
   withoutSuperseded,
 } from './sessionQuery';
-import {mapEtag, surfaceEtag} from './trackMapCore';
+import {mapEtag, surfaceEtag, trackMapPayload} from './trackMapCore';
 import {
   PLAN_FIELDS,
   PLAN_MAX_SESSIONS,
@@ -511,20 +511,12 @@ export async function readTrackMap(
       if (error?.code !== 404) throw error;
     }
   }
-  return {
+  return trackMapPayload(
     trackId,
-    track: session.get('track') ?? track.track ?? null,
-    lengthM: track.lengthM ?? null,
-    corners: track.corners ?? [],
-    // Where each section's window starts and the windows that tile the lap
-    // (tools/sessions/layoutBoundaries.mjs); null before the first resync.
-    boundaries: track.boundaries ?? null,
-    quality: track.quality ?? null,
-    qualityNote: track.qualityNote ?? null,
-    georef: track.georef ?? null,
-    attribution: track.outline?.attribution ?? null,
+    session.get('track') ?? track.track ?? null,
+    track,
     outline,
-  };
+  );
 }
 
 // A track layout's map by its id, for any signed-in user (shared app data, not
@@ -556,16 +548,7 @@ export async function trackMapById(trackId: string): Promise<{
         }
       }
       return {
-        trackId,
-        track: track.track ?? null,
-        lengthM: track.lengthM ?? null,
-        corners: track.corners ?? [],
-        boundaries: track.boundaries ?? null,
-        quality: track.quality ?? null,
-        qualityNote: track.qualityNote ?? null,
-        georef: track.georef ?? null,
-        attribution: track.outline?.attribution ?? null,
-        outline,
+        ...trackMapPayload(trackId, track.track ?? null, track, outline),
         // The measured surface's validator, so the client keys its copy by it.
         surfaceRev: surfaceEtag(track.surface),
       };
