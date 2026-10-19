@@ -143,3 +143,16 @@ export function dayLapIds(members: readonly DayMember[]): string[] {
   );
   return set.length >= 2 ? set : [];
 }
+
+/** The fastest comparable lap of a day's merged laps (a day has no stored best); null with none. */
+export function dayBestLapId(laps: readonly Lap[]): string | null {
+  let best: Lap | null = null;
+  for (const l of laps)
+    if (
+      l.comparable &&
+      l.timeS != null &&
+      (!best || l.timeS < (best.timeS as number))
+    )
+      best = l;
+  return best?.id ?? null;
+}

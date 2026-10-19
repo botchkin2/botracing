@@ -67,6 +67,25 @@ describe('toPlanSessions', () => {
     expect(out.truncated).toBe(false);
   });
 
+  it('reads the end time and the opening set; a session without a set reads null', () => {
+    const out = toPlanSessions({
+      items: [
+        {
+          id: 'a',
+          startedAt: '2026-10-15T18:00:00Z',
+          endedAt: '2026-10-15T19:05:00Z',
+          sessionType: 'Race',
+          paceSet: {v: 3, lapTimesS: [121.4, 'x', 121.6]},
+        },
+        {id: 'b', startedAt: '2026-10-14T18:00:00Z', sessionType: 'Practice'},
+      ],
+    });
+    expect(out.items[0].endedAt).toBe('2026-10-15T19:05:00Z');
+    expect(out.items[0].paceSetS).toEqual([121.4, 121.6]);
+    expect(out.items[1].endedAt).toBeNull();
+    expect(out.items[1].paceSetS).toBeNull();
+  });
+
   it('survives a body that is not the shape', () => {
     expect(toPlanSessions(null)).toEqual({items: [], truncated: false});
     expect(toPlanSessions({items: 'x'})).toEqual({items: [], truncated: false});

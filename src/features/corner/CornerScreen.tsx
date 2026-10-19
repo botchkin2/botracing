@@ -26,6 +26,7 @@ import {compareHref, cornerHref} from '@/src/nav/routes';
 import {type TraceLoad} from '@/src/data/traces';
 import {usePanelWidth} from '@/src/state/panelPrefs';
 import {
+  OfflineLine,
   Chip,
   FoldedSection,
   PANEL_DIVIDER_W,
@@ -100,6 +101,7 @@ export function CornerScreen({
   whole = false,
   selection,
   onSelectionChange,
+  setKind = 'session',
 }: {
   sessionId: string;
   corner: number;
@@ -107,6 +109,8 @@ export function CornerScreen({
   whole?: boolean;
   selection: CornerSelection;
   onSelectionChange: (next: CornerSelection) => void;
+  /** `day`: the laps are a sitting's, drawn from each session's own slice file. */
+  setKind?: 'session' | 'day';
 }) {
   const layout = useLayout();
   // Distributions pay off with many laps: on the desktop, default to every
@@ -120,6 +124,7 @@ export function CornerScreen({
     selection,
     allComparable,
     whole,
+    setKind,
   );
   const {color} = useTheme();
   const insets = useSafeAreaInsets();
@@ -134,6 +139,8 @@ export function CornerScreen({
         ]}>
         {result.state === 'loading' ? (
           <ActivityIndicator color={color.accent} />
+        ) : result.state === 'offline' ? (
+          <Text tone='textMuted'>Offline</Text>
         ) : result.state === 'error' ? (
           <View style={styles.banner}>
             <StatusBanner
@@ -147,6 +154,8 @@ export function CornerScreen({
           <Text tone='textMuted'>
             {result.state === 'noLaps'
               ? 'No comparable laps in this session.'
+              : result.state === 'mixedDay'
+              ? 'These sessions were cut at different corner windows.'
               : result.noMap
               ? 'No corner map for this track yet.'
               : `No corner ${corner} on this track.`}
@@ -158,6 +167,7 @@ export function CornerScreen({
     <CornerView
       sessionId={sessionId}
       model={result.model}
+      offlineText={result.offlineText}
       lapIds={result.lapIds}
       keyLapIds={result.keyLapIds}
       openingIds={result.openingIds}
@@ -167,6 +177,7 @@ export function CornerScreen({
       allComparable={allComparable}
       onAllComparable={setAllComparable}
       onSelectionChange={onSelectionChange}
+      set={setKind === 'day' ? 'day' : null}
     />
   );
 }
@@ -174,6 +185,7 @@ export function CornerScreen({
 function CornerView({
   sessionId,
   model,
+  offlineText,
   lapIds,
   keyLapIds,
   openingIds,
@@ -183,9 +195,12 @@ function CornerView({
   allComparable,
   onAllComparable,
   onSelectionChange,
+  set,
 }: {
   sessionId: string;
   model: CornerModel;
+  /** "Offline · 00:41" while a refetch could not renew what is drawn. */
+  offlineText: string | null;
   lapIds: string[];
   keyLapIds: string[];
   openingIds: string[];
@@ -195,6 +210,8 @@ function CornerView({
   allComparable: boolean;
   onAllComparable: (on: boolean) => void;
   onSelectionChange: (next: CornerSelection) => void;
+  /** `day`: carried to every link, so the set follows the driver. */
+  set: 'day' | null;
 }) {
   const {color, scheme} = useTheme();
   const layout = useLayout();
@@ -238,7 +255,12 @@ function CornerView({
   const rowOf = new Map(model.rows.map(r => [r.lapId, r] as const));
   const go = (n: number, whole = false) =>
     router.replace(
-      cornerHref(sessionId, n, {laps: selection.laps, hl: selection.hl}, whole),
+      cornerHref(
+        sessionId,
+        n,
+        {laps: selection.laps, hl: selection.hl, set},
+        whole,
+      ),
     );
 
   // One chip per section; a compound one (the bus stop) opens on its first
@@ -287,6 +309,7 @@ function CornerView({
               laps: selection.laps,
               hl: selection.hl,
               corner: model.sectionN,
+              set,
             }),
           )
         }>
@@ -320,6 +343,7 @@ function CornerView({
       <Text variant='dataSmall' tone='textMuted'>
         {model.subtitle}
       </Text>
+      <OfflineLine text={offlineText} />
     </View>
   );
   // One line that scrolls sideways on both layouts: 25 corners wrapped to

@@ -16,14 +16,14 @@ export function BrakeLedger({
   rows,
   sessionId,
   laps,
-  open = true,
+  set = null,
 }: {
   rows: BrakeRow[];
   sessionId: string;
   /** The ticked laps, carried to Corner. */
   laps: string[];
-  /** False in a day: its laps belong to several sessions, so a row opens nothing yet. */
-  open?: boolean;
+  /** `day`: carried to Corner, which reads the sitting's laps. */
+  set?: 'day' | null;
 }) {
   const {color} = useTheme();
   const router = useRouter();
@@ -38,10 +38,12 @@ export function BrakeLedger({
           key={r.head}
           accessibilityRole='link'
           accessibilityLabel={`${r.head} braking spread ${r.spread}`}
-          disabled={r.corner == null || !open}
+          disabled={r.corner == null}
           onPress={() => {
             if (r.corner != null)
-              router.push(cornerHref(sessionId, r.corner, {laps}, r.whole));
+              router.push(
+                cornerHref(sessionId, r.corner, {laps, set}, r.whole),
+              );
           }}
           style={styles.row}>
           <Text variant='dataStrong' style={styles.head} numberOfLines={1}>

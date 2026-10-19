@@ -48,12 +48,14 @@ export {
   useSessionsLaps,
 } from './queries';
 export {useNewUploads} from './useNewUploads';
+export {dayBestLapId, dayLapId} from './daySet';
 export {
   dayLapSet,
   type DaySet,
   type DayState,
   type LapSet,
   splitDayLapId,
+  useCornerOff,
   useDaySet,
   useSessionLapSet,
 } from './lapSet';

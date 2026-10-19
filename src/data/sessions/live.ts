@@ -26,6 +26,20 @@ export function isLive(liveAt: number | null | undefined, now = Date.now()) {
   return liveAt != null && now - liveAt < LIVE_FRESH_MS;
 }
 
+/**
+ * A session a PC may still add laps to: live within this window. An open
+ * session listens for uploads to it only then (useSessionNewUploads), so an
+ * old session being reviewed costs nothing (apex #5291).
+ */
+export const RECENT_LIVE_MS = 2 * 60 * 60_000;
+
+export function isRecentlyLive(
+  liveAt: number | null | undefined,
+  now = Date.now(),
+) {
+  return liveAt != null && now - liveAt < RECENT_LIVE_MS;
+}
+
 /** Whether the lap at `liveAt` is still the live analysis's to run. */
 export function liveAnalysisDue(
   liveAt: number | null | undefined,

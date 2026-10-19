@@ -15,6 +15,8 @@ import {
   mapPlacer,
   trackCorners,
 } from '@/src/data/sessions';
+import {queryState} from '@/src/data/queryState';
+import {formatOffline} from '@/src/design';
 import {parseLapRef} from '@/src/nav/lapRef';
 import {type TraceLoad, useLapTraceLoad} from '@/src/data/traces';
 
@@ -39,9 +41,13 @@ const GRID_STEP_M = 5;
 export type CompareResult =
   | {state: 'loading'}
   | {state: 'error'; message: string; retry: () => void}
+  // No network and nothing kept to draw (src/data/queryState.ts).
+  | {state: 'offline'}
   | {
       state: 'ready';
       model: CompareModel;
+      /** "Offline · 00:41" while a refetch could not renew what is drawn. */
+      offlineText: string | null;
       /** Where the cursor is: the one passed in, else the start of the linked section. */
       cursorM: number;
       /** The selected laps' traces, for skeletons and the retry banner. */
@@ -202,7 +208,11 @@ export function useCompareModel(
   // Stable functions, so they can sit in the memo's dependencies.
   const {refetch: refetchSession} = session;
   const {refetch: refetchLaps} = laps;
-  const error = [session, laps].find(q => q.isError)?.error;
+  // What was read wins over a failed refetch (roadmap 6b).
+  const read = queryState([session, laps]);
+  const readKind = read.kind;
+  const readMessage = read.kind === 'error' ? read.message : null;
+  const offlineSince = read.kind === 'ready' ? read.offlineSince : null;
   // The set (laps, basis, lines, tables) is built once per selection and
   // kept while the cursor moves; a cursor step builds only what it moves
   // (buildCompareSet, pit-wall thread 1 #3245). The cursor is not in its key.
@@ -219,7 +229,11 @@ export function useCompareModel(
     foreignSessionIds.length > 0 &&
     (foreignLaps.pending || foreignDetails.pending);
   const ready =
-    !error && session.data && laps.data && !map.isPending && !waitingOnForeign;
+    readKind === 'ready' &&
+    session.data &&
+    laps.data &&
+    !map.isPending &&
+    !waitingOnForeign;
   const set = useMemo(
     () =>
       ready && session.data && laps.data
@@ -258,10 +272,11 @@ export function useCompareModel(
   );
   const urlCursorM = selection.cursorM;
   return useMemo((): CompareResult => {
-    if (error)
+    if (readKind === 'offline') return {state: 'offline'};
+    if (readKind === 'error')
       return {
         state: 'error',
-        message: error instanceof Error ? error.message : String(error),
+        message: readMessage ?? '',
         retry: () => {
           void refetchSession();
           void refetchLaps();
@@ -281,9 +296,12 @@ export function useCompareModel(
       retryTraces,
       cursorM,
       model: set.atCursor(cursorM),
+      offlineText: formatOffline(offlineSince),
     };
   }, [
-    error,
+    readKind,
+    readMessage,
+    offlineSince,
     set,
     urlCursorM,
     selection.corner,

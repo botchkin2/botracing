@@ -22,6 +22,17 @@ describe('nextKept', () => {
     ).toEqual(open);
   });
 
+  it('keeps the day set across tabs', () => {
+    const kept = nextKept(null, {
+      pathname: '/session/s1',
+      id: 's1',
+      laps: 'a~l1,b~l2',
+      set: 'day',
+    });
+    expect(kept?.set).toBe('day');
+    expect(sameKept(kept, {...(kept as Kept), set: undefined})).toBe(false);
+  });
+
   it('keeps it on Plan and Settings', () => {
     expect(nextKept(open, {pathname: '/plan'})).toBe(open);
     expect(nextKept(open, {pathname: '/settings'})).toBe(open);

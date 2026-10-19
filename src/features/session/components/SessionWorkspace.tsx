@@ -7,6 +7,8 @@ import {compareHref, trackHref} from '@/src/nav/routes';
 import {toggle} from '@/src/state/lapSelection';
 import {PANEL_DIVIDER_W, PanelDivider, Pressable, Text} from '@/src/ui';
 
+import type {DaySet} from '@/src/data/sessions';
+import {sectionHeadHref, sectionTapsOf} from '../sectionTaps';
 import {useSessionDesktopModel} from '../desktopModel';
 import {
   factLabel,
@@ -36,7 +38,7 @@ const PAD_X = space.xl + space.xs;
  */
 export function SessionWorkspace({
   sessionId,
-  day = false,
+  day = null,
   setToggle = null,
   model,
   selection,
@@ -55,7 +57,7 @@ export function SessionWorkspace({
 }: {
   sessionId: string;
   /** A day: no grid or side panels (they read one session), and no jump to Compare by a section head. */
-  day?: boolean;
+  day?: DaySet | null;
   /** Session | Day, when the session is in a sitting. */
   setToggle?: ReactNode;
   model: SessionScreenModel;
@@ -195,7 +197,7 @@ export function SessionWorkspace({
                     rows={model.spread}
                     sessionId={sessionId}
                     laps={selection.laps}
-                    open={!day}
+                    set={day ? 'day' : null}
                   />
                 ) : null}
                 {model.brake.length > 0 ? (
@@ -203,7 +205,7 @@ export function SessionWorkspace({
                     rows={model.brake}
                     sessionId={sessionId}
                     laps={selection.laps}
-                    open={!day}
+                    set={day ? 'day' : null}
                   />
                 ) : null}
                 {model.classTable ? (
@@ -216,17 +218,16 @@ export function SessionWorkspace({
                   width={innerW}
                   wide
                   heads={model.sections?.heads ?? model.sectorHeads}
-                  headTaps={
-                    day
-                      ? undefined
-                      : model.sections?.targets.map(t => t.corner != null)
-                  }
+                  headTaps={sectionTapsOf(model.sections)}
                   onHeadPress={i => {
-                    const corner = model.sections?.sections[i];
-                    if (!day && corner != null)
-                      router.push(
-                        compareHref(sessionId, {laps: selection.laps, corner}),
-                      );
+                    const href = sectionHeadHref(
+                      sessionId,
+                      model.sections,
+                      i,
+                      selection.laps,
+                      day ? 'day' : null,
+                    );
+                    if (href) router.push(href);
                   }}
                 />
               </View>
@@ -248,18 +249,17 @@ export function SessionWorkspace({
                 </View>
               ) : null}
               {/* The grid comes after the lap table (Botkin, 2 Oct screenshots). */}
-              {day ? null : (
-                <SessionGrid
-                  id={sessionId}
-                  ticked={selection.laps}
-                  onTap={lapId =>
-                    onSelectionChange({
-                      ...selection,
-                      laps: toggle(selection.laps, lapId),
-                    })
-                  }
-                />
-              )}
+              <SessionGrid
+                id={sessionId}
+                day={day}
+                ticked={selection.laps}
+                onTap={lapId =>
+                  onSelectionChange({
+                    ...selection,
+                    laps: toggle(selection.laps, lapId),
+                  })
+                }
+              />
               {tagKey}
             </View>
           }
@@ -288,18 +288,17 @@ export function SessionWorkspace({
           ref={sideRef}
           style={styles.flex}
           contentContainerStyle={styles.sideScroll}>
-          {day ? null : (
-            <SidePanels
-              onCardsY={y => {
-                cardsY.current = y;
-              }}
-              sessionId={sessionId}
-              selection={selection}
-              colorOf={colorOf}
-              onHighlight={onHighlight}
-              cards={cards}
-            />
-          )}
+          <SidePanels
+            onCardsY={y => {
+              cardsY.current = y;
+            }}
+            sessionId={sessionId}
+            day={day}
+            selection={selection}
+            colorOf={colorOf}
+            onHighlight={onHighlight}
+            cards={cards}
+          />
           {detail}
         </ScrollView>
       </View>
@@ -308,6 +307,7 @@ export function SessionWorkspace({
 }
 
 function SidePanels({
+  day,
   sessionId,
   selection,
   colorOf,
@@ -317,13 +317,14 @@ function SidePanels({
 }: {
   onCardsY: (y: number) => void;
   sessionId: string;
+  day: DaySet | null;
   selection: Selection;
   colorOf: (selIndex: number) => string;
   onHighlight: (lapId: string) => void;
   /** Drawn right under the stints table. */
   cards: ReactNode;
 }) {
-  const desk = useSessionDesktopModel(sessionId, selection);
+  const desk = useSessionDesktopModel(sessionId, selection, day);
   if (!desk) return null;
   return (
     <>

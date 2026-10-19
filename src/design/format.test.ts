@@ -7,6 +7,9 @@ import {
   formatDate,
   formatDayMonth,
   formatDayMonthTime,
+  formatClock,
+  formatOffline,
+  formatSince,
   modeText,
   formatDistance,
   formatLength,
@@ -168,5 +171,33 @@ describe('modeText', () => {
     expect(modeText(true)).toBe('Online');
     expect(modeText(false)).toBe('Offline');
     expect(modeText(null)).toBeNull();
+  });
+});
+
+describe('formatClock', () => {
+  it('is the clock time here, and empty for a bad date', () => {
+    expect(formatClock(new Date(2026, 9, 15, 9, 5).toISOString())).toBe(
+      '09:05',
+    );
+    expect(formatClock('nope')).toBe('');
+  });
+});
+
+describe('formatSince and formatOffline', () => {
+  const now = new Date(2026, 9, 14, 1, 30);
+  it('is the clock today, the day and clock before', () => {
+    expect(formatSince(new Date(2026, 9, 14, 0, 41).getTime(), now)).toBe(
+      '00:41',
+    );
+    expect(formatSince(new Date(2026, 9, 13, 23, 5).getTime(), now)).toBe(
+      'Oct 13, 23:05',
+    );
+  });
+
+  it('says Offline and since when, or nothing while current', () => {
+    expect(formatOffline(new Date(2026, 9, 14, 0, 41).getTime(), now)).toBe(
+      'Offline · 00:41',
+    );
+    expect(formatOffline(null, now)).toBeNull();
   });
 });

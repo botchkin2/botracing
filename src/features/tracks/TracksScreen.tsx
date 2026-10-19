@@ -5,9 +5,10 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {useSessions} from '@/src/data/sessions';
 import {trackCatalog} from '@/src/data/tracks';
-import {size, space, useLayout, useTheme} from '@/src/design';
+import {formatOffline, size, space, useLayout, useTheme} from '@/src/design';
+import {queryState} from '@/src/data/queryState';
 import {sessionsHref, trackHref} from '@/src/nav/routes';
-import {Pressable, Text} from '@/src/ui';
+import {OfflineLine, Pressable, Text} from '@/src/ui';
 
 import {buildTracksModel} from './model';
 
@@ -25,6 +26,14 @@ export function TracksScreen() {
     () => buildTracksModel(trackCatalog(), sessions.data?.items ?? []),
     [sessions.data],
   );
+  // The catalog shows without the sessions; say when their counts are old or missing (6b).
+  const read = queryState([sessions]);
+  const offlineText =
+    read.kind === 'offline'
+      ? 'Offline'
+      : read.kind === 'ready'
+      ? formatOffline(read.offlineSince)
+      : null;
   return (
     <ScrollView
       style={{backgroundColor: color.bg}}
@@ -44,6 +53,7 @@ export function TracksScreen() {
       ) : null}
       <View style={styles.head}>
         <Text variant='pageTitle'>Tracks</Text>
+        <OfflineLine text={offlineText} />
       </View>
       <View style={{borderTopWidth: 1, borderColor: color.lineStrong}}>
         {rows.map(r => (

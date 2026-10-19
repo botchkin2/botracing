@@ -17,6 +17,7 @@ export default function CornerRoute() {
     ref?: string;
     hl?: string;
     all?: string;
+    set?: string;
   }>();
   const router = useRouter();
   const {update} = useLapSelection();
@@ -33,6 +34,7 @@ export default function CornerRoute() {
       // No `all` in the link: a compound section opens on All. `all=0` is one part.
       whole={params.all !== '0'}
       selection={selection}
+      setKind={params.set === 'day' ? 'day' : 'session'}
       onSelectionChange={next => update({laps: next.laps, hl: next.hl})}
     />
   );

@@ -1,11 +1,11 @@
 import {useQueryClient} from '@tanstack/react-query';
-import {useEffect, useMemo} from 'react';
+import {useCallback, useEffect, useMemo} from 'react';
 
 import {sittingOf} from '@/src/analysis/sitting';
 
 import {type Lap, type SessionDetail} from './adapters';
 import {analyzeDeps, analyzeOnce} from './analysisOnOpen';
-import {dayLapIds, mergeDayLaps} from './daySet';
+import {dayLapIds, dayUsesSections, mergeDayLaps} from './daySet';
 import {
   useSession,
   useSessionLaps,
@@ -33,13 +33,19 @@ export type LapSet =
   | {kind: 'session'; session: SessionDetail; laps: Lap[]}
   | {
       kind: 'day';
-      /** In start order; the first names the track and car. */
+      /** The track every member ran (a sitting is one track and car, sitting.ts). */
+      trackId: string;
+      /** The car as the sessions name it. */
+      car: string;
+      /** In start order. */
       members: SessionDetail[];
       /** Every member's laps, ids `sessionId~lapId` (daySet.ts mergeDayLaps). */
       laps: Lap[];
       stints: DayStint[];
       /** The laps the day opens on when the URL names none (daySet.ts dayLapIds): the protected rule run on the whole day. */
       openingIds: string[];
+      /** Every member was cut at the same corner windows (daySet.ts dayUsesSections): false = no view may mix their corners. */
+      usesSections: boolean;
     };
 
 export type DaySet = Extract<LapSet, {kind: 'day'}>;
@@ -76,10 +82,13 @@ export function dayLapSet(
   }
   return {
     kind: 'day',
+    trackId: members[0].session.trackId,
+    car: members[0].session.car,
     members: members.map(m => m.session),
     laps,
     stints,
     openingIds: dayLapIds(dayMembers),
+    usesSections: dayUsesSections(dayMembers),
   };
 }
 
@@ -103,7 +112,7 @@ export function useDaySet(
   sessionId: string,
   trackId: string | undefined,
   wanted: boolean,
-): DayState & {ids: string[]} {
+): DayState & {ids: string[]; retry: () => void} {
   const client = useQueryClient();
   const list = useSessions({trackId}, trackId != null);
   const ids = useMemo(() => {
@@ -172,7 +181,15 @@ export function useDaySet(
     lapsOf.failed,
     lapsOf.pending,
   ]);
-  return {...result, ids};
+  const {refetch: refetchList} = list;
+  const {refetch: refetchDetails} = details;
+  const {refetch: refetchLaps} = lapsOf;
+  const retry = useCallback(() => {
+    if (list.isError) void refetchList();
+    refetchDetails();
+    refetchLaps();
+  }, [list.isError, refetchList, refetchDetails, refetchLaps]);
+  return {...result, ids, retry};
 }
 
 /** The one session as a LapSet; null while it loads. */
@@ -199,4 +216,14 @@ const idOf = (x: unknown): string => {
 function useStableList<T>(items: readonly T[]): readonly T[] {
   const signature = items.map(idOf).join(',');
   return useMemo(() => items, [signature]);
+}
+
+/** Whether the day in the URL cannot show Corner: its sessions were cut at different windows. */
+export function useCornerOff(
+  sessionId: string,
+  trackId: string | undefined,
+  wanted: boolean,
+): boolean {
+  const day = useDaySet(sessionId, trackId, wanted);
+  return day.state === 'ready' && !day.set.usesSections;
 }

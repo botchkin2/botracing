@@ -2,7 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 // Adapters are internal to data/; tests may reach them to build real shapes.
 import {toLaps, toSessionDetail} from '@/src/data/sessions/adapters';
-import type {Lap} from '@/src/data/sessions';
+import type {DaySet, Lap} from '@/src/data/sessions';
 
 import fixture from './__fixtures__/roadAtlantaRace.json';
 import {
@@ -11,8 +11,10 @@ import {
   buildSessionModel,
   type SectionTable,
   sectionTable,
+  sessionScreenModelOf,
   trafficPaceFacts,
 } from './model';
+import {HttpError} from '@/src/data/http';
 
 // Road Atlanta race, 2026-09-26: 22 laps, two stints, a pit stop at L17/L18.
 const session = toSessionDetail(fixture.session);
@@ -629,5 +631,96 @@ describe('gridCellTargetOf (Road Atlanta numbering)', () => {
 
   it('the start straight opens nothing', () => {
     expect(gridCellTargetOf(table, 0, 'L4', ['L4'])).toBeNull();
+  });
+});
+
+// Roadmap 6b: signal gone while the session is open (or reopened).
+describe('sessionScreenModelOf with the network gone', () => {
+  const now = new Date(2026, 9, 14, 1, 0);
+  const keptAt = new Date(2026, 9, 14, 0, 41).getTime();
+  const failedAt = keptAt + 60_000;
+  const read = <T>(data: T | undefined, error: unknown = null) => ({
+    isError: error !== null,
+    isPending: false,
+    error,
+    data,
+    dataUpdatedAt: data === undefined ? 0 : keptAt,
+    errorUpdatedAt: error === null ? 0 : failedAt,
+  });
+  const of = (s: ReturnType<typeof read>, l: ReturnType<typeof read>) =>
+    sessionScreenModelOf({
+      session: s as never,
+      laps: l as never,
+      map: null,
+      selection: none,
+      sectionMode: 'turns',
+      now,
+      answeredAt: keptAt,
+    });
+  const offline = new TypeError('Network request failed');
+
+  it('keeps the session it had and says since when', () => {
+    const m = of(read(session, offline), read(laps, offline));
+    expect(m.state).toBe('ready');
+    if (m.state !== 'ready') return;
+    expect(m.offlineText).toBe('Offline · 00:41');
+    expect(m.model.facts).toEqual(buildSessionModel(session, laps, none).facts);
+  });
+
+  it('reads Offline with nothing kept, and the server’s error when it answered', () => {
+    expect(of(read(undefined, offline), read(undefined, offline))).toEqual({
+      state: 'offline',
+    });
+    expect(
+      of(read(undefined, new HttpError(404, '/sessions/x')), read(laps)),
+    ).toEqual({
+      state: 'error',
+      message: 'GET /sessions/x → 404',
+    });
+  });
+
+  it('is current, with no offline line, when nothing failed', () => {
+    const m = of(read(session), read(laps));
+    expect(m.state === 'ready' && m.offlineText).toBeNull();
+  });
+});
+
+describe('a day cut at different corner windows', () => {
+  const dayOf = (usesSections: boolean) =>
+    ({
+      kind: 'day',
+      trackId: session.trackId,
+      car: session.car,
+      members: [session],
+      laps,
+      stints: [{n: 1, sessionId: session.id, startedAt: session.startedAt}],
+      openingIds: [],
+      usesSections,
+    } as unknown as DaySet);
+  const build = (usesSections: boolean) =>
+    buildSessionModel(
+      session,
+      laps,
+      none,
+      null,
+      'sectors',
+      dayOf(usesSections),
+    );
+
+  it('has section numbers when every member shares the windows', () => {
+    const m = build(true);
+    expect(m.sections).not.toBeNull();
+    expect(m.spread.length).toBeGreaterThan(0);
+  });
+
+  it('is lap times only otherwise: no section table, spread or optimum', () => {
+    const m = build(false);
+    expect(m.sections).toBeNull();
+    expect(m.spread).toEqual([]);
+    expect(build(true).optimumLines.length).toBeGreaterThan(0);
+    expect(m.optimumLines).toEqual([]);
+    expect(m.rows.some(r => r.kind === 'lap' && r.sections.length > 0)).toBe(
+      false,
+    );
   });
 });

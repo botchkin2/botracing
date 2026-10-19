@@ -51,6 +51,7 @@ import {
   Button,
   Chip,
   hitFor,
+  OfflineLine,
   Pressable,
   Segment,
   Skeleton,
@@ -117,10 +118,13 @@ export function CompareScreen({
   sessionId,
   selection: urlSelection,
   onSelectionChange,
+  setKind = 'session',
 }: {
   sessionId: string;
   selection: UrlCompareSelection;
   onSelectionChange: (next: CompareSelection) => void;
+  /** `day`: the laps are a sitting's (`sessionId~lapId`); carried to the links out. */
+  setKind?: 'session' | 'day';
 }) {
   // A URL with no laps opens on a fair reference and the median lap.
   const sessionDoc = useSession(sessionId);
@@ -181,6 +185,8 @@ export function CompareScreen({
         ]}>
         {result.state === 'loading' ? (
           <ActivityIndicator color={color.accent} />
+        ) : result.state === 'offline' ? (
+          <Text tone='textMuted'>Offline</Text>
         ) : (
           <View style={styles.banner}>
             <StatusBanner
@@ -197,6 +203,7 @@ export function CompareScreen({
     <CompareView
       sessionId={sessionId}
       model={result.model}
+      offlineText={result.offlineText}
       traceLoad={result.traceLoad}
       onRetryTraces={result.retryTraces}
       selection={shownSelection}
@@ -204,6 +211,7 @@ export function CompareScreen({
       windowSizeValue={size}
       onCursor={setCursorM}
       onSelectionChange={onSelectionChange}
+      setKind={setKind}
     />
   );
 }
@@ -211,6 +219,7 @@ export function CompareScreen({
 function CompareView({
   sessionId,
   model,
+  offlineText,
   traceLoad,
   onRetryTraces,
   selection,
@@ -218,9 +227,12 @@ function CompareView({
   windowSizeValue,
   onCursor,
   onSelectionChange,
+  setKind,
 }: {
   sessionId: string;
   model: CompareModel;
+  /** "Offline · 00:41" while a refetch could not renew what is drawn. */
+  offlineText: string | null;
   traceLoad: TraceLoad;
   onRetryTraces: () => void;
   selection: CompareSelection;
@@ -230,6 +242,7 @@ function CompareView({
   /** Takes an updater too, so steps in the same tick build on each other. */
   onCursor: Dispatch<SetStateAction<number>>;
   onSelectionChange: (next: CompareSelection) => void;
+  setKind: 'session' | 'day';
 }) {
   const {color, scheme} = useTheme();
   const layout = useLayout();
@@ -262,7 +275,11 @@ function CompareView({
       cornerHref(
         sessionId,
         model.sectionFirstCorner[section] ?? section,
-        {laps: selection.laps, hl: selection.hl},
+        {
+          laps: selection.laps,
+          hl: selection.hl,
+          set: setKind === 'day' ? 'day' : null,
+        },
         model.sectionCompound[section] === true,
       ),
     );
@@ -356,7 +373,12 @@ function CompareView({
         style={hitBox.link}
         hitSlop={space.md}
         onPress={() =>
-          router.navigate(sessionHref(sessionId, {laps: selection.laps}))
+          router.navigate(
+            sessionHref(sessionId, {
+              laps: selection.laps,
+              set: setKind === 'day' ? 'day' : null,
+            }),
+          )
         }>
         <Text variant='bodyStrong' tone='accentInk'>
           ‹ Session
@@ -384,7 +406,10 @@ function CompareView({
   ) : (
     <View>
       {headerRow}
-      <SessionNav sessionId={sessionId} />
+      <SessionNav
+        sessionId={sessionId}
+        set={setKind === 'day' ? 'day' : null}
+      />
     </View>
   );
 
@@ -786,6 +811,7 @@ function CompareView({
 
   const charts = (
     <View style={styles.charts}>
+      <OfflineLine text={offlineText} />
       {chartsBar}
       {oneChartTabs}
       {(traceLoad.kind === 'failed' || traceLoad.kind === 'partial') && (

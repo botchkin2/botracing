@@ -4,6 +4,7 @@ import {formatGap, size, space, useTheme} from '@/src/design';
 import {Pressable, Text} from '@/src/ui';
 
 import {type GridRow, type GridSort} from '../grid';
+import type {DaySet} from '@/src/data/sessions';
 import {useSessionGrid} from '../useSessionGrid';
 import {
   LinkedHScroll,
@@ -24,14 +25,17 @@ export function SessionGrid({
   id,
   ticked,
   onTap,
+  day = null,
 }: {
   id: string;
   ticked: readonly string[];
   onTap: (lapId: string) => void;
+  /** A day: the grid of its merged laps. */
+  day?: DaySet | null;
 }) {
   const {color} = useTheme();
   const link = useLinkedScroll();
-  const state = useSessionGrid(id, ticked);
+  const state = useSessionGrid(id, ticked, day);
   if (!state) return null;
   const {grid, sort, setSort} = state;
 

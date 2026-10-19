@@ -15,6 +15,7 @@ import {
   firstCornerOf,
   openingLapIds,
   raceFactsOfPlan,
+  dayBestLapId,
   type DaySet,
   type Lap,
   type SessionDetail,
@@ -31,22 +32,21 @@ import {
   dayMonthOf,
   formatDayMonthTime,
   formatGap,
+  formatClock,
   formatLapTime,
+  formatOffline,
   modeText,
   shortTrackName,
 } from '@/src/design';
 import {planComboKey} from '@/src/nav/routes';
+import {type QueryLike, queryState} from '@/src/data/queryState';
 import {useSectionMode} from '@/src/state/sectionPrefs';
 
 import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
 import {buildFuelUse, type FuelUse} from './fuelUse';
 import {optimumFacts} from './optimumFacts';
 import {type OptimumLine, optimumLines} from './optimumLines';
-import {
-  lapTimeStats,
-  segmentBasisStats,
-  stintNumbers,
-} from './selectionStats';
+import {lapTimeStats, segmentBasisStats, stintNumbers} from './selectionStats';
 import {energyLine, type EnergyLine} from './energyLine';
 import {classTable, type ClassTable} from './classTable';
 import {buildPitCard, type PitCard} from './pitCard';
@@ -322,13 +322,6 @@ export const BAR_CLAMP_S = 1.5;
 
 const TYPE_TITLE = {R: 'Race', Q: 'Qualifying', P: 'Practice'} as const;
 const lapLabel = (lap: Lap) => `L${lap.lapIndex}`;
-/** "21:40", the clock time of an ISO instant here. */
-const clockOf = (iso: string) => {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(
-    d.getMinutes(),
-  ).padStart(2, '0')}`;
-};
 const timeOrDash = (t: number | null) => (t == null ? '—' : formatLapTime(t));
 const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v));
 
@@ -522,7 +515,12 @@ export function buildSessionModel(
   // The game's sectors for the phone table; the desktop table reads the
   // segments the Settings toggle picks. Best = fastest among comparable laps.
   const sectorTimes = sectorSegmentTimes(laps);
-  const sectionTimes = segmentTimesFor(sectionMode, laps, map);
+  // A day cut at different corner windows has no section numbers at all: the
+  // columns, optimum, spread and brake rows are lap times only (daySet.ts).
+  const bySections = day == null || day.usesSections;
+  const sectionTimes = bySections
+    ? segmentTimesFor(sectionMode, laps, map)
+    : null;
   const sectorCells = cellsOf(sectorTimes, basis, 1);
   const sectionCells = cellsOf(sectionTimes, basis, 2);
   const stintLines = new Map(
@@ -582,11 +580,7 @@ export function buildSessionModel(
 
   // The best lap of the set: the session's own, or the fastest comparable lap
   // of a day (a day has no stored best).
-  const bestLapId = day
-    ? laps
-        .filter(l => l.comparable && l.timeS != null)
-        .sort((a, b) => (a.timeS as number) - (b.timeS as number))[0]?.id ?? null
-    : session.bestLapId;
+  const bestLapId = day ? dayBestLapId(laps) : session.bestLapId;
 
   const rows: RowModel[] = [];
   const stintList: {n: number; sessionId?: string; startedAt?: string}[] = day
@@ -602,7 +596,7 @@ export function buildSessionModel(
     const last = stintLaps[stintLaps.length - 1].lapIndex;
     // A day names a stint by when its session began.
     const bits = [
-      stint.startedAt ? clockOf(stint.startedAt) : `Stint ${stint.n}`,
+      stint.startedAt ? formatClock(stint.startedAt) : `Stint ${stint.n}`,
       `L${first}–L${last}`,
     ];
     const line = stintLines.get(stint.n);
@@ -738,7 +732,7 @@ export function buildSessionModel(
     optimumLines: optimumLines([...stintLines.values()], stintCount),
     sections,
     spread: spreadRows(sectionTimes, basis, sections),
-    brake: brakeLedger(laps, basis, map),
+    brake: brakeLedger(laps, basis, bySections ? map : null),
     chart,
     noComparable,
     rows,
@@ -807,9 +801,25 @@ export function useDayScreenModel(set: DaySet | null, selection: Selection) {
               sectionMode,
               set,
             ),
+            // A day reads its members' kept queries (data/sessions/lapSet.ts);
+            // no offline line for it yet.
+            offlineText: null as string | null,
           }
         : {state: 'loading' as const},
     [set, selection, map.data, sectionMode],
+  );
+}
+
+/** The segment times of a day's merged laps: the same sections the session table shows. */
+export function useDaySegmentTimes(day: DaySet | null): SegmentTimes | null {
+  const map = useTrackMap(day?.members[0].trackId);
+  const sectionMode = useSectionMode();
+  return useMemo(
+    () =>
+      day?.usesSections
+        ? segmentTimesFor(sectionMode, day.laps, map.data ?? null)
+        : null,
+    [day, map.data, sectionMode],
   );
 }
 
@@ -819,34 +829,69 @@ export function useSessionScreenModel(id: string, selection: Selection) {
   // Only the optimal lap needs the map; the screen draws without it.
   const map = useTrackMap(session.data?.trackId);
   const sectionMode = useSectionMode();
-  return useMemo(() => {
-    if (session.isError || laps.isError) {
-      const error = session.error ?? laps.error;
-      return {
-        state: 'error' as const,
-        message: error instanceof Error ? error.message : String(error),
-      };
-    }
-    if (!session.data || !laps.data) return {state: 'loading' as const};
-    return {
-      state: 'ready' as const,
-      model: buildSessionModel(
-        session.data,
-        laps.data,
+  return useMemo(
+    () =>
+      sessionScreenModelOf({
+        session,
+        laps,
+        map: map.data ?? null,
         selection,
-        map.data ?? null,
         sectionMode,
-      ),
-    };
-  }, [
-    session.data,
-    laps.data,
-    map.data,
-    session.error,
-    laps.error,
-    selection,
-    sectionMode,
-  ]);
+      }),
+    [
+      session.data,
+      laps.data,
+      map.data,
+      session.error,
+      laps.error,
+      session.dataUpdatedAt,
+      laps.dataUpdatedAt,
+      session.errorUpdatedAt,
+      laps.errorUpdatedAt,
+      selection,
+      sectionMode,
+    ],
+  );
+}
+
+/**
+ * The Session screen from its reads: what was read wins over a failed
+ * refetch (src/data/queryState.ts, roadmap 6b).
+ */
+export function sessionScreenModelOf({
+  session,
+  laps,
+  map,
+  selection,
+  sectionMode,
+  now = new Date(),
+  answeredAt,
+}: {
+  session: QueryLike & {data?: SessionDetail};
+  laps: QueryLike & {data?: Lap[]};
+  map: TrackMapData | null;
+  selection: Selection;
+  sectionMode: SectionMode;
+  now?: Date;
+  answeredAt?: number;
+}) {
+  const read = queryState([session, laps], answeredAt);
+  if (read.kind === 'error')
+    return {state: 'error' as const, message: read.message};
+  if (read.kind === 'offline') return {state: 'offline' as const};
+  if (read.kind === 'loading' || !session.data || !laps.data)
+    return {state: 'loading' as const};
+  return {
+    state: 'ready' as const,
+    offlineText: formatOffline(read.offlineSince, now),
+    model: buildSessionModel(
+      session.data,
+      laps.data,
+      selection,
+      map,
+      sectionMode,
+    ),
+  };
 }
 
 /**

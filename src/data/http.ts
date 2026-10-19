@@ -44,6 +44,12 @@ export function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   return apiFetchAt(`${apiBaseUrl}${path}`, init);
 }
 
+// When the API last answered, on any route and with any status: a read that
+// got no answer while others did is a broken route, not the network
+// (queryState.ts isOffline, pit-wall thread 1 #5220).
+let answeredAt = 0;
+export const lastApiAnswerAt = (): number => answeredAt;
+
 /** apiFetch to a full URL beside the lap API (analyzeUrl). */
 export async function apiFetchAt(
   url: string,
@@ -53,6 +59,7 @@ export async function apiFetchAt(
     ...init,
     headers: {...(await authHeaders()), ...init?.headers},
   });
+  answeredAt = Date.now();
   if (response.status === 401) reportUnauthorized();
   return response;
 }

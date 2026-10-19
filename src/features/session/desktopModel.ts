@@ -3,6 +3,7 @@ import {useMemo} from 'react';
 
 import {columnStats} from '@/src/analysis/segments';
 import {
+  type DaySet,
   type Lap,
   lapCornerTimes,
   type SessionDetail,
@@ -12,6 +13,7 @@ import {
   useTrackMap,
 } from '@/src/data/sessions';
 import {
+  formatClock,
   formatDistance,
   formatGap,
   formatLapTime,
@@ -66,7 +68,7 @@ const dash = '—';
  * line in the lap table (selectionStats.ts).
  */
 export function buildStintTable(
-  session: SessionDetail,
+  session: {stints: readonly {n: number; startedAt?: string}[]},
   laps: Lap[],
   ticked: ReadonlySet<string>,
 ): StintTableRow[] {
@@ -81,7 +83,8 @@ export function buildStintTable(
     const stats = lapTimeStats(picked);
     rows.push({
       n: s.n,
-      name: `Stint ${s.n}`,
+      // A day names a stint by when its session began.
+      name: s.startedAt ? formatClock(s.startedAt) : `Stint ${s.n}`,
       count: `${picked.length}/${stintLaps.length}`,
       median: stats.medianS == null ? dash : formatLapTime(stats.medianS),
       best: stats.bestS == null ? dash : formatLapTime(stats.bestS),
@@ -157,18 +160,25 @@ export type SessionDesktopModel = {
 export function useSessionDesktopModel(
   id: string,
   selection: Selection,
+  day: DaySet | null = null,
 ): SessionDesktopModel | null {
-  const session = useSession(id);
-  const laps = useSessionLaps(id);
-  const map = useTrackMap(session.data?.trackId);
+  const own = useSession(id);
+  const ownLaps = useSessionLaps(id);
+  const map = useTrackMap(day ? day.trackId : own.data?.trackId);
+  const ownSession = own.data;
+  const ownLapData = ownLaps.data;
   return useMemo(() => {
-    if (!session.data || !laps.data) return null;
-    // Corner numbers are the map's parts (T1–T11), in lapCornerTimes order.
-    const corners = map.data ? trackCorners(map.data) : null;
+    const session = day ? {stints: day.stints} : ownSession;
+    const laps = day ? day.laps : ownLapData;
+    if (!session || !laps) return null;
+    // Corner numbers are the map's parts (T1–T11), in lapCornerTimes order. A
+    // day cut at different windows has none: lap times only (daySet.ts).
+    const corners =
+      map.data && (day?.usesSections ?? true) ? trackCorners(map.data) : null;
     const ticked = new Set(selection.laps);
     return {
-      stints: buildStintTable(session.data, laps.data, ticked),
-      stintVsStint: buildStintVsStint(laps.data, corners, ticked),
+      stints: buildStintTable(session, laps, ticked),
+      stintVsStint: buildStintVsStint(laps, corners, ticked),
     };
-  }, [session.data, laps.data, map.data, selection]);
+  }, [day, ownSession, ownLapData, map.data, selection]);
 }

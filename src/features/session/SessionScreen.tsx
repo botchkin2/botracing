@@ -20,11 +20,10 @@ import {
   useLayout,
   useTheme,
 } from '@/src/design';
-import {useDaySet, useSession} from '@/src/data/sessions';
+import {type DaySet, useDaySet, useSession} from '@/src/data/sessions';
 import {SessionNav} from '@/src/workspace/SessionNav';
 import {
   compareHref,
-  cornerHref,
   sessionHref,
   sessionsHref,
   trackHref,
@@ -32,7 +31,13 @@ import {
 import {replace, toggle} from '@/src/state/lapSelection';
 import {LapStrip} from './components/LapStrip';
 import {usePanelWidth} from '@/src/state/panelPrefs';
-import {FoldedSection, PANEL_DIVIDER_W, Pressable, Text} from '@/src/ui';
+import {
+  FoldedSection,
+  OfflineLine,
+  PANEL_DIVIDER_W,
+  Pressable,
+  Text,
+} from '@/src/ui';
 
 import {CompareTray} from './components/CompareTray';
 import {LapDetail} from './components/LapDetail';
@@ -64,7 +69,6 @@ import {
 } from './components/LapTableRow';
 import {
   BAR_CLAMP_S,
-  gridCellTargetOf,
   type NoteRowModel,
   type RowModel,
   type Selection,
@@ -73,6 +77,7 @@ import {
   useSessionOpeningLapIds,
   useSessionScreenModel,
 } from './model';
+import {sectionCellHref, sectionHeadHref, sectionTapsOf} from './sectionTaps';
 
 const CHART_H = 166;
 const DESKTOP_SIDE_W = 340;
@@ -155,7 +160,9 @@ export function SessionScreen({
           <ActivityIndicator color={color.accent} />
         ) : (
           <Text tone='textMuted'>
-            Couldn’t load this session: {result.message}
+            {result.state === 'offline'
+              ? 'Offline'
+              : `Couldn’t load this session: ${result.message}`}
           </Text>
         )}
       </View>
@@ -166,11 +173,12 @@ export function SessionScreen({
     <SessionView
       sessionId={sessionId}
       model={result.model}
+      offlineText={result.offlineText}
       selection={resolved}
       onSelectionChange={onSelectionChange}
       renderPlanHalf={renderPlanHalf}
       renderPooledUse={renderPooledUse}
-      day={dayReady != null}
+      day={dayReady}
       setToggle={setToggle}
     />
   );
@@ -179,17 +187,20 @@ export function SessionScreen({
 function SessionView({
   sessionId,
   model,
+  offlineText,
   selection,
   onSelectionChange,
   renderPlanHalf,
   renderPooledUse,
-  day = false,
+  day = null,
   setToggle = null,
 }: {
   sessionId: string;
   model: SessionScreenModel;
+  /** "Offline · 00:41" while a refetch could not renew what is shown. */
+  offlineText: string | null;
   /** The laps are a day: no session cards, grid or side panels, no jump to Corner by a cell. */
-  day?: boolean;
+  day?: DaySet | null;
   /** Session | Day, when the session is in a sitting. */
   setToggle?: ReactNode;
   selection: Selection;
@@ -201,6 +212,8 @@ function SessionView({
   const layout = useLayout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  // Carried to every link out of a day, so Corner and Compare follow the set.
+  const set = day ? 'day' : null;
   const listRef = useRef<FlatList<RowModel>>(null);
   // The lap table's rows and head scroll sideways as one (phone and tablet).
   const tableLink = useLinkedScroll();
@@ -379,7 +392,7 @@ function SessionView({
         {model.subtitle}
       </Text>
       {!layout.isDesktop && setToggle}
-      {!layout.isDesktop && <SessionNav sessionId={sessionId} />}
+      {!layout.isDesktop && <SessionNav sessionId={sessionId} set={set} />}
       {model.trackId ? (
         <Pressable
           accessibilityRole='link'
@@ -438,6 +451,7 @@ function SessionView({
       ) : (
         <SessionHead facts={model.facts} />
       )}
+      <OfflineLine text={offlineText} />
       {!layout.isDesktop && model.rebuilt ? (
         <RebuiltLine rebuilt={model.rebuilt} />
       ) : null}
@@ -446,7 +460,7 @@ function SessionView({
           rows={model.spread}
           sessionId={sessionId}
           laps={selection.laps}
-          open={!day}
+          set={set}
         />
       ) : null}
       {model.brake.length > 0 ? (
@@ -454,7 +468,7 @@ function SessionView({
           rows={model.brake}
           sessionId={sessionId}
           laps={selection.laps}
-          open={!day}
+          set={day ? 'day' : null}
         />
       ) : null}
       {model.classTable ? <ClassTableView table={model.classTable} /> : null}
@@ -502,7 +516,7 @@ function SessionView({
         onSelectionChange({...selection, laps: replace(lapIds)})
       }
       onCompare={() =>
-        router.push(compareHref(sessionId, {laps: selection.laps}))
+        router.push(compareHref(sessionId, {laps: selection.laps, set}))
       }
     />
   );
@@ -515,9 +529,7 @@ function SessionView({
   };
 
   // Which section columns open something: the game's sectors and the start straight do not.
-  const sectionTaps = day
-    ? []
-    : model.sections?.targets.map(t => t.corner != null) ?? [];
+  const sectionTaps = sectionTapsOf(model.sections);
   const renderRow = (item: RowModel, width: number, wide = false) =>
     item.kind === 'note' ? (
       <NoteRow
@@ -548,18 +560,15 @@ function SessionView({
         sectionTaps={sectionTaps}
         sectionNames={model.sections?.heads}
         onSectionPress={i => {
-          const target =
-            model.sections &&
-            gridCellTargetOf(model.sections, i, item.lapId, selection.laps);
-          if (target)
-            router.push(
-              cornerHref(
-                sessionId,
-                target.corner,
-                {laps: target.laps, hl: item.lapId},
-                target.whole,
-              ),
-            );
+          const href = sectionCellHref(
+            sessionId,
+            model.sections,
+            i,
+            item.lapId,
+            selection.laps,
+            set,
+          );
+          if (href) router.push(href);
         }}
         lapColor={item.selIndex != null ? colorOf(item.selIndex) : undefined}
         onPress={() => highlight(item.lapId, false)}
@@ -681,14 +690,14 @@ function SessionView({
                     heads={model.sections?.heads ?? model.sectorHeads}
                     headTaps={sectionTaps}
                     onHeadPress={i => {
-                      const corner = model.sections?.sections[i];
-                      if (corner != null)
-                        router.push(
-                          compareHref(sessionId, {
-                            laps: selection.laps,
-                            corner,
-                          }),
-                        );
+                      const href = sectionHeadHref(
+                        sessionId,
+                        model.sections,
+                        i,
+                        selection.laps,
+                        set,
+                      );
+                      if (href) router.push(href);
                     }}
                   />
                 </View>
@@ -699,6 +708,7 @@ function SessionView({
                 {/* The grid comes after the lap table (Botkin, 2 Oct screenshots). */}
                 <SessionGrid
                   id={sessionId}
+                  day={day}
                   ticked={selection.laps}
                   onTap={lapId =>
                     onSelectionChange({

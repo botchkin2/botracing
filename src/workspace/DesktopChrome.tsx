@@ -4,6 +4,7 @@ import {useState} from 'react';
 import {
   firstCornerOf,
   trackCorners,
+  useCornerOff,
   useSession,
   useSessionLaps,
   useTrackMap,
@@ -28,11 +29,12 @@ import {useWorkspaceGo} from './useWorkspaceGo';
 export function DesktopChrome() {
   const pathname = usePathname();
   const router = useRouter();
-  const {id, laps, ref, hl, n, c} = useGlobalSearchParams<{
+  const {id, laps, ref, hl, set, n, c} = useGlobalSearchParams<{
     id?: string;
     laps?: string;
     ref?: string;
     hl?: string;
+    set?: string;
     n?: string;
     c?: string;
   }>();
@@ -48,7 +50,16 @@ export function DesktopChrome() {
   // Derived from the route while rendering, not in an effect: no extra paint.
   const [kept, setKept] = useState<Kept | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const next = nextKept(kept, {pathname, id, laps, ref, hl, n, sectionCorner});
+  const next = nextKept(kept, {
+    pathname,
+    id,
+    laps,
+    ref,
+    hl,
+    set,
+    n,
+    sectionCorner,
+  });
   if (!sameKept(next, kept)) setKept(next);
 
   const sessionId = next?.id ?? null;
@@ -59,19 +70,25 @@ export function DesktopChrome() {
   );
   const go = useWorkspaceGo({
     sessionId,
-    selection: {laps: next?.laps, ref: next?.ref, hl: next?.hl},
+    selection: {laps: next?.laps, ref: next?.ref, hl: next?.hl, set: next?.set},
     cornerN: next?.corner ?? 1,
     planCombo: plan.key,
   });
   const {data: session} = useSession(sessionId ?? '', sessionId != null);
   const lapData = useSessionLaps(sessionId);
   const map = useTrackMap(session?.trackId);
+  const cornerOff = useCornerOff(
+    sessionId ?? '',
+    session?.trackId,
+    sessionId != null && next?.set === 'day',
+  );
 
   const content =
     next && session
       ? chromeBox({
           session,
           hasField: session.field != null,
+          cornerOff,
           laps: lapData.data,
           selection: {laps: next.laps, ref: next.ref, hl: next.hl},
           cornerN: next.corner,
