@@ -4,6 +4,7 @@
 //   node tools/curate/curate.mjs show <trackId>
 //   node tools/curate/curate.mjs history <trackId>
 //   node tools/curate/curate.mjs plan-add <trackId> --session <id>
+//   node tools/curate/curate.mjs plan-add <trackId> --from garage61 [--car <id>] [--laps N]
 //   node tools/curate/curate.mjs plan-replace <trackId> --session <id> [--allow-renumber]
 //   node tools/curate/curate.mjs plan-refold <trackId> --sessions <id,id,...>
 //   node tools/curate/curate.mjs plan-undo <trackId> [--to-rev N]
@@ -20,6 +21,7 @@ import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {adapter as simAdapter, telemetryFolder} from '../sessions/sims.mjs';
 import {PlanRefused, applyPlan} from './apply.mjs';
+import {buildFromGarage61, createClient, readToken} from './garage61.mjs';
 import {describeMap} from './diff.mjs';
 import {
   checkLapDurations,
@@ -64,6 +66,9 @@ const VALUED = new Set([
   '--work',
   '--sim',
   '--capture',
+  '--from',
+  '--car',
+  '--laps',
 ]);
 
 /** {_: positional args, flags: {name: value | true}} */
@@ -208,6 +213,28 @@ export async function run(argv, deps) {
         checked: timing.checked,
       };
       plan = planElevation({trackId, current, built, blast});
+    } else if (cmd === 'plan-add' && flags.from === 'garage61') {
+      // Other drivers' laps from Garage61 (curator side only; iRacing tracks).
+      const client = deps.garage61 ?? (await realGarage61());
+      const built = await buildFromGarage61({
+        client,
+        trackId,
+        car: flags.car === undefined ? null : Number(flags.car),
+        laps: flags.laps === undefined ? undefined : Number(flags.laps),
+        log: say,
+      });
+      onThisTrack(built);
+      const r = built.report;
+      say(
+        `Garage61: ${r.garage61Track}, ${
+          r.visibleDrivers
+        } drivers visible, car ${r.carId}, ${r.used} of ${r.asked} laps used${
+          r.refused.length
+            ? ` (refused: ${[...new Set(r.refused)].join('; ')})`
+            : ''
+        }`,
+      );
+      plan = planAdd({trackId, current, built, samples, blast});
     } else if (cmd === 'plan-add' || cmd === 'plan-replace') {
       if (!flags.session)
         throw new LoaderError(
@@ -291,6 +318,15 @@ export async function run(argv, deps) {
     }
     throw error;
   }
+}
+
+/** The real Garage61 client: the token from the repo's .env, laps cached under the work dir. */
+async function realGarage61() {
+  const root = resolve(fileURLToPath(new URL('.', import.meta.url)), '../..');
+  return createClient({
+    token: readToken(resolve(root, '.env')),
+    cacheDir: resolve(tmpdir(), 'curate-work', 'garage61'),
+  });
 }
 
 // -- as a command ----------------------------------------------------------------------

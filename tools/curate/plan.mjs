@@ -165,6 +165,9 @@ export function planAdd({trackId, current, built, samples, blast}) {
       lengthM: built.map.lengthM,
       stepM: built.map.stepM,
       corners: built.map.corners,
+      // Where the laps came from, when not the curator's own recordings (no
+      // driver names or lap ids: app data holds no user references).
+      ...(built.source ? {source: built.source} : {}),
     };
     if (built.boundaries) boundariesFor(plan, built, current, built.map);
   }
