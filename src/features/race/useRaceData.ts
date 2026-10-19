@@ -12,6 +12,7 @@ import {
 import {measuredHalfWidths} from '@/src/analysis/trackSurface';
 import {worldMatches, worldMatchM} from '@/src/analysis/worldMatch';
 import {useField} from '@/src/data/field';
+import {readFailure} from '@/src/data/queryState';
 import {
   mapPlacer,
   type MapPlacer,
@@ -21,6 +22,7 @@ import {
   useTrackMap,
   useTrackSurface,
 } from '@/src/data/sessions';
+import {chaseRoad, type ChaseRoad} from '@/src/analysis/chaseRoad';
 import {useLapTraceLoad} from '@/src/data/traces';
 import {shortTrackName} from '@/src/design';
 
@@ -47,7 +49,7 @@ export type RaceData =
   /** The best lap's trace failed to load. */
   | {kind: 'line-error'; title: string; retry: () => void}
   | {kind: 'field-loading'; title: string}
-  | {kind: 'field-error'; title: string; retry: () => void}
+  | {kind: 'field-error'; title: string; retry: () => void; offline: boolean}
   | {
       kind: 'ready';
       title: string;
@@ -68,6 +70,8 @@ export type RaceData =
       attribution: string | null;
       /** The measured road is still on its way: the map holds its place. */
       roadPending: boolean;
+      /** What the chase view draws: the measured road with the track's curated height profile when it has one; null without a measured road. */
+      chase: ChaseRoad | null;
     };
 
 /** Gathers the Race screen's inputs; `carsAt` and the model do the rest. */
@@ -154,11 +158,26 @@ export function useRaceData(sessionId: string): RaceData {
     return worldMatchM(placer.placeWorld(pts), line);
   }, [field.data, line, placer, placed]);
 
+  const chase = useMemo(
+    () =>
+      centreWorld && stored?.hasPositions
+        ? chaseRoad(
+            centreWorld,
+            edges,
+            surfaceStepM,
+            surface.data?.lengthM ?? 0,
+            map.data?.elevation ?? null,
+            map.data?.lengthM ?? 0,
+          )
+        : null,
+    [centreWorld, edges, surfaceStepM, surface.data, stored, map.data],
+  );
   const gate = raceGate({
     sessionPending: session.isPending,
     hasDetail: detail != null,
     hasField: hash !== null,
-    fieldError: field.isError,
+    // A field kept from a good read stays shown when its refetch fails (6b).
+    fieldError: readFailure(field) !== null,
     hasBestLap: !noBestLap,
     line: line
       ? 'drawn'
@@ -171,13 +190,25 @@ export function useRaceData(sessionId: string): RaceData {
     readyInputs: !!(prep && clock && !laps.isPending),
   });
   if (gate === 'loading') return {kind: 'loading'};
-  if (!detail) return {kind: 'error', message: 'Could not load this session.'};
+  if (!detail)
+    return {
+      kind: 'error',
+      message:
+        readFailure(session) === 'offline'
+          ? 'Offline'
+          : 'Could not load this session.',
+    };
   const title = `${shortTrackName(detail.track)} · ${
     SESSION_TITLE[detail.sessionType]
   }`;
   if (gate === 'no-field') return {kind: 'no-field', title};
   if (gate === 'field-error')
-    return {kind: 'field-error', title, retry: () => void field.refetch()};
+    return {
+      kind: 'field-error',
+      title,
+      retry: () => void field.refetch(),
+      offline: readFailure(field) === 'offline',
+    };
   if (gate === 'no-lap') return {kind: 'no-lap', title};
   if (gate === 'no-line') return {kind: 'no-line', title};
   if (gate === 'line-error')
@@ -207,5 +238,6 @@ export function useRaceData(sessionId: string): RaceData {
     matchM,
     attribution: map.data?.attribution ?? null,
     roadPending: surface.isPending,
+    chase,
   };
 }

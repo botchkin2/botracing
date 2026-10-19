@@ -324,7 +324,11 @@ export function PlanScreen() {
       ) : planLoading.failed ? (
         <StatusBanner
           dot='idle'
-          text='The plan did not load; there is no history to plan from.'
+          text={
+            planLoading.offline
+              ? 'Offline'
+              : 'The plan did not load; there is no history to plan from.'
+          }
         />
       ) : null}
     </>

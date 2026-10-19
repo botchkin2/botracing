@@ -3,6 +3,8 @@ import {useMemo} from 'react';
 import {useTrackMap, useSessions, useTrackSurface} from '@/src/data/sessions';
 import {useLapTraceLoad} from '@/src/data/traces';
 import {layoutsOf, trackInfo} from '@/src/data/tracks';
+import {queryState, readFailure} from '@/src/data/queryState';
+import {formatOffline} from '@/src/design';
 
 import {type Combo, planCombos, undrivenPlanKey} from '../plan/model';
 
@@ -16,6 +18,8 @@ const GRID_STEP_M = 5;
 export type TrackScreenState =
   | {kind: 'loading'}
   | {kind: 'error'; message: string}
+  // No network and nothing kept to show (src/data/queryState.ts).
+  | {kind: 'offline'}
   | {
       kind: 'ready';
       model: TrackModel;
@@ -28,6 +32,8 @@ export type TrackScreenState =
       mapLoading: boolean;
       /** Parts of the map that failed to load; the page says so. */
       mapFailed: MapPart[];
+      /** "Offline · 00:41", or "Offline" for a map part never read; else null. */
+      offlineText: string | null;
       /** OSM credit for the outline. */
       attribution: string | null;
     };
@@ -58,16 +64,21 @@ export function useTrackModel(
     (lap.load.kind === 'idle' || lap.load.kind === 'loading') &&
     (map.data?.lengthM ?? 0) > 0;
 
+  // What was read wins over a failed refetch (roadmap 6b).
+  const sessionsRead = queryState([sessions]);
+  const mapFail = readFailure(map);
+  const surfaceFail = readFailure(surface);
   return useMemo<TrackScreenState>(() => {
-    if (sessions.isError && !info) {
+    if (sessionsRead.kind === 'offline' && !info) return {kind: 'offline'};
+    if (sessionsRead.kind === 'error' && !info) {
       return {kind: 'error', message: 'Could not load this track.'};
     }
-    if (sessions.isPending) return {kind: 'loading'};
+    if (sessionsRead.kind === 'loading') return {kind: 'loading'};
     const mapState = mapLoadOf({
       hasRef: ref != null,
       hasOutline: (map.data?.outline.length ?? 0) > 0,
-      map: {pending: map.isPending, failed: map.isError},
-      surface: {pending: surface.isPending, failed: surface.isError},
+      map: {pending: map.isPending, failed: mapFail === 'error'},
+      surface: {pending: surface.isPending, failed: surfaceFail === 'error'},
       trace: {
         pending: lapWaits,
         failed: lap.load.kind === 'failed',
@@ -85,6 +96,11 @@ export function useTrackModel(
       // The road is held back until the surface settles, like the map itself.
       mapLoading: mapState.loading,
       mapFailed: mapState.failed,
+      offlineText:
+        formatOffline(
+          sessionsRead.kind === 'ready' ? sessionsRead.offlineSince : null,
+        ) ??
+        (mapFail === 'offline' || surfaceFail === 'offline' ? 'Offline' : null),
       attribution: map.data?.attribution ?? null,
       model: buildTrackModel({
         trackId,
@@ -100,16 +116,16 @@ export function useTrackModel(
   }, [
     trackId,
     info,
-    sessions.isError,
-    sessions.isPending,
+    sessionsRead.kind,
+    sessionsRead.kind === 'ready' ? sessionsRead.offlineSince : null,
+    mapFail,
+    surfaceFail,
     sessions.data,
     everywhere.data,
     ref,
     map.data,
     surface.data,
     map.isPending,
-    map.isError,
-    surface.isError,
     lap.load,
     refTrace,
     selectedCorner,

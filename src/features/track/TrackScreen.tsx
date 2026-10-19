@@ -4,10 +4,11 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {radius, size, space, useLayout, useTheme} from '@/src/design';
 import {cornerHref, sessionHref, trackHref, tracksHref} from '@/src/nav/routes';
-import {Pressable, Text} from '@/src/ui';
+import {OfflineLine, Pressable, Text} from '@/src/ui';
 
 import {AboutBlock} from './components/AboutBlock';
 import {CornerList} from './components/CornerList';
+import {ElevationCard} from './components/ElevationCard';
 import {FactTiles} from './components/FactTiles';
 import {HistoryPanel} from './components/HistoryPanel';
 import {LayoutChips} from './components/LayoutChips';
@@ -52,7 +53,9 @@ export function TrackScreen({
         {state.kind === 'loading' ? (
           <ActivityIndicator color={color.textMuted} />
         ) : (
-          <Text tone='textMuted'>{state.message}</Text>
+          <Text tone='textMuted'>
+            {state.kind === 'offline' ? 'Offline' : state.message}
+          </Text>
         )}
       </View>
     );
@@ -73,6 +76,7 @@ export function TrackScreen({
     undrivenPlan: state.undrivenPlan,
     mapLoading: state.mapLoading,
     mapFailed: state.mapFailed,
+    offlineText: state.offlineText,
     attribution: state.attribution,
     canOpenCorner: refSessionId != null,
     actions,
@@ -94,6 +98,8 @@ type ViewProps = {
   undrivenPlan: string | null;
   mapLoading: boolean;
   mapFailed: MapPart[];
+  /** "Offline · 00:41" or "Offline"; null while current. */
+  offlineText: string | null;
   attribution: string | null;
   canOpenCorner: boolean;
   actions: Actions;
@@ -120,6 +126,7 @@ function TrackPhone({
   undrivenPlan,
   mapLoading,
   mapFailed,
+  offlineText,
   attribution,
   canOpenCorner,
   actions,
@@ -142,6 +149,7 @@ function TrackPhone({
         </Text>
       </Pressable>
       <Title model={model} />
+      <OfflineLine text={offlineText} />
       <TrackMapPanel
         map={model.map}
         width={width}
@@ -153,6 +161,9 @@ function TrackPhone({
         loading={mapLoading}
         failed={mapFailed}
       />
+      {model.elevation ? (
+        <ElevationCard elevation={model.elevation} width={width} />
+      ) : null}
       <ProgressionCard combos={plans} width={width} />
       <FactTiles facts={model.facts} layout='grid' />
       {model.corners.length > 0 ? (
@@ -201,6 +212,7 @@ function TrackDesktop({
   undrivenPlan,
   mapLoading,
   mapFailed,
+  offlineText,
   attribution,
   canOpenCorner,
   actions,
@@ -268,6 +280,7 @@ function TrackDesktop({
     <View style={[styles.fill, {backgroundColor: color.bg}]}>
       <View style={[styles.strip, {borderColor: color.lineHeader}]}>
         <Title model={model} />
+        <OfflineLine text={offlineText} />
         <FactTiles facts={model.facts} layout='row' />
       </View>
       <View style={styles.body}>
@@ -291,6 +304,9 @@ function TrackDesktop({
             loading={mapLoading}
             failed={mapFailed}
           />
+          {model.elevation ? (
+            <ElevationCard elevation={model.elevation} width={mapW} />
+          ) : null}
           <ProgressionCard combos={plans} width={mapW} />
           <LayoutChips layouts={model.layouts} onOpen={actions.openLayout} />
         </ScrollView>

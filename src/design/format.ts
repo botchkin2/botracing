@@ -151,3 +151,33 @@ export function formatClock(iso: string): string {
     d.getMinutes(),
   ).padStart(2, '0')}`;
 }
+
+/**
+ * Since when, for a moment in ms: "00:41" today, "Oct 13, 00:41" on an earlier
+ * day this year, "Oct 13, 2025" before that; device time zone.
+ */
+export function formatSince(ms: number, now: Date = new Date()): string {
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return '';
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  return sameDay
+    ? formatClock(d.toISOString())
+    : formatDayMonthTime(d.toISOString(), now);
+}
+
+/**
+ * The line a screen shows while it draws data a failed refetch could not
+ * renew: "Offline · 00:41", the time of the data shown (src/data/queryState.ts
+ * offlineSince; pit-wall thread 1 #5216).
+ */
+export function formatOffline(
+  offlineSince: number | null,
+  now: Date = new Date(),
+): string | null {
+  return offlineSince == null
+    ? null
+    : `Offline · ${formatSince(offlineSince, now)}`;
+}

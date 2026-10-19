@@ -1239,6 +1239,8 @@ export type TrackMapData = {
   /** OSM pit lane lines as [lon, lat] pairs. */
   pitLane: [number, number][][];
   attribution: string | null;
+  /** The curated height along the lap, in the map's distance frame (heightM[i] at i * stepM metres); null where none is curated. */
+  elevation?: {stepM: number; heightM: number[]} | null;
 };
 
 // The kind of each LineString lineStrings returns for the same filter, in the
@@ -1294,6 +1296,16 @@ function toMapCorner(raw: unknown, labels: Record<number, string>): MapCorner {
   };
 }
 
+/** The curated height profile; null when it is missing or not numbers, so a bad one draws nothing rather than something wrong. */
+function toElevation(raw: unknown): TrackMapData['elevation'] {
+  const x = obj(raw);
+  const stepM = num(x.stepM);
+  const heights = Array.isArray(x.heightM) ? (x.heightM as unknown[]) : [];
+  if (stepM == null || stepM <= 0 || heights.length < 2) return null;
+  const heightM = heights.map(num);
+  return heightM.every((h): h is number => h != null) ? {stepM, heightM} : null;
+}
+
 export function toTrackMap(raw: Record<string, unknown>): TrackMapData {
   const g = obj(raw.georef);
   const quality = str(raw.quality);
@@ -1335,6 +1347,7 @@ export function toTrackMap(raw: Record<string, unknown>): TrackMapData {
     outlineKinds: lineKinds(features, kind => kind !== 'pit'),
     pitLane: lineStrings(features, kind => kind === 'pit'),
     attribution: str(raw.attribution) || null,
+    elevation: toElevation(raw.elevation),
   };
 }
 

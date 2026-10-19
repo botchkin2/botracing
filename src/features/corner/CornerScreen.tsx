@@ -26,6 +26,7 @@ import {compareHref, cornerHref} from '@/src/nav/routes';
 import {type TraceLoad} from '@/src/data/traces';
 import {usePanelWidth} from '@/src/state/panelPrefs';
 import {
+  OfflineLine,
   Chip,
   FoldedSection,
   PANEL_DIVIDER_W,
@@ -63,6 +64,7 @@ const PHONE_H: ZoomHeights = {
   delta: 0,
   steering: 40,
   line: 0,
+  height: 40,
 };
 // Landscape phone: 375 pt of height, so the speed trace is the first screen's
 // chart and the pedals are tall enough to read, not 52 pt ribbons.
@@ -74,6 +76,7 @@ const LANDSCAPE_H: ZoomHeights = {
   delta: 0,
   steering: 60,
   line: 0,
+  height: 40,
 };
 // Desktop: the whole snapshot (delta, speed, brake, throttle, steering, line)
 // has to sit in a scrolling column, so the pedals are shorter than before.
@@ -85,6 +88,7 @@ const DESK_H: ZoomHeights = {
   delta: 100,
   steering: 60,
   line: 130,
+  height: 56,
 };
 // The wide layout's charts are kept at least this wide when the left column
 // is dragged out: what the old layout gave them at 1280 (layout.width 1000,
@@ -139,6 +143,8 @@ export function CornerScreen({
         ]}>
         {result.state === 'loading' ? (
           <ActivityIndicator color={color.accent} />
+        ) : result.state === 'offline' ? (
+          <Text tone='textMuted'>Offline</Text>
         ) : result.state === 'error' ? (
           <View style={styles.banner}>
             <StatusBanner
@@ -165,6 +171,7 @@ export function CornerScreen({
     <CornerView
       sessionId={sessionId}
       model={result.model}
+      offlineText={result.offlineText}
       lapIds={result.lapIds}
       keyLapIds={result.keyLapIds}
       openingIds={result.openingIds}
@@ -182,6 +189,7 @@ export function CornerScreen({
 function CornerView({
   sessionId,
   model,
+  offlineText,
   lapIds,
   keyLapIds,
   openingIds,
@@ -195,6 +203,8 @@ function CornerView({
 }: {
   sessionId: string;
   model: CornerModel;
+  /** "Offline · 00:41" while a refetch could not renew what is drawn. */
+  offlineText: string | null;
   lapIds: string[];
   keyLapIds: string[];
   openingIds: string[];
@@ -337,6 +347,7 @@ function CornerView({
       <Text variant='dataSmall' tone='textMuted'>
         {model.subtitle}
       </Text>
+      <OfflineLine text={offlineText} />
     </View>
   );
   // One line that scrolls sideways on both layouts: 25 corners wrapped to

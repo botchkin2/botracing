@@ -85,9 +85,15 @@ export function healPlan({
 /** A tombstoned doc is hidden from reads and from "leftover" cleanups. */
 export const isSuperseded = doc => Boolean(doc?.supersededBy);
 
-/** Whether a tombstone is old enough to be swept (a later job; none runs yet). */
-export const tombstoneExpired = (doc, nowMs) =>
+/**
+ * Whether a tombstone is old enough to be swept (a later job; none runs yet).
+ * `listedIds`: every id a live session lists (its recordingIds). Such a doc is
+ * never swept, whatever its mark says: a recording marked before #658 can
+ * belong to the session that replaced its owner.
+ */
+export const tombstoneExpired = (doc, nowMs, listedIds) =>
   isSuperseded(doc) &&
+  !listedIds.has(doc.id) &&
   nowMs - Date.parse(doc.supersededAt) > TOMBSTONE_DAYS * 86_400_000;
 
 /**

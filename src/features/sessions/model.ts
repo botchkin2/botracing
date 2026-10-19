@@ -1,17 +1,20 @@
 import {useMemo} from 'react';
 
 import {
+  type SessionFacets,
   type SessionSummary,
   useNewUploads,
   useSessionFacets,
   useSessions,
 } from '@/src/data/sessions';
+import {type QueryLike, queryState} from '@/src/data/queryState';
 import type {FinishPosition} from '@/src/analysis/raceResult';
 import {sittings} from '@/src/analysis/sitting';
 import {
   carLabel,
   dayMonthOf,
   formatLapTime,
+  formatOffline,
   modeText,
   shortTrackName,
 } from '@/src/design';
@@ -90,6 +93,8 @@ export type DayGroup = {
 export type SessionsModel =
   | {state: 'loading'}
   | {state: 'error'; message: string}
+  // No network and nothing kept to show (src/data/queryState.ts).
+  | {state: 'offline'}
   | {state: 'empty'}
   | {
       state: 'ready';
@@ -99,6 +104,8 @@ export type SessionsModel =
       options: FilterOptions;
       /** Shown when no day has a row. */
       emptyText: string;
+      /** "Offline · 00:41" while the list shown could not be renewed; else null. */
+      offlineText: string | null;
     };
 
 const dayKey = (d: Date) =>
@@ -320,23 +327,51 @@ export function useSessionsModel(
     [facets.data, wanted.game, wanted.track],
   );
   const list = useSessions(listQuery(filter));
-  return useMemo(() => {
-    if (list.isPending) return {state: 'loading'};
-    if (list.isError)
-      return {
-        state: 'error',
-        message:
-          list.error instanceof Error ? list.error.message : String(list.error),
-      };
-    if (facets.data && facets.data.games.length === 0) return {state: 'empty'};
-    return {
-      state: 'ready',
-      days: buildSessionsModel(applyGame(list.data.items, filter), new Date()),
+  return useMemo(
+    () => sessionsModelOf({list, facets: facets.data, filter, now: new Date()}),
+    [
+      list.status,
+      list.data,
+      list.error,
+      list.dataUpdatedAt,
+      list.errorUpdatedAt,
+      facets.data,
       filter,
-      emptyText: emptyDaysText(filter),
-      options: facets.data
-        ? filterOptions(facets.data, filter)
-        : {games: [], tracks: []},
-    };
-  }, [list.status, list.data, list.error, facets.data, filter]);
+    ],
+  );
+}
+
+/**
+ * The Sessions screen from its reads. The list kept from the last good read
+ * wins over a failed refetch (src/data/queryState.ts, roadmap 6b).
+ */
+export function sessionsModelOf({
+  list,
+  facets,
+  filter,
+  now,
+  answeredAt,
+}: {
+  list: QueryLike & {data?: {items: SessionSummary[]}};
+  facets: SessionFacets | undefined;
+  filter: SessionsFilter;
+  now: Date;
+  answeredAt?: number;
+}): SessionsModel {
+  const read = queryState([list], answeredAt);
+  if (read.kind !== 'ready' || !list.data)
+    return read.kind === 'error'
+      ? {state: 'error', message: read.message}
+      : read.kind === 'offline'
+      ? {state: 'offline'}
+      : {state: 'loading'};
+  if (facets && facets.games.length === 0) return {state: 'empty'};
+  return {
+    state: 'ready',
+    days: buildSessionsModel(applyGame(list.data.items, filter), now),
+    filter,
+    emptyText: emptyDaysText(filter),
+    options: facets ? filterOptions(facets, filter) : {games: [], tracks: []},
+    offlineText: formatOffline(read.offlineSince, now),
+  };
 }

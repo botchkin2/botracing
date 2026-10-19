@@ -52,6 +52,7 @@ import {
   type NeighbourApex,
   windowCaption,
 } from './stretch';
+import {heightsOnGrid} from '@/src/analysis/elevation';
 import {medianOfSet} from '@/src/analysis/setStats';
 
 // Corner screen view model (handoff §4, D3), per single corner (T1..Tn).
@@ -184,6 +185,8 @@ export type CornerModel = {
     lines: ZoomLine[];
     band: {speed: [number[], number[]]} | null;
     stepM: number;
+    /** The track's curated height on the same grid, metres (analysis/elevation.ts); null where none is curated. */
+    elevation: number[] | null;
     /** This turn's own stretch, the ranges outside it to dim, the neighbouring
      *  apexes in the window, and the caption that says so (stretch.ts). */
     stretch: CornerStretch;
@@ -640,6 +643,7 @@ export function buildCornerModel(input: {
 
   const chips = all.map(c => ({n: c.n, label: turnLabel(c.n, c.official)}));
   const {sections, parts, all: allChip} = sectionChips(all, sec, whole);
+  const stepM = band?.stepM ?? traces.values().next().value?.stepM ?? 5;
   return {
     corner,
     sectionN: sec.sectionN,
@@ -678,7 +682,11 @@ export function buildCornerModel(input: {
         band && mode !== 'individual'
           ? {speed: [band.speedKph.p10, band.speedKph.p90]}
           : null,
-      stepM: band?.stepM ?? traces.values().next().value?.stepM ?? 5,
+      stepM,
+      // The curated height on the same grid; null where the track has none.
+      elevation: map.elevation
+        ? heightsOnGrid(map.elevation, stepM, map.lengthM)
+        : null,
       stretch: view.stretch,
       edges: edgeRuns(
         lines.map(l => l.samples.trackEdgeM),

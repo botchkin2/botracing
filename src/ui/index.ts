@@ -10,6 +10,7 @@ export * from './FoldedSection';
 export * from './hitArea';
 export * from './MapZoomButtons';
 export * from './NumberField';
+export * from './OfflineLine';
 export * from './PanelDivider';
 export * from './Pressable';
 export * from './Segment';

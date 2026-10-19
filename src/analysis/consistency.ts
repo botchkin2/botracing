@@ -54,8 +54,6 @@ export interface LapFacts {
   // Mean tyre carcass temperature over the lap, all four tyres. Null if the
   // sim does not report it.
   tyreCarcassC: number | null;
-  // Seconds of this lap under a full-course yellow.
-  courseYellowSec: number;
   // Tyre compound fitted (the sim's own code, front/rear), and the highest
   // racing-line wetness during the lap in percent. Null if not recorded.
   compound?: string | null;
@@ -138,7 +136,6 @@ export type ExcludeReason =
   | 'pit-in'
   | 'pit-out'
   | 'start'
-  | 'course-yellow'
   | 'cold-tyres'
   | 'far-off-pace'
   | 'damage';
@@ -327,7 +324,6 @@ export function selectNormalRacing(
     if (lap.pitIn) reasons.push('pit-in');
     if (lap.pitOut) reasons.push('pit-out');
     if (lap.start) reasons.push('start');
-    if (lap.courseYellowSec > 1) reasons.push('course-yellow');
     if (lap.newTyres) {
       reasons.push('cold-tyres');
     } else if (

@@ -87,6 +87,16 @@ jobs:
 
       - run: npm ci
 
+      # As if tray-v<version> already existed: the last released tray must have
+      # a real beat in contract/payloads/heartbeat, or this tag would turn main
+      # red (contract/heartbeat.test.mjs; it did for 0.1.11, 0.1.13 and 0.1.14).
+      # Fails before anything is built; add the beat in a PR, then rerun.
+      - name: The last released tray has a real heartbeat
+        working-directory: ${{ github.workspace }}
+        env:
+          RELEASE_CANDIDATE: ${{ inputs.version }}
+        run: node --test contract/heartbeat.test.mjs
+
       - name: Stamp the version (this checkout only)
         run: node scripts/release-manifest.mjs stamp "${{ inputs.version }}"
 
@@ -144,6 +154,7 @@ jobs:
           # The gate scripts and the replay (it reads the capture through
           # tools/sessions/duck.mjs); the uploader under test is the installed one.
           sparse-checkout: |
+            contract
             desktop/scripts
             tools/dev
             tools/sessions
@@ -198,15 +209,29 @@ jobs:
         shell: pwsh
         env:
           SEAT_TEST_REFRESH_TOKEN: ${{ secrets.SEAT_TEST_REFRESH_TOKEN }}
+          # The tray sets this for its watcher (sidecar.rs); liveE2E runs the
+          # watcher itself, so without it every beat reads version "unknown"
+          # and the saved beat could never be a payload (slipstream on #661).
+          LAP_VERSION: ${{ inputs.version }}
         run: |
           if (-not $env:SEAT_TEST_REFRESH_TOKEN) { throw "secret SEAT_TEST_REFRESH_TOKEN is not set (see the PR that added this workflow)" }
           $tokenFile = Join-Path $env:RUNNER_TEMP 'seat.refresh'
           Set-Content -Path $tokenFile -Value $env:SEAT_TEST_REFRESH_TOKEN -NoNewline
           # The installed tray's own node runs the gate and the uploader.
-          & "$env:APP\node\node.exe" tools/dev/liveE2E.mjs --from "$env:RUNNER_TEMP/capture" --refresh-token $tokenFile --node "$env:APP\node\node.exe" --app "$env:APP\app" --laps 3 --speed 1
+          & "$env:APP\node\node.exe" tools/dev/liveE2E.mjs --from "$env:RUNNER_TEMP/capture" --refresh-token $tokenFile --node "$env:APP\node\node.exe" --app "$env:APP\app" --laps 3 --speed 1 --beat-out "$env:RUNNER_TEMP/beat.json"
           $code = $LASTEXITCODE
           Remove-Item $tokenFile -Force
           exit $code
+
+      # The installed candidate's own heartbeat, scrubbed: the next release's
+      # preflight needs it in contract/payloads/heartbeat (contract/README.md).
+      - uses: actions/upload-artifact@v7
+        if: ${{ always() }}
+        with:
+          name: heartbeat-${{ inputs.version }}
+          path: ${{ runner.temp }}/beat.json
+          if-no-files-found: warn
+          retention-days: 90
 
   publish:
     name: Publish ${{ inputs.version }}

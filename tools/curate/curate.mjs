@@ -7,6 +7,7 @@
 //   node tools/curate/curate.mjs plan-replace <trackId> --session <id> [--allow-renumber]
 //   node tools/curate/curate.mjs plan-refold <trackId> --sessions <id,id,...>
 //   node tools/curate/curate.mjs plan-undo <trackId> [--to-rev N]
+//   node tools/curate/curate.mjs plan-elevation <trackId> --session <id> --capture <dir>
 //
 // Every plan command is a dry run: it prints the plan and writes nothing. Add
 // `--apply --reason "why"` to write it (needs Admin credentials today:
@@ -21,22 +22,36 @@ import {adapter as simAdapter, telemetryFolder} from '../sessions/sims.mjs';
 import {PlanRefused, applyPlan} from './apply.mjs';
 import {describeMap} from './diff.mjs';
 import {
+  checkLapDurations,
+  elevationFromLaps,
+  keepMeasuredLaps,
+  readCaptureLaps,
+} from './elevation.mjs';
+import {
   LoaderError,
   buildFromSession,
   buildRefold,
   describeSession,
   findSessions,
+  measuredLapNumbers,
   pickSession,
 } from './loader.mjs';
 import {
   planAdd,
+  planElevation,
   planRefold,
   planReplace,
   planUndo,
   renderPlan,
 } from './plan.mjs';
 
-const PLANS = ['plan-add', 'plan-replace', 'plan-refold', 'plan-undo'];
+const PLANS = [
+  'plan-add',
+  'plan-replace',
+  'plan-refold',
+  'plan-undo',
+  'plan-elevation',
+];
 const VALUED = new Set([
   '--session',
   '--sessions',
@@ -48,6 +63,7 @@ const VALUED = new Set([
   '--owner',
   '--work',
   '--sim',
+  '--capture',
 ]);
 
 /** {_: positional args, flags: {name: value | true}} */
@@ -91,13 +107,16 @@ export async function run(argv, deps) {
   const sessionsHere = () => {
     const fromFlag =
       typeof flags.owners === 'string'
-        ? flags.owners.split(',').map(s => s.trim()).filter(Boolean)
+        ? flags.owners
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean)
         : [];
     const ownerIds = fromFlag.length
       ? fromFlag
       : flags.owner
-        ? [flags.owner]
-        : deps.ownerIds ?? (deps.ownerId ? [deps.ownerId] : []);
+      ? [flags.owner]
+      : deps.ownerIds ?? (deps.ownerId ? [deps.ownerId] : []);
     return loader.findSessions({
       adapter,
       folder: flags.folder ?? deps.folder,
@@ -121,7 +140,7 @@ export async function run(argv, deps) {
     }
     if (![...PLANS, 'show', 'history'].includes(cmd) || !trackId) {
       say(
-        'usage: curate <sessions | show | history | plan-add | plan-replace | plan-refold | plan-undo> <trackId> [options]',
+        'usage: curate <sessions | show | history | plan-add | plan-replace | plan-refold | plan-undo | plan-elevation> <trackId> [options]',
       );
       return {code: 2, lines};
     }
@@ -135,6 +154,10 @@ export async function run(argv, deps) {
       );
       for (const l of describeMap(curated ? current.track : null))
         say(`  ${l}`);
+      if (current.track?.elevation?.heightM)
+        say(
+          `  elevation: ${current.track.elevation.heightM.length} heights, step ${current.track.elevation.stepM} m`,
+        );
       say(
         `  ${await backend.sessionCount(trackId)} session(s) across all users`,
       );
@@ -161,7 +184,31 @@ export async function run(argv, deps) {
         throw new LoaderError(`that session is on ${id}, not ${trackId}`);
     };
     let plan;
-    if (cmd === 'plan-add' || cmd === 'plan-replace') {
+    if (cmd === 'plan-elevation') {
+      if (!flags.capture || !flags.session)
+        throw new LoaderError(
+          'plan-elevation needs --session <id> and --capture <dir>',
+        );
+      const session = pickSession(sessionsHere(), flags.session);
+      const sessionLaps = measuredLapNumbers({adapter, session, workDir});
+      const picked = keepMeasuredLaps(
+        readCaptureLaps(flags.capture),
+        sessionLaps,
+      );
+      const built = elevationFromLaps(picked.laps, current.track?.lengthM);
+      const timing = checkLapDurations(picked.laps, sessionLaps);
+      if (timing.refusals.length) {
+        built.elevation = null;
+        built.refusals.push(...timing.refusals);
+      }
+      built.stats = {
+        ...built.stats,
+        droppedInLaps: picked.dropped,
+        matched: timing.matched,
+        checked: timing.checked,
+      };
+      plan = planElevation({trackId, current, built, blast});
+    } else if (cmd === 'plan-add' || cmd === 'plan-replace') {
       if (!flags.session)
         throw new LoaderError(
           `${cmd} needs --session <id> (curate sessions lists them)`,

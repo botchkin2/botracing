@@ -432,6 +432,10 @@ export const size = {
   divergeRow: 21,
   // Track page (Track page handoff T1 and 05): map heights, the desktop
   // columns 780 | 300 | 360, corner rows, the trend strip.
+  // The Track page's height line (thread 86): its box, the metres axis, the pad.
+  elevationProfile: 120,
+  elevationAxis: 44,
+  elevationPad: 8,
   trackMapPhone: 262,
   trackMapDesk: 600,
   trackColMap: 780,

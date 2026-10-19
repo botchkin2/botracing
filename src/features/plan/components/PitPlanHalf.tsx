@@ -82,17 +82,26 @@ export function PitPlanHalf({card, facts}: {card: PitCard; facts: RaceFacts}) {
         stops: card.actual.stops,
         end: card.actual.end,
       });
-  return <PlanHalfView half={half} failed={hist.loading.failed} />;
+  return (
+    <PlanHalfView
+      half={half}
+      failed={hist.loading.failed}
+      offline={hist.loading.offline}
+    />
+  );
 }
 
 /** The half itself, from finished rows: Plan in secondary ink, Actual at full ink. */
 export function PlanHalfView({
   half,
   failed = false,
+  offline = false,
 }: {
   /** Null while the earlier laps load. */
   half: PlanHalf | null;
   failed?: boolean;
+  /** No network and no history kept: says Offline, not that it failed. */
+  offline?: boolean;
 }) {
   const {color} = useTheme();
   // No note and no rows: nothing to compare, so no card (not a header over an
@@ -152,7 +161,9 @@ export function PlanHalfView({
       )}
       {failed ? (
         <Text variant='dataSmall' tone='textMuted'>
-          {'The earlier sessions did not load; the plan has no history.'}
+          {offline
+            ? 'Offline'
+            : 'The earlier sessions did not load; the plan has no history.'}
         </Text>
       ) : null}
     </View>

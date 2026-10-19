@@ -843,3 +843,38 @@ describe('what moves with the time (moves)', () => {
     expect(run(12, true)).toBeNull();
   });
 });
+
+describe('the curated height under the charts', () => {
+  const withHeight = toTrackMap({
+    lengthM: 1000,
+    corners: [{n: 1, entryM: 100, apexM: 200, exitM: 300, parts: []}],
+    outline: {features: []},
+    elevation: {
+      stepM: 10,
+      heightM: Array.from({length: 101}, (_, i) => i / 10),
+    },
+  });
+  const run = (m: typeof map) =>
+    buildCornerModel({
+      laps,
+      map: m,
+      band: null,
+      traces: new Map(),
+      lapIds: ['a', 'b', 'c'],
+      keyLapIds: [],
+      hl: null,
+      corner: 1,
+    })!.zoom;
+
+  it('is on the charts’ grid, one value per grid point to the lap’s length', () => {
+    const z = run(withHeight);
+    expect(z.elevation).not.toBeNull();
+    expect(z.elevation!.length).toBe(Math.floor(1000 / z.stepM) + 1);
+    // 0.1 m per 10 m sample: the value at 200 m is 2 m.
+    expect(z.elevation![200 / z.stepM]).toBeCloseTo(2);
+  });
+
+  it('is absent where the track has none curated: nothing is drawn', () => {
+    expect(run(map).elevation).toBeNull();
+  });
+});

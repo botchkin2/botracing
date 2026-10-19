@@ -11,8 +11,10 @@ import {
   buildSessionModel,
   type SectionTable,
   sectionTable,
+  sessionScreenModelOf,
   trafficPaceFacts,
 } from './model';
+import {HttpError} from '@/src/data/http';
 
 // Road Atlanta race, 2026-09-26: 22 laps, two stints, a pit stop at L17/L18.
 const session = toSessionDetail(fixture.session);
@@ -629,6 +631,57 @@ describe('gridCellTargetOf (Road Atlanta numbering)', () => {
 
   it('the start straight opens nothing', () => {
     expect(gridCellTargetOf(table, 0, 'L4', ['L4'])).toBeNull();
+  });
+});
+
+// Roadmap 6b: signal gone while the session is open (or reopened).
+describe('sessionScreenModelOf with the network gone', () => {
+  const now = new Date(2026, 9, 14, 1, 0);
+  const keptAt = new Date(2026, 9, 14, 0, 41).getTime();
+  const failedAt = keptAt + 60_000;
+  const read = <T>(data: T | undefined, error: unknown = null) => ({
+    isError: error !== null,
+    isPending: false,
+    error,
+    data,
+    dataUpdatedAt: data === undefined ? 0 : keptAt,
+    errorUpdatedAt: error === null ? 0 : failedAt,
+  });
+  const of = (s: ReturnType<typeof read>, l: ReturnType<typeof read>) =>
+    sessionScreenModelOf({
+      session: s as never,
+      laps: l as never,
+      map: null,
+      selection: none,
+      sectionMode: 'turns',
+      now,
+      answeredAt: keptAt,
+    });
+  const offline = new TypeError('Network request failed');
+
+  it('keeps the session it had and says since when', () => {
+    const m = of(read(session, offline), read(laps, offline));
+    expect(m.state).toBe('ready');
+    if (m.state !== 'ready') return;
+    expect(m.offlineText).toBe('Offline · 00:41');
+    expect(m.model.facts).toEqual(buildSessionModel(session, laps, none).facts);
+  });
+
+  it('reads Offline with nothing kept, and the server’s error when it answered', () => {
+    expect(of(read(undefined, offline), read(undefined, offline))).toEqual({
+      state: 'offline',
+    });
+    expect(
+      of(read(undefined, new HttpError(404, '/sessions/x')), read(laps)),
+    ).toEqual({
+      state: 'error',
+      message: 'GET /sessions/x → 404',
+    });
+  });
+
+  it('is current, with no offline line, when nothing failed', () => {
+    const m = of(read(session), read(laps));
+    expect(m.state === 'ready' && m.offlineText).toBeNull();
   });
 });
 

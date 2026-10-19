@@ -9,7 +9,9 @@ import {fieldClasses} from '@/src/analysis/fieldClasses';
 import {carLapsOf} from '@/src/analysis/carLaps';
 import {updateAt} from '@/src/analysis/field';
 import {RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
-import {size, space, useLayout, useTheme} from '@/src/design';
+import {type GridTrace} from '@/src/analysis/resample';
+import {useLapTraceLoad} from '@/src/data/traces';
+import {classColor, size, space, useLayout, useTheme} from '@/src/design';
 import {SessionNav} from '@/src/workspace/SessionNav';
 import {sessionHref} from '@/src/nav/routes';
 import {
@@ -31,11 +33,14 @@ import {
 import {nextRate, raceClockLabel, snapClock, stepBy} from './clock';
 import {carLapsView} from './carLapsView';
 import {Leaderboard} from './components/Leaderboard';
+import {gapSeconds} from '@/src/analysis/chaseHud';
+import {type ChaseGaps, type ChaseNow, type ChaseRibbon} from '@/src/features/race/chase/chaseTypes';
 import {RaceLegend} from './components/RaceLegend';
 import {
   type LabelMode,
   type MapMode,
   RaceMap,
+  type RaceChase,
   type RaceFollow,
 } from './components/RaceMap';
 import {RaceTransport} from './components/RaceTransport';
@@ -190,7 +195,13 @@ function Notice({data}: {data: Exclude<RaceData, {kind: 'ready'}>}) {
       <View style={[styles.notice, {width}]}>
         <StatusBanner
           dot='idle'
-          text={data.kind === 'line-error' ? LINE_ERROR_TEXT : FIELD_ERROR_TEXT}
+          text={
+            data.kind === 'line-error'
+              ? LINE_ERROR_TEXT
+              : data.offline
+              ? 'Offline'
+              : FIELD_ERROR_TEXT
+          }
           actionLabel='Retry'
           onAction={data.retry}
         />
@@ -390,6 +401,79 @@ function RaceView({
       fellBack: focus !== null && chased.index !== focus,
     };
   }, [chased, focus, placer, outlineUse, line, mapZoom]);
+  // The player's own inputs for the lap in view (the stored field has none): the lap's trace, loaded only while the 3D chase is open.
+  // 3D is a desktop view; the phone keeps the 2D Follow map.
+  const chaseOk = layout.isDesktop;
+  const place = mapMode === 'chase' && chaseOk ? data.clock.playerAt(shownS) : null;
+  const lapId = place ? data.laps.find(l => l.lapNumber === place.lapNumber)?.id ?? null : null;
+  const [held, setHeld] = useState<GridTrace | null>(null);
+  const traceLoad = useLapTraceLoad(lapId ? [lapId] : [], {lengthM: prep.trackM, stepM: 5});
+  const loaded = traceLoad.traces[0];
+  if (loaded && held !== loaded) setHeld(loaded);
+  // Between two laps the last lap's trace stays on screen until the next one arrives.
+  const trace = loaded ?? (mapMode === 'chase' ? held : null);
+  const ribbon = useMemo<ChaseRibbon | null>(() => {
+    if (!trace || trace.lat.length < 8) return null;
+    const pts = placer.traceToWorld(trace, 0, trace.lat.length - 1, 1);
+    return {x: pts.map(p => p.x), y: pts.map(p => p.y), th: trace.throttlePct, br: trace.brakePct, stepM: trace.stepM};
+  }, [trace, placer]);
+  // The inputs are shown only where the lap's trace is where the player is: on the grid, in the pit lane or after a
+  // reset the trace is somewhere else, and its pedals would be another stretch's.
+  const player = cars.find(c => c.player) ?? null;
+  const inputsNow = useMemo<ChaseNow | null>(() => {
+    if (!trace || !place || !loaded || !ribbon || !player) return null;
+    const i = Math.max(0, Math.min(trace.distanceM.length - 1, Math.round(place.distanceM / trace.stepM)));
+    if (Math.hypot(ribbon.x[i] - player.xM, ribbon.y[i] - player.zM) > 20) return null;
+    return {idx: i, throttlePct: trace.throttlePct[i], brakePct: trace.brakePct[i], steeringPct: trace.steeringPct[i], gear: trace.gear[i], speedKph: trace.speedKph[i]};
+  }, [trace, place, loaded, ribbon, player]);
+  const inputs = ribbon ? {ribbon, now: inputsNow} : null;
+  // The followed car's class place and the gaps to the car ahead and behind in its class (the standings' own intervals).
+  const chaseGaps = useMemo<ChaseGaps | null>(() => {
+    const me = cars.find(c => c.index === focus) ?? cars.find(c => c.player);
+    if (!me || me.classPlace <= 0) return null;
+    const behind = cars.find(c => c.classKey === me.classKey && c.classPlace === me.classPlace + 1);
+    return {
+      classTag: classes.of(me.classKey).title,
+      classPlace: me.classPlace,
+      ...gapSeconds({
+        intervalAheadS: me.intervalS,
+        intervalBehindS: behind?.intervalS ?? null,
+        beforeStart: shownS < startS,
+      }),
+    };
+  }, [cars, focus, classes, shownS, startS]);
+  // The 3D chase: every car as the map has it, on the road the game measured.
+  const chase = useMemo<RaceChase | null>(
+    () =>
+      chaseOk && data.matches && data.chase
+        ? {
+            road: data.chase,
+            cars: cars.map(c => ({
+              index: c.index,
+              xM: c.xM,
+              zM: c.zM,
+              headingRad: c.headingRad,
+              speedKmh: Number.isFinite(c.speedKmh) ? c.speedKmh : 0,
+              carClass: c.carClass,
+              color: classColor(color, classes.of(c.classKey).slot),
+              player: c.player,
+              lapDistM: c.lapDistM,
+              label: labels === 'pos' && c.classPlace > 0 ? String(c.classPlace) : '',
+              state: c.state,
+            })),
+            focus,
+            playing: clock.playing,
+            rate: clock.rate,
+            inputs,
+            gaps: chaseGaps,
+            clockLabel: raceClockLabel(shownS, startS),
+            onToggle: clock.toggle,
+            onStep: (d: number) => clock.setTimeS(stepBy(clock.timeS, d, endS)),
+            onCycleRate: () => clock.setRate(nextRate(clock.rate)),
+          }
+        : null,
+    [data.matches, data.chase, cars, focus, clock.playing, clock.rate, classes, color, labels, inputs, shownS, startS, chaseGaps, chaseOk],
+  );
   const toggleFocus = useCallback(
     (index: number) => setFocus(f => (f === index ? null : index)),
     [],
@@ -437,8 +521,9 @@ function RaceView({
         onLabels={mode === 'race' ? setLabels : null}
         onPressCar={toggleFocus}
         mode={mapMode}
-        onMode={follow ? setMapMode : null}
+        onMode={follow || chase ? setMapMode : null}
         follow={follow}
+        chase={chase}
         zoom={mapZoom}
         onZoom={prefs.setMapZoom}
       />

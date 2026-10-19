@@ -113,9 +113,16 @@ export const CHANNELS = [
   {source: 'RRtempR', name: 'tyres_temp_right_rr', unit: 'C', scale: 1},
 ];
 
-/** SessionFlags bits that mean a yellow (the yellow_flag event). */
-export const YELLOW =
-  0x00000008 | 0x00000100 | 0x00004000 | 0x00008000;
+/**
+ * SessionFlags bits for a full-course caution (the yellow_flag event): caution
+ * and cautionWaving. The local yellow bits (0x0008 yellow, 0x0100
+ * yellowWaving) are someone else's incident, not a course state, and say
+ * nothing about this driver's lap (decision 2026-10-11 #4, pit wall #5167).
+ */
+export const CAUTION = 0x00004000 | 0x00008000;
+
+/** The yellow_flag event's value for one SessionFlags sample. */
+export const yellowFlagOf = flags => (flags & CAUTION ? 1 : 0);
 
 export function mapSessionType(raw) {
   const t = String(raw).toLowerCase();
@@ -554,9 +561,7 @@ export function writeArchiveOf(
     }
     if (raw.SessionFlags) {
       events.push(
-        ...emitChanges(t, raw.SessionFlags, 'yellow_flag', v =>
-          v & YELLOW ? 1 : 0,
-        ),
+        ...emitChanges(t, raw.SessionFlags, 'yellow_flag', yellowFlagOf),
       );
     }
     events.sort((a, b) => a[0] - b[0] || a[1].localeCompare(b[1]));
