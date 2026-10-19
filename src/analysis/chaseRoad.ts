@@ -14,6 +14,8 @@ export interface ChaseRoad {
   hr: number[];
   /** Height of the road surface along the lap, metres, by lap fraction (wraps); null with none. */
   elev: number[] | null;
+  /** The lowest point of `elev` (0 with none), kept once so a frame never scans the profile. */
+  elevMin: number;
 }
 
 /** Used where no edge was measured on either side. */
@@ -40,6 +42,7 @@ export function chaseRoad(
     hl: centre.map((_, i) => side(edges?.leftM, i)),
     hr: centre.map((_, i) => side(edges?.rightM, i)),
     elev: elev && elev.length > 3 ? elev : null,
+    elevMin: elev && elev.length > 3 ? Math.min(...elev) : 0,
   };
 }
 

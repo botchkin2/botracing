@@ -23,7 +23,6 @@ import {
   useTrackSurface,
 } from '@/src/data/sessions';
 import {chaseRoad, type ChaseRoad} from '@/src/analysis/chaseRoad';
-import {devElevation} from '@/src/data/elevation';
 import {useLapTraceLoad} from '@/src/data/traces';
 import {shortTrackName} from '@/src/design';
 
@@ -71,7 +70,7 @@ export type RaceData =
       attribution: string | null;
       /** The measured road is still on its way: the map holds its place. */
       roadPending: boolean;
-      /** What the chase view draws: the measured road and a stand-in height profile; null without a measured road. */
+      /** What the chase view draws: the measured road with the track's curated height profile when it has one; null without a measured road. */
       chase: ChaseRoad | null;
     };
 
@@ -167,10 +166,10 @@ export function useRaceData(sessionId: string): RaceData {
             edges,
             surfaceStepM,
             surface.data?.lengthM ?? 0,
-            map.data?.elevation?.heightM ?? devElevation(detail?.trackId),
+            map.data?.elevation?.heightM ?? null,
           )
         : null,
-    [centreWorld, edges, surfaceStepM, surface.data, stored, detail?.trackId, map.data],
+    [centreWorld, edges, surfaceStepM, surface.data, stored, map.data],
   );
   const gate = raceGate({
     sessionPending: session.isPending,

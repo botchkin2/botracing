@@ -1,7 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 import * as THREE from 'three';
 
-import {carOutline, tickSegment} from './carMeshes';
+import {carOutline, createCarKit, tickSegment} from './carMeshes';
 
 // The engine places a car with rotation.set(0, heading, 0) in the three.js frame (x east, y up, z = -north).
 const placed = (local: {x: number; z: number}, heading: number) => {
@@ -40,5 +40,35 @@ describe('car geometry', () => {
     const wt = placed(tail, h);
     expect(wn.x * forward.x + wn.y * forward.y).toBeGreaterThan(2);
     expect(wt.x * forward.x + wt.y * forward.y).toBeLessThan(-2);
+  });
+});
+
+describe('car kit', () => {
+  it('frees the materials of released cars and the shared geometries on dispose, nothing earlier', () => {
+    const kit = createCarKit('#000000');
+    const player = kit.make('GT3', '#ff0000', true);
+    const other = kit.make('GT3', '#ff0000', false);
+    const geos = new Set<THREE.BufferGeometry>();
+    const mats = new Set<THREE.Material>();
+    for (const car of [player, other]) {
+      car.traverse(o => {
+        const m = o as THREE.Mesh;
+        if (m.geometry) geos.add(m.geometry);
+        if (m.material) mats.add(m.material as THREE.Material);
+      });
+    }
+    const geoDisposed: THREE.BufferGeometry[] = [];
+    const matDisposed: THREE.Material[] = [];
+    geos.forEach(g => g.addEventListener('dispose', () => geoDisposed.push(g)));
+    mats.forEach(m => m.addEventListener('dispose', () => matDisposed.push(m)));
+    // two cars of one class share their geometries: one set of three, plus the player's ring
+    expect(geos.size).toBe(4);
+    kit.release(other);
+    expect(matDisposed.length).toBe(3);
+    expect(geoDisposed.length).toBe(0);
+    kit.release(player);
+    kit.dispose();
+    expect(matDisposed.length).toBe(3 + 4);
+    expect(geoDisposed.length).toBe(4);
   });
 });

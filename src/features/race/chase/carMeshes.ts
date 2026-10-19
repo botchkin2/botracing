@@ -52,46 +52,73 @@ export function tickSegment(carClass: string): [Local, Local] {
   ];
 }
 
-const shapes = new Map<string, Shape>();
-
-function shapeFor(carClass: string): Shape {
-  const cached = shapes.get(carClass);
-  if (cached) return cached;
-  const fill = new THREE.ShapeGeometry(chevronShape(carClass));
-  fill.rotateX(-Math.PI / 2);
-  const toVec = (p: Local) => new THREE.Vector3(p.x, 0, p.z);
-  const edge = new THREE.BufferGeometry().setFromPoints(carOutline(carClass).map(toVec));
-  const tick = new THREE.BufferGeometry().setFromPoints(tickSegment(carClass).map(toVec));
-  const made = {fill, edge, tick};
-  shapes.set(carClass, made);
-  return made;
-}
-
-let ringGeometry: THREE.RingGeometry | null = null;
-function ring() {
-  if (!ringGeometry) {
-    ringGeometry = new THREE.RingGeometry(RING_INNER_M, RING_OUTER_M, 64);
-    ringGeometry.rotateX(-Math.PI / 2);
-  }
-  return ringGeometry;
-}
-
 const onTop = {polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2};
 
 export interface CarObject extends THREE.Group {
   userData: {body: THREE.Mesh; player: boolean};
 }
 
-export function makeCar(carClass: string, color: string, player: boolean, bg: string): CarObject {
-  const {fill, edge, tick} = shapeFor(carClass);
-  const group = new THREE.Group() as CarObject;
-  const body = new THREE.Mesh(fill, new THREE.MeshBasicMaterial({color: new THREE.Color(color), ...onTop}));
-  const outline = new THREE.LineLoop(edge, new THREE.LineBasicMaterial({color: new THREE.Color(player ? PLAYER_EDGE : bg)}));
-  const nose = new THREE.Line(tick, new THREE.LineBasicMaterial({color: new THREE.Color(color)}));
-  outline.position.y = 0.03;
-  nose.position.y = 0.03;
-  group.add(body, outline, nose);
-  if (player) group.add(new THREE.Mesh(ring(), new THREE.MeshBasicMaterial({color: new THREE.Color(PLAYER_EDGE), ...onTop})));
-  group.userData = {body, player};
-  return group;
+/**
+ * The cars of one engine: geometries are shared per class (and the ring), materials belong to each car. `release`
+ * frees a removed car's materials, `dispose` the shared geometries, so nothing outlives the engine.
+ */
+export interface CarKit {
+  make(carClass: string, color: string, player: boolean): CarObject;
+  release(car: CarObject): void;
+  dispose(): void;
+}
+
+export function createCarKit(bg: string): CarKit {
+  const shapes = new Map<string, Shape>();
+  let ring: THREE.RingGeometry | null = null;
+  const shapeFor = (carClass: string): Shape => {
+    const cached = shapes.get(carClass);
+    if (cached) return cached;
+    const fill = new THREE.ShapeGeometry(chevronShape(carClass));
+    fill.rotateX(-Math.PI / 2);
+    const toVec = (p: Local) => new THREE.Vector3(p.x, 0, p.z);
+    const edge = new THREE.BufferGeometry().setFromPoints(carOutline(carClass).map(toVec));
+    const tick = new THREE.BufferGeometry().setFromPoints(tickSegment(carClass).map(toVec));
+    const made = {fill, edge, tick};
+    shapes.set(carClass, made);
+    return made;
+  };
+  const ringGeometry = () => {
+    if (!ring) {
+      ring = new THREE.RingGeometry(RING_INNER_M, RING_OUTER_M, 64);
+      ring.rotateX(-Math.PI / 2);
+    }
+    return ring;
+  };
+  return {
+    make(carClass, color, player) {
+      const {fill, edge, tick} = shapeFor(carClass);
+      const group = new THREE.Group() as CarObject;
+      const body = new THREE.Mesh(fill, new THREE.MeshBasicMaterial({color: new THREE.Color(color), ...onTop}));
+      const outline = new THREE.LineLoop(edge, new THREE.LineBasicMaterial({color: new THREE.Color(player ? PLAYER_EDGE : bg)}));
+      const nose = new THREE.Line(tick, new THREE.LineBasicMaterial({color: new THREE.Color(color)}));
+      outline.position.y = 0.03;
+      nose.position.y = 0.03;
+      group.add(body, outline, nose);
+      if (player) group.add(new THREE.Mesh(ringGeometry(), new THREE.MeshBasicMaterial({color: new THREE.Color(PLAYER_EDGE), ...onTop})));
+      group.userData = {body, player};
+      return group;
+    },
+    release(car) {
+      car.traverse(o => {
+        const m = (o as THREE.Mesh).material;
+        if (m) (Array.isArray(m) ? m : [m]).forEach(x => x.dispose());
+      });
+    },
+    dispose() {
+      for (const s of shapes.values()) {
+        s.fill.dispose();
+        s.edge.dispose();
+        s.tick.dispose();
+      }
+      shapes.clear();
+      ring?.dispose();
+      ring = null;
+    },
+  };
 }

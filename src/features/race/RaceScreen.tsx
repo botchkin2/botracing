@@ -33,6 +33,7 @@ import {
 import {nextRate, raceClockLabel, snapClock, stepBy} from './clock';
 import {carLapsView} from './carLapsView';
 import {Leaderboard} from './components/Leaderboard';
+import {gapSeconds} from '@/src/analysis/chaseHud';
 import {type ChaseGaps, type ChaseNow, type ChaseRibbon} from '@/src/features/race/chase/chaseTypes';
 import {RaceLegend} from './components/RaceLegend';
 import {
@@ -434,9 +435,11 @@ function RaceView({
     return {
       classTag: classes.of(me.classKey).title,
       classPlace: me.classPlace,
-      // before the start the cars stand on the grid: there is no gap to show
-      aheadS: shownS < startS ? null : me.intervalS,
-      behindS: shownS < startS ? null : behind?.intervalS ?? null,
+      ...gapSeconds({
+        intervalAheadS: me.intervalS,
+        intervalBehindS: behind?.intervalS ?? null,
+        beforeStart: shownS < startS,
+      }),
     };
   }, [cars, focus, classes, shownS, startS]);
   // The 3D chase: every car as the map has it, on the road the game measured.

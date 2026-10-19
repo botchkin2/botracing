@@ -112,6 +112,8 @@ export function buildRoadScene(road: ChaseRoad, ix: RoadIndex, T: ChaseTheme): T
 
 export function disposeGroup(group: THREE.Object3D) {
   group.traverse(o => {
-    (o as THREE.Mesh).geometry?.dispose();
+    const m = o as THREE.Mesh;
+    m.geometry?.dispose();
+    if (m.material) (Array.isArray(m.material) ? m.material : [m.material]).forEach(x => x.dispose());
   });
 }

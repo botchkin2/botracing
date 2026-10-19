@@ -12,7 +12,7 @@ import type {ChaseRoad} from '@/src/analysis/chaseRoad';
 import {roadIndex, type RoadIndex} from '@/src/analysis/chaseRoadIndex';
 import type {ChaseCar, ChaseRibbon} from '@/src/features/race/chase/chaseTypes';
 import {createCarLabels} from './carLabels';
-import {makeCar, type CarObject} from './carMeshes';
+import {createCarKit, type CarObject} from './carMeshes';
 import {createCameraRig} from './cameraRig';
 import {buildInputsScene, type InputsScene} from './inputsScene';
 import {buildRoadScene, disposeGroup} from './roadScene';
@@ -83,13 +83,19 @@ export function mountChase(
   const states = new Map<number, CarState>();
   const objects = new Map<number, CarObject>();
   const rig = createCameraRig(camera, () => ix);
+  const kit = createCarKit(T.bg);
   const probe = new THREE.Vector3();
+
+  function freeInputs(i: InputsScene) {
+    i.mesh.geometry.dispose();
+    (i.mesh.material as THREE.Material).dispose();
+    disposeGroup(i.bars);
+  }
 
   function setInputs(rb: ChaseRibbon | null) {
     if (inputs) {
       scene.remove(inputs.mesh, inputs.bars);
-      inputs.mesh.geometry.dispose();
-      disposeGroup(inputs.bars);
+      freeInputs(inputs);
       inputs = null;
     }
     ribbon = rb;
@@ -103,6 +109,7 @@ export function mountChase(
     if (roadGroup) {
       scene.remove(roadGroup);
       disposeGroup(roadGroup);
+      roadGroup = null;
     }
     road = next;
     ix = roadIndex(next);
@@ -159,7 +166,10 @@ export function mountChase(
       if (seen.has(k)) continue;
       states.delete(k);
       const o = objects.get(k);
-      if (o) scene.remove(o);
+      if (o) {
+        scene.remove(o);
+        kit.release(o);
+      }
       objects.delete(k);
       labels.drop(k);
     }
@@ -192,10 +202,11 @@ export function mountChase(
       let o = objects.get(k);
       if (o && o.userData.player !== s.car.player) {
         scene.remove(o);
+        kit.release(o);
         o = undefined;
       }
       if (!o) {
-        o = makeCar(s.car.carClass, s.car.color, s.car.player, T.bg);
+        o = kit.make(s.car.carClass, s.car.color, s.car.player);
         scene.add(o);
         objects.set(k, o);
       }
@@ -319,9 +330,29 @@ export function mountChase(
     dispose() {
       alive = false;
       observer.disconnect();
+      el.removeEventListener('pointerdown', onDown);
+      el.removeEventListener('click', onClick);
       removeEventListener('pointermove', onMove);
       removeEventListener('pointerup', onUp);
+      for (const o of objects.values()) {
+        scene.remove(o);
+        kit.release(o);
+      }
+      objects.clear();
+      states.clear();
+      kit.dispose();
+      if (roadGroup) {
+        scene.remove(roadGroup);
+        disposeGroup(roadGroup);
+        roadGroup = null;
+      }
+      if (inputs) {
+        scene.remove(inputs.mesh, inputs.bars);
+        freeInputs(inputs);
+        inputs = null;
+      }
       renderer.dispose();
+      renderer.forceContextLoss(); // a browser allows only a handful of live WebGL contexts
       el.remove();
       labels.dispose();
     },

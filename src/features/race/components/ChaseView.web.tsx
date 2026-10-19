@@ -3,7 +3,7 @@ import {createPortal} from 'react-dom';
 import {StyleSheet, View} from 'react-native';
 import Svg, {Circle, G, Line, Path} from 'react-native-svg';
 
-import {chaseHudNumbers, elevationWindow, slopeKind} from '@/src/analysis/chaseHud';
+import {altitudeLabel, chaseHudNumbers, elevationWindow, gearLabel, gradeLabel, slopeKind} from '@/src/analysis/chaseHud';
 import type {ChaseRoad} from '@/src/analysis/chaseRoad';
 import {radius, space, useTheme} from '@/src/design';
 import {formatGap} from '@/src/design/format';
@@ -168,7 +168,7 @@ function ChaseSurface({
     [cars, focus],
   );
   const now = me?.player === true ? inputs?.now ?? null : null;
-  const {gradePct: grade, altM: alt} = chaseHudNumbers(road.elev, me?.lapDistM ?? null, road.lengthM);
+  const {gradePct: grade, altM: alt} = chaseHudNumbers(road, me?.lapDistM ?? null);
   const hasHeight = road.elev !== null;
   const roomy = (full ? (typeof window === 'undefined' ? width : window.innerWidth) : width) >= 760;
 
@@ -240,7 +240,7 @@ function ChaseSurface({
           ) : null}
           {now ? (
             <Text variant='dataStrong' tone='accentInk'>
-              {now.gear <= 0 ? (now.gear < 0 ? 'R' : 'N') : String(now.gear)}
+              {gearLabel(now.gear)}
             </Text>
           ) : null}
           <View style={styles.cell}>
@@ -261,10 +261,10 @@ function ChaseSurface({
           {hasHeight && grade !== null ? (
             <View style={styles.cell}>
               <Text variant='dataSmall' tone={grade > 2.5 ? 'accentInk' : 'textMuted'}>
-                {`${grade > 0 ? '+' : ''}${grade.toFixed(1)}%`}
+                {gradeLabel(grade)}
               </Text>
               {alt !== null ? (
-                <Text variant='dataSmall' tone='textMuted'>{`${Math.round(alt)} m`}</Text>
+                <Text variant='dataSmall' tone='textMuted'>{altitudeLabel(alt)}</Text>
               ) : null}
             </View>
           ) : null}
