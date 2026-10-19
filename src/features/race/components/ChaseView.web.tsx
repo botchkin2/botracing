@@ -63,7 +63,7 @@ export function ChaseView(props: ChaseProps) {
 function useChaseEngine(
   {road, cars, focus, playing, rate, inputs, onPressCar}: ChaseProps,
   cam: CamValue,
-): {failed: boolean; host: HTMLDivElement} {
+): {failed: string | null; host: HTMLDivElement} {
   const {color} = useTheme();
   const [host] = useState(() => {
     const el = document.createElement('div');
@@ -75,7 +75,8 @@ function useChaseEngine(
   useEffect(() => {
     pick.current = onPressCar;
   });
-  const [failed, setFailed] = useState(false);
+  // Why the engine did not start: a lazy chunk a deploy has replaced (a long-open window, the tray's), or no WebGL.
+  const [failed, setFailed] = useState<string | null>(null);
   const theme = useMemo(
     () => ({
       bg: color.bg,
@@ -105,8 +106,9 @@ function useChaseEngine(
         made.setCam(Number(cam) as ChaseCamMode);
         made.setInputs(inputs?.ribbon ?? null);
         made.update({cars, focus, playing, rate, inputIdx: inputs?.now?.idx ?? -1});
-      } catch {
-        if (!dead) setFailed(true);
+      } catch (e) {
+        console.warn('3D chase did not start', e);
+        if (!dead) setFailed(e instanceof Error && e.message ? e.message : 'unknown error');
       }
     })();
     return () => {
@@ -161,7 +163,7 @@ function ChaseSurface({
   cam: CamValue;
   setCam: (c: CamValue) => void;
   host: HTMLDivElement;
-  failed: boolean;
+  failed: string | null;
 }) {
   const {color} = useTheme();
   // Full screen: its own play toggle (Space) and a way out (Esc).
@@ -207,9 +209,18 @@ function ChaseSurface({
         ref: slot,
         style: {position: 'absolute', left: 0, top: 0, width: '100%', height: '100%'},
       })}
-      {failed ? (
+      {failed !== null ? (
         <View style={styles.center}>
           <Text tone='textMuted'>3D unavailable</Text>
+          <Text variant='dataSmall' tone='textMuted'>
+            {failed}
+          </Text>
+          <Pressable
+            accessibilityLabel='Reload the page'
+            onPress={() => window.location.reload()}
+            style={[styles.tool, {borderColor: color.lineStrong, backgroundColor: color.surface}]}>
+            <Text variant='dataSmall'>Reload</Text>
+          </Pressable>
         </View>
       ) : null}
       <View style={styles.cams}>
@@ -342,7 +353,7 @@ function Elevation({win, line, dot}: {win: ElevationWindow; line: string; dot: s
 }
 
 const styles = StyleSheet.create({
-  center: {...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center'},
+  center: {...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: space.sm},
   cams: {
     position: 'absolute',
     left: space.sm,

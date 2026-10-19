@@ -150,7 +150,11 @@ export function placeFieldOnLine(
           // Right of travel: the normal is (cos yaw, -sin yaw) in (x, z).
           xM[u] = at.x + off * Math.cos(at.yawRad);
           zM[u] = at.z - off * Math.sin(at.yawRad);
-          yawRad[u] = at.yawRad;
+          // The car's own yaw, never the line's: the line's direction is where the road goes, not where the car points
+          // (thread 93: drawing the line's direction put bodies 6.7 deg median, 19 deg p90 off their real heading in
+          // corners). The line's direction only stands in for a car with no stored yaw.
+          const own = car.yawRad ? car.yawRad[u] : NaN;
+          yawRad[u] = Number.isFinite(own) ? own : at.yawRad;
           continue;
         }
         xM[u] = w.x;

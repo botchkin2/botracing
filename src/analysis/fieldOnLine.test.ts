@@ -140,6 +140,14 @@ describe('placeFieldOnLine with LMU positions and a lateral offset', () => {
     expect(placed.placedOnLine).toBe(false);
   });
 
+  it("keeps the car's own yaw, not the line's direction (thread 93)", () => {
+    const turned: Field = {...lmu, cars: [{...lmu.cars[0], yawRad: Float32Array.from([0.3, NaN])}]};
+    const placed = placeFieldOnLine(turned, square, STEP, {lateral: true});
+    expect(placed.cars[0].yawRad![0]).toBeCloseTo(0.3);
+    // no stored yaw at this update: the line's direction stands in (7.5 m is on the second side, along +z: 0)
+    expect(placed.cars[0].yawRad![1]).toBeCloseTo(0);
+  });
+
   it('keeps the world position where the lap distance is missing (the line is world metres)', () => {
     const placed = placeFieldOnLine(lmu, square, STEP, {lateral: true});
     // car 1 update 0: no lap distance, so its world x/z (999) is kept as it is.
