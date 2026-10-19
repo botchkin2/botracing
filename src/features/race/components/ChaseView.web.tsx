@@ -9,7 +9,7 @@ import {radius, space, useTheme} from '@/src/design';
 import {formatGap} from '@/src/design/format';
 import {Pressable, Segment, Text} from '@/src/ui';
 
-import type {ChaseCamMode, ChaseCar, ChaseEngine, ChaseGaps, ChaseInputs} from '@/src/features/race/chase/chaseTypes';
+import type {ChaseCamMode, ChaseCar, ChaseEngine, ChaseGaps, ChaseInputs, ChaseSampler} from '@/src/features/race/chase/chaseTypes';
 
 // The 3D chase view, drawn as an instrument. Web only: the engine and three.js load on first use (a lazy import), so
 // they stay out of the main bundle and out of the native app. Everything on screen is the app's own tokens; nothing
@@ -32,6 +32,8 @@ type ChaseProps = {
   height: number;
   road: ChaseRoad;
   cars: ChaseCar[];
+  sample: ChaseSampler;
+  timeS: number;
   focus: number | null;
   playing: boolean;
   rate: number;
@@ -61,7 +63,7 @@ export function ChaseView(props: ChaseProps) {
 
 /** The engine, made once for the life of the view, and the element its canvas lives in. */
 function useChaseEngine(
-  {road, cars, focus, playing, rate, inputs, onPressCar}: ChaseProps,
+  {road, sample, timeS, focus, playing, rate, inputs, onPressCar}: ChaseProps,
   cam: CamValue,
 ): {failed: string | null; host: HTMLDivElement} {
   const {color} = useTheme();
@@ -105,7 +107,7 @@ function useChaseEngine(
         made.setRoad(road);
         made.setCam(Number(cam) as ChaseCamMode);
         made.setInputs(inputs?.ribbon ?? null);
-        made.update({cars, focus, playing, rate, inputIdx: inputs?.now?.idx ?? -1});
+        made.update({sample, timeS, focus, playing, rate, inputIdx: inputs?.now?.idx ?? -1});
       } catch (e) {
         console.warn('3D chase did not start', e);
         if (!dead) setFailed(e instanceof Error && e.message ? e.message : 'unknown error');
@@ -128,8 +130,8 @@ function useChaseEngine(
     engine.current?.setInputs(ribbon);
   }, [ribbon]);
   useEffect(() => {
-    engine.current?.update({cars, focus, playing, rate, inputIdx: inputs?.now?.idx ?? -1});
-  }, [cars, focus, playing, rate, inputs]);
+    engine.current?.update({sample, timeS, focus, playing, rate, inputIdx: inputs?.now?.idx ?? -1});
+  }, [sample, timeS, focus, playing, rate, inputs]);
   useEffect(() => {
     engine.current?.setCam(Number(cam) as ChaseCamMode);
   }, [cam]);

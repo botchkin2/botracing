@@ -21,8 +21,14 @@ export interface ChaseTheme {
 /** 1 Chase, 2 High, 3 TV, 4 Heli. */
 export type ChaseCamMode = 1 | 2 | 3 | 4;
 
+/** Every car at a race time, as the Race screen computes it (carsAt: the 5 Hz field interpolated; `snap` the nearest update). */
+export type ChaseSampler = (timeS: number, snap: boolean) => ChaseCar[];
+
 export interface ChaseUpdate {
-  cars: ChaseCar[];
+  /** The engine draws every frame from this at its own clock, so a car is exactly where the data says, with no lag. */
+  sample: ChaseSampler;
+  /** The race clock as the app holds it; the engine runs on from it between React updates. */
+  timeS: number;
   focus: number | null;
   playing: boolean;
   rate: number;

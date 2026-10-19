@@ -34,7 +34,7 @@ import {nextRate, raceClockLabel, snapClock, stepBy} from './clock';
 import {carLapsView} from './carLapsView';
 import {Leaderboard} from './components/Leaderboard';
 import {gapSeconds} from '@/src/analysis/chaseHud';
-import {type ChaseGaps, type ChaseNow, type ChaseRibbon} from '@/src/features/race/chase/chaseTypes';
+import {type ChaseCar, type ChaseGaps, type ChaseNow, type ChaseRibbon, type ChaseSampler} from '@/src/features/race/chase/chaseTypes';
 import {RaceLegend} from './components/RaceLegend';
 import {
   type LabelMode,
@@ -442,25 +442,38 @@ function RaceView({
       }),
     };
   }, [cars, focus, classes, shownS, startS]);
-  // The 3D chase: every car as the map has it, on the road the game measured.
+  // The 3D chase: every car as the map has it, on the road the game measured. The engine samples the cars itself at
+  // its own clock on every animation frame (thread 93: no second smoothing on top of the field's interpolation).
+  const toChase = useCallback(
+    (list: typeof cars): ChaseCar[] =>
+      list.map(c => ({
+        index: c.index,
+        xM: c.xM,
+        zM: c.zM,
+        headingRad: c.headingRad,
+        speedKmh: Number.isFinite(c.speedKmh) ? c.speedKmh : 0,
+        carClass: c.carClass,
+        color: classColor(color, classes.of(c.classKey).slot),
+        player: c.player,
+        lapDistM: c.lapDistM,
+        label: labels === 'pos' && c.classPlace > 0 ? String(c.classPlace) : '',
+        state: c.state,
+      })),
+    [color, classes, labels],
+  );
+  const sample = useCallback<ChaseSampler>(
+    (t, snapped) =>
+      toChase(markPitLane(carsAt(prep, snapped ? snapClock(t, prep.field.hz) : t, snapped), placer)),
+    [toChase, prep, placer],
+  );
   const chase = useMemo<RaceChase | null>(
     () =>
       chaseOk && data.matches && data.chase
         ? {
             road: data.chase,
-            cars: cars.map(c => ({
-              index: c.index,
-              xM: c.xM,
-              zM: c.zM,
-              headingRad: c.headingRad,
-              speedKmh: Number.isFinite(c.speedKmh) ? c.speedKmh : 0,
-              carClass: c.carClass,
-              color: classColor(color, classes.of(c.classKey).slot),
-              player: c.player,
-              lapDistM: c.lapDistM,
-              label: labels === 'pos' && c.classPlace > 0 ? String(c.classPlace) : '',
-              state: c.state,
-            })),
+            cars: toChase(cars),
+            sample,
+            timeS: shownS,
             focus,
             playing: clock.playing,
             rate: clock.rate,
@@ -472,7 +485,7 @@ function RaceView({
             onCycleRate: () => clock.setRate(nextRate(clock.rate)),
           }
         : null,
-    [data.matches, data.chase, cars, focus, clock.playing, clock.rate, classes, color, labels, inputs, shownS, startS, chaseGaps, chaseOk],
+    [data.matches, data.chase, cars, toChase, sample, focus, clock.playing, clock.rate, inputs, shownS, startS, chaseGaps, chaseOk],
   );
   const toggleFocus = useCallback(
     (index: number) => setFocus(f => (f === index ? null : index)),

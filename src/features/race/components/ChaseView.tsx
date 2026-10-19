@@ -2,7 +2,7 @@ import {View} from 'react-native';
 
 import {type ChaseRoad} from '@/src/analysis/chaseRoad';
 
-import {type ChaseCar, type ChaseGaps, type ChaseInputs} from '@/src/features/race/chase/chaseTypes';
+import {type ChaseCar, type ChaseGaps, type ChaseInputs, type ChaseSampler} from '@/src/features/race/chase/chaseTypes';
 
 /** The 3D chase draws with WebGL, in a page: the phone build is the web build, a native build has no 3D yet. */
 export const chaseAvailable = false;
@@ -12,6 +12,8 @@ export function ChaseView(_props: {
   height: number;
   road: ChaseRoad;
   cars: ChaseCar[];
+  sample: ChaseSampler;
+  timeS: number;
   focus: number | null;
   playing: boolean;
   rate: number;
