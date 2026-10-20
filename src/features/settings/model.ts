@@ -112,6 +112,8 @@ export function problemText(p: UploaderProblem): string {
       ? ['Sync crashed', p.message.replace(/^sync crashed: /, ''), retry]
       : p.kind === 'recorder-layout'
       ? ['Recorder stopped', p.message]
+      : p.kind === 'capture-missed'
+      ? [p.message, p.at != null ? formatDay(p.at) : '']
       : p.kind === 'file-unreadable'
       ? ["Can't read", p.message]
       : p.kind === 'uploader-stopped'

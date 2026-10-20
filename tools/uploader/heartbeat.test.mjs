@@ -190,6 +190,25 @@ test('problems: a crashed sync, each session on a retry, a stopped recorder, new
   );
 });
 
+test('problems: a refused drive stays after the recorder leaves refused', () => {
+  const problems = problemsOf({
+    sims: [{retries: {}}],
+    recorder: input.recorder,
+    refusals: [
+      {firstAtMs: nowMs - 90 * MIN, lastAtMs: nowMs - 60 * MIN, count: 145, reason: 'car 7 lap distance -1640.78'},
+    ],
+    nowMs,
+  });
+  assert.deepEqual(problems, [
+    {
+      kind: 'capture-missed',
+      at: new Date(nowMs - 60 * MIN).toISOString(),
+      message: 'No capture, no field: car 7 lap distance -1640.78',
+      count: 145,
+    },
+  ]);
+});
+
 test('problems: none when all is well; a finished sync with an old error is not a crash', () => {
   assert.deepEqual(
     problemsOf({sims: [{retries: {}}], recorder: input.recorder, nowMs}),

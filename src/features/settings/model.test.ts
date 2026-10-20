@@ -176,6 +176,16 @@ describe('problems', () => {
     expect(
       problemText(
         problem({
+          kind: 'capture-missed',
+          at: Date.parse('2026-10-19T23:56:00Z'),
+          message: 'No capture, no field: car 0 lap distance -1664',
+          sessionId: null,
+        }),
+      ),
+    ).toBe('No capture, no field: car 0 lap distance -1664 · Oct 19');
+    expect(
+      problemText(
+        problem({
           kind: 'not-seen',
           at: Date.parse('2026-10-01T12:00:00Z'),
           message: '',
