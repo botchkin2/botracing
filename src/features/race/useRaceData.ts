@@ -185,9 +185,11 @@ export function useRaceData(sessionId: string): RaceData {
         : null,
     [stored, prep, edges, map.data],
   );
-  const [asked, setAsked] = useState(false);
+  // asked for this race: another race starts unasked
+  const [askedFor, setAskedFor] = useState<string | null>(null);
+  const asked = askedFor === sessionId;
   const [made, setMade] = useState<{input: object; world: ChaseWorld | null} | null>(null);
-  const request = useCallback(() => setAsked(true), []);
+  const request = useCallback(() => setAskedFor(sessionId), [sessionId]);
   useEffect(() => {
     if (!asked || !worldInput) return;
     let stale = false;
@@ -195,9 +197,15 @@ export function useRaceData(sessionId: string): RaceData {
       chaseWorldSteps(worldInput),
       {budgetMs: SLICE_BUDGET_MS, now: () => performance.now(), yieldToLoop},
       () => stale,
-    ).then(world => {
-      if (!stale && world !== undefined) setMade({input: worldInput, world});
-    });
+    )
+      .then(world => {
+        if (!stale && world !== undefined) setMade({input: worldInput, world});
+      })
+      .catch(e => {
+        // no road: the map falls back to the track instead of a placeholder that never ends
+        console.warn('3D road fit failed', e);
+        if (!stale) setMade({input: worldInput, world: null});
+      });
     return () => {
       stale = true;
     };
