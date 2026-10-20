@@ -20,6 +20,7 @@ import {
 
 import {type RaceDot} from '../model';
 import {ChaseView, chaseAvailable, chaseNeedsRoad} from './ChaseView';
+import {type TowerCar} from '@/src/features/race/chase/towerRows';
 import {type ChaseCar, type ChaseGaps, type ChaseInputs, type ChaseSampler} from '@/src/features/race/chase/chaseTypes';
 
 // Dot radii in points by class, fastest first, from handoff R1d (desktop
@@ -74,6 +75,9 @@ export type RaceChase = {
   /** The player's recorded inputs for the lap in view; null until loaded. */
   inputs: ChaseInputs | null;
   gaps: ChaseGaps | null;
+  /** The cars for the timing tower, and the track's length (for road distances). */
+  tower: TowerCar[];
+  trackM: number;
   /** The race clock as the transport prints it, and its play toggle, for the full-screen view. */
   clockLabel: string;
   onToggle: () => void;
@@ -237,6 +241,8 @@ export function RaceMap({
           playing={chase.playing}
           inputs={chase.inputs}
           gaps={chase.gaps}
+          tower={chase.tower}
+          trackM={chase.trackM}
           clockLabel={chase.clockLabel}
           onToggle={chase.onToggle}
           onStep={chase.onStep}

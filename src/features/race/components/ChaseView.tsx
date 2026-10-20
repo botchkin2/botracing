@@ -8,6 +8,7 @@ import {fetchHandoffToken} from '@/src/data/handoff';
 import {radius, space, useTheme} from '@/src/design';
 import {Pressable, Text} from '@/src/ui';
 
+import {type TowerCar} from '@/src/features/race/chase/towerRows';
 import {type ChaseCar, type ChaseGaps, type ChaseInputs, type ChaseSampler} from '@/src/features/race/chase/chaseTypes';
 
 import {allowsNavigation, EMBED_ORIGIN, embedUrl} from '../embed3d';
@@ -35,6 +36,8 @@ export function ChaseView({width, height}: {
   rate: number;
   inputs: ChaseInputs | null;
   gaps: ChaseGaps | null;
+  tower: TowerCar[];
+  trackM: number;
   clockLabel: string;
   onToggle: () => void;
   onStep: (deltaS: number) => void;
