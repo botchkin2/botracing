@@ -34,7 +34,7 @@ import {
 
 import {nextRate, raceClockLabel, snapClock, stepBy} from './clock';
 import {carLapsView} from './carLapsView';
-import {chaseAvailable} from './components/ChaseView';
+import {chaseAvailable, chaseNeedsRoad} from './components/ChaseView';
 import {Leaderboard} from './components/Leaderboard';
 import {gapSeconds} from '@/src/analysis/chaseHud';
 import {type TowerCar} from '@/src/features/race/chase/towerRows';
@@ -440,6 +440,11 @@ function RaceView({
   const trace = shown?.trace ?? null;
   const lapNumber = shown?.lapNumber ?? null;
   const world = data.chase?.world;
+  // The page that draws the 3D fits its road, in slices, the first time the 3D is asked for.
+  const requestWorld = data.chase?.request;
+  useEffect(() => {
+    if (mapMode === 'chase' && chaseNeedsRoad) requestWorld?.();
+  }, [mapMode, requestWorld]);
   // The path is the player's own world path through the field (the same points the car is drawn at); the colours are
   // the trace's, on the same distance grid. The trace's GPS is in another frame than the road and the cars.
   const ribbon = useMemo<ChaseRibbon | null>(() => {
@@ -525,6 +530,7 @@ function RaceView({
       chaseOk && data.chase
         ? {
             road: () => world?.()?.road ?? null,
+            building: data.chase.building,
             embedded: embed3d,
             cars: toChase(cars),
             sample,
