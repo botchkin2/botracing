@@ -1241,6 +1241,8 @@ export type TrackMapData = {
   attribution: string | null;
   /** The curated height along the lap, in the map's distance frame (heightM[i] at i * stepM metres); null where none is curated. */
   elevation?: {stepM: number; heightM: number[]} | null;
+  /** The curated road roll across the track in degrees, + with the right side up (rollDeg[i] at i * stepM metres), on the same lap as `elevation`; null where none is curated. */
+  bank?: {stepM: number; rollDeg: number[]} | null;
 };
 
 // The kind of each LineString lineStrings returns for the same filter, in the
@@ -1306,6 +1308,16 @@ function toElevation(raw: unknown): TrackMapData['elevation'] {
   return heightM.every((h): h is number => h != null) ? {stepM, heightM} : null;
 }
 
+/** The curated bank; null when it is missing or not numbers, so a bad one leaves the road level rather than tilted wrongly. */
+function toBank(raw: unknown): TrackMapData['bank'] {
+  const x = obj(raw);
+  const stepM = num(x.stepM);
+  const rolls = Array.isArray(x.rollDeg) ? (x.rollDeg as unknown[]) : [];
+  if (stepM == null || stepM <= 0 || rolls.length < 2) return null;
+  const rollDeg = rolls.map(num);
+  return rollDeg.every((r): r is number => r != null) ? {stepM, rollDeg} : null;
+}
+
 export function toTrackMap(raw: Record<string, unknown>): TrackMapData {
   const g = obj(raw.georef);
   const quality = str(raw.quality);
@@ -1348,6 +1360,7 @@ export function toTrackMap(raw: Record<string, unknown>): TrackMapData {
     pitLane: lineStrings(features, kind => kind === 'pit'),
     attribution: str(raw.attribution) || null,
     elevation: toElevation(raw.elevation),
+    bank: toBank(raw.bank),
   };
 }
 

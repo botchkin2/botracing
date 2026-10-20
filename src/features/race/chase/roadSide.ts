@@ -62,7 +62,7 @@ export function buildRoadSide(road: ChaseRoad, ix: RoadIndex, T: ChaseTheme, spi
     const k = i % n;
     const edge = side < 0 ? road.hl[k] : road.hr[k];
     const lam = side * (edge + offsetM);
-    return {x: road.cx[k] + ix.normalX[k] * lam, y: road.cy[k] + ix.normalY[k] * lam, z: ix.height[k]};
+    return {x: road.cx[k] + ix.normalX[k] * lam, y: road.cy[k] + ix.normalY[k] * lam, z: ix.height[k] + lam * Math.tan(ix.bank[k])};
   };
 
   // posts: each is 8 vertices and 36 indices, two per row, rows in lap order

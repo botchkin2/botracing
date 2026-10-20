@@ -29,6 +29,8 @@ export interface ChaseRoad {
   heightM: number[] | null;
   /** The lowest point of `elev` (0 with none), kept once so a frame never scans the profile. */
   elevMin: number;
+  /** The road's roll at each path point, degrees, + with the right side of travel up (the curated `bank`); null without one, where the road is level across. */
+  bankDeg: number[] | null;
 }
 
 /** Used where no edge was measured on either side. */

@@ -1,14 +1,15 @@
 // Chase view engine for the Race screen. The app owns the data and the clock; this draws one frame of it as an
 // instrument: near-black space, a faint datum grid under the road, the road at its measured width and curated height
 // with thin edges and cross rungs, every car a lit low-poly body in its class colour standing on the road at the road's
-// grade, the player's inputs painted on the road. Nothing is drawn that the data does not hold: no sky, grass, kerbs,
-// gravel, liveries, banking, roll, or height the track does not have. Web only (three.js).
+// grade and bank, the player's inputs painted on the road. Nothing is drawn that the data does not hold: no sky, grass,
+// kerbs, gravel, liveries, or height or bank the track does not have. Web only (three.js).
 //
 // World frame: x east, y north, z up (the sim's x and z); three.js is (x, z, -y), see sceneFrame.ts.
 
 import * as THREE from 'three';
 import {clamp, mod} from '@/src/analysis/chaseMath';
 import {clockAt, followApp, type ChaseClock} from '@/src/analysis/chaseClock';
+import {surfacePose} from '@/src/analysis/chasePose';
 import {chaseHeading, stepTravel} from '@/src/analysis/chaseHeading';
 import type {ChaseRoad} from '@/src/analysis/chaseRoad';
 import {roadIndex, type RoadIndex} from '@/src/analysis/chaseRoadIndex';
@@ -16,6 +17,7 @@ import type {ChaseCamMode, ChaseCar, ChaseEngine, ChaseRibbon, ChaseTheme, Chase
 import {createCarLabels} from './carLabels';
 import {createCarKit, type CarObject} from './carMeshes';
 import {createCameraRig} from './cameraRig';
+import {setCarRotation} from './carPose';
 import {buildInputsScene, type InputsScene} from './inputsScene';
 import {buildRoadScene, disposeGroup} from './roadScene';
 import {setWorld} from './sceneFrame';
@@ -42,6 +44,8 @@ interface CarState {
   z: number;
   heading: number;
   pitch: number;
+  /** The road's roll under the car, radians, + with the car's right side up. */
+  roll: number;
   car: ChaseCar;
   /** m/s. */
   v: number;
@@ -141,14 +145,19 @@ export function mountChase(
       let tangent: number | null = null;
       const lapS = ix ? mod(((c.lapDistM || 0) * ix.lengthM) / (ix.lapM || 1), ix.lengthM || 1) : 0;
       let z = ix ? ix.heightAt(lapS) : 0;
-      let grade = 0;
+      let pitch = 0;
+      let roll = 0;
       let ld = lapS;
       const near = ix?.nearest(x, y, 3) ?? null;
       if (ix && near) {
         tangent = ix.tangentAt(near.s);
-        z = ix.heightAt(near.s);
-        // the road's grade under or beside the car: a car touching the edge margin must not change pitch with it
-        grade = (ix.heightAt(near.s + 4) - ix.heightAt(near.s - 4)) / 8;
+        // the road's grade and bank under or beside the car: a car touching the edge margin must not change pitch
+        // with it, and a car beyond the margin stands on the surface at the margin, not at its distance from it
+        const reach = ix.widthAt(near.s, near.side) + ON_ROAD_MARGIN_M;
+        const pose = surfacePose(ix, near.s, near.side * Math.min(near.dist, reach));
+        z = pose.z;
+        pitch = pose.pitch;
+        roll = pose.roll;
         if (near.dist < ix.widthAt(near.s, near.side) + ON_ROAD_MARGIN_M) {
           onRoad = true;
           ld = near.s;
@@ -165,7 +174,8 @@ export function mountChase(
           speedKmh: c.speedKmh,
           onRoad,
         }),
-        pitch: Math.atan(grade),
+        pitch,
+        roll,
       };
       if (prior) {
         Object.assign(prior, pose, {car: c, v: c.speedKmh / 3.6, ld, onRoad, travel, prev: {x, y}});
@@ -214,8 +224,7 @@ export function mountChase(
         objects.set(k, o);
       }
       setWorld(o.position, s.x, s.y, s.z + 0.02);
-      o.rotation.order = 'YZX';
-      o.rotation.set(0, s.heading, s.pitch);
+      setCarRotation(o, s.heading, s.pitch, s.roll);
     }
     // the camera rides the road where the followed car is drawn (after its glide), so the two never drift apart
     const drawn = me.onRoad ? ix.nearest(me.x, me.y, 1) : null;

@@ -42,7 +42,9 @@ test("the map's validator is the payload's shape and the track doc's last write"
   // A map cached before the payload gained `elevation` ("m-…", version 1)
   // must not be answered with a 304: it has no elevation.
   assert.equal(notModified('"m-1791595919.12"', mapEtag({seconds: 1791595919, nanoseconds: 12})), false);
-  assert.ok(MAP_PAYLOAD_V >= 2);
+  // A map cached at version 2 (`elevation`, no `bank`) misses too.
+  assert.notEqual(`"m2-1791595919.12"`, mapEtag({seconds: 1791595919, nanoseconds: 12}));
+  assert.ok(MAP_PAYLOAD_V >= 3);
   assert.notEqual(
     mapEtag({seconds: 1, nanoseconds: 1}),
     mapEtag({seconds: 1, nanoseconds: 2}),
@@ -93,4 +95,10 @@ test('the map payload carries the curated elevation when the track has it, null 
   const without = trackMapPayload('lmu-x', 'X', {lengthM: 3000}, null);
   assert.equal(without.elevation, null);
   assert.equal(without.lengthM, 3000);
+});
+
+test('the map payload carries the curated bank when the track has it, null when not', () => {
+  const bank = {stepM: 5, rollDeg: [0, 1.5, -2], source: 'capture mOri roll'};
+  assert.deepEqual(trackMapPayload('lmu-x', 'X', {lengthM: 3000, bank}, null).bank, bank);
+  assert.equal(trackMapPayload('lmu-x', 'X', {lengthM: 3000}, null).bank, null);
 });

@@ -175,6 +175,7 @@ export function useRaceData(sessionId: string): RaceData {
             edges,
             elevation: map.data?.elevation ?? null,
             elevationLapM: map.data?.lengthM ?? 0,
+            bank: map.data?.bank ?? null,
           });
           built = road ? {road, prep: prepareRace(stored, edges)} : null;
         }
