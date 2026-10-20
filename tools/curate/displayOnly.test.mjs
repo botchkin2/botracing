@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {readdirSync, readFileSync} from 'node:fs';
+import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs';
 import {join} from 'node:path';
 import {test} from 'node:test';
 import {fileURLToPath} from 'node:url';
@@ -23,7 +23,7 @@ test('a bank write moves catalogRev and the history but not the stamp', async ()
   const before = stampOf(current.track);
   const plan = planBank({trackId: 'lmu-x', current, built: {bank, refusals: [], stats: {}}, blast: {sessions: 46}});
   assert.equal(plan.analysisRev, 3);
-  assert.match(renderPlan(plan).join('\n'), /display only: no session is re-analysed \(the stamp stays at rev 3\); 46 session\(s\)/);
+  assert.match(renderPlan(plan).join(' | '), /display only: no session is re-analysed \(the stamp stays at rev 3\); 46 session\(s\)/);
   await applyPlan(catalog, plan, {reason: 'bank', by: 'x'});
   const after = (await catalog.readCatalog('lmu-x')).track;
   assert.equal(after.catalogRev, 4);
@@ -63,26 +63,78 @@ test('only elevation and bank are display-only', () => {
   assert.deepEqual(DISPLAY_ONLY_KINDS, ['elevation', 'bank']);
 });
 
-// The claim the rule rests on, as a test: no analysis source reads a track's elevation or bank.
-test('no analysis source reads elevation or bank from a track', () => {
-  const root = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
-  const read = (dir, keep) =>
-    readdirSync(join(root, dir))
-      .filter(keep)
-      .map(f => ({file: `${dir}/${f}`, text: readFileSync(join(root, dir, f), 'utf8')}));
-  const sources = [
-    ...read('tools/sessions', f => /\.m?js$/.test(f) && !/\.test\.|\.golden\./.test(f)),
-    ...read('tools/uploader', f => /\.m?js$/.test(f) && !/\.test\./.test(f)),
-    // trackMapCore.ts builds the app's map payload, which carries both fields on purpose
-    ...read('functions/src', f => /\.ts$/.test(f) && f !== 'trackMapCore.ts'),
-  ];
-  assert.ok(sources.length > 20, 'the scan found the analysis sources');
-  const hits = [];
-  for (const {file, text} of sources) {
-    for (const [i, line] of text.split('\n').entries()) {
-      const code = line.replace(/\/\/.*$/, '');
-      if (/\.(elevation|bank)\b|\[['"](elevation|bank)['"]\]/.test(code)) hits.push(`${file}:${i + 1}: ${line.trim()}`);
+// The claim the rule rests on, as a test: no module an analysis can reach reads a track's elevation or bank. The scan
+// follows the static imports (and import() calls) of the analysis entry points through tools/, functions/src and src/
+// (including src/analysis), so a later analysis import of a road or bank module goes red.
+const root = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
+const ENTRY_POINTS = [
+  'tools/sessions/analyze.mjs',
+  'tools/sessions/analyzeFromArchive.mjs',
+  'tools/sessions/analyzeStored.mjs',
+  'tools/sessions/buildSession.mjs',
+  'tools/sessions/sync.mjs',
+  'functions/src/engine.ts',
+  'functions/src/liveAnalyze.ts',
+  'functions/src/analyzeCore.ts',
+  'functions/src/analyzeApi.ts',
+  ...readdirSync(join(root, 'tools/uploader'))
+    .filter(f => f.endsWith('.mjs') && !/\.test\./.test(f))
+    .map(f => `tools/uploader/${f}`),
+];
+const EXTENSIONS = ['', '.ts', '.tsx', '.mjs', '.js', '/index.ts', '/index.mjs', '/index.js'];
+const IMPORT = /(?:\bfrom\s*|\bimport\s*\(?\s*)['"]([^'"]+)['"]/g;
+
+function resolveImport(from, spec) {
+  const base = spec.startsWith('@/') ? join(root, spec.slice(2)) : spec.startsWith('.') ? join(from, '..', spec) : null;
+  if (!base) return null;
+  for (const ext of EXTENSIONS) {
+    const file = base + ext;
+    if (existsSync(file) && statSync(file).isFile()) return file;
+  }
+  return null;
+}
+
+function closureOf(entries) {
+  const seen = new Set();
+  const queue = entries.map(e => join(root, e));
+  while (queue.length) {
+    const file = queue.pop();
+    if (seen.has(file)) continue;
+    seen.add(file);
+    const text = readFileSync(file, 'utf8');
+    for (const [, spec] of text.matchAll(IMPORT)) {
+      const next = resolveImport(file, spec);
+      if (next) queue.push(next);
     }
   }
+  return [...seen];
+}
+
+const withoutComments = text => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+const READS = /\.(elevation|bank)\b|\[['"](elevation|bank)['"]\]|\{[^{}]*\b(elevation|bank)\b[^{}]*\}\s*=[^=]/;
+const ROAD_MODULES = /(^|\/)(bank|elevation|chaseRoad\w*|worldRoad|chasePose)\.(ts|mjs)$/;
+
+test('no module an analysis can reach reads a track elevation or bank, or is a road module', () => {
+  const files = closureOf(ENTRY_POINTS).map(f => f.slice(root.length + 1).split('\\').join('/'));
+  assert.ok(files.length > 80, `the scan followed the imports (${files.length} files)`);
+  assert.ok(files.includes('src/analysis/cornerBoundaries.ts'), 'it reaches src/analysis through the imports');
+  const hits = [];
+  for (const file of files) {
+    if (ROAD_MODULES.test(file)) hits.push(`${file}: a road module is in the analysis closure`);
+    // trackMapCore builds the app's map payload, which carries both fields on purpose
+    if (file === 'functions/src/trackMapCore.ts') continue;
+    const code = withoutComments(readFileSync(join(root, file), 'utf8'));
+    for (const [i, line] of code.split('\n').entries()) if (READS.test(line)) hits.push(`${file}:${i + 1}: ${line.trim()}`);
+  }
   assert.deepEqual(hits, []);
+});
+
+test('the guard catches a read: a module that reads .bank, a destructuring of elevation, and a road module', () => {
+  assert.ok(READS.test('const x = track.bank;'));
+  assert.ok(READS.test("const y = track['elevation'];"));
+  assert.ok(READS.test('const {corners, elevation} = track;'));
+  assert.ok(!READS.test('const corners = track.corners;'));
+  assert.ok(ROAD_MODULES.test('src/analysis/bank.ts'));
+  assert.ok(ROAD_MODULES.test('src/analysis/worldRoad.ts'));
+  assert.ok(!ROAD_MODULES.test('src/analysis/cornerBoundaries.ts'));
 });
