@@ -1,0 +1,50 @@
+{
+  "hostId": "deadbeef",
+  "label": "Test PC",
+  "version": "0.1.15",
+  "lmuFound": true,
+  "state": "in-game",
+  "lastUploadAt": "2026-10-18T18:44:09.529Z",
+  "lastSessionId": "aaaaaaaaaaaaaaaa",
+  "queue": 0,
+  "progress": null,
+  "sims": {
+    "lmu": {
+      "queue": 0,
+      "syncing": false,
+      "progress": null,
+      "retryAt": null,
+      "lastError": null
+    },
+    "iracing": {
+      "queue": 0,
+      "syncing": false,
+      "progress": null,
+      "retryAt": null,
+      "lastError": null
+    }
+  },
+  "retryAt": null,
+  "sessionsDone": 829,
+  "lastError": null,
+  "disk": {
+    "captureBytes": 2652194849,
+    "freeBytes": 377362161664
+  },
+  "recorder": {
+    "state": "refused",
+    "gameVersion": 0,
+    "layoutOk": false,
+    "layoutReason": "car 0 lap distance -1540.05859375",
+    "lastChunkAt": null,
+    "updatedAt": "2026-10-19T23:56:06.086Z"
+  },
+  "problems": [
+    {
+      "kind": "recorder-layout",
+      "at": "2026-10-19T23:56:06.086Z",
+      "message": "car 0 lap distance -1540.05859375"
+    }
+  ],
+  "healed": 10
+}
