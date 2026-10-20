@@ -79,6 +79,8 @@ function squareTrace(): GridTrace {
   const empty = lat.map(() => 0);
   return {
     stepM: 5,
+    recordedFromM: distanceM[0],
+    recordedToM: distanceM[distanceM.length - 1],
     distanceM,
     speedKph: empty,
     throttlePct: empty,

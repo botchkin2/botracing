@@ -12,6 +12,7 @@ import {classOfCar} from './fieldClasses';
 import {raceStartS} from './raceClock';
 import {trackLengthM} from './classLaps';
 import {ABSENT, type Field, type FieldCar, updateAt} from './field';
+import {runSteps, type Steps} from './steps';
 
 // Handoff R1d.
 export const STOPPED_KMH = 5;
@@ -170,6 +171,14 @@ export function prepareRace(
   field: Field,
   edges: MeasuredEdges | null = null,
 ): RacePrep {
+  return runSteps(prepareRaceSteps(field, edges));
+}
+
+/** The same as `prepareRace`, as steps (one per car): a page drives them in time slices (`analysis/steps`). */
+export function* prepareRaceSteps(
+  field: Field,
+  edges: MeasuredEdges | null = null,
+): Steps<RacePrep> {
   const n = field.timeS.length;
   const trackM = trackLengthM(field.cars.map(c => [...c.lapDistM]));
   const progressM: Float32Array[] = [];
@@ -178,7 +187,9 @@ export function prepareRace(
   const pits: Int16Array[] = [];
   const firstSeen = new Int32Array(field.cars.length).fill(n);
   const startU = raceStartUpdate(field);
-  field.cars.forEach((c, i) => {
+  for (let i = 0; i < field.cars.length; i++) {
+    yield;
+    const c = field.cars[i];
     const prog = progressOf(c, trackM, startU);
     const speed = new Float32Array(n).fill(NaN);
     const slow = new Int32Array(n);
@@ -222,7 +233,7 @@ export function prepareRace(
     speedKmh.push(speed);
     slowRun.push(slow);
     pits.push(pit);
-  });
+  }
   return {
     field,
     trackM,

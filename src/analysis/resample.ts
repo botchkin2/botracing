@@ -41,6 +41,12 @@ export type NativeChannel =
 
 export interface GridTrace {
   stepM: number;
+  /**
+   * The lap distances the recording reaches, metres. Outside them every grid channel holds its end value (the resampler
+   * needs a number at every grid point), which is not data: a screen that reads beyond must ask `traceCovers`.
+   */
+  recordedFromM: number;
+  recordedToM: number;
   distanceM: number[];
   speedKph: number[];
   throttlePct: number[];
@@ -182,6 +188,8 @@ export function resampleTrace(
   const timeS = clock.map(t => t - clock[0]);
   return {
     stepM,
+    recordedFromM: xs.length > 0 ? xs[0] : NaN,
+    recordedToM: xs.length > 0 ? xs[xs.length - 1] : NaN,
     distanceM,
     speedKph,
     throttlePct: lin(raw.throttlePct),
@@ -222,6 +230,11 @@ export function timeDiffS(
     for (let i = 0; i < n; i++) out[i] += (residual * i) / (n - 1);
   }
   return out;
+}
+
+/** Whether the recording reaches `distanceM` (within one grid step): where it does not, the grid holds end values. */
+export function traceCovers(trace: Pick<GridTrace, 'stepM' | 'recordedFromM' | 'recordedToM'>, distanceM: number): boolean {
+  return distanceM >= trace.recordedFromM - trace.stepM && distanceM <= trace.recordedToM + trace.stepM;
 }
 
 // Index on the grid nearest to a distance.
@@ -271,6 +284,9 @@ export function medianTrace(
   const grid = (values: number[]) => ({distanceM, values});
   return {
     stepM: first.stepM,
+    // the distances every lap in the set recorded
+    recordedFromM: Math.max(...traces.map(t => t.recordedFromM)),
+    recordedToM: Math.min(...traces.map(t => t.recordedToM)),
     distanceM,
     speedKph,
     throttlePct,
