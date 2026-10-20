@@ -13,7 +13,10 @@ import type {ChaseTheme} from './chaseTypes';
 
 const POST_EVERY_M = 20;
 const POST_OFFSET_M = 2.5;
-const POST_W_M = 0.25;
+const POST_W_M = 0.12;
+/** A post is clear beyond FADE_FAR_M of the camera and fades out to nothing at FADE_NEAR_M: the one beside the camera must not fill the frame. */
+const FADE_NEAR_M = 6;
+const FADE_FAR_M = 14;
 const POST_H_M = 1.8;
 const TICK_EVERY_M = 5;
 const TICK_LEN_M = 4;
@@ -81,7 +84,19 @@ export function buildRoadSide(road: ChaseRoad, ix: RoadIndex, T: ChaseTheme, spi
   const postGeo = new THREE.BufferGeometry();
   postGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   postGeo.setIndex(index);
-  group.add(new THREE.Mesh(postGeo, new THREE.MeshBasicMaterial({color: new THREE.Color(T.muted), side: THREE.DoubleSide})));
+  const postMaterial = new THREE.MeshBasicMaterial({color: new THREE.Color(T.muted), side: THREE.DoubleSide, transparent: true});
+  postMaterial.onBeforeCompile = shader => {
+    shader.vertexShader = shader.vertexShader
+      .replace('void main() {', 'varying float vFadeDepth;\nvoid main() {')
+      .replace('#include <project_vertex>', '#include <project_vertex>\n  vFadeDepth = -mvPosition.z;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('void main() {', 'varying float vFadeDepth;\nvoid main() {')
+      .replace(
+        '#include <dithering_fragment>',
+        `#include <dithering_fragment>\n  gl_FragColor.a *= smoothstep(${FADE_NEAR_M.toFixed(1)}, ${FADE_FAR_M.toFixed(1)}, vFadeDepth);`,
+      );
+  };
+  group.add(new THREE.Mesh(postGeo, postMaterial));
 
   // ticks: 12 segments (24 vertices) per row, along the road's direction
   const ticks: number[] = [];

@@ -19,6 +19,8 @@ const GRID_M = 50;
 const GRID_MARGIN_M = 400;
 /** The ground runs this far past the lap's extent: past the fog's far plane, so its edge is never seen. */
 const GROUND_REACH_M = 1800;
+/** The near ground runs this far past each edge of the road, at the road's height. */
+const NEAR_GROUND_M = 60;
 /** The datum sits this far under the lowest point of the road. */
 const DATUM_BELOW_M = 3;
 
@@ -127,6 +129,24 @@ export function buildRoadScene(road: ChaseRoad, ix: RoadIndex, T: ChaseTheme): T
           },
           flat(T.edge, {side: THREE.DoubleSide}), // the left strip's triangles wind the other way
           1,
+        ),
+      ),
+    );
+  }
+  // the near ground: a strip at the road's own height out to NEAR_GROUND_M past each edge, so the road and the posts
+  // stand on the land beside them and not above the flat horizon plane (gauge #6314)
+  for (const side of [-1, 1]) {
+    group.add(
+      strip(
+        ribbon(
+          n + 1 + spill,
+          2,
+          (r, k, out) => {
+            const hw = side < 0 ? road.hl[r % n] : road.hr[r % n];
+            rowPoint(r, side * (hw + (k ? NEAR_GROUND_M : 0)), -0.02, out);
+          },
+          flat(T.fill, {side: THREE.DoubleSide, fog: true}),
+          -1,
         ),
       ),
     );
