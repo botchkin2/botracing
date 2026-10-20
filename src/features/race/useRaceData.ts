@@ -72,10 +72,10 @@ export type RaceData =
       /** The measured road is still on its way: the map holds its place. */
       roadPending: boolean;
       /**
-       * What the 3D draws: the road fitted from the field in the game's own world frame (analysis/worldRoad), and the
+       * What the 3D draws, made on first use: the road fitted from the field in the game's own world frame (analysis/worldRoad), and the
        * field's cars at their own recorded positions (not re-placed on the surface's line); null without positions.
        */
-      chase: {road: ChaseRoad; prep: RacePrep} | null;
+      chase: {world: () => {road: ChaseRoad; prep: RacePrep} | null} | null;
     };
 
 /** Gathers the Race screen's inputs; `carsAt` and the model do the rest. */
@@ -162,16 +162,25 @@ export function useRaceData(sessionId: string): RaceData {
     return worldMatchM(placer.placeWorld(pts), line);
   }, [field.data, line, placer, placed]);
 
+  // The 3D's road is a 0.3 s fit on a phone-class CPU: made when the 3D is first shown, kept for the session.
   const chase = useMemo(() => {
     if (!stored?.hasPositions || !prep) return null;
-    const road = worldRoad({
-      field: stored,
-      lapM: prep.trackM,
-      edges,
-      elevation: map.data?.elevation ?? null,
-      elevationLapM: map.data?.lengthM ?? 0,
-    });
-    return road ? {road, prep: prepareRace(stored, edges)} : null;
+    let built: {road: ChaseRoad; prep: RacePrep} | null | undefined;
+    return {
+      world: () => {
+        if (built === undefined) {
+          const road = worldRoad({
+            field: stored,
+            lapM: prep.trackM,
+            edges,
+            elevation: map.data?.elevation ?? null,
+            elevationLapM: map.data?.lengthM ?? 0,
+          });
+          built = road ? {road, prep: prepareRace(stored, edges)} : null;
+        }
+        return built;
+      },
+    };
   }, [stored, prep, edges, map.data]);
   const gate = raceGate({
     sessionPending: session.isPending,

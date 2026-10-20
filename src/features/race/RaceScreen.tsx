@@ -474,17 +474,19 @@ function RaceView({
     [color, classes, labels],
   );
   // the 3D draws the field's own x/z (not re-placed on the surface's line), smoothed through the 5 Hz samples
-  const chasePrep = data.chase?.prep ?? prep;
+  const world = data.chase?.world;
   const sample = useCallback<ChaseSampler>(
-    (t, snapped) =>
-      toChase(markPitLane(carsAt(chasePrep, snapped ? snapClock(t, chasePrep.field.hz) : t, snapped, true), placer)),
-    [toChase, chasePrep, placer],
+    (t, snapped) => {
+      const chasePrep = world?.()?.prep ?? prep;
+      return toChase(markPitLane(carsAt(chasePrep, snapped ? snapClock(t, chasePrep.field.hz) : t, snapped, true), placer));
+    },
+    [toChase, world, prep, placer],
   );
   const chase = useMemo<RaceChase | null>(
     () =>
       chaseOk && data.chase
         ? {
-            road: data.chase.road,
+            road: () => world?.()?.road ?? null,
             cars: toChase(cars),
             sample,
             timeS: shownS,
