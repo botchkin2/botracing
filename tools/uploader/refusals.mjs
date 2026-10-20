@@ -29,3 +29,12 @@ export function trackRefusals(list, recorder, nowMs) {
   }
   return next.slice(-MAX_REFUSALS);
 }
+
+// The refusal this look opened (a drive's first), to log; null when there is
+// none: the same drive, or the list aged out to empty. By start time, because
+// the list is capped, so its length can stay the same.
+export function newRefusal(prev, next) {
+  const newest = next.at(-1);
+  if (!newest) return null;
+  return newest.firstAtMs !== prev.at(-1)?.firstAtMs ? newest : null;
+}
