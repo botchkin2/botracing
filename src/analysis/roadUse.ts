@@ -32,7 +32,27 @@ export interface UseSamples {
 /**
  * `ldOfPoint[k]` is the lap distance of road point k (ascending, one lap); `hl` and `hr` the half-widths there.
  */
+export type UseSteps<T> = Generator<void, T, void>;
+/** Samples between two yields: a chunk is a fraction of a millisecond, so the fit never blocks a frame (worldRoad.ts). */
+const SAMPLES_PER_CHUNK = 4000;
+
+/** Runs the generator to its end, for callers with no frame to share (tests, Node). */
 export function roadUse(s: UseSamples, lapM: number, ldOfPoint: ArrayLike<number>, hl: ArrayLike<number>, hr: ArrayLike<number>): RoadUse | null {
+  const run = roadUseSteps(s, lapM, ldOfPoint, hl, hr);
+  for (;;) {
+    const step = run.next();
+    if (step.done) return step.value;
+  }
+}
+
+/** The same, in chunks: `yield*` it from a sliced job. */
+export function* roadUseSteps(
+  s: UseSamples,
+  lapM: number,
+  ldOfPoint: ArrayLike<number>,
+  hl: ArrayLike<number>,
+  hr: ArrayLike<number>,
+): UseSteps<RoadUse | null> {
   const n = ldOfPoint.length;
   if (n < 8 || !(lapM > 0) || s.ld.length === 0) return null;
   const counts = new Float32Array(n * USE_COLUMNS);
@@ -51,6 +71,7 @@ export function roadUse(s: UseSamples, lapM: number, ldOfPoint: ArrayLike<number
     return lo;
   };
   for (let i = 0; i < s.ld.length; i++) {
+    if (i % SAMPLES_PER_CHUNK === 0) yield;
     const k = pointOf(s.ld[i]);
     const l = s.lat[i];
     const u = (l + hl[k]) / (hl[k] + hr[k]);

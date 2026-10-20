@@ -3,6 +3,7 @@
 The Race screen (round 3, handoff R1): every car on the track as a dot, a leaderboard synced to the playhead, and a clock shared with Compare. In practice and qualifying the same screen is the Field tab (`RaceMode` 'field'): no class places or gaps to a leader, the road gap from you in seconds in their place, and one line on who is ahead, behind and which faster class is coming (`model.ts` `roadSummary`).
 
 - `RaceScreen.tsx`: layout (phone column, desktop `map | leaderboard` from 1280, the leaderboard below the lanes from 900 to 1279), the states of R4c, focus, class filter.
+- `chaseWorld.ts`: the 3D's road and cars' preparation as steps (`analysis/steps`), driven in 8 ms time slices by `useRaceData` when the 3D is first asked for (a second or two on a phone, never one frozen block); the map shows a placeholder until it returns, and a new field, map or race drops a fit that is running.
 - `useRaceData.ts`: gathers the session, its field, the track map and the reference lap; says whether the cars land on the drawn track (`analysis/worldMatch`).
 - `useRaceClock.ts` + `clock.ts`: race time, play/pause, rates; playback steps by wall time, paused rests on a real 5 Hz sample.
 - `selectionClock.ts`: Compare's cursor (lap + metres in the URL) to race time and back, via `analysis/raceClock`.

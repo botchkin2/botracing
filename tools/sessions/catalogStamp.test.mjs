@@ -208,3 +208,11 @@ test('re-analysis is capped per run, newest first, and a busy track converges ov
   );
   assert.equal(DEFAULT_RESYNC_CAP, 25);
 });
+
+test('the stamp follows analysisRev when the track has one, catalogRev when it does not (a display-only write moves only catalogRev)', () => {
+  const plain = catalogStamp({...trackMap, catalogRev: 3}, boundaries);
+  assert.equal(catalogStamp({...trackMap, catalogRev: 4, analysisRev: 3}, boundaries), plain);
+  assert.equal(catalogStamp({...trackMap, catalogRev: 9, analysisRev: 3}, boundaries), plain);
+  assert.notEqual(catalogStamp({...trackMap, catalogRev: 5, analysisRev: 5}, boundaries), plain);
+  assert.equal(catalogStamp({...trackMap, catalogRev: 4, analysisRev: 0}, boundaries), catalogStamp(trackMap, boundaries));
+});
