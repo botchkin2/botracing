@@ -6,6 +6,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {type LaneZoom, raceLanes} from '@/src/analysis/raceLanes';
 import {lapPath} from '@/src/analysis/inputsPath';
 import {carsAt} from '@/src/analysis/raceState';
+import {traceAgrees} from '@/src/analysis/traceAgrees';
 import {fieldClasses} from '@/src/analysis/fieldClasses';
 import {carLapsOf} from '@/src/analysis/carLaps';
 import {updateAt} from '@/src/analysis/field';
@@ -458,6 +459,8 @@ function RaceView({
     if (!trace || !place || !loaded || !ribbon || !player) return null;
     const i = Math.max(0, Math.min(trace.distanceM.length - 1, Math.round(place.distanceM / trace.stepM)));
     if (Math.hypot(ribbon.x[i] - player.xM, ribbon.y[i] - player.zM) > 20) return null;
+    // outside what the trace recorded its end values are held: a speed that is not the car's here is not shown
+    if (!traceAgrees(trace.speedKph[i], player.speedKmh)) return null;
     return {idx: i, throttlePct: trace.throttlePct[i], brakePct: trace.brakePct[i], steeringPct: trace.steeringPct[i], gear: trace.gear[i], speedKph: trace.speedKph[i]};
   }, [trace, place, loaded, ribbon, player]);
   const inputs = ribbon ? {ribbon, now: inputsNow} : null;
