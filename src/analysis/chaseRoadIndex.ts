@@ -2,7 +2,7 @@
 // point of the centre path). Built once per road. Plain TypeScript, imports two files.
 
 import {angDiff, clamp, lerp, mod} from './chaseMath.ts';
-import {roadHeight, type ChaseRoad} from './chaseRoad.ts';
+import type {ChaseRoad} from './chaseRoad.ts';
 
 const CELL_M = 100;
 const cellKey = (a: number, b: number) => a * 100003 + b;
@@ -17,8 +17,11 @@ export interface NearestRoad {
 }
 
 export interface RoadIndex {
+  /** Metres between points; equal for all, so a lap distance `s` on this index is metres along the path. */
   stepM: number;
   lengthM: number;
+  /** The road as the game's lap distance measures it, for turning a car's lapDistM into `s`. */
+  lapM: number;
   /** The centre path, world metres, one point per bin. */
   centreX: ArrayLike<number>;
   centreY: ArrayLike<number>;
@@ -63,10 +66,8 @@ export function roadIndex(road: ChaseRoad): RoadIndex {
     curv[i] = sum / (6 * bin);
   }
   // Height only where the track has its curated profile; otherwise the road is flat at 0.
-  const elev = road.elev;
-  const hasHeight = elev !== null;
-  const lapM = n * bin;
-  if (elev) for (let i = 0; i < n; i++) height[i] = roadHeight(elev, i * bin, lapM);
+  const hasHeight = road.heightM !== null;
+  if (road.heightM) for (let i = 0; i < n; i++) height[i] = road.heightM[i];
   const between = (s: number): [number, number, number] => {
     const f = mod(s / bin, n);
     const i = Math.floor(f);
@@ -79,6 +80,7 @@ export function roadIndex(road: ChaseRoad): RoadIndex {
   return {
     stepM: bin,
     lengthM: n * bin,
+    lapM: road.lapM,
     centreX: road.cx,
     centreY: road.cy,
     heading,
