@@ -3,13 +3,14 @@
 // class timing (pit-wall thread 44, round 6 section 2). The uploader
 // (tools/sessions/sync.mjs) computes it once per session and stores it as the
 // session doc's `classLaps`, so the app never downloads a field to draw the
-// Plan. Plain TypeScript with erasable syntax only, no imports: Node runs it.
+// Plan. Plain TypeScript with erasable syntax only, one import (`steps.ts`): Node runs it.
 //
 // The field has no lap times. A car's lap is the time between two crossings
 // of the line, found where its lap distance wraps from the end of the lap to
 // the start, interpolated between the two updates either side (a 5 Hz update
 // can sit up to 0.2 s after the line, which would smear p10 and p90).
 
+import {runSteps, type Steps} from './steps.ts';
 /** The encoded field file, only the columns this reads. */
 export interface EncodedField {
   hz: number;
@@ -285,8 +286,14 @@ export function walkCarLaps(
  * wrong length.
  */
 export function trackLengthM(lapDistM: Iterable<number | null>[]): number {
+  return runSteps(trackLengthSteps(lapDistM));
+}
+
+/** The same as `trackLengthM`, as steps (one per car): a page drives them in time slices (`analysis/steps`). */
+export function* trackLengthSteps(lapDistM: Iterable<number | null>[]): Steps<number> {
   const wraps: number[] = [];
   for (const row of lapDistM) {
+    yield;
     let prev: number | null = null;
     for (const d of row) {
       if (d === null || Number.isNaN(d)) {
