@@ -1,5 +1,5 @@
 import {describe, expect, it} from '@jest/globals';
-import {chaseRoad} from './chaseRoad';
+import {fixtureRoad} from './chaseRoadFixture';
 import {roadIndex} from './chaseRoadIndex';
 
 // A 400 m circle (radius 63.66 m), 10 m points, 8 m half-width, a ramp of height 0..9 m over the lap.
@@ -10,7 +10,7 @@ const centre = Array.from({length: N}, (_, i) => ({
   y: R * Math.sin((i / N) * 2 * Math.PI),
 }));
 const elev = Array.from({length: 10}, (_, i) => i);
-const road = chaseRoad(centre, null, 10, 400, {stepM: 40, heightM: elev}, 400)!;
+const road = fixtureRoad(centre, 400, {elevation: {stepM: 40, heightM: elev}});
 const idx = roadIndex(road);
 
 describe('roadIndex', () => {
@@ -36,7 +36,7 @@ describe('roadIndex', () => {
     expect(idx.curvatureAt(100)).toBeCloseTo(1 / R, 2);
   });
   it('is flat with no profile', () => {
-    const flat = roadIndex(chaseRoad(centre, null, 10, 400, null, 0)!);
+    const flat = roadIndex(fixtureRoad(centre, 400));
     expect(flat.hasHeight).toBe(false);
     expect(flat.heightAt(123)).toBe(0);
   });

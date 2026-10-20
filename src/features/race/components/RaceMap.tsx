@@ -57,9 +57,9 @@ const MODE_OPTIONS_3D = [...MODE_OPTIONS, {value: 'chase', label: '3D'}] as cons
 /** Track: the whole circuit. Follow: a heading-up chase view of one car. 3D: the same chase, in perspective, with height. */
 export type MapMode = 'track' | 'follow' | 'chase';
 
-/** What the 3D chase needs beyond the cars: the road, and whose eyes. */
+/** What the 3D chase needs beyond the cars: the road (fitted on first use, null when the field cannot give one), and whose eyes. */
 export type RaceChase = {
-  road: ChaseRoad;
+  road: () => ChaseRoad | null;
   /** The cars now, for the strip; the engine samples its own with `sample`. */
   cars: ChaseCar[];
   sample: ChaseSampler;
@@ -150,7 +150,8 @@ export function RaceMap({
 }) {
   const {color} = useTheme();
   const following = mode === 'follow' && follow !== null;
-  const chasing = mode === 'chase' && chase !== null && chaseAvailable;
+  const chaseRoad = mode === 'chase' && chase !== null && chaseAvailable ? chase.road() : null;
+  const chasing = chaseRoad !== null;
   const scale = desktop ? DESKTOP_SCALE : PHONE_SCALE;
   const lines = useMemo(
     // Fits the view and is the band when there is no outline; no lap is drawn.
@@ -221,11 +222,11 @@ export function RaceMap({
           backgroundColor: color.surface,
         },
       ]}>
-      {chasing ? (
+      {chase && chaseRoad ? (
         <ChaseView
           width={width - 2}
           height={height - 2}
-          road={chase.road}
+          road={chaseRoad}
           cars={chase.cars}
           sample={chase.sample}
           timeS={chase.timeS}

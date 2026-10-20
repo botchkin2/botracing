@@ -1,12 +1,12 @@
 import {describe, expect, it} from '@jest/globals';
 import {altitudeLabel, gapSeconds, chaseHudNumbers, elevationWindow, gearLabel, gradeLabel, PROFILE_FLOOR_M} from './chaseHud';
-import {chaseRoad} from './chaseRoad';
+import {fixtureRoad} from './chaseRoadFixture';
 
 // 10 m of climb over a 1000 m lap (heights every 100 m), linear then back down; the road measures the lap as 400 m.
 const elev = {stepM: 100, heightM: [0, 2, 4, 6, 8, 10, 8, 6, 4, 2]};
 
 const centre = Array.from({length: 40}, (_, i) => ({x: i * 10, y: 0}));
-const roadWith = (e: typeof elev | null) => chaseRoad(centre, null, 10, 400, e, 1000)!;
+const roadWith = (e: typeof elev | null) => fixtureRoad(centre, 400, {elevation: e, elevationLapM: 1000});
 
 describe('chaseHudNumbers', () => {
   it('is empty without a profile or a position', () => {
