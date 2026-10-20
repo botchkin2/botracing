@@ -17,8 +17,12 @@ export const BANK_STEP_M = 5;
 export const MIN_SPEED_KPH = 60;
 const PATH_SPREAD = 0.01;
 const MIN_LAPS = 3;
-/** Laps that must have a value at a step for it to be measured, not filled from its neighbours. */
-const MIN_LAPS_PER_STEP = 3;
+/** Fewest laps that must have a value at a step for it to be measured, not filled from its neighbours. */
+const MIN_LAPS_PER_STEP = 5;
+/** ... and at least this share of the kept laps (a 30-lap capture needs 15 clean laps at a step, a 12-lap one 6). */
+const MIN_LAP_SHARE = 0.5;
+/** A step whose clean laps disagree by more than this (p10 to p90, degrees) is a coin flip, not a road feature: it is filled from its neighbours. */
+const MAX_STEP_SPREAD_DEG = 1.5;
 const MIN_SAMPLES_PER_STEP = 5;
 const MAX_FILLED_SHARE = 0.1;
 /** The longest stretch filled from its neighbours (a slow hairpin, a kerb-hopping chicane), metres. */
@@ -100,6 +104,11 @@ export function bankFromLaps(laps, lengthM) {
   const steps = Math.floor(lengthM / BANK_STEP_M);
   const roll = new Array(steps + 1).fill(NaN);
   const spreads = [];
+  const need = Math.max(MIN_LAPS_PER_STEP, Math.ceil(kept.length * MIN_LAP_SHARE));
+  const lapsAt = new Array(steps + 1).fill(0);
+  const spreadAt = new Array(steps + 1).fill(NaN);
+  let tooFew = 0;
+  let tooNoisy = 0;
   const cursors = kept.map(() => ({i: 0}));
   let filled = 0;
   let run = 0;
@@ -111,12 +120,17 @@ export function bankFromLaps(laps, lengthM) {
       const r = windowMedian(p, frac * p.len, (BANK_STEP_M / 2) * (p.len / lengthM), cursors[k]);
       if (Number.isFinite(r)) rolls.push(r);
     });
-    if (rolls.length >= MIN_LAPS_PER_STEP) {
+    const sorted = [...rolls].sort((a, b) => a - b);
+    const spread = percentile(sorted, 0.9) - percentile(sorted, 0.1);
+    lapsAt[s] = rolls.length;
+    if (rolls.length >= need && spread <= MAX_STEP_SPREAD_DEG) {
       roll[s] = median(rolls);
-      const sorted = [...rolls].sort((a, b) => a - b);
-      spreads.push(percentile(sorted, 0.9) - percentile(sorted, 0.1));
+      spreadAt[s] = spread;
+      spreads.push(spread);
       run = 0;
     } else {
+      if (rolls.length < need) tooFew++;
+      else tooNoisy++;
       filled++;
       run++;
       longest = Math.max(longest, run);
@@ -125,11 +139,11 @@ export function bankFromLaps(laps, lengthM) {
   const filledShare = filled / (steps + 1);
   if (filledShare > MAX_FILLED_SHARE)
     refusals.push(
-      `${(filledShare * 100).toFixed(1)}% of the lap has fewer than ${MIN_LAPS_PER_STEP} clean laps, more than ${MAX_FILLED_SHARE * 100}%`,
+      `${(filledShare * 100).toFixed(1)}% of the lap has fewer than ${need} clean laps or laps that disagree by over ${MAX_STEP_SPREAD_DEG} deg, more than ${MAX_FILLED_SHARE * 100}%`,
     );
   if (longest * BANK_STEP_M > MAX_GAP_M)
     refusals.push(
-      `a stretch of ${longest * BANK_STEP_M} m has fewer than ${MIN_LAPS_PER_STEP} clean laps, more than ${MAX_GAP_M} m`,
+      `a stretch of ${longest * BANK_STEP_M} m has fewer than ${need} clean laps or laps that disagree by over ${MAX_STEP_SPREAD_DEG} deg, more than ${MAX_GAP_M} m`,
     );
   spreads.sort((a, b) => a - b);
   const spreadP90 = percentile(spreads, 0.9);
@@ -138,6 +152,15 @@ export function bankFromLaps(laps, lengthM) {
 
   const rollFilled = fillRound(roll);
   const finite = rollFilled.filter(Number.isFinite);
+  // the extremes among the steps that were measured (not filled), with how many laps and how much they scatter there
+  let lo = -1;
+  let hi = -1;
+  for (let i = 0; i < roll.length; i++) {
+    if (!Number.isFinite(roll[i])) continue;
+    if (lo < 0 || roll[i] < roll[lo]) lo = i;
+    if (hi < 0 || roll[i] > roll[hi]) hi = i;
+  }
+  const at = i => (i < 0 ? null : {m: i * BANK_STEP_M, rollDeg: round2(roll[i]), laps: lapsAt[i], spreadDeg: round2(spreadAt[i])});
   return {
     bank: refusals.length
       ? null
@@ -156,6 +179,11 @@ export function bankFromLaps(laps, lengthM) {
       spreadP90: round2(spreadP90),
       rollMin: finite.length ? round2(Math.min(...finite)) : null,
       rollMax: finite.length ? round2(Math.max(...finite)) : null,
+      lowest: at(lo),
+      highest: at(hi),
+      stepsNeed: need,
+      stepsTooFew: tooFew,
+      stepsTooNoisy: tooNoisy,
     },
   };
 }
