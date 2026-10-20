@@ -471,6 +471,8 @@ async function main() {
     const recorder = readJson(recorderStatus, null);
     const nowMs = Date.now();
     const refusals = trackRefusals(watch.refusals ?? [], recorder, nowMs);
+    if (refusals.length > (watch.refusals ?? []).length)
+      log(`recorder refused a drive: ${refusals.at(-1).reason}`);
     if (JSON.stringify(refusals) !== JSON.stringify(watch.refusals ?? [])) {
       watch.refusals = refusals;
       save();

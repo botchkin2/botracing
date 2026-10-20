@@ -191,13 +191,16 @@ export function problemsOf({sims, recorder, refusals = [], nowMs}) {
     });
   // A drive the recorder refused has no capture and no field, and stays listed
   // after the game closes (refusals.mjs).
-  for (const r of refusals)
-    out.push({
-      kind: 'capture-missed',
-      at: iso(r.lastAtMs),
-      message: message(`No capture, no field: ${r.reason}`),
-      count: r.count,
-    });
+  // While LMU still runs the same drive is also the recorder-layout row: one
+  // row, not two. The reason stays in the tray log (watch.mjs), not here.
+  if (!out.some(p => p.kind === 'recorder-layout'))
+    for (const r of refusals)
+      out.push({
+        kind: 'capture-missed',
+        at: iso(r.lastAtMs),
+        message: 'Drive not recorded',
+        count: r.count,
+      });
   const t = p => (p.at ? Date.parse(p.at) : 0);
   return out.sort((a, b) => t(b) - t(a)).slice(0, MAX_PROBLEMS);
 }
