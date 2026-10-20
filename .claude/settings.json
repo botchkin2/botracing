@@ -69,12 +69,7 @@
       "Bash(gcloud logging read *)",
       "Bash(gcloud storage ls *)",
       "Bash(gcloud storage cat *)",
-      "Bash(tasklist*)",
-      "PowerShell(Get-ChildItem *)",
-      "PowerShell(Get-Content *)",
-      "PowerShell(Get-CimInstance *)",
-      "PowerShell(Get-Process *)",
-      "PowerShell(Test-Path *)"
+      "Bash(tasklist*)"
     ],
     "deny": [
       "Bash(git push origin main*)",
