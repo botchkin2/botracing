@@ -8,6 +8,7 @@
 //   node tools/curate/curate.mjs plan-refold <trackId> --sessions <id,id,...>
 //   node tools/curate/curate.mjs plan-undo <trackId> [--to-rev N]
 //   node tools/curate/curate.mjs plan-elevation <trackId> --session <id> --capture <dir>
+//   node tools/curate/curate.mjs plan-bank <trackId> --session <id> --capture <dir>
 //
 // Every plan command is a dry run: it prints the plan and writes nothing. Add
 // `--apply --reason "why"` to write it (needs Admin credentials today:
@@ -27,6 +28,7 @@ import {
   keepMeasuredLaps,
   readCaptureLaps,
 } from './elevation.mjs';
+import {bankFromLaps, readCaptureAttitude} from './bank.mjs';
 import {
   LoaderError,
   buildFromSession,
@@ -39,6 +41,7 @@ import {
 import {
   planAdd,
   planElevation,
+  planBank,
   planRefold,
   planReplace,
   planUndo,
@@ -51,6 +54,7 @@ const PLANS = [
   'plan-refold',
   'plan-undo',
   'plan-elevation',
+  'plan-bank',
 ];
 const VALUED = new Set([
   '--session',
@@ -140,7 +144,7 @@ export async function run(argv, deps) {
     }
     if (![...PLANS, 'show', 'history'].includes(cmd) || !trackId) {
       say(
-        'usage: curate <sessions | show | history | plan-add | plan-replace | plan-refold | plan-undo | plan-elevation> <trackId> [options]',
+        'usage: curate <sessions | show | history | plan-add | plan-replace | plan-refold | plan-undo | plan-elevation | plan-bank> <trackId> [options]',
       );
       return {code: 2, lines};
     }
@@ -157,6 +161,10 @@ export async function run(argv, deps) {
       if (current.track?.elevation?.heightM)
         say(
           `  elevation: ${current.track.elevation.heightM.length} heights, step ${current.track.elevation.stepM} m`,
+        );
+      if (current.track?.bank?.rollDeg)
+        say(
+          `  bank: ${current.track.bank.rollDeg.length} rolls, step ${current.track.bank.stepM} m`,
         );
       say(
         `  ${await backend.sessionCount(trackId)} session(s) across all users`,
@@ -208,6 +216,28 @@ export async function run(argv, deps) {
         checked: timing.checked,
       };
       plan = planElevation({trackId, current, built, blast});
+    } else if (cmd === 'plan-bank') {
+      if (!flags.capture || !flags.session)
+        throw new LoaderError('plan-bank needs --session <id> and --capture <dir>');
+      const session = pickSession(sessionsHere(), flags.session);
+      const sessionLaps = measuredLapNumbers({adapter, session, workDir});
+      const picked = keepMeasuredLaps(
+        readCaptureAttitude(flags.capture),
+        sessionLaps,
+      );
+      const built = bankFromLaps(picked.laps, current.track?.lengthM);
+      const timing = checkLapDurations(picked.laps, sessionLaps);
+      if (timing.refusals.length) {
+        built.bank = null;
+        built.refusals.push(...timing.refusals);
+      }
+      built.stats = {
+        ...built.stats,
+        droppedInLaps: picked.dropped,
+        matched: timing.matched,
+        checked: timing.checked,
+      };
+      plan = planBank({trackId, current, built, blast});
     } else if (cmd === 'plan-add' || cmd === 'plan-replace') {
       if (!flags.session)
         throw new LoaderError(

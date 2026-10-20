@@ -7,6 +7,7 @@
 // Plain TypeScript with erasable syntax only: Node can run it.
 
 import {DEFAULT_HALF_WIDTH_M, type ChaseElevation, type ChaseRoad} from './chaseRoad.ts';
+import {bankOnLap, type Bank} from './bank.ts';
 import {heightAt} from './elevation.ts';
 import type {Field} from './field.ts';
 
@@ -38,7 +39,10 @@ export interface WorldRoadInput {
   edges: {stepM: number; lengthM: number; leftM: number[]; rightM: number[]} | null;
   /** The track's curated height profile, and the lap length it is measured on; null for a flat road. */
   elevation: {stepM: number; heightM: number[]} | null;
+  /** The map's lap length: the ruler of the height and bank profiles. */
   elevationLapM: number;
+  /** The track's curated bank (the map's `bank`), read on the same lap as the height; null for a road level across. */
+  bank: Bank | null;
 }
 
 interface Samples {
@@ -212,7 +216,7 @@ export function closedHeight(elev: ChaseElevation, ld: number, lapM: number): nu
 
 /** The centre line fitted from the field, or null when the field has no usable positions. */
 export function worldRoad(input: WorldRoadInput): ChaseRoad | null {
-  const {field, lapM, edges, elevation, elevationLapM} = input;
+  const {field, lapM, edges, elevation, elevationLapM, bank} = input;
   if (!field.hasPositions || !(lapM > 100)) return null;
   const s = centreSamples(field, lapM);
   if (s.ld.length < 1000) return null;
@@ -238,6 +242,8 @@ export function worldRoad(input: WorldRoadInput): ChaseRoad | null {
   const hl: number[] = [];
   const hr: number[] = [];
   const heightM: number[] = [];
+  const bankDeg: number[] = [];
+  const bankOk = bank !== null && bank.rollDeg.length > 3 && bank.stepM > 0 && elevationLapM > 0;
   const elev =
     elevation && elevation.heightM.length > 3 && elevation.stepM > 0 && elevationLapM > 0
       ? {stepM: elevation.stepM, heightM: elevation.heightM, lengthM: elevationLapM}
@@ -265,11 +271,12 @@ export function worldRoad(input: WorldRoadInput): ChaseRoad | null {
     hl.push(width(edges?.leftM, ld));
     hr.push(width(edges?.rightM, ld));
     if (elev) heightM.push(closedHeight(elev, ld, lapM));
+    if (bankOk) bankDeg.push(bankOnLap(bank, ld * (elevationLapM / lapM), elevationLapM));
   }
   let elevMin = 0;
   if (elev) {
     elevMin = Infinity;
     for (const h of elev.heightM) elevMin = Math.min(elevMin, h);
   }
-  return {stepM: step, lengthM: pathM, lapM, cx, cy, hl, hr, elev, heightM: elev ? heightM : null, elevMin};
+  return {stepM: step, lengthM: pathM, lapM, cx, cy, hl, hr, elev, heightM: elev ? heightM : null, elevMin, bankDeg: bankOk ? bankDeg : null};
 }

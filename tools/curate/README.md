@@ -22,6 +22,8 @@ node tools/curate/curate.mjs sessions --sim iracing --track iracing-127-full_cou
 node tools/curate/curate.mjs plan-replace <track> --session <id> [--allow-renumber]
 node tools/curate/curate.mjs plan-refold <track> --sessions <id,id>
 node tools/curate/curate.mjs plan-undo <track> [--to-rev N]
+node tools/curate/curate.mjs plan-elevation <track> --session <id> --capture <dir>   # height along the lap, from the capture's mPos_y
+node tools/curate/curate.mjs plan-bank <track> --session <id> --capture <dir>        # road bank along the lap, from the capture's mOri roll (the 3D road and cars)
 node tools/curate/curate.mjs history <track>
 ```
 

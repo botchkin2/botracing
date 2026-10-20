@@ -14,8 +14,8 @@ export function trackIdOk(id: unknown): id is string {
 // The shape of the map body (trackMapPayload). Bump it whenever the payload
 // gains or changes a field: a client holding the old body then misses on its
 // If-None-Match and downloads the new one, instead of a 304 for a body without
-// the field until a curator happens to write the track (2: `elevation`).
-export const MAP_PAYLOAD_V = 2;
+// the field until a curator happens to write the track (2: `elevation`, 3: `bank`).
+export const MAP_PAYLOAD_V = 3;
 
 // The map's validator: the payload's shape and the track doc's last write. The
 // map changes only when the curator writes the doc (corners, boundaries,
@@ -44,8 +44,9 @@ export function notModified(ifNoneMatch: unknown, etag: string): boolean {
 
 // The map a client draws from: the track doc's fields plus its outline. One
 // builder for the owner's and the shared route, so a field added here reaches
-// both. `elevation` is the curated height profile (stepM, heightM[]), null for
-// a track without one.
+// both. `elevation` is the curated height profile (stepM, heightM[]) and `bank`
+// the curated road roll across it (stepM, rollDeg[], degrees, + right side up);
+// each is null for a track without one.
 export function trackMapPayload(
   trackId: string,
   name: string | null,
@@ -65,6 +66,7 @@ export function trackMapPayload(
     georef: track.georef ?? null,
     attribution: track.outline?.attribution ?? null,
     elevation: track.elevation ?? null,
+    bank: track.bank ?? null,
     outline,
   };
 }

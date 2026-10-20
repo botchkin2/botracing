@@ -48,7 +48,7 @@ function field(cars: FieldCar[]): Field {
   return {version: 2, hz: HZ, hasPositions: true, startEtS: 0, timeS: Float64Array.from({length: n}, (_, u) => u / HZ), cars};
 }
 
-const base = {lapM: LAP, edges: null, elevation: null, elevationLapM: 0};
+const base = {lapM: LAP, edges: null, elevation: null, elevationLapM: 0, bank: null};
 
 describe('worldRoad', () => {
   const cars = [-4, -1.5, 0, 2, 5].map((lat, i) => drive(i, lat, 3, i * 37));
@@ -108,6 +108,22 @@ describe('worldRoad', () => {
     const withData = worldRoad({...base, field: field(cars), elevation: {stepM: LAP / 10, heightM: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9.4]}, elevationLapM: LAP})!;
     const h = withData.heightM!;
     expect(Math.abs(h[h.length - 1] - h[0])).toBeLessThan(0.05 + 0.4 * (withData.stepM / LAP) * 10);
+  });
+  it('reads the curated bank at each point of the lap, closed at the line, and is level without one', () => {
+    expect(road.bankDeg).toBeNull();
+    // a swing of 4 degrees once round, on a profile of 10 m steps over the map's lap (a little longer than the game's)
+    const map = LAP * 1.02;
+    const steps = Math.floor(map / 10);
+    const rollDeg = Array.from({length: steps + 1}, (_, i) => 4 * Math.sin((2 * Math.PI * i * 10) / map));
+    const banked = worldRoad({...base, field: field(cars), elevationLapM: map, bank: {stepM: 10, rollDeg}})!;
+    const b = banked.bankDeg!;
+    expect(b).toHaveLength(banked.cx.length);
+    expect(b[Math.floor(b.length * 0.25)]).toBeCloseTo(4, 1);
+    expect(b[Math.floor(b.length * 0.75)]).toBeCloseTo(-4, 1);
+    // closed at the line: the last point and the first differ by no more than one step of the swing
+    expect(Math.abs(b[b.length - 1] - b[0])).toBeLessThan(0.1);
+    // a profile too short to read is no profile
+    expect(worldRoad({...base, field: field(cars), elevationLapM: map, bank: {stepM: 10, rollDeg: [1, 2]}})!.bankDeg).toBeNull();
   });
   it('is null for a field with no positions or too few samples', () => {
     expect(worldRoad({...base, field: {...field(cars), hasPositions: false}})).toBeNull();
