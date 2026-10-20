@@ -13,6 +13,11 @@ describe('chase clock', () => {
     const c = followApp(playing, {timeS: 102.3, playing: true, rate: 4}, 500);
     expect(c).toBe(playing);
   });
+  it('keeps its own time when the 5 Hz app clock is a tick behind (0.2 s of wall time, 0.8 s of race at 4x)', () => {
+    // at 1000 ms the engine has run to 104; React's last tick was 0.2 s of wall time ago
+    const c = followApp(playing, {timeS: 103.2, playing: true, rate: 4}, 1000);
+    expect(c).toBe(playing);
+  });
   it('takes the app time on a seek, and whenever paused', () => {
     expect(followApp(playing, {timeS: 300, playing: true, rate: 4}, 500)).toEqual({timeS: 300, atMs: 500, playing: true, rate: 4});
     expect(followApp(playing, {timeS: 102, playing: false, rate: 4}, 500).timeS).toBe(102);

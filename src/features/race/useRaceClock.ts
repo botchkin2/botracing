@@ -12,11 +12,11 @@ export type RaceTimer = {
 };
 
 /**
- * Race time and playback. Each frame steps by the wall time since the last one
+ * Race time and playback. `tickHz` (> 0) hands React the clock that often instead of every frame. Each frame steps by the wall time since the last one
  * (an updater on the pending time, so a slow render never drops elapsed time:
  * the same lesson as Compare's playback, pit-wall thread 26).
  */
-export function useRaceClock(endS: number, startS = 0): RaceTimer {
+export function useRaceClock(endS: number, startS = 0, tickHz = 0): RaceTimer {
   const [timeS, setTimeS] = useState(startS);
   const [playing, setPlaying] = useState(false);
   const [rate, setRate] = useState<RaceRate>(1);
@@ -29,20 +29,25 @@ export function useRaceClock(endS: number, startS = 0): RaceTimer {
     if (!playing) return;
     let frame = 0;
     let last = performance.now();
+    // tickHz > 0: React sees the clock that often, not every frame (the 3D draws from its own clock, so a render per
+    // frame is cost with nothing to show; thread 94 #6473)
+    const everyMs = tickHz > 0 ? 1000 / tickHz : 0;
     const tick = () => {
       const now = performance.now();
-      const dtS = (now - last) / 1000;
-      last = now;
-      setTimeS(t => {
-        const step = stepClock(t, dtS, rateRef.current, endS);
-        if (step.ended) setPlaying(false);
-        return step.timeS;
-      });
+      if (now - last >= everyMs) {
+        const dtS = (now - last) / 1000;
+        last = now;
+        setTimeS(t => {
+          const step = stepClock(t, dtS, rateRef.current, endS, tickHz > 0 ? 2 / tickHz : undefined);
+          if (step.ended) setPlaying(false);
+          return step.timeS;
+        });
+      }
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [playing, endS]);
+  }, [playing, endS, tickHz]);
 
   const toggle = useCallback(() => {
     // Playing again from the end starts over.

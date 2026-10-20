@@ -2,8 +2,12 @@
 // from its last anchor and takes the app's time only when the two part (a seek, play or pause, a new rate), so a car
 // never stands still or steps (thread 93). Plain TypeScript, no imports.
 
-/** A gap larger than this (seconds of race time per unit of rate) between the two clocks is a seek. */
-export const SEEK_S = 0.25;
+/**
+ * A gap larger than this (seconds of race time per unit of rate) between the two clocks is a seek. React hands the app
+ * clock over at the field's 5 Hz in 3D (useRaceClock tickHz), so a late or early one is up to 0.2 s of wall time plus its
+ * render apart; a real seek is seconds.
+ */
+export const SEEK_S = 0.6;
 
 export interface ChaseClock {
   /** Race time at wall time `atMs`. */

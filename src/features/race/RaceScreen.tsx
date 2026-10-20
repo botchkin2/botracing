@@ -275,7 +275,9 @@ function RaceView({
   const [openAt] = useState(
     () => raceTimeFor(selection, data.laps, data.clock) ?? 0,
   );
-  const clock = useRaceClock(endS, openAt);
+  // in 3D React sees the clock at the field's own rate: the engine draws from its own clock every frame
+  const [mapMode, setMapMode] = useState<MapMode>(embed3d ? 'chase' : 'track');
+  const clock = useRaceClock(endS, openAt, mapMode === 'chase' && chaseAvailable ? prep.field.hz : 0);
   // Race writes the cursor back once the user has moved the clock and it has
   // rested; opening the screen never overwrites Compare's cursor.
   const touched = useRef(false);
@@ -316,7 +318,6 @@ function RaceView({
   // R1e: per view; the design's third mode (car number) needs numbers the
   // field upload does not carry.
   const [labels, setLabels] = useState<LabelMode>('pos');
-  const [mapMode, setMapMode] = useState<MapMode>(embed3d ? 'chase' : 'track');
   // Compare's Follow zoom, so the two chase views keep one setting. A stored
   // zoom outside the steps (a hand-edited or old save) reads as 1x.
   const prefs = useComparePrefs();
