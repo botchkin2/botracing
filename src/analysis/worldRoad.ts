@@ -6,7 +6,8 @@
 // Width: the surface's measured half-widths (frame-free). Height: the curated profile at the point's lap distance.
 // Plain TypeScript with erasable syntax only: Node can run it.
 
-import {DEFAULT_HALF_WIDTH_M, type ChaseRoad, roadHeight} from './chaseRoad.ts';
+import {DEFAULT_HALF_WIDTH_M, type ChaseElevation, type ChaseRoad} from './chaseRoad.ts';
+import {heightAt} from './elevation.ts';
 import type {Field} from './field.ts';
 
 /** The width of the fit's kernel, metres of lap distance. */
@@ -197,6 +198,18 @@ function medianGrid(s: Samples, lapM: number): {x: Float64Array; y: Float64Array
   return fillHoles(gx, gy, empty);
 }
 
+/**
+ * The curated height at lap distance `ld`, closed on itself: the profile's last point is not its first (a GPS height
+ * drifts a few decimetres over a lap), and the step at the line shows as a ramp in the road. The difference between the
+ * two ends is taken out evenly over the whole lap, so the height at the end of the lap is the height at its start.
+ */
+export function closedHeight(elev: ChaseElevation, ld: number, lapM: number): number {
+  const m = (((ld % lapM) + lapM) % lapM) * (elev.lengthM / lapM);
+  const last = elev.heightM.length - 1;
+  const seam = elev.heightM[last] - elev.heightM[0];
+  return heightAt(elev, Math.min(m, last * elev.stepM)) - seam * (m / elev.lengthM);
+}
+
 /** The centre line fitted from the field, or null when the field has no usable positions. */
 export function worldRoad(input: WorldRoadInput): ChaseRoad | null {
   const {field, lapM, edges, elevation, elevationLapM} = input;
@@ -251,7 +264,7 @@ export function worldRoad(input: WorldRoadInput): ChaseRoad | null {
     const ld = (g + t) * lapStep;
     hl.push(width(edges?.leftM, ld));
     hr.push(width(edges?.rightM, ld));
-    if (elev) heightM.push(roadHeight(elev, ld, lapM));
+    if (elev) heightM.push(closedHeight(elev, ld, lapM));
   }
   let elevMin = 0;
   if (elev) {

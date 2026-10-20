@@ -1,7 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import type {Field, FieldCar} from './field';
-import {WORLD_ROAD_STEP_M, worldRoad} from './worldRoad';
+import {closedHeight, WORLD_ROAD_STEP_M, worldRoad} from './worldRoad';
 
 // A circular track of 300 m radius, driven counter-clockwise (the outside is the right of travel) at 40 m/s, 5 Hz,
 // by cars on lines at known offsets from the centre. Every sample is a world x/z and its pathLateralM.
@@ -90,10 +90,24 @@ describe('worldRoad', () => {
     expect(withData.hl[10]).toBeCloseTo(6, 6);
     expect(withData.hr[10]).toBeCloseTo(9, 6);
     expect(withData.heightM).not.toBeNull();
-    // a quarter of the way round the lap the profile is at its second value
+    // a quarter of the way round the lap the profile is at its second value, 4, less a quarter of the seam (4 - 0)
     const q = Math.round(withData.cx.length / 4);
-    expect(withData.heightM![q]).toBeCloseTo(4, 0);
+    expect(withData.heightM![q]).toBeCloseTo(3, 0);
     expect(road.heightM).toBeNull();
+  });
+  it('closes the height on itself: the end of the lap is the start of the lap, to 5 cm', () => {
+    // a profile that ends 0.3 m above where it began (the drift of a GPS height over a lap)
+    const elev = {stepM: 10, heightM: Array.from({length: 11}, (_, i) => i * 0.3 + (i === 10 ? 0.3 : 0)), lengthM: 105};
+    const start = closedHeight(elev, 0, 105);
+    const justBefore = closedHeight(elev, 105 - 1e-6, 105);
+    expect(Math.abs(justBefore - start)).toBeLessThan(0.05);
+    // and no step on the way: neighbouring points a metre apart differ by far less than the seam
+    let worst = 0;
+    for (let ld = 0; ld < 104; ld += 1) worst = Math.max(worst, Math.abs(closedHeight(elev, ld + 1, 105) - closedHeight(elev, ld, 105)));
+    expect(worst).toBeLessThan(0.05 + 0.3 / 10 + 0.3 / 105);
+    const withData = worldRoad({...base, field: field(cars), elevation: {stepM: LAP / 10, heightM: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9.4]}, elevationLapM: LAP})!;
+    const h = withData.heightM!;
+    expect(Math.abs(h[h.length - 1] - h[0])).toBeLessThan(0.05 + 0.4 * (withData.stepM / LAP) * 10);
   });
   it('is null for a field with no positions or too few samples', () => {
     expect(worldRoad({...base, field: {...field(cars), hasPositions: false}})).toBeNull();
