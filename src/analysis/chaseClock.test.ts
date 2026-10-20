@@ -18,6 +18,12 @@ describe('chase clock', () => {
     const c = followApp(playing, {timeS: 103.2, playing: true, rate: 4}, 1000);
     expect(c).toBe(playing);
   });
+  it('at 16x a 5 s button step is a seek, not a glide (the threshold stops growing with the rate)', () => {
+    const fast: ChaseClock = {timeS: 100, atMs: 0, playing: true, rate: 16};
+    expect(followApp(fast, {timeS: 105, playing: true, rate: 16}, 0)).toEqual({timeS: 105, atMs: 0, playing: true, rate: 16});
+    // and the 5 Hz tick lag at 16x (0.2 s of wall time = 3.2 s of race) is not
+    expect(followApp(fast, {timeS: 100 - 3.2, playing: true, rate: 16}, 0)).toBe(fast);
+  });
   it('takes the app time on a seek, and whenever paused', () => {
     expect(followApp(playing, {timeS: 300, playing: true, rate: 4}, 500)).toEqual({timeS: 300, atMs: 500, playing: true, rate: 4});
     expect(followApp(playing, {timeS: 102, playing: false, rate: 4}, 500).timeS).toBe(102);
