@@ -121,6 +121,24 @@ describe('carsAt', () => {
     expect(carsAt(prepareRace(f), 0.5 / HZ, false)[0].lapDistM).toBeCloseTo(3985, 3);
   });
 
+  it('smooth: a car through a bend is on the curve between two 5 Hz samples, where the straight line cuts the corner', () => {
+    // 30 m radius at 30 m/s: 0.2 rad every update; half way between two samples the chord sags 0.15 m under the arc
+    const R = 30;
+    const f = field(12, [
+      car(0, 'GT3', 12, u => ({d: (u * 6) % 100, x: R * Math.cos(0.2 * u), z: R * Math.sin(0.2 * u)}), true),
+      car(1, 'GT3', 12, u => ({d: (u * 6) % 100, x: 100 + u, z: 0})),
+    ]);
+    const t = 5.5 / HZ;
+    const prep = prepareRace(f);
+    const arc = (c: {xM: number; zM: number}) => Math.abs(Math.hypot(c.xM, c.zM) - R);
+    const linear = carsAt(prep, t, false)[0];
+    const smooth = carsAt(prep, t, false, true)[0];
+    expect(arc(linear)).toBeGreaterThan(0.1);
+    expect(arc(smooth)).toBeLessThan(0.005);
+    // a straight stays straight
+    expect(carsAt(prep, t, false, true)[1].zM).toBeCloseTo(0, 6);
+  });
+
   it('gap and interval come from when each car passed the same progress', () => {
     // The leader drives 10 m per update. The second car is 20 m behind, the
     // third 50 m behind: they reach the leader's spot 2 and 5 updates later.

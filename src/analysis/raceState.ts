@@ -334,15 +334,42 @@ function lapBlend(a: number, b: number, f: number, lapM: number): number {
 }
 
 /**
+ * A cubic Hermite between two 5 Hz samples, the tangent at each the central difference of its neighbours, so a car
+ * curves through a bend instead of kinking every 0.2 s. Against the replay file's 50 Hz poses: position p99 0.14 m,
+ * yaw p99 0.85 degrees (thread 94, rumble's prototype). The ends, a car that has just appeared and a gap fall back to
+ * the one-sided slope.
+ */
+function hermite(a: Float32Array, times: Float64Array, lo: number, hi: number, f: number): number {
+  const n = a.length;
+  const h = times[hi] - times[lo];
+  const slope = (i: number, j: number) => (a[j] - a[i]) / (times[j] - times[i]);
+  const prev = lo > 0 && !Number.isNaN(a[lo - 1]) ? slope(lo - 1, hi) : slope(lo, hi);
+  const next = hi < n - 1 && !Number.isNaN(a[hi + 1]) ? slope(lo, hi + 1) : slope(lo, hi);
+  const f2 = f * f;
+  const f3 = f2 * f;
+  return (
+    (2 * f3 - 3 * f2 + 1) * a[lo] +
+    (f3 - 2 * f2 + f) * h * prev +
+    (-2 * f3 + 3 * f2) * a[hi] +
+    (f3 - f2) * h * next
+  );
+}
+
+/** A move between two samples this long is a placement (the pits, a rewind), not driving: never smoothed. */
+const SMOOTH_MAX_STEP_M = 40;
+
+/**
  * Every car that has been on the map by `timeS` (seconds from the first
  * update). `snap` uses the nearest update; otherwise positions and heading
  * interpolate between the two updates around `timeS`, and a car absent from
- * either one is not blended. Cars are in file order.
+ * either one is not blended. Cars are in file order. `smooth` takes position through a Hermite curve instead of a
+ * straight line.
  */
 export function carsAt(
   prep: RacePrep,
   timeS: number,
   snap: boolean,
+  smooth = false,
 ): RaceCar[] {
   const {field} = prep;
   const n = field.timeS.length;
@@ -365,8 +392,13 @@ export function carsAt(
     if (prep.firstSeen[i] > u) return;
     const blend =
       !snap && lo !== hi && !Number.isNaN(c.xM[lo]) && !Number.isNaN(c.xM[hi]);
+    const curved =
+      smooth &&
+      blend &&
+      Math.hypot(c.xM[hi] - c.xM[lo], c.zM[hi] - c.zM[lo]) < SMOOTH_MAX_STEP_M;
     const at = (a: Float32Array) =>
       blend ? a[lo] + (a[hi] - a[lo]) * f : a[u];
+    const atPos = (a: Float32Array) => (curved ? hermite(a, field.timeS, lo, hi, f) : at(a));
     let heading: number | null = null;
     if (c.yawRad && !Number.isNaN(c.yawRad[u])) {
       heading = blend
@@ -381,8 +413,8 @@ export function carsAt(
       vehicle: c.vehicle,
       player: c.player,
       // In the garage the last position is kept but never drawn.
-      xM: state === 'garage' ? lastKnown(c.xM, u) : at(c.xM),
-      zM: state === 'garage' ? lastKnown(c.zM, u) : at(c.zM),
+      xM: state === 'garage' ? lastKnown(c.xM, u) : atPos(c.xM),
+      zM: state === 'garage' ? lastKnown(c.zM, u) : atPos(c.zM),
       headingRad: state === 'garage' ? null : heading,
       lapDistM: state === 'garage' ? NaN : blend ? lapBlend(c.lapDistM[lo], c.lapDistM[hi], f, prep.trackM) : c.lapDistM[u],
       speedKmh: Number.isNaN(prep.speedKmh[i][u]) ? 0 : prep.speedKmh[i][u],

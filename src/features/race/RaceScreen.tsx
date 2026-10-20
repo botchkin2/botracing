@@ -390,7 +390,7 @@ function RaceView({
   const [columnW, setColumnW] = useState(0);
   const [mapBox, setMapBox] = useState({width: 0, height: 0});
   const mapW = desktop ? mapBox.width : layout.contentWidth;
-  const phone3d = !desktop && mapMode === 'chase' && chaseAvailable && data.matches && data.chase !== null;
+  const phone3d = !desktop && mapMode === 'chase' && chaseAvailable && data.chase !== null;
   const mapH = desktop
     ? mapBox.height
     : phone3d
@@ -473,16 +473,18 @@ function RaceView({
       })),
     [color, classes, labels],
   );
+  // the 3D draws the field's own x/z (not re-placed on the surface's line), smoothed through the 5 Hz samples
+  const chasePrep = data.chase?.prep ?? prep;
   const sample = useCallback<ChaseSampler>(
     (t, snapped) =>
-      toChase(markPitLane(carsAt(prep, snapped ? snapClock(t, prep.field.hz) : t, snapped), placer)),
-    [toChase, prep, placer],
+      toChase(markPitLane(carsAt(chasePrep, snapped ? snapClock(t, chasePrep.field.hz) : t, snapped, true), placer)),
+    [toChase, chasePrep, placer],
   );
   const chase = useMemo<RaceChase | null>(
     () =>
-      chaseOk && data.matches && data.chase
+      chaseOk && data.chase
         ? {
-            road: data.chase,
+            road: data.chase.road,
             cars: toChase(cars),
             sample,
             timeS: shownS,
@@ -497,7 +499,7 @@ function RaceView({
             onCycleRate: () => clock.setRate(nextRate(clock.rate)),
           }
         : null,
-    [data.matches, data.chase, cars, toChase, sample, focus, clock.playing, clock.rate, inputs, shownS, startS, chaseGaps, chaseOk],
+    [data.chase, cars, toChase, sample, focus, clock.playing, clock.rate, inputs, shownS, startS, chaseGaps, chaseOk],
   );
   const toggleFocus = useCallback(
     (index: number) => setFocus(f => (f === index ? null : index)),
