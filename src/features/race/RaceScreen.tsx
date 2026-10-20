@@ -32,6 +32,7 @@ import {
 
 import {nextRate, raceClockLabel, snapClock, stepBy} from './clock';
 import {carLapsView} from './carLapsView';
+import {chaseAvailable} from './components/ChaseView';
 import {Leaderboard} from './components/Leaderboard';
 import {gapSeconds} from '@/src/analysis/chaseHud';
 import {type ChaseCar, type ChaseGaps, type ChaseNow, type ChaseRibbon, type ChaseSampler} from '@/src/features/race/chase/chaseTypes';
@@ -64,6 +65,12 @@ import {type RaceData, useRaceData} from './useRaceData';
 
 // Handoff R1a: map 358 x 260 on the phone, R1b: 1020 x 520 in a 1060 column.
 const PHONE_MAP_H = 260;
+/** The 3D view on a phone: this share of the screen's height, within these bounds. */
+const PHONE_3D_SHARE = 0.58;
+/** Under the mode and label rows (two 32 pt controls) in the map's top-left corner. */
+const CHIP_UNDER_CONTROLS_M = space.sm + 32 + space.xs + 32 + space.sm;
+const PHONE_3D_MIN_H = 360;
+const PHONE_3D_MAX_H = 560;
 // R1a / R1b: the radar inset over the map, top right.
 const RADAR_PHONE = {width: 72, height: 108};
 const RADAR_DESKTOP = {width: 150, height: 226};
@@ -383,7 +390,12 @@ function RaceView({
   const [columnW, setColumnW] = useState(0);
   const [mapBox, setMapBox] = useState({width: 0, height: 0});
   const mapW = desktop ? mapBox.width : layout.contentWidth;
-  const mapH = desktop ? mapBox.height : PHONE_MAP_H;
+  const phone3d = !desktop && mapMode === 'chase' && chaseAvailable && data.matches && data.chase !== null;
+  const mapH = desktop
+    ? mapBox.height
+    : phone3d
+    ? Math.round(Math.min(PHONE_3D_MAX_H, Math.max(PHONE_3D_MIN_H, layout.height * PHONE_3D_SHARE)))
+    : PHONE_MAP_H;
   // Follow chases the focused car, else you; a file without headings (before
   // v2) or a car off the map has nothing to chase, so the switch is hidden.
   const chased = data.matches ? followCar(cars, focus) : null;
@@ -402,8 +414,8 @@ function RaceView({
     };
   }, [chased, focus, placer, outlineUse, line, mapZoom]);
   // The player's own inputs for the lap in view (the stored field has none): the lap's trace, loaded only while the 3D chase is open.
-  // 3D is a desktop view; the phone keeps the 2D Follow map.
-  const chaseOk = layout.isDesktop;
+  // 3D runs wherever the platform has it: the web at any width, the phone included (native has none yet).
+  const chaseOk = chaseAvailable;
   const place = mapMode === 'chase' && chaseOk ? data.clock.playerAt(shownS) : null;
   const lapId = place ? data.laps.find(l => l.lapNumber === place.lapNumber)?.id ?? null : null;
   const [held, setHeld] = useState<GridTrace | null>(null);
@@ -547,6 +559,8 @@ function RaceView({
           onPress={() => setFocus(null)}
           style={[
             styles.chip,
+            // in 3D the bottom edge is the camera chips: the focus sits under the two control rows instead
+            phone3d && {top: CHIP_UNDER_CONTROLS_M, bottom: undefined},
             {borderColor: color.accent, backgroundColor: color.surfaceRaised},
           ]}>
           <Text

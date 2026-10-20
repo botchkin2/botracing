@@ -5,7 +5,7 @@ import Svg, {Circle, G, Path} from 'react-native-svg';
 
 import {altitudeLabel, chaseHudNumbers, elevationWindow, type ElevationWindow, gearLabel, gradeLabel} from '@/src/analysis/chaseHud';
 import type {ChaseRoad} from '@/src/analysis/chaseRoad';
-import {radius, space, useTheme} from '@/src/design';
+import {radius, size, space, useTheme} from '@/src/design';
 import {formatGap} from '@/src/design/format';
 import {Pressable, Segment, Text} from '@/src/ui';
 
@@ -24,6 +24,8 @@ const CAMS = [
 ] as const;
 type CamValue = '1' | '2' | '3' | '4';
 
+/** Narrower than this is a phone: the layout stacks and the targets grow. */
+const PHONE_MAX_W = 520;
 const BEHIND_M = 100;
 const AHEAD_M = 500;
 
@@ -198,7 +200,11 @@ function ChaseSurface({
     () => (me && Number.isFinite(me.lapDistM) ? elevationWindow(road, me.lapDistM, BEHIND_M, AHEAD_M, 48) : null),
     [road, me],
   );
-  const roomy = (full ? (typeof window === 'undefined' ? width : window.innerWidth) : width) >= 760;
+  const shownW = full ? (typeof window === 'undefined' ? width : window.innerWidth) : width;
+  const roomy = shownW >= 760;
+  // A phone: the tools are 44 pt targets and the numbers strip sits above them, across the width.
+  const tight = shownW < PHONE_MAX_W;
+  const toolStyle = [styles.tool, tight && styles.toolTight, {borderColor: color.lineStrong, backgroundColor: color.surface}];
 
   return (
     <View
@@ -217,18 +223,18 @@ function ChaseSurface({
           <Pressable
             accessibilityLabel='Reload the page'
             onPress={() => window.location.reload()}
-            style={[styles.tool, {borderColor: color.lineStrong, backgroundColor: color.surface}]}>
+            style={toolStyle}>
             <Text variant='dataSmall'>Reload</Text>
           </Pressable>
         </View>
       ) : null}
-      <View style={styles.cams}>
+      <View style={[styles.cams, tight && styles.camsTight]}>
         <Segment options={CAMS} value={cam} onChange={setCam} />
         {full ? (
           <Pressable
             accessibilityLabel={playing ? 'Pause' : 'Play'}
             onPress={onToggle}
-            style={[styles.tool, {borderColor: color.lineStrong, backgroundColor: color.surface}]}>
+            style={toolStyle}>
             <Text variant='dataStrong'>{playing ? '❚❚' : '▶'}</Text>
             <Text variant='dataSmall' tone='textMuted'>
               {clockLabel}
@@ -242,14 +248,14 @@ function ChaseSurface({
                 key={d}
                 accessibilityLabel={`${d > 0 ? 'Forward' : 'Back'} 30 seconds`}
                 onPress={() => onStep(d)}
-                style={[styles.tool, {borderColor: color.lineStrong, backgroundColor: color.surface}]}>
+                style={toolStyle}>
                 <Text variant='dataSmall'>{d > 0 ? '+30 s' : '−30 s'}</Text>
               </Pressable>
             ))}
             <Pressable
               accessibilityLabel='Playback rate, tap for the next'
               onPress={onCycleRate}
-              style={[styles.tool, {borderColor: color.lineStrong, backgroundColor: color.surface}]}>
+              style={toolStyle}>
               <Text variant='dataSmall'>{`${rate}×`}</Text>
             </Pressable>
           </>
@@ -257,14 +263,14 @@ function ChaseSurface({
         <Pressable
           accessibilityLabel={full ? 'Close full screen' : 'Full screen'}
           onPress={() => setFull(!full)}
-          style={[styles.tool, {borderColor: color.lineStrong, backgroundColor: color.surface}]}>
+          style={toolStyle}>
           <Text variant='dataStrong'>{full ? '×' : '⤢'}</Text>
         </Pressable>
       </View>
       {me ? (
         <View
           pointerEvents='none'
-          style={[styles.strip, {backgroundColor: color.surface, borderColor: color.lineStrong}]}>
+          style={[styles.strip, tight && styles.stripTight, tight && {bottom: space.sm + (full ? 2 : 1) * (size.hit + space.xs)}, {backgroundColor: color.surface, borderColor: color.lineStrong}]}>
           {gaps ? (
             <View style={styles.cell}>
               <Text variant='dataStrong'>{`${gaps.classTag} P${gaps.classPlace}`}</Text>
@@ -361,6 +367,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.xs,
   },
+  camsTight: {right: space.sm, flexWrap: 'wrap'},
   tool: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -370,6 +377,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.sm,
     minHeight: 28,
   },
+  toolTight: {minHeight: size.hit, minWidth: size.hit, justifyContent: 'center'},
   // One flat strip on the bottom edge: numerals in mono, nothing in the middle of the view.
   strip: {
     position: 'absolute',
@@ -384,6 +392,7 @@ const styles = StyleSheet.create({
     minHeight: 32,
     maxWidth: '62%',
   },
+  stripTight: {left: space.sm, maxWidth: undefined, justifyContent: 'space-between'},
   cell: {flexDirection: 'row', alignItems: 'baseline', gap: space.xs},
   pedals: {flexDirection: 'row', gap: 3, height: 22},
   pedal: {width: 6, borderRadius: 1, overflow: 'hidden'},
