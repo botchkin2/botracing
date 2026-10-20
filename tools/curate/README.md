@@ -7,7 +7,9 @@ Track data (the corner map, its boundaries, the surface and outline) is curated 
 - `apply.mjs`: `applyPlan(backend, plan, {reason, by})`. Needs `--reason`, refuses a refused plan, and does everything in the backend's one atomic `commit`: checks the track's `catalogRev` equals the one the plan saw (else "the track changed since this plan"), creates the history document (append-only), patches **only the curated fields** of the track doc, sets or deletes the boundaries doc. A versioned-catalog-file hook runs after the commit.
 - `fixture.mjs`: an in-memory catalog with the same `commit` semantics, for the tests.
 
-`catalogRev` is on the track doc (0 or absent for what exists before curation). The trays' stamp (`tools/sessions/catalogStamp.mjs`) appends `:r<catalogRev>` only when it is above 0, so every stamp recorded earlier stays valid, and a curated change that moves no boundary still changes it.
+`catalogRev` is on the track doc (0 or absent for what exists before curation). The trays' stamp (`tools/sessions/catalogStamp.mjs`) appends `:r<analysisRev>` (the `catalogRev` of the last change an analysis can see; absent means `catalogRev`) only when it is above 0, so every stamp recorded earlier stays valid, and a curated change that moves no boundary still changes it.
+
+**Display-only plans** (`elevation`, `bank`: `DISPLAY_ONLY_KINDS` in `plan.mjs`) write a field only the app draws. They bump `catalogRev` (the history and the stale-plan check) but keep `analysisRev`, so the stamp does not move and no session on the track is re-analysed; the dry run says so. Every other plan, and every undo, sets `analysisRev` to its own rev. The claim that analysis never reads `.elevation` or `.bank` is a test (`displayOnly.test.mjs` scans the analysis sources).
 
 History: `trackHistory/{trackId}__{rev}` holds the state that was replaced (the curated fields and the boundaries doc), the reason, who, when, and a one-line summary. Undo restores a snapshot **as a new rev**; history is never rewritten.
 
