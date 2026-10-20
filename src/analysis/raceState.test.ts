@@ -108,6 +108,19 @@ describe('carsAt', () => {
     expect(cars[0].player).toBe(true);
   });
 
+  it('interpolates lap distance round the start/finish line, not through the middle of the lap', () => {
+    // Car 0 crosses the line between updates 1 and 2 (3990 -> 0 at 10 m a step is 3990, 0, 10);
+    // car 1 wraps too so the lap length is the real 4000 m.
+    const f = field(6, [
+      car(0, 'GT3', 6, u => ({d: (3980 + u * 10) % 4000, place: 1}), true),
+      car(1, 'GT3', 6, u => ({d: (3900 + u * 200) % 4000, place: 2})),
+    ]);
+    const mid = carsAt(prepareRace(f), 1.5 / HZ, false)[0].lapDistM;
+    expect(mid).toBeCloseTo(3995, 3); // half way from 3990 to 4000 (0): was 1995
+    expect(carsAt(prepareRace(f), 2.5 / HZ, false)[0].lapDistM).toBeCloseTo(5, 3);
+    expect(carsAt(prepareRace(f), 0.5 / HZ, false)[0].lapDistM).toBeCloseTo(3985, 3);
+  });
+
   it('gap and interval come from when each car passed the same progress', () => {
     // The leader drives 10 m per update. The second car is 20 m behind, the
     // third 50 m behind: they reach the leader's spot 2 and 5 updates later.

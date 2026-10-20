@@ -325,6 +325,14 @@ function timeAtProgress(
 
 const wrapPi = (a: number) => a - 2 * Math.PI * Math.round(a / (2 * Math.PI));
 
+/** Lap distance `f` of the way from `a` to `b` on a lap of `lapM`: across the start/finish line it goes through the line, not the middle of the lap. */
+function lapBlend(a: number, b: number, f: number, lapM: number): number {
+  if (!(lapM > 0)) return a + (b - a) * f;
+  const gap = b - a - lapM * Math.round((b - a) / lapM);
+  const d = a + gap * f;
+  return d - lapM * Math.floor(d / lapM);
+}
+
 /**
  * Every car that has been on the map by `timeS` (seconds from the first
  * update). `snap` uses the nearest update; otherwise positions and heading
@@ -376,7 +384,7 @@ export function carsAt(
       xM: state === 'garage' ? lastKnown(c.xM, u) : at(c.xM),
       zM: state === 'garage' ? lastKnown(c.zM, u) : at(c.zM),
       headingRad: state === 'garage' ? null : heading,
-      lapDistM: state === 'garage' ? NaN : at(c.lapDistM),
+      lapDistM: state === 'garage' ? NaN : blend ? lapBlend(c.lapDistM[lo], c.lapDistM[hi], f, prep.trackM) : c.lapDistM[u],
       speedKmh: Number.isNaN(prep.speedKmh[i][u]) ? 0 : prep.speedKmh[i][u],
       state,
       place: c.place[u],
