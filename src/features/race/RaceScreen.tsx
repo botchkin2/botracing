@@ -36,6 +36,7 @@ import {carLapsView} from './carLapsView';
 import {chaseAvailable} from './components/ChaseView';
 import {Leaderboard} from './components/Leaderboard';
 import {gapSeconds} from '@/src/analysis/chaseHud';
+import {type TowerCar} from '@/src/features/race/chase/towerRows';
 import {type ChaseCar, type ChaseGaps, type ChaseNow, type ChaseRibbon, type ChaseSampler} from '@/src/features/race/chase/chaseTypes';
 import {RaceLegend} from './components/RaceLegend';
 import {
@@ -51,6 +52,7 @@ import {
   buildRaceModel,
   type ClassFilter,
   defaultFilter,
+  displayModel,
   roadSummaryText,
 } from './model';
 import {
@@ -492,6 +494,20 @@ function RaceView({
     },
     [toChase, world, prep, placer],
   );
+  const tower = useMemo<TowerCar[]>(
+    () =>
+      cars.map(c => ({
+        index: c.index,
+        place: c.place,
+        classKey: c.classKey,
+        color: classColor(color, classes.of(c.classKey).slot),
+        model: displayModel(c.vehicle),
+        lapDistM: c.lapDistM,
+        gapS: c.gapS,
+        inGarage: c.state === 'garage',
+      })),
+    [cars, color, classes],
+  );
   const chase = useMemo<RaceChase | null>(
     () =>
       chaseOk && data.chase
@@ -505,13 +521,15 @@ function RaceView({
             rate: clock.rate,
             inputs,
             gaps: chaseGaps,
+            tower,
+            trackM: prep.trackM,
             clockLabel: raceClockLabel(shownS, startS),
             onToggle: clock.toggle,
             onStep: (d: number) => clock.setTimeS(stepBy(clock.timeS, d, endS)),
             onCycleRate: () => clock.setRate(nextRate(clock.rate)),
           }
         : null,
-    [data.chase, cars, toChase, sample, focus, clock.playing, clock.rate, inputs, shownS, startS, chaseGaps, chaseOk],
+    [data.chase, cars, toChase, sample, focus, clock.playing, clock.rate, inputs, shownS, startS, chaseGaps, tower, prep.trackM, chaseOk],
   );
   const toggleFocus = useCallback(
     (index: number) => setFocus(f => (f === index ? null : index)),

@@ -8,7 +8,10 @@ import {radius, size, space, useTheme} from '@/src/design';
 import {formatGap} from '@/src/design/format';
 import {Pressable, Segment, Text} from '@/src/ui';
 
+import {ChaseTower} from '@/src/features/race/components/ChaseTower';
 import {DriverInputs} from '@/src/features/race/components/DriverInputs';
+import {type TowerMode, type TowerRow, towerRows} from '@/src/features/race/chase/towerRows';
+import type {TowerCar} from '@/src/features/race/chase/towerRows';
 import type {ChaseCamMode, ChaseCar, ChaseEngine, ChaseGaps, ChaseInputs, ChaseSampler} from '@/src/features/race/chase/chaseTypes';
 
 // The 3D chase view, drawn as an instrument. Web only: the engine and three.js load on first use (a lazy import), so
@@ -26,6 +29,9 @@ type CamValue = '1' | '2' | '3' | '4';
 
 /** Narrower than this is a phone: the layout stacks and the targets grow. */
 const PHONE_MAX_W = 520;
+/** Rows in the tower, on a desktop and on a phone (44 pt rows). */
+const TOWER_ROWS = 9;
+const TOWER_ROWS_TIGHT = 3;
 
 type ChaseProps = {
   width: number;
@@ -39,6 +45,8 @@ type ChaseProps = {
   rate: number;
   inputs: ChaseInputs | null;
   gaps: ChaseGaps | null;
+  tower: TowerCar[];
+  trackM: number;
   clockLabel: string;
   onToggle: () => void;
   onStep: (deltaS: number) => void;
@@ -148,6 +156,8 @@ function ChaseSurface({
   rate,
   inputs,
   gaps,
+  tower: towerCars,
+  trackM,
   clockLabel,
   onToggle,
   onStep,
@@ -197,6 +207,14 @@ function ChaseSurface({
   const shownW = full ? (typeof window === 'undefined' ? width : window.innerWidth) : width;
   // A phone: the tools are 44 pt targets and the numbers strip sits above them, across the width.
   const tight = shownW < PHONE_MAX_W;
+  const [towerShown, setTowerShown] = useState<boolean | null>(null);
+  const [towerMode, setTowerMode] = useState<TowerMode>('order');
+  // Open on a desktop, folded on a phone until asked for.
+  const towerOpen = towerShown ?? !tight;
+  const tower = useMemo<TowerRow[]>(
+    () => (towerOpen ? towerRows(towerCars, focus ?? me?.index ?? null, towerMode, tight ? TOWER_ROWS_TIGHT : TOWER_ROWS, trackM) : []),
+    [towerOpen, towerCars, focus, me, towerMode, tight, trackM],
+  );
   const toolStyle = [styles.tool, tight && styles.toolTight, {borderColor: color.lineStrong, backgroundColor: color.surface}];
 
   return (
@@ -254,12 +272,32 @@ function ChaseSurface({
           </>
         ) : null}
         <Pressable
+          accessibilityLabel={towerOpen ? 'Hide the tower' : 'Show the tower'}
+          accessibilityState={{selected: towerOpen}}
+          onPress={() => setTowerShown(!towerOpen)}
+          style={toolStyle}>
+          <Text variant='dataStrong'>☰</Text>
+        </Pressable>
+        <Pressable
           accessibilityLabel={full ? 'Close full screen' : 'Full screen'}
           onPress={() => setFull(!full)}
           style={toolStyle}>
           <Text variant='dataStrong'>{full ? '×' : '⤢'}</Text>
         </Pressable>
       </View>
+      {tower.length > 0 ? (
+        <View style={[styles.tower, tight && {top: size.chaseTowerTopTight}]}>
+          <ChaseTower
+            rows={tower}
+            mode={towerMode}
+            onMode={setTowerMode}
+            onPick={i => {
+              if (i !== me?.index) onPressCar(i);
+            }}
+            tight={tight}
+          />
+        </View>
+      ) : null}
       {me ? (
         <View
           pointerEvents='none'
@@ -325,6 +363,7 @@ const styles = StyleSheet.create({
   },
   toolTight: {minHeight: size.hit, minWidth: size.hit, justifyContent: 'center'},
   // One flat strip on the bottom edge: numerals in mono, nothing in the middle of the view.
+  tower: {position: 'absolute', right: space.sm, top: space.sm},
   dock: {position: 'absolute', right: space.sm, bottom: space.sm, alignItems: 'flex-end', gap: space.xs, maxWidth: '62%'},
   dockTight: {left: space.sm, maxWidth: '100%'},
   strip: {
