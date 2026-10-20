@@ -1,11 +1,13 @@
 // The road as an instrument: the measured width as a lit fill (so its slopes shade), thin edges, a cross rung every
 // bin so the surface's rise and fall reads, the start line, and a faint grid on a flat datum below the lowest point of
-// the lap as the ground to read height and speed against. No scenery.
+// the lap as the ground to read height and speed against, and posts and ground ticks beside the road (roadSide.ts) to read
+// speed and a car's angle against. No scenery beyond that.
 
 import * as THREE from 'three';
 import type {ChaseRoad} from '@/src/analysis/chaseRoad';
 import type {RoadIndex} from '@/src/analysis/chaseRoadIndex';
 import type {ChaseTheme} from '@/src/features/race/chase/chaseTypes';
+import {buildRoadSide} from './roadSide';
 
 type Point = {x: number; y: number; z: number};
 type At = (row: number, col: number, out: Point) => void;
@@ -15,6 +17,8 @@ const START_LINE_DEPTH_M = 1.2;
 const RUNG_EVERY_M = 10;
 const GRID_M = 50;
 const GRID_MARGIN_M = 400;
+/** The ground runs this far past the lap's extent: past the fog's far plane, so its edge is never seen. */
+const GROUND_REACH_M = 1800;
 /** The datum sits this far under the lowest point of the road. */
 const DATUM_BELOW_M = 3;
 
@@ -102,6 +106,7 @@ export function buildRoadScene(road: ChaseRoad, ix: RoadIndex, T: ChaseTheme): T
   for (let i = 0; i < n; i++) lowest = Math.min(lowest, ix.height[i]);
   const datum = lowest - DATUM_BELOW_M;
   group.add(datumGrid(road, datum, T.grid));
+  group.add(ground(road, datum, T.fill));
   // the start line, flat on the road
   group.add(
     ribbon(
@@ -118,6 +123,7 @@ export function buildRoadScene(road: ChaseRoad, ix: RoadIndex, T: ChaseTheme): T
       1,
     ),
   );
+  group.add(buildRoadSide(road, ix, T));
   return group;
 }
 
@@ -125,6 +131,28 @@ function lines(pos: number[], color: string): THREE.LineSegments {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   return new THREE.LineSegments(g, new THREE.LineBasicMaterial({color: new THREE.Color(color)}));
+}
+
+/** The ground to the horizon: a flat plane on the datum under the grid, so the world ends in a horizon line and not in black. */
+function ground(road: ChaseRoad, datum: number, color: string): THREE.Mesh {
+  let x0 = Infinity;
+  let x1 = -Infinity;
+  let y0 = Infinity;
+  let y1 = -Infinity;
+  for (let i = 0; i < road.cx.length; i++) {
+    x0 = Math.min(x0, road.cx[i]);
+    x1 = Math.max(x1, road.cx[i]);
+    y0 = Math.min(y0, road.cy[i]);
+    y1 = Math.max(y1, road.cy[i]);
+  }
+  const reach = GROUND_REACH_M;
+  const plane = new THREE.Mesh(
+    new THREE.PlaneGeometry(x1 - x0 + 2 * reach, y1 - y0 + 2 * reach),
+    new THREE.MeshBasicMaterial({color: new THREE.Color(color), fog: true}),
+  );
+  plane.rotation.x = -Math.PI / 2;
+  plane.position.set((x0 + x1) / 2, datum - 0.05, -(y0 + y1) / 2);
+  return plane;
 }
 
 /** A square grid on the datum, GRID_M apart, over the lap's extent and a margin, on whole multiples so it never shifts. */
