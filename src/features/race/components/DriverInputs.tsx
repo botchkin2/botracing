@@ -3,6 +3,8 @@ import Svg, {Circle, G, Path} from 'react-native-svg';
 
 import {radius, size, space, useTheme} from '@/src/design';
 
+import {throttleState} from '@/src/features/race/chase/inputState';
+
 // The followed player's own inputs on the 3D view, as large as the view can spare: brake and throttle bars as tall as
 // the steering wheel is wide. A full lock reads about 210 degrees.
 export function DriverInputs({
@@ -18,13 +20,15 @@ export function DriverInputs({
 }) {
   const {color} = useTheme();
   const wheel = tight ? size.chaseWheelTight : size.chaseWheel;
+  // the road ribbon's colours: full throttle green, part throttle accent, brake red
+  const throttleFill = {full: color.faster, part: color.accent, coast: color.textMuted}[throttleState(throttlePct)];
   const pedalW = tight ? size.chasePedalWTight : size.chasePedalW;
   return (
     <View
       pointerEvents='none'
       style={[styles.box, {backgroundColor: color.surface, borderColor: color.lineStrong}]}>
       <Pedal value={brakePct} fill={color.slower} track={color.median} width={pedalW} height={wheel} />
-      <Pedal value={throttlePct} fill={color.faster} track={color.median} width={pedalW} height={wheel} />
+      <Pedal value={throttlePct} fill={throttleFill} track={color.median} width={pedalW} height={wheel} />
       <Wheel pct={steeringPct} px={wheel} ink={color.text} mark={color.accent} ring={color.lineStrong} />
     </View>
   );
