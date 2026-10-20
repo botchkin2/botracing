@@ -234,8 +234,9 @@ impl<S: Source> Recorder<S> {
         self.key = None;
     }
 
-    /// The capture is dropped. A sanity refusal removes its folder; a write
-    /// error keeps the chunks already on disk (meta.json then has no endUtc).
+    /// The capture is dropped on a write error (a full disk): the chunks already
+    /// on disk stay (meta.json then has no endUtc). A layout that looks wrong is
+    /// not a refusal: it is recorded and marked (`layoutSuspect`).
     fn refuse(&mut self, now: u64, key: Option<(String, i32)>, reason: &str) {
         self.capture = None;
         self.key = None;
@@ -248,18 +249,6 @@ impl<S: Source> Recorder<S> {
             s.layout_reason = reason;
             s.session_dir = None;
         });
-    }
-
-    fn refuse_and_remove(&mut self, now: u64, key: Option<(String, i32)>, reason: &str) {
-        if let Some(capture) = self.capture.take() {
-            self.status.capture_bytes = self.status.capture_bytes.saturating_sub(capture.bytes);
-            let dir = capture.dir.clone();
-            // Dropped first: that waits for its writer thread, which may still be
-            // writing a chunk into the folder.
-            drop(capture);
-            let _ = std::fs::remove_dir_all(&dir);
-        }
-        self.refuse(now, key, reason);
     }
 
     // The loop -------------------------------------------------------------
@@ -405,16 +394,19 @@ impl<S: Source> Recorder<S> {
             {
                 return;
             }
-            if let Err(reason) = sanity::check_scoring(&self.layout, &self.probe, &info, &vehicles, n) {
-                self.refuse_and_remove(now, Some(key), &reason);
-                return;
-            }
+            // A layout that looks wrong is recorded and marked, never dropped:
+            // the drive stays on disk for a fix to re-read, and the tray uses
+            // nothing from a marked capture (pit wall thread 95).
+            let doubt = sanity::check_scoring(&self.layout, &self.probe, &info, &vehicles, n).err();
             self.refused_key = None;
             self.set(now, |s| {
-                s.layout_ok = Some(true);
-                s.layout_reason = String::new();
+                s.layout_ok = Some(doubt.is_none());
+                s.layout_reason = doubt.clone().unwrap_or_default();
             });
             self.open_capture(now, &info, key);
+            if let (Some(reason), Some(capture)) = (doubt, self.capture.as_mut()) {
+                capture.mark_layout_suspect(&reason);
+            }
         }
         let Some(capture) = self.capture.as_mut() else { return };
         capture.add_scoring(&info, &vehicles, n, et, now);
@@ -472,9 +464,13 @@ impl<S: Source> Recorder<S> {
                 Verdict::Wait => {}
                 Verdict::Bad(reason) => {
                     self.player_ok = Some(false);
-                    let key = self.key.clone();
-                    self.refuse_and_remove(now, key, &reason);
-                    return;
+                    if let Some(capture) = self.capture.as_mut() {
+                        capture.mark_layout_suspect(&reason);
+                    }
+                    self.set(now, |s| {
+                        s.layout_ok = Some(false);
+                        s.layout_reason = reason.clone();
+                    });
                 }
             }
         }
@@ -815,16 +811,18 @@ mod tests {
     }
 
     #[test]
-    fn a_layout_that_reads_garbage_is_refused_and_leaves_no_folder() {
+    fn a_layout_that_reads_garbage_is_recorded_and_marked_never_dropped() {
         let (rig, mut rec) = Rig::new("refuse");
         rig.field("Road Atlanta", 10, 5.0);
         // A control byte where a car name should be.
         rig.put(rig.vehicle(0, "mVehicleName"), &[1, 2, 3, 0]);
         rec.tick(1_000);
-        assert_eq!(rec.status.state, "refused");
+        assert_eq!(rec.status.state, "recording");
         assert_eq!(rec.status.layout_ok, Some(false));
         assert!(rec.status.layout_reason.contains("car names are not text"), "{}", rec.status.layout_reason);
-        assert!(rig.folders().is_empty());
+        let folders = rig.folders();
+        assert_eq!(folders.len(), 1);
+        assert!(rig.meta(&folders[0])["layoutSuspect"].as_str().unwrap().contains("not text"));
     }
 
     /// A field of `n` named cars, car i's lap distance `dist(i)`.
@@ -860,13 +858,26 @@ mod tests {
     }
 
     #[test]
-    fn a_wrong_layout_garbles_every_lap_distance_and_is_refused() {
+    fn a_wrong_layout_garbles_every_lap_distance_and_is_marked_not_dropped() {
         let (rig, mut rec) = Rig::new("pitdistall");
         field_with_dists(&rig, 8, |_| -5.0e9);
         rec.tick(1_000);
-        assert_eq!(rec.status.state, "refused");
+        assert_eq!(rec.status.state, "recording");
+        assert_eq!(rec.status.layout_ok, Some(false));
         assert!(rec.status.layout_reason.contains("lap distance"), "{}", rec.status.layout_reason);
-        assert!(rig.folders().is_empty());
+        let folders = rig.folders();
+        assert_eq!(folders.len(), 1);
+        assert!(rig.meta(&folders[0]).get("layoutSuspect").is_some());
+    }
+
+    #[test]
+    fn a_good_layout_is_not_marked() {
+        let (rig, mut rec) = Rig::new("pitdistgood");
+        field_with_dists(&rig, 8, |i| 100.0 * i as f64);
+        rig.player("Sebring International Raceway", 5.0);
+        rec.tick(1_000);
+        assert_eq!(rec.status.layout_ok, Some(true));
+        assert!(rig.meta(&rig.folders()[0]).get("layoutSuspect").is_none());
     }
 
     #[test]

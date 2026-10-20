@@ -263,6 +263,13 @@ impl Capture {
         write_json(&self.dir.join("meta.json"), &Value::Object(self.meta.clone()))
     }
 
+    /// The layout check did not like what it read. The capture is kept (a
+    /// layout fix can re-read it) but nothing uses it: tools/sessions skips a
+    /// capture with this mark.
+    pub fn mark_layout_suspect(&mut self, reason: &str) {
+        self.meta.entry("layoutSuspect").or_insert_with(|| json!(reason));
+    }
+
     pub fn note_suspect(&mut self) {
         let n = self.meta.get("suspectFrames").and_then(Value::as_u64).unwrap_or(0);
         self.meta.insert("suspectFrames".into(), json!(n + 1));
