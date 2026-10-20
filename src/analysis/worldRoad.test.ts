@@ -1,7 +1,8 @@
 import {describe, expect, it} from '@jest/globals';
 
 import type {Field, FieldCar} from './field';
-import {closedHeight, WORLD_ROAD_STEP_M, worldRoad} from './worldRoad';
+import {runSliced} from './steps';
+import {closedHeight, WORLD_ROAD_STEP_M, worldRoad, worldRoadSteps} from './worldRoad';
 
 // A circular track of 300 m radius, driven counter-clockwise (the outside is the right of travel) at 40 m/s, 5 Hz,
 // by cars on lines at known offsets from the centre. Every sample is a world x/z and its pathLateralM.
@@ -112,5 +113,22 @@ describe('worldRoad', () => {
   it('is null for a field with no positions or too few samples', () => {
     expect(worldRoad({...base, field: {...field(cars), hasPositions: false}})).toBeNull();
     expect(worldRoad({...base, field: field([drive(0, 0, 0.05, 0)])})).toBeNull();
+  });
+});
+
+describe('worldRoadSteps', () => {
+  it('driven in slices gives the road the one-go fit gives, bit for bit', async () => {
+    const cars = [-4, -1.5, 0, 2, 5].map((lat, i) => drive(i, lat, 3, i * 37));
+    const input = {...base, field: field(cars)};
+    const whole = worldRoad(input)!;
+    let slices = 0;
+    let ticks = 0;
+    const sliced = await runSliced(
+      worldRoadSteps(input),
+      {budgetMs: 2, now: () => ticks++, yieldToLoop: async () => void slices++},
+      () => false,
+    );
+    expect(slices).toBeGreaterThan(5);
+    expect(sliced).toEqual(whole);
   });
 });

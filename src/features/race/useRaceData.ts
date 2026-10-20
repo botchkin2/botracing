@@ -1,4 +1,4 @@
-import {useMemo} from 'react';
+import {useCallback, useEffect, useMemo, useState} from 'react';
 
 import {placeFieldOnLine} from '@/src/analysis/fieldOnLine';
 import {SURFACE_STEP_M} from '@/src/analysis/trackSurface';
@@ -22,11 +22,11 @@ import {
   useTrackMap,
   useTrackSurface,
 } from '@/src/data/sessions';
-import {type ChaseRoad} from '@/src/analysis/chaseRoad';
-import {worldRoad} from '@/src/analysis/worldRoad';
+import {runSliced} from '@/src/analysis/steps';
 import {useLapTraceLoad} from '@/src/data/traces';
 import {shortTrackName} from '@/src/design';
 
+import {type ChaseWorld, chaseWorldSteps, SLICE_BUDGET_MS, yieldToLoop} from './chaseWorld';
 import {raceGate} from './raceGate';
 
 const SESSION_TITLE = {R: 'Race', Q: 'Qualifying', P: 'Practice'} as const;
@@ -75,7 +75,14 @@ export type RaceData =
        * What the 3D draws, made on first use: the road fitted from the field in the game's own world frame (analysis/worldRoad), and the
        * field's cars at their own recorded positions (not re-placed on the surface's line); null without positions.
        */
-      chase: {world: () => {road: ChaseRoad; prep: RacePrep} | null} | null;
+      chase: {
+        /** The made world, null until the road is fitted (or when the field cannot give one). */
+        world: () => ChaseWorld | null;
+        /** The fit is running (3D asked for it, it has not returned): the map shows its placeholder. */
+        building: boolean;
+        /** Start the fit; the first call is the only one that does anything. */
+        request: () => void;
+      } | null;
     };
 
 /** Gathers the Race screen's inputs; `carsAt` and the model do the rest. */
@@ -162,26 +169,47 @@ export function useRaceData(sessionId: string): RaceData {
     return worldMatchM(placer.placeWorld(pts), line);
   }, [field.data, line, placer, placed]);
 
-  // The 3D's road is a 0.3 s fit on a phone-class CPU: made when the 3D is first shown, kept for the session.
-  const chase = useMemo(() => {
-    if (!stored?.hasPositions || !prep) return null;
-    let built: {road: ChaseRoad; prep: RacePrep} | null | undefined;
-    return {
-      world: () => {
-        if (built === undefined) {
-          const road = worldRoad({
+  // The 3D's road is a second or two of work on a phone: fitted in time slices when the 3D is first asked for, kept for
+  // the session. A new field, map or race drops a fit that is running and the road it made.
+  const worldInput = useMemo(
+    () =>
+      stored?.hasPositions && prep
+        ? {
             field: stored,
             lapM: prep.trackM,
             edges,
             elevation: map.data?.elevation ?? null,
             elevationLapM: map.data?.lengthM ?? 0,
-          });
-          built = road ? {road, prep: prepareRace(stored, edges)} : null;
-        }
-        return built;
-      },
+          }
+        : null,
+    [stored, prep, edges, map.data],
+  );
+  const [asked, setAsked] = useState(false);
+  const [made, setMade] = useState<{input: object; world: ChaseWorld | null} | null>(null);
+  const request = useCallback(() => setAsked(true), []);
+  useEffect(() => {
+    if (!asked || !worldInput) return;
+    let stale = false;
+    runSliced(
+      chaseWorldSteps(worldInput),
+      {budgetMs: SLICE_BUDGET_MS, now: () => performance.now(), yieldToLoop},
+      () => stale,
+    ).then(world => {
+      if (!stale && world !== undefined) setMade({input: worldInput, world});
+    });
+    return () => {
+      stale = true;
     };
-  }, [stored, prep, edges, map.data]);
+  }, [asked, worldInput]);
+  const chase = useMemo(() => {
+    if (!worldInput) return null;
+    const ready = made !== null && made.input === worldInput;
+    return {
+      world: () => (ready ? made.world : null),
+      building: asked && !ready,
+      request,
+    };
+  }, [worldInput, made, asked, request]);
   const gate = raceGate({
     sessionPending: session.isPending,
     hasDetail: detail != null,
