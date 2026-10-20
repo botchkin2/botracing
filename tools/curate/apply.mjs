@@ -37,6 +37,8 @@ export async function applyPlan(
   const set = {
     ...plan.set,
     catalogRev: plan.newRev,
+    // the rev the sessions' stamp is built from: unchanged by a display-only plan (plan.mjs DISPLAY_ONLY_KINDS)
+    analysisRev: plan.analysisRev,
     curatedAt: at,
     curatedBy: by,
   };

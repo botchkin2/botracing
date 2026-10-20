@@ -18,10 +18,14 @@ import {mapKeyOf} from './layoutBoundaries.mjs';
  * The state of one track's curated data: 'none' when the catalog has no map for
  * it, otherwise the map version, the boundaries' rev, and a short hash of the
  * map the boundaries belong to (a re-cut map with the same rev still changes it).
- * A curated edit also carries the track's `catalogRev`: it is appended only
- * when it is above 0, so every stamp recorded before curation existed stays
- * valid, and a curated change that moves no boundary (a corner renamed, a map
- * replaced with the same starts) still changes the stamp.
+ * A curated edit also carries the track's `analysisRev`, the `catalogRev` of the
+ * last curated change an analysis can see (a track with no `analysisRev` has not had a
+ * display-only write, and it is its `catalogRev`). It is appended only when it is above 0,
+ * so every stamp recorded before curation existed stays valid, and a curated change that
+ * moves no boundary (a corner renamed, a map replaced with the same starts) still changes
+ * the stamp. A display-only field the analysis never reads (`elevation`, `bank`: tools/curate
+ * plan.mjs DISPLAY_ONLY_KINDS) bumps `catalogRev` for the history and leaves `analysisRev`
+ * alone, so the sessions on the track are not sent back through analysis for nothing.
  */
 export function catalogStamp(trackMap, boundaries) {
   // A track document with no corners (the curator undid the only map) is no map.
@@ -30,7 +34,8 @@ export function catalogStamp(trackMap, boundaries) {
     .update(mapKeyOf(trackMap.corners ?? []))
     .digest('hex')
     .slice(0, 8);
-  const rev = trackMap.catalogRev > 0 ? `:r${trackMap.catalogRev}` : '';
+  const analysisRev = trackMap.analysisRev ?? trackMap.catalogRev;
+  const rev = analysisRev > 0 ? `:r${analysisRev}` : '';
   return `m${trackMap.mapVersion ?? 0}:b${
     boundaries ? boundaries.rev : 'none'
   }:${key}${rev}`;

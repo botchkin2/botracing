@@ -43,11 +43,19 @@ export const CURATED_FIELDS = [
   'boundaries',
   'elevation',
   'bank',
+  'analysisRev',
   'catalogRev',
   'curatedAt',
   'curatedBy',
 ];
-const META = ['catalogRev', 'curatedAt', 'curatedBy'];
+const META = ['analysisRev', 'catalogRev', 'curatedAt', 'curatedBy'];
+
+/**
+ * Plans that write a field only the app displays. The analysis reads a track's corners, lengthM, mapVersion and
+ * boundaries and nothing else (tools/curate/displayOnly.test.mjs scans the analysis sources for `.elevation` and
+ * `.bank`), so these do not move the stamp the sessions are compared with (catalogStamp.mjs `analysisRev`).
+ */
+export const DISPLAY_ONLY_KINDS = ['elevation', 'bank'];
 
 /** The curated part of a track doc, as it is now. */
 export function curatedOf(track) {
@@ -64,11 +72,17 @@ const median = xs => {
 };
 
 function start(kind, trackId, current, blast) {
+  const expectedRev = current.catalogRev ?? 0;
   return {
     kind,
     trackId,
-    expectedRev: current.catalogRev ?? 0,
-    newRev: (current.catalogRev ?? 0) + 1,
+    expectedRev,
+    newRev: expectedRev + 1,
+    // What the sessions' stamp is built from after this plan: the rev it was before for a display-only plan (nothing an
+    // analysis reads changes), this plan's own rev otherwise.
+    analysisRev: DISPLAY_ONLY_KINDS.includes(kind)
+      ? current.track?.analysisRev ?? expectedRev
+      : expectedRev + 1,
     refusals: [],
     warnings: [],
     blast: blast ?? null,
@@ -369,6 +383,11 @@ export function renderPlan(plan) {
       `${b.rollDeg.length} rolls, step ${b.stepM} m, ${plan.stats?.laps ?? '?'} laps, path ${plan.stats?.pathM} m, roll ${plan.stats?.rollMin} to ${plan.stats?.rollMax} deg, lap-to-lap p90 ${plan.stats?.spreadP90} deg, ${(plan.stats?.filledShare * 100).toFixed(1)}% filled (longest ${plan.stats?.longestGapM} m)`,
     );
     lines.push(`source: ${b.source}`);
+    const {lowest, highest} = plan.stats ?? {};
+    if (lowest && highest)
+      lines.push(
+        `lowest ${lowest.rollDeg} deg at ${lowest.m} m (${lowest.laps} laps, p10-p90 ${lowest.spreadDeg} deg), highest ${highest.rollDeg} deg at ${highest.m} m (${highest.laps} laps, p10-p90 ${highest.spreadDeg} deg); a step needs ${plan.stats.stepsNeed} laps and under 1.5 deg of scatter (${plan.stats.stepsTooFew} too few, ${plan.stats.stepsTooNoisy} too noisy, filled from neighbours)`,
+      );
   }
   if (
     (plan.kind === 'elevation' || plan.kind === 'bank') &&
@@ -381,7 +400,11 @@ export function renderPlan(plan) {
     const d = renderBoundaryDiff(plan.diff.boundaries);
     lines.push(...(d.length ? d : ['the boundaries do not change']));
   }
-  if (plan.blast) {
+  if (plan.blast && DISPLAY_ONLY_KINDS.includes(plan.kind)) {
+    lines.push(
+      `display only: no session is re-analysed (the stamp stays at rev ${plan.analysisRev}); ${plan.blast.sessions} session(s) across all users are on this track`,
+    );
+  } else if (plan.blast) {
     lines.push(
       `blast radius: ${plan.blast.sessions} session(s) across all users are on this track; their trays will re-analyse them (at most ${RESYNC_PER_RUN} per run each, newest first, while the local files exist)`,
     );
