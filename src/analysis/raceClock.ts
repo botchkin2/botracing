@@ -130,8 +130,8 @@ export function raceStartS(field: Field): number | null {
 }
 
 /** The same as `raceStartS`, as steps (one per car): a page drives them in time slices (`analysis/steps`). */
-export function* raceStartSteps(field: Field): Steps<number | null> {
-  const trackM = yield* trackLengthSteps(field.cars.map(c => c.lapDistM));
+export function* raceStartSteps(field: Field, knownTrackM?: number): Steps<number | null> {
+  const trackM = knownTrackM ?? (yield* trackLengthSteps(field.cars.map(c => c.lapDistM)));
   if (trackM === 0) return null;
   let first: number | null = null;
   for (const car of field.cars) {

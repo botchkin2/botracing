@@ -153,9 +153,9 @@ export function raceStartUpdate(field: Field, stableS = 3): number {
 }
 
 /** The same as `raceStartUpdate`, as steps (one per car). */
-export function* raceStartUpdateSteps(field: Field, stableS = 3): Steps<number> {
+export function* raceStartUpdateSteps(field: Field, stableS = 3, trackM?: number): Steps<number> {
   const n = field.timeS.length;
-  const startS = yield* raceStartSteps(field);
+  const startS = yield* raceStartSteps(field, trackM);
   if (startS !== null) {
     let u = 0;
     while (u < n && field.timeS[u] < startS) u++;
@@ -191,7 +191,7 @@ export function* prepareRaceSteps(
   const slowRun: Int32Array[] = [];
   const pits: Int16Array[] = [];
   const firstSeen = new Int32Array(field.cars.length).fill(n);
-  const startU = yield* raceStartUpdateSteps(field);
+  const startU = yield* raceStartUpdateSteps(field, 3, trackM);
   for (let i = 0; i < field.cars.length; i++) {
     yield;
     const c = field.cars[i];
