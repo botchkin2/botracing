@@ -363,6 +363,10 @@ export function renderPlan(plan) {
     );
     lines.push(`source: ${e.source}`);
   }
+  if (plan.kind === 'bank' && !plan.set.bank && plan.stats?.stepsNeed)
+    lines.push(
+      `refused build: ${plan.stats.laps} laps, a step needs ${plan.stats.stepsNeed}; ${plan.stats.stepsTooFew} steps had too few clean laps, ${plan.stats.stepsTooNoisy} too much scatter after the fit; ${(plan.stats.filledShare * 100).toFixed(1)}% filled (longest ${plan.stats.longestGapM} m); lowest ${plan.stats.lowest?.rollDeg} deg at ${plan.stats.lowest?.m} m, highest ${plan.stats.highest?.rollDeg} deg at ${plan.stats.highest?.m} m`,
+    );
   if (plan.kind === 'bank' && plan.set.bank) {
     const b = plan.set.bank;
     lines.push(
