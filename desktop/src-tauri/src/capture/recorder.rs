@@ -828,6 +828,29 @@ mod tests {
     }
 
     #[test]
+    fn a_car_in_a_long_pit_lane_reads_a_negative_lap_distance_and_is_recorded() {
+        // Sebring, 2026-10-19: cars at -1079 to -1664 m were refused as garbage.
+        let (rig, mut rec) = Rig::new("pitdist");
+        rig.field("Sebring International Raceway", 10, 5.0);
+        rig.put(rig.vehicle(0, "mLapDist"), &(-1664.85_f64).to_le_bytes());
+        rig.player("Sebring International Raceway", 5.0);
+        rec.tick(1_000);
+        assert_eq!(rec.status.state, "recording", "{}", rec.status.layout_reason);
+        assert_eq!(rig.folders().len(), 1);
+    }
+
+    #[test]
+    fn a_lap_distance_no_track_has_is_refused() {
+        let (rig, mut rec) = Rig::new("baddist");
+        rig.field("Road Atlanta", 10, 5.0);
+        rig.put(rig.vehicle(0, "mLapDist"), &(-5.0e9_f64).to_le_bytes());
+        rec.tick(1_000);
+        assert_eq!(rec.status.state, "refused");
+        assert!(rec.status.layout_reason.contains("lap distance"), "{}", rec.status.layout_reason);
+        assert!(rig.folders().is_empty());
+    }
+
+    #[test]
     fn a_disk_that_cannot_be_written_keeps_the_earlier_chunks_and_refuses() {
         let (rig, mut rec) = Rig::new("diskfull");
         rig.field("Road Atlanta", 10, 5.0);

@@ -20,6 +20,13 @@ fn printable(s: &str) -> bool {
     !s.is_empty() && !s.chars().any(char::is_control)
 }
 
+// A car in the garage or pit box reads a negative lap distance, as far back as
+// the pit lane is long before the line: -1079 to -1664 m on Sebring
+// (2026-10-19, 145 refusals at the old -1000 bound, no capture of the drive).
+// A wrong layout reads garbage far outside this.
+const MIN_LAP_DIST: f64 = -20_000.0;
+const MAX_LAP_DIST: f64 = 100_000.0;
+
 /// From the field alone, before the player is in a car.
 pub fn check_scoring(
     layout: &Layout,
@@ -52,7 +59,7 @@ pub fn check_scoring(
             return Err(format!("car {i} place {place}"));
         }
         let dist = f64_at(car, p.v_lap_dist);
-        if !(dist.is_finite() && dist > -1000.0 && dist < 100_000.0) {
+        if !(dist.is_finite() && dist > MIN_LAP_DIST && dist < MAX_LAP_DIST) {
             return Err(format!("car {i} lap distance {dist}"));
         }
     }
