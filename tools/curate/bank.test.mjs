@@ -70,14 +70,10 @@ test('laps that disagree at every step (over 1.5 degrees, p10 to p90) leave noth
 });
 
 test('one noisy step is filled from its neighbours, not drawn as a tilt', () => {
-  // 1000 m map: the laps agree on a 2 degree bank everywhere except 10 m (1%) where half read +4 and half -4
-  const noisy = f => (f >= 0.5 && f < 0.51 ? 0 : 2);
+  // 1000 m map: six laps agree on a 2 degree bank everywhere except 10 m (1%), where the even laps read +6 and the odd -2
+  const inNoise = f => f >= 0.5 && f < 0.51;
   const built = bankFromLaps(
-    laps(1000, noisy, i => (i < 6 ? {bias: BIASES[i]} : {}), 6).map((l, i) => {
-      if (i % 2 === 0) for (let k = 0; k < l.rollDeg.length; k++) if (k / (l.rollDeg.length - 1) >= 0.5 && k / (l.rollDeg.length - 1) < 0.51) l.rollDeg[k] = 6;
-      else if (k / (l.rollDeg.length - 1) >= 0.5 && k / (l.rollDeg.length - 1) < 0.51) l.rollDeg[k] = -2;
-      return l;
-    }),
+    BIASES.map((bias, i) => lap(1000, f => (inNoise(f) ? (i % 2 === 0 ? 6 : -2) : 2), {bias})),
     1000,
   );
   assert.deepEqual(built.refusals, []);
