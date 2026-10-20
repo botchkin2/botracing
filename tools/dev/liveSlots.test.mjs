@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import {test} from 'node:test';
 
-import {parseSlot, resolveSlot, SLOTS_FILE} from './liveSlots.mjs';
+import {parseSlot, resolveSlot, SLOTS_FILE, staleInstall} from './liveSlots.mjs';
 
 const root = path.resolve('/repo');
 const wt = path.join(root, '.claude', 'worktrees', 'seat-task');
@@ -110,4 +110,84 @@ test('the main checkout with no install still gets the npm ci error', () => {
   const r = resolveSlot({root, slot: 2, fs: fsOf({}, [root])});
   assert.ok(r instanceof Error);
   assert.match(r.message, /Run npm ci/);
+});
+
+// Thread 94: the main checkout's lockfile moved to one with `three`, its
+// node_modules did not, and every slot on it served a tree without three.
+const lockWith = pkgs =>
+  JSON.stringify({lockfileVersion: 3, packages: {'': {name: 'app'}, ...pkgs}});
+const installedWith = pkgs => JSON.stringify({lockfileVersion: 3, packages: pkgs});
+const expo = {'node_modules/expo': {version: '57.0.25'}};
+
+test('the main checkout whose lockfile moved past its install is refused, naming the package', () => {
+  const files = {
+    [path.join(root, 'package-lock.json')]: lockWith({
+      ...expo,
+      'node_modules/three': {version: '0.160.0'},
+    }),
+    [path.join(root, 'node_modules', '.package-lock.json')]: installedWith(expo),
+  };
+  const r = resolveSlot({root, slot: 2, fs: fsOf(files, [root, cliOf(root)])});
+  assert.ok(r instanceof Error);
+  assert.match(r.message, /main checkout's node_modules is out of date/);
+  assert.match(r.message, /three missing/);
+  assert.match(r.message, /apex runs npm ci/);
+});
+
+test('a worktree borrowing a stale main install is refused too', () => {
+  const lock = lockWith({...expo, 'node_modules/three': {version: '0.160.0'}});
+  const files = {
+    [path.join(root, SLOTS_FILE)]: JSON.stringify({1: wt}),
+    [path.join(wt, 'package-lock.json')]: lock,
+    [path.join(root, 'package-lock.json')]: lock,
+    [path.join(root, 'node_modules', '.package-lock.json')]: installedWith(expo),
+  };
+  const r = resolveSlot({root, slot: 1, fs: fsOf(files, [wt, cliOf(root)])});
+  assert.ok(r instanceof Error);
+  assert.match(r.message, /main checkout's node_modules is out of date/);
+});
+
+test("a worktree's own stale install names the worktree", () => {
+  const files = {
+    [path.join(root, SLOTS_FILE)]: JSON.stringify({1: wt}),
+    [path.join(wt, 'package-lock.json')]: lockWith({'node_modules/expo': {version: '57.0.30'}}),
+    [path.join(wt, 'node_modules', '.package-lock.json')]: installedWith(expo),
+  };
+  const r = resolveSlot({root, slot: 1, fs: fsOf(files, [wt, cliOf(wt)])});
+  assert.ok(r instanceof Error);
+  assert.match(r.message, /seat-task's node_modules is out of date/);
+  assert.match(r.message, /expo 57\.0\.25 not 57\.0\.30/);
+});
+
+test('an install that matches its lockfile starts', () => {
+  const files = {
+    [path.join(root, 'package-lock.json')]: lockWith(expo),
+    [path.join(root, 'node_modules', '.package-lock.json')]: installedWith(expo),
+  };
+  const r = resolveSlot({root, slot: 2, fs: fsOf(files, [root, cliOf(root)])});
+  assert.equal(r.dir, root);
+});
+
+test('staleInstall: optional (other-platform) packages are not required; many differences are counted', () => {
+  const lock = lockWith({
+    ...expo,
+    'node_modules/@esbuild/linux-x64': {version: '0.25.0', optional: true},
+    'node_modules/a': {version: '1.0.0'},
+    'node_modules/b': {version: '1.0.0'},
+    'node_modules/c': {version: '1.0.0'},
+    'node_modules/d': {version: '1.0.0'},
+  });
+  const dir = path.resolve('/x');
+  const fs = installed =>
+    fsOf({
+      [path.join(dir, 'package-lock.json')]: lock,
+      [path.join(dir, 'node_modules', '.package-lock.json')]: installed,
+    });
+  assert.equal(
+    staleInstall(dir, fs(installedWith({...expo, 'node_modules/a': {version: '1.0.0'}, 'node_modules/b': {version: '1.0.0'}, 'node_modules/c': {version: '1.0.0'}, 'node_modules/d': {version: '1.0.0'}}))),
+    null,
+  );
+  assert.equal(staleInstall(dir, fs(installedWith(expo))), 'a missing, b missing, c missing and 1 more');
+  // No installed record (an install too old to write one) is not a refusal.
+  assert.equal(staleInstall(dir, fsOf({[path.join(dir, 'package-lock.json')]: lock})), null);
 });

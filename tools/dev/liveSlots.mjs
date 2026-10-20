@@ -63,7 +63,53 @@ export function resolveSlot({root, slot, fs}) {
     if (!fs.exists(cli))
       return new Error(`live: ${dir} has no node_modules and the main checkout has none either (expo is missing). Run npm ci in the main checkout's worktree of your own, not there; nothing is installed for you`);
   }
+  // The packages Metro runs on must be the ones their lockfile names: a
+  // checkout moved to a newer lockfile without `npm ci` passes every check
+  // above and then serves an old tree (thread 94: `three` was missing, so 3D
+  // never loaded).
+  const from = path.dirname(path.dirname(path.dirname(path.dirname(cli))));
+  const stale = staleInstall(from, fs);
+  if (stale)
+    return new Error(
+      same(from, root)
+        ? `live: the main checkout's node_modules is out of date with its package-lock.json (${stale}). apex runs npm ci there (AGENTS.md); nothing is installed for you`
+        : `live: ${from}'s node_modules is out of date with its package-lock.json (${stale}). Run npm ci in that worktree; nothing is installed for you`,
+    );
   return {dir, cli, claimed: !same(dir, root), port: BASE_PORT + slot};
 }
 
 const lockOf = dir => path.join(dir, 'package-lock.json');
+const installedOf = dir => path.join(dir, 'node_modules', '.package-lock.json');
+
+/**
+ * What differs between a folder's lockfile and the tree npm last installed
+ * there (npm writes node_modules/.package-lock.json on every install), as a
+ * short list; null when they agree, or when either file is missing or
+ * unreadable (nothing to compare: the checks above already cover no install).
+ * Optional packages (another platform's binaries) are not required.
+ */
+export function staleInstall(dir, fs) {
+  let lock;
+  let installed;
+  try {
+    lock = JSON.parse(fs.read(lockOf(dir)) ?? 'null');
+    installed = JSON.parse(fs.read(installedOf(dir)) ?? 'null');
+  } catch {
+    return null;
+  }
+  if (!lock?.packages || !installed?.packages) return null;
+  const off = [];
+  for (const [key, want] of Object.entries(lock.packages)) {
+    if (key === '' || want?.optional === true || want?.link === true) continue;
+    const have = installed.packages[key];
+    if (!have) off.push(`${key.replace(/^node_modules\//, '')} missing`);
+    else if (have.version !== want.version)
+      off.push(
+        `${key.replace(/^node_modules\//, '')} ${have.version} not ${want.version}`,
+      );
+  }
+  if (off.length === 0) return null;
+  return off.length > 3
+    ? `${off.slice(0, 3).join(', ')} and ${off.length - 3} more`
+    : off.join(', ');
+}
