@@ -1,7 +1,10 @@
 // How the road is used, from the cars that drove it (thread 94 #6419, LMU footage): where across the road the cars
 // run (the rubbered line the game paints darker), and the stretches where cars keep touching an edge (a kerb). Every
 // number is the field's own: each moving car sample has a lap distance and a lateral offset from the centre line
-// (pathLateralM, right positive), and the road has measured half-widths per point. Plain TypeScript, no imports.
+// (pathLateralM, right positive), and the road has measured half-widths per point. Plain TypeScript with erasable
+// syntax only: Node can run it.
+
+import {runSteps, type Steps} from './steps.ts';
 
 /** Columns across the road, left edge to right edge. */
 export const USE_COLUMNS = 32;
@@ -32,17 +35,12 @@ export interface UseSamples {
 /**
  * `ldOfPoint[k]` is the lap distance of road point k (ascending, one lap); `hl` and `hr` the half-widths there.
  */
-export type UseSteps<T> = Generator<void, T, void>;
 /** Samples between two yields: a chunk is a fraction of a millisecond, so the fit never blocks a frame (worldRoad.ts). */
 const SAMPLES_PER_CHUNK = 4000;
 
-/** Runs the generator to its end, for callers with no frame to share (tests, Node). */
+/** Runs to the end at once, for callers with no frame to share (tests, Node). */
 export function roadUse(s: UseSamples, lapM: number, ldOfPoint: ArrayLike<number>, hl: ArrayLike<number>, hr: ArrayLike<number>): RoadUse | null {
-  const run = roadUseSteps(s, lapM, ldOfPoint, hl, hr);
-  for (;;) {
-    const step = run.next();
-    if (step.done) return step.value;
-  }
+  return runSteps(roadUseSteps(s, lapM, ldOfPoint, hl, hr));
 }
 
 /** The same, in chunks: `yield*` it from a sliced job. */
@@ -52,7 +50,7 @@ export function* roadUseSteps(
   ldOfPoint: ArrayLike<number>,
   hl: ArrayLike<number>,
   hr: ArrayLike<number>,
-): UseSteps<RoadUse | null> {
+): Steps<RoadUse | null> {
   const n = ldOfPoint.length;
   if (n < 8 || !(lapM > 0) || s.ld.length === 0) return null;
   const counts = new Float32Array(n * USE_COLUMNS);
