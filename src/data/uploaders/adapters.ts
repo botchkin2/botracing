@@ -19,6 +19,7 @@ export type UploaderProblemKind =
   | 'sync-crashed'
   | 'recorder-layout'
   | 'capture-missed'
+  | 'capture-suspect'
   | 'uploader-stopped'
   | 'file-unreadable'
   | 'not-seen';
@@ -107,6 +108,7 @@ const PROBLEM_KINDS: readonly UploaderProblemKind[] = [
   'sync-crashed',
   'recorder-layout',
   'capture-missed',
+  'capture-suspect',
   'uploader-stopped',
   'file-unreadable',
   'not-seen',

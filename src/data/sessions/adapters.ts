@@ -390,6 +390,8 @@ export type SessionDetail = SessionSummary & {
   stints: Stint[];
   /** The stored field of every car (src/data/field), or null without one. */
   field: FieldPointer | null;
+  /** Why the session has no field, in words for the driver; null with a field. */
+  fieldMissing: string | null;
   /** Every class's lap times in this race, or null without a field. */
   classLaps: SessionClassLaps | null;
   /** Each class's cars by best lap; null without a field or before a session has been analysed with it. */
@@ -494,6 +496,10 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     archiveParts: num(raw.archiveParts),
     liveAt: toLiveAt(raw.live),
     field: toFieldPointer(raw.field),
+    fieldMissing:
+      typeof raw.fieldMissing === 'string' && raw.fieldMissing !== ''
+        ? raw.fieldMissing
+        : null,
     race: toRaceLength(raw.race),
     trackLimits: toSessionTrackLimits(raw.trackLimits),
     classLaps: toClassLaps(raw.classLaps),

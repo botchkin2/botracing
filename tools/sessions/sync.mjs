@@ -48,6 +48,7 @@ import {versionKey} from './versionKey.mjs';
 import {slugId} from './analyzeFromArchive.mjs';
 import {analysisVersion, blockVersions, trackMapVersion} from './analyze.mjs';
 import {markUploaded} from './captureMarker.mjs';
+import {noteNoField} from './noField.mjs';
 import {describeCheck} from './irCapture.mjs';
 import {captureExtractFor, liveExtractSessions} from './captureExtractFor.mjs';
 import {resultsForSpan} from './lmuResults.mjs';
@@ -786,6 +787,7 @@ async function processSession(
   if (local) lines.push(`  -> ${writeLocal(out)}`);
   else {
     await store.upload(out, {log: line => lines.push(line)});
+    noteNoField(work, out.session, Date.now());
     // What the captures gave is in the store now: the tray may prune them.
     markUploaded(captureRoot, out.capturesUsed, s.id);
   }

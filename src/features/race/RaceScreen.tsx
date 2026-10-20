@@ -215,6 +215,7 @@ function Notice({data}: {data: Exclude<RaceData, {kind: 'ready'}>}) {
               ? NO_LINE_TITLE
               : NO_FIELD_TITLE
           }
+          body={data.kind === 'no-field' ? data.why ?? undefined : undefined}
         />
       </View>
     );

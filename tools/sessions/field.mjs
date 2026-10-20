@@ -22,7 +22,7 @@ export const MAX_ALIGN_M = 20;
 // Recordings start and stop in the pits; keep the field a little either side.
 const PAD_S = 30;
 
-export function listCaptures(root) {
+export function listCaptures(root, {suspect = false} = {}) {
   if (!root || !existsSync(root)) return [];
   const out = [];
   for (const name of readdirSync(root)) {
@@ -35,7 +35,7 @@ export function listCaptures(root) {
       if (meta.sim && meta.sim !== 'lmu') continue;
       // The recorder doubted its layout (layoutSuspect, recorder.rs): kept on
       // disk for a fix to re-read, used for nothing.
-      if (meta.layoutSuspect) continue;
+      if (Boolean(meta.layoutSuspect) !== suspect) continue;
       const files = readdirSync(resolve(root, name))
         .filter(f => /^field-\d+\.parquet$/.test(f))
         .map(f => resolve(root, name, f));
@@ -256,11 +256,47 @@ function readRows(files, models, fromEt, toEt) {
   return {c, cars};
 }
 
+// What the session says when it has no field, in words for the person who
+// drove it (the Field screen shows it as is): the analysis reason in, the line
+// out. Every reason has one, so no session without a field is silent.
+export function fieldMissingText(reason) {
+  if (reason === 'capture marked suspect')
+    return 'The recorder doubted the game data for this drive, so the other cars were not used';
+  if (reason === 'capture game data not recognised')
+    return 'The game data was not recognised, so the other cars were not used';
+  if (
+    reason === 'capture has no rows in this session' ||
+    reason?.startsWith('clocks disagree') ||
+    reason === 'player car not in both sources'
+  )
+    return 'The recording does not match the game file, so the other cars were not used';
+  if (reason === 'no capture' || reason == null)
+    return 'This drive was not recorded, so there are no other cars';
+  // Not a verdict on the drive: iRacing's field comes with the game file, a
+  // live lap that could not make one tries again on the next.
+  return null;
+}
+
+// The session doc's `fieldMissing`: null with a field; else why, in words. A
+// run that gave no reason (the cloud analysis has no capture to read) keeps the
+// stored line, and a session never told why says it was not recorded.
+export function fieldMissingAfter(field, reason, stored) {
+  if (field) return null;
+  if (reason == null) return stored ?? fieldMissingText(null);
+  return fieldMissingText(reason) ?? stored ?? null;
+}
+
 // The session's field, or {field: null, reason}.
 // session: {tracks, startMs, endMs}; recs: [{t, lapDist}] from the .duckdb.
 export function fieldFor(root, session, recs) {
   const found = capturesFor(listCaptures(root), session);
-  if (!found.length) return {field: null, reason: 'no capture'};
+  if (!found.length)
+    return {
+      field: null,
+      reason: capturesFor(listCaptures(root, {suspect: true}), session).length
+        ? 'capture marked suspect'
+        : 'no capture',
+    };
   const fromEt = Math.min(...recs.map(r => r.t[0])) - PAD_S;
   const toEt = Math.max(...recs.map(r => r.t[r.t.length - 1])) + PAD_S;
   const models = Object.assign(

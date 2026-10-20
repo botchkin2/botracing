@@ -13,6 +13,7 @@ import {basename, join, resolve} from 'node:path';
 import * as irLiveCapture from './irLiveCapture.mjs';
 import * as lmuCapture from './lmuCapture.mjs';
 import {liveInputs} from './liveInputs.mjs';
+import {noteNoField} from './noField.mjs';
 import {groupFiles} from './sessionFiles.mjs';
 import {
   liveRecordingDoc,
@@ -153,6 +154,7 @@ export async function syncLive({
     };
     log(`live: ${session.id} ${out.session.lapCount} laps`);
     await store.uploadLive(out, {log});
+    noteNoField(work, out.session, Date.now());
     // Only once it is stored: the game-file sync then skips what it covers.
     mkdirSync(resolve(work, 'live'), {recursive: true});
     const index = readLiveIndex(work);
