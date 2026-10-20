@@ -1,14 +1,14 @@
 import {createElement, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {StyleSheet, View} from 'react-native';
-import Svg, {Circle, G, Path} from 'react-native-svg';
 
-import {altitudeLabel, chaseHudNumbers, elevationWindow, type ElevationWindow, gearLabel, gradeLabel} from '@/src/analysis/chaseHud';
+import {altitudeLabel, chaseHudNumbers, gearLabel, gradeLabel} from '@/src/analysis/chaseHud';
 import type {ChaseRoad} from '@/src/analysis/chaseRoad';
 import {radius, size, space, useTheme} from '@/src/design';
 import {formatGap} from '@/src/design/format';
 import {Pressable, Segment, Text} from '@/src/ui';
 
+import {DriverInputs} from '@/src/features/race/components/DriverInputs';
 import type {ChaseCamMode, ChaseCar, ChaseEngine, ChaseGaps, ChaseInputs, ChaseSampler} from '@/src/features/race/chase/chaseTypes';
 
 // The 3D chase view, drawn as an instrument. Web only: the engine and three.js load on first use (a lazy import), so
@@ -26,8 +26,6 @@ type CamValue = '1' | '2' | '3' | '4';
 
 /** Narrower than this is a phone: the layout stacks and the targets grow. */
 const PHONE_MAX_W = 520;
-const BEHIND_M = 100;
-const AHEAD_M = 500;
 
 type ChaseProps = {
   width: number;
@@ -196,12 +194,7 @@ function ChaseSurface({
   const now = me?.player === true ? inputs?.now ?? null : null;
   const {gradePct: grade, altM: alt} = chaseHudNumbers(road, me?.lapDistM ?? null);
   const hasHeight = road.elev !== null;
-  const profile = useMemo(
-    () => (me && Number.isFinite(me.lapDistM) ? elevationWindow(road, me.lapDistM, BEHIND_M, AHEAD_M, 48) : null),
-    [road, me],
-  );
   const shownW = full ? (typeof window === 'undefined' ? width : window.innerWidth) : width;
-  const roomy = shownW >= 760;
   // A phone: the tools are 44 pt targets and the numbers strip sits above them, across the width.
   const tight = shownW < PHONE_MAX_W;
   const toolStyle = [styles.tool, tight && styles.toolTight, {borderColor: color.lineStrong, backgroundColor: color.surface}];
@@ -270,7 +263,11 @@ function ChaseSurface({
       {me ? (
         <View
           pointerEvents='none'
-          style={[styles.strip, tight && styles.stripTight, tight && {bottom: space.sm + (full ? 2 : 1) * (size.hit + space.xs)}, {backgroundColor: color.surface, borderColor: color.lineStrong}]}>
+          style={[styles.dock, tight && styles.dockTight, tight && {bottom: space.sm + (full ? 2 : 1) * (size.hit + space.xs)}]}>
+          {now ? (
+            <DriverInputs brakePct={now.brakePct} throttlePct={now.throttlePct} steeringPct={now.steeringPct} tight={tight} />
+          ) : null}
+          <View style={[styles.strip, {backgroundColor: color.surface, borderColor: color.lineStrong}]}>
           {gaps ? (
             <View style={styles.cell}>
               <Text variant='dataStrong'>{`${gaps.classTag} P${gaps.classPlace}`}</Text>
@@ -289,15 +286,6 @@ function ChaseSurface({
               km/h
             </Text>
           </View>
-          {now ? (
-            <>
-              <View style={styles.pedals}>
-                <Pedal value={now.brakePct} fill={color.slower} track={color.median} />
-                <Pedal value={now.throttlePct} fill={color.faster} track={color.median} />
-              </View>
-              {roomy ? <Wheel pct={now.steeringPct} ink={color.text} mark={color.accent} ring={color.lineStrong} /> : null}
-            </>
-          ) : null}
           {hasHeight && grade !== null ? (
             <View style={styles.cell}>
               <Text variant='dataSmall' tone='textMuted'>
@@ -308,52 +296,10 @@ function ChaseSurface({
               ) : null}
             </View>
           ) : null}
-          {roomy && profile ? <Elevation win={profile} line={color.textMuted} dot={color.accent} /> : null}
+          </View>
         </View>
       ) : null}
     </View>
-  );
-}
-
-function Pedal({value, fill, track}: {value: number; fill: string; track: string}) {
-  return (
-    <View style={[styles.pedal, {backgroundColor: track}]}>
-      <View
-        style={[
-          styles.pedalFill,
-          {height: `${Math.max(0, Math.min(100, value))}%`, backgroundColor: fill},
-        ]}
-      />
-    </View>
-  );
-}
-
-// Steering wheel, rotated by the recorded steering (a full lock reads about 210 degrees).
-function Wheel({pct, ink, mark, ring}: {pct: number; ink: string; mark: string; ring: string}) {
-  const deg = Math.max(-100, Math.min(100, pct)) * 2.1;
-  return (
-    <Svg width={26} height={26} viewBox='-26 -26 52 52'>
-      <Circle r={20} fill='none' stroke={ring} strokeWidth={3.5} />
-      <G rotation={deg}>
-        <Path d='M-20 0H20M0 0V20' stroke={ink} strokeWidth={3.5} strokeLinecap='round' />
-        <Path d='M-5 -20h10' stroke={mark} strokeWidth={4} strokeLinecap='round' />
-      </G>
-    </Svg>
-  );
-}
-
-// The curated height 100 m behind and 500 m ahead of the car, the car a dot.
-function Elevation({win, line, dot}: {win: ElevationWindow; line: string; dot: string}) {
-  const W = 150;
-  const H = 26;
-  const n = win.heights.length - 1;
-  const y = (z: number) => H - 3 - ((z - win.baseM) / win.spanM) * (H - 6);
-  const d = win.heights.map((z, i) => `${i ? 'L' : 'M'}${((i / n) * W).toFixed(1)} ${y(z).toFixed(1)}`).join('');
-  return (
-    <Svg width={W} height={H}>
-      <Path d={d} stroke={line} strokeWidth={1.2} fill='none' />
-      <Circle cx={(win.carIndex / n) * W} cy={y(win.heights[win.carIndex])} r={3} fill={dot} />
-    </Svg>
   );
 }
 
@@ -379,10 +325,9 @@ const styles = StyleSheet.create({
   },
   toolTight: {minHeight: size.hit, minWidth: size.hit, justifyContent: 'center'},
   // One flat strip on the bottom edge: numerals in mono, nothing in the middle of the view.
+  dock: {position: 'absolute', right: space.sm, bottom: space.sm, alignItems: 'flex-end', gap: space.xs, maxWidth: '62%'},
+  dockTight: {left: space.sm, maxWidth: undefined, alignItems: 'stretch'},
   strip: {
-    position: 'absolute',
-    right: space.sm,
-    bottom: space.sm,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
@@ -390,11 +335,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingHorizontal: space.sm,
     minHeight: 32,
-    maxWidth: '62%',
+    justifyContent: 'space-between',
   },
-  stripTight: {left: space.sm, maxWidth: undefined, justifyContent: 'space-between'},
   cell: {flexDirection: 'row', alignItems: 'baseline', gap: space.xs},
-  pedals: {flexDirection: 'row', gap: 3, height: 22},
-  pedal: {width: 6, borderRadius: 1, overflow: 'hidden'},
-  pedalFill: {position: 'absolute', left: 0, right: 0, bottom: 0},
 });

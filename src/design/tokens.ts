@@ -382,6 +382,11 @@ export const size = {
   chip: 28,
   transport: 40,
   hit: 44,
+  // The 3D view's driver inputs (wheel and pedals): the wheel's diameter, a pedal's width, on a desktop and on a phone.
+  chaseWheel: 120,
+  chaseWheelTight: 84,
+  chasePedalW: 16,
+  chasePedalWTight: 12,
   // Phone bottom bar (round 4 nav frame, item 8): 52 pt, as drawn.
   bottomBar: 52,
   // The same bar on a phone turned on its side, where 375 pt of height is all there is.

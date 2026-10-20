@@ -1,5 +1,5 @@
 import {describe, expect, it} from '@jest/globals';
-import {altitudeLabel, gapSeconds, chaseHudNumbers, elevationWindow, gearLabel, gradeLabel, PROFILE_FLOOR_M} from './chaseHud';
+import {altitudeLabel, gapSeconds, chaseHudNumbers, gearLabel, gradeLabel} from './chaseHud';
 import {chaseRoad} from './chaseRoad';
 
 // 10 m of climb over a 1000 m lap (heights every 100 m), linear then back down; the road measures the lap as 400 m.
@@ -20,26 +20,6 @@ describe('chaseHudNumbers', () => {
     expect(up.altM).toBeCloseTo(5, 1);
     expect(chaseHudNumbers(road, 300).gradePct).toBeCloseTo(-2, 1);
     expect(road.elevMin).toBe(0);
-  });
-});
-
-describe('elevationWindow', () => {
-  it('samples from behind to ahead of the car, the car at its own index', () => {
-    const w = elevationWindow(roadWith(elev), 200, 40, 200, 6)!;
-    expect(w.heights).toHaveLength(7);
-    expect(w.stepM).toBeCloseTo(40);
-    expect(w.carIndex).toBe(1);
-    expect(w.heights[1]).toBeCloseTo(10, 1); // at 200 of 400 m the road is at its top
-  });
-  it('never scales less than the floor, so a small wobble stays flat', () => {
-    const tiny = {stepM: 100, heightM: [0, 0.2, 0.4, 0.2, 0, 0, 0, 0, 0, 0]};
-    const w = elevationWindow(roadWith(tiny), 40, 40, 200, 12)!;
-    expect(w.spanM).toBe(PROFILE_FLOOR_M);
-    expect(w.baseM).toBeLessThan(0);
-    expect(w.baseM + w.spanM).toBeGreaterThan(0.4);
-  });
-  it('is null on a road without a profile', () => {
-    expect(elevationWindow(roadWith(null), 100, 40, 200, 6)).toBeNull();
   });
 });
 
