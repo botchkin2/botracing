@@ -49,6 +49,7 @@ export const PROBLEM_KINDS = [
   'recorder-layout',
   'capture-missed',
   'capture-suspect',
+  'field-missing',
   'uploader-stopped',
   'file-unreadable',
 ];

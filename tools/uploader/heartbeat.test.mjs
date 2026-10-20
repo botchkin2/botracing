@@ -234,6 +234,25 @@ test('problems: a recorder that records what it doubts is capture-suspect, not s
   ]);
 });
 
+test('problems: a session without a field is a row that opens the session', () => {
+  const problems = problemsOf({
+    sims: [{retries: {}}],
+    recorder: input.recorder,
+    noField: {
+      '28dcbd413c5cf761': {endMs: nowMs - 60 * MIN, why: 'This drive was not recorded, so there are no other cars'},
+    },
+    nowMs,
+  });
+  assert.deepEqual(problems, [
+    {
+      kind: 'field-missing',
+      at: new Date(nowMs - 60 * MIN).toISOString(),
+      message: 'This drive was not recorded, so there are no other cars',
+      sessionId: '28dcbd413c5cf761',
+    },
+  ]);
+});
+
 test('problems: none when all is well; a finished sync with an old error is not a crash', () => {
   assert.deepEqual(
     problemsOf({sims: [{retries: {}}], recorder: input.recorder, nowMs}),

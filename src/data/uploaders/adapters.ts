@@ -20,6 +20,7 @@ export type UploaderProblemKind =
   | 'recorder-layout'
   | 'capture-missed'
   | 'capture-suspect'
+  | 'field-missing'
   | 'uploader-stopped'
   | 'file-unreadable'
   | 'not-seen';
@@ -109,6 +110,7 @@ const PROBLEM_KINDS: readonly UploaderProblemKind[] = [
   'recorder-layout',
   'capture-missed',
   'capture-suspect',
+  'field-missing',
   'uploader-stopped',
   'file-unreadable',
   'not-seen',
