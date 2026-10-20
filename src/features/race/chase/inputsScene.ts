@@ -4,20 +4,25 @@
 import * as THREE from 'three';
 import type {RoadIndex} from '@/src/analysis/chaseRoadIndex';
 import type {ChaseRibbon, ChaseTheme} from '@/src/features/race/chase/chaseTypes';
+import {inputState} from './inputState';
 import {setWorld} from './sceneFrame';
 
 const HALF_WIDTH_M = 0.3;
 const BRAKE_ON_PCT = 55;
 const BRAKE_OFF_PCT = 10;
-const BRAKE_COLOUR_PCT = 4;
-const FULL_THROTTLE_PCT = 96;
-const LIFT_PCT = 8;
 const BAR_MARKS: [number, number][] = [
   [150, 3],
   [100, 2],
   [50, 1],
 ];
 const DEFAULT_HALF_ROAD_M = 7;
+
+const STATE_COLOUR = {
+  brake: (T: ChaseTheme) => T.bad,
+  full: (T: ChaseTheme) => T.good,
+  part: (T: ChaseTheme) => T.accent,
+  coast: (T: ChaseTheme) => T.muted,
+};
 
 export interface InputsScene {
   mesh: THREE.Mesh;
@@ -47,9 +52,7 @@ export function buildInputsScene(rb: ChaseRibbon, ix: RoadIndex, T: ChaseTheme):
       pos[o + 1] = z + 0.06;
       pos[o + 2] = -(rb.y[k] + ny * sg);
     }
-    const br = rb.br[k];
-    const th = rb.th[k];
-    colour.set(br > BRAKE_COLOUR_PCT ? T.bad : th > FULL_THROTTLE_PCT ? T.good : th > LIFT_PCT ? T.accent : T.muted);
+    colour.set(STATE_COLOUR[inputState(rb.br[k], rb.th[k])](T));
     for (let j = 0; j < 2; j++) {
       const o = (k * 2 + j) * 3;
       col[o] = colour.r;
