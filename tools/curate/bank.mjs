@@ -1,4 +1,4 @@
-// Road bank (cross-slope) along a lap, in the corner map's distance frame (pit wall thread 94 #6337, #6338).
+// Road bank (cross-slope) along a lap, in the corner map's distance frame (pit wall thread 94 #6337, #6338, #6468).
 // The player's capture carries the car's full orientation (mOri) at 100 Hz. On asphalt at speed the car sits on the
 // road, so its roll is the road's cross-slope; the body's own roll in a corner is negligible (about 0.01 deg per
 // m/s2 of lateral acceleration). Pitch is the road's grade, which the curated height profile already gives (its
@@ -8,6 +8,12 @@
 // the game's replay file (all 54 cars of a Road Atlanta race, 102,540 car-frames) the profile is within 0.25 deg
 // median / 2.4 deg p99 of each car's roll, where a level road is 0.69 / 4.2 deg off; the step (2, 5 or 10 m) does not
 // change that.
+//
+// Where the banking is progressive (an oval: steeper toward the wall) the roll depends on where across the road the
+// car is, so laps a metre or two apart read degrees apart. That scatter is the shape of the cross-section, not noise:
+// per step the laps' rolls are fitted against their lateral offset from the laps' median path (a line), the scatter
+// rule is applied to the residual, the roll stored is the fit at the median path, and the slope (degrees of roll per
+// metre across, + to the right) is kept for a later change that bends the 3D's cross-section.
 import {readdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {columns, sqlPath} from '../sessions/duck.mjs';
@@ -21,14 +27,16 @@ const MIN_LAPS = 3;
 const MIN_LAPS_PER_STEP = 5;
 /** ... and at least this share of the kept laps (a 30-lap capture needs 15 clean laps at a step, a 12-lap one 6). */
 const MIN_LAP_SHARE = 0.5;
-/** A step whose clean laps disagree by more than this (p10 to p90, degrees) is a coin flip, not a road feature: it is filled from its neighbours. */
+/** A step whose clean laps still disagree by more than this (p10 to p90, degrees, after the cross-section fit) is a coin flip, not a road feature: it is filled from its neighbours. */
 const MAX_STEP_SPREAD_DEG = 1.5;
 const MIN_SAMPLES_PER_STEP = 5;
+/** The laps must be at least this far apart across the road (p10 to p90, metres) for a slope to be fitted. */
+const MIN_LATERAL_RANGE_M = 0.6;
+/** A fitted slope beyond this (degrees of roll per metre across) is a line through noise, not a road. */
+const MAX_SLOPE_DEG_PER_M = 8;
 const MAX_FILLED_SHARE = 0.1;
 /** The longest stretch filled from its neighbours (a slow hairpin, a kerb-hopping chicane), metres. */
 const MAX_GAP_M = 100;
-/** Lap-to-lap p10 to p90 of the per-lap medians, degrees: a capture noisier than this is not a clean set of laps. */
-const MAX_SPREAD_P90_DEG = 3;
 
 const median = xs => {
   const s = [...xs].sort((a, b) => a - b);
@@ -37,7 +45,12 @@ const median = xs => {
 };
 const percentile = (sorted, p) =>
   sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))] : 0;
+const spreadOf = values => {
+  const sorted = [...values].sort((a, b) => a - b);
+  return percentile(sorted, 0.9) - percentile(sorted, 0.1);
+};
 const round2 = x => Math.round(x * 100) / 100;
+const round3 = x => Math.round(x * 1000) / 1000;
 
 function pathOf(lap) {
   const n = lap.x.length;
@@ -47,19 +60,26 @@ function pathOf(lap) {
     s += Math.hypot(lap.x[i] - lap.x[i - 1], lap.z[i] - lap.z[i - 1]);
     dist[i] = s;
   }
-  return {dist, len: s, roll: lap.rollDeg, ok: lap.ok};
+  return {dist, len: s, x: lap.x, z: lap.z, roll: lap.rollDeg, ok: lap.ok};
 }
 
-/** The median of the valid samples within `halfM` of path distance `m`; NaN with too few. */
-function windowMedian(path, m, halfM, from) {
-  const {dist, roll, ok} = path;
-  const vals = [];
+/** The median roll and position of the valid samples within `halfM` of path distance `m`; null with too few. */
+function windowAt(path, m, halfM, from) {
+  const {dist, roll, ok, x, z} = path;
+  const rolls = [];
+  const xs = [];
+  const zs = [];
   let i = from.i;
   while (i > 0 && dist[i - 1] >= m - halfM) i--;
   while (i < dist.length && dist[i] < m - halfM) i++;
   from.i = i;
-  for (let j = i; j < dist.length && dist[j] <= m + halfM; j++) if (ok[j]) vals.push(roll[j]);
-  return vals.length >= MIN_SAMPLES_PER_STEP ? median(vals) : NaN;
+  for (let j = i; j < dist.length && dist[j] <= m + halfM; j++)
+    if (ok[j]) {
+      rolls.push(roll[j]);
+      xs.push(x[j]);
+      zs.push(z[j]);
+    }
+  return rolls.length >= MIN_SAMPLES_PER_STEP ? {roll: median(rolls), x: median(xs), z: median(zs)} : null;
 }
 
 /** Linear fill of the NaN steps from the finite ones either side, round the lap. */
@@ -81,10 +101,42 @@ function fillRound(v) {
 }
 
 /**
+ * The roll of one step from its laps: the fit of roll against lateral offset from the laps' median path when they are
+ * spread across the road, else their median. Returns the roll at the median path, the slope and the scatter left.
+ */
+function stepFit(entries, tangent) {
+  const mx = median(entries.map(e => e.x));
+  const mz = median(entries.map(e => e.z));
+  // right of the direction of travel in the sim's x (east) / z (north) plane
+  const rx = tangent.z;
+  const rz = -tangent.x;
+  const lat = entries.map(e => (e.x - mx) * rx + (e.z - mz) * rz);
+  const rolls = entries.map(e => e.roll);
+  const plain = {rollDeg: median(rolls), slope: 0, spread: spreadOf(rolls)};
+  if (spreadOf(lat) < MIN_LATERAL_RANGE_M) return plain;
+  const meanLat = lat.reduce((a, b) => a + b, 0) / lat.length;
+  const meanRoll = rolls.reduce((a, b) => a + b, 0) / rolls.length;
+  let sxx = 0;
+  let sxy = 0;
+  for (let i = 0; i < lat.length; i++) {
+    sxx += (lat[i] - meanLat) ** 2;
+    sxy += (lat[i] - meanLat) * (rolls[i] - meanRoll);
+  }
+  if (!(sxx > 0)) return plain;
+  const slope = sxy / sxx;
+  if (Math.abs(slope) > MAX_SLOPE_DEG_PER_M) return plain;
+  const intercept = meanRoll - slope * meanLat;
+  const residuals = rolls.map((r, i) => r - (intercept + slope * lat[i]));
+  const fitted = {rollDeg: intercept, slope, spread: spreadOf(residuals)};
+  // the fit only counts when it explains something: otherwise the plain median and its own scatter
+  return fitted.spread < plain.spread ? fitted : plain;
+}
+
+/**
  * @param {{x: Float64Array, z: Float64Array, rollDeg: Float64Array, ok: Uint8Array}[]} laps
  *   `ok` marks the samples to use: at speed, on asphalt. Roll is + with the right side up.
  * @param {number} lengthM the curated map's lap length
- * @returns {{bank: {stepM: number, rollDeg: number[], source: string}|null, refusals: string[], stats: object}}
+ * @returns {{bank: {stepM: number, rollDeg: number[], slopeDegPerM: number[], source: string}|null, refusals: string[], stats: object}}
  */
 export function bankFromLaps(laps, lengthM) {
   const refusals = [];
@@ -102,34 +154,54 @@ export function bankFromLaps(laps, lengthM) {
   if (refusals.length) return {bank: null, refusals, stats: {laps: kept.length, dropped: paths.length - kept.length}};
 
   const steps = Math.floor(lengthM / BANK_STEP_M);
-  const roll = new Array(steps + 1).fill(NaN);
-  const spreads = [];
   const need = Math.max(MIN_LAPS_PER_STEP, Math.ceil(kept.length * MIN_LAP_SHARE));
+  // pass 1: every lap's roll and position at every step
+  const cursors = kept.map(() => ({i: 0}));
+  const at = [];
+  for (let s = 0; s <= steps; s++) {
+    const frac = (s * BANK_STEP_M) / lengthM;
+    const entries = [];
+    kept.forEach((p, k) => {
+      const w = windowAt(p, frac * p.len, (BANK_STEP_M / 2) * (p.len / lengthM), cursors[k]);
+      if (w) entries.push(w);
+    });
+    at.push(entries);
+  }
+  // the direction of travel at each step, from the laps' median positions a step either side
+  const centre = at.map(e => (e.length >= need ? {x: median(e.map(v => v.x)), z: median(e.map(v => v.z))} : null));
+  const tangentAt = s => {
+    const a = centre[Math.max(0, s - 1)] ?? centre[s];
+    const b = centre[Math.min(steps, s + 1)] ?? centre[s];
+    if (!a || !b) return {x: 1, z: 0};
+    const len = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+    return {x: (b.x - a.x) / len, z: (b.z - a.z) / len};
+  };
+
+  // pass 2: the roll of each step, or a gap to fill
+  const roll = new Array(steps + 1).fill(NaN);
+  const slope = new Array(steps + 1).fill(0);
+  const spreads = [];
   const lapsAt = new Array(steps + 1).fill(0);
   const spreadAt = new Array(steps + 1).fill(NaN);
   let tooFew = 0;
   let tooNoisy = 0;
-  const cursors = kept.map(() => ({i: 0}));
+  let sloped = 0;
   let filled = 0;
   let run = 0;
   let longest = 0;
   for (let s = 0; s <= steps; s++) {
-    const frac = (s * BANK_STEP_M) / lengthM;
-    const rolls = [];
-    kept.forEach((p, k) => {
-      const r = windowMedian(p, frac * p.len, (BANK_STEP_M / 2) * (p.len / lengthM), cursors[k]);
-      if (Number.isFinite(r)) rolls.push(r);
-    });
-    const sorted = [...rolls].sort((a, b) => a - b);
-    const spread = percentile(sorted, 0.9) - percentile(sorted, 0.1);
-    lapsAt[s] = rolls.length;
-    if (rolls.length >= need && spread <= MAX_STEP_SPREAD_DEG) {
-      roll[s] = median(rolls);
-      spreadAt[s] = spread;
-      spreads.push(spread);
+    const entries = at[s];
+    lapsAt[s] = entries.length;
+    const fit = entries.length >= need ? stepFit(entries, tangentAt(s)) : null;
+    if (fit && fit.spread <= MAX_STEP_SPREAD_DEG) {
+      roll[s] = fit.rollDeg;
+      slope[s] = fit.slope;
+      spreadAt[s] = fit.spread;
+      spreads.push(fit.spread);
+      if (fit.slope !== 0) sloped++;
       run = 0;
     } else {
-      if (rolls.length < need) tooFew++;
+      if (entries.length < need) tooFew++;
       else tooNoisy++;
       filled++;
       run++;
@@ -147,10 +219,9 @@ export function bankFromLaps(laps, lengthM) {
     );
   spreads.sort((a, b) => a - b);
   const spreadP90 = percentile(spreads, 0.9);
-  if (spreadP90 > MAX_SPREAD_P90_DEG)
-    refusals.push(`lap-to-lap roll spread p90 is ${round2(spreadP90)} deg, more than ${MAX_SPREAD_P90_DEG} deg`);
 
   const rollFilled = fillRound(roll);
+  const slopeFilled = fillRound(slope.map((v, i) => (Number.isFinite(roll[i]) ? v : NaN)));
   const finite = rollFilled.filter(Number.isFinite);
   // the extremes among the steps that were measured (not filled), with how many laps and how much they scatter there
   let lo = -1;
@@ -160,14 +231,18 @@ export function bankFromLaps(laps, lengthM) {
     if (lo < 0 || roll[i] < roll[lo]) lo = i;
     if (hi < 0 || roll[i] > roll[hi]) hi = i;
   }
-  const at = i => (i < 0 ? null : {m: i * BANK_STEP_M, rollDeg: round2(roll[i]), laps: lapsAt[i], spreadDeg: round2(spreadAt[i])});
+  const extreme = i =>
+    i < 0 ? null : {m: i * BANK_STEP_M, rollDeg: round2(roll[i]), laps: lapsAt[i], spreadDeg: round2(spreadAt[i])};
+  const maxSlope = Math.max(0, ...slopeFilled.filter(Number.isFinite).map(Math.abs));
   return {
     bank: refusals.length
       ? null
       : {
           stepM: BANK_STEP_M,
           rollDeg: rollFilled.map(round2),
-          source: 'capture mOri roll, laps at speed on asphalt, median per step, lap-fraction aligned',
+          slopeDegPerM: slopeFilled.map(round3),
+          source:
+            'capture mOri roll, laps at speed on asphalt, per step the fit of roll against lateral offset from the median path, lap-fraction aligned',
         },
     refusals,
     stats: {
@@ -179,11 +254,13 @@ export function bankFromLaps(laps, lengthM) {
       spreadP90: round2(spreadP90),
       rollMin: finite.length ? round2(Math.min(...finite)) : null,
       rollMax: finite.length ? round2(Math.max(...finite)) : null,
-      lowest: at(lo),
-      highest: at(hi),
+      lowest: extreme(lo),
+      highest: extreme(hi),
       stepsNeed: need,
       stepsTooFew: tooFew,
       stepsTooNoisy: tooNoisy,
+      stepsSloped: sloped,
+      maxSlopeDegPerM: round3(maxSlope),
     },
   };
 }

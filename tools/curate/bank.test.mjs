@@ -4,7 +4,7 @@ import {bankFromLaps} from './bank.mjs';
 import {planBank, renderPlan, summaryOf} from './plan.mjs';
 
 // A straight lap of `len` metres sampled every 0.5 m; the roll is a function of the lap fraction.
-const lap = (len, rollAt, {bias = 0, okAt = () => true} = {}) => {
+const lap = (len, rollAt, {bias = 0, okAt = () => true, zOffset = 0} = {}) => {
   const n = Math.round(len / 0.5) + 1;
   const x = new Float64Array(n);
   const z = new Float64Array(n);
@@ -13,6 +13,7 @@ const lap = (len, rollAt, {bias = 0, okAt = () => true} = {}) => {
   for (let i = 0; i < n; i++) {
     const f = i / (n - 1);
     x[i] = f * len;
+    z[i] = zOffset;
     rollDeg[i] = rollAt(f) + bias;
     ok[i] = okAt(f) ? 1 : 0;
   }
@@ -79,6 +80,30 @@ test('one noisy step is filled from its neighbours, not drawn as a tilt', () => 
   assert.deepEqual(built.refusals, []);
   assert.ok(built.stats.stepsTooNoisy >= 1, 'the noisy step was counted');
   assert.ok(Math.abs(built.bank.rollDeg[100] - 2) < 0.3, `the step took its neighbours' 2 degrees, not the median of the noise (${built.bank.rollDeg[100]})`);
+});
+
+test('progressive banking: roll that follows where across the road the car is fits as a cross-section, not as noise', () => {
+  // an oval turn: 20 degrees at the median path and 2 degrees more for every metre to the right; the laps run 4.5 m apart
+  // across the road (the path runs along +x, so the right of travel is -z)
+  const zs = [-2.5, -1.5, -0.5, 0.5, 1.5, 2];
+  const oval = zs.map(z => lap(1000, () => 20 + 2 * -(z - zs.reduce((a, b) => a + b) / zs.length), {zOffset: z}));
+  const built = bankFromLaps(oval, 1000);
+  assert.deepEqual(built.refusals, []);
+  assert.ok(Math.abs(built.bank.rollDeg[100] - 20) < 0.2, `the roll at the median path, not the median of the laps (${built.bank.rollDeg[100]})`);
+  assert.ok(Math.abs(built.bank.slopeDegPerM[100] - 2) < 0.1, `the slope across (${built.bank.slopeDegPerM[100]})`);
+  assert.equal(built.stats.stepsSloped, built.bank.rollDeg.length);
+  assert.ok(built.stats.maxSlopeDegPerM < 2.2);
+  // the same laps without the line they drove would have disagreed by 9 degrees
+  const plain = zs.map(z => lap(1000, () => 20 + 2 * -(z - 0), {zOffset: 0}));
+  assert.equal(bankFromLaps(plain, 1000).bank, null, 'laps on one line that disagree by that much are noise');
+});
+
+test('laps spread across the road whose rolls do not follow the line they drove stay refused', () => {
+  const zs = [-2.5, -1.5, -0.5, 0.5, 1.5, 2];
+  const rolls = [3, -4, 6, -2, 5, -5]; // no relation to z
+  const built = bankFromLaps(zs.map((z, i) => lap(1000, () => rolls[i], {zOffset: z})), 1000);
+  assert.equal(built.bank, null);
+  assert.match(built.refusals.join(' '), /disagree by over 1.5 deg/);
 });
 
 test('a step with too few clean laps is filled, and said so', () => {

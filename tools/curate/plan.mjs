@@ -372,7 +372,7 @@ export function renderPlan(plan) {
     const {lowest, highest} = plan.stats ?? {};
     if (lowest && highest)
       lines.push(
-        `lowest ${lowest.rollDeg} deg at ${lowest.m} m (${lowest.laps} laps, p10-p90 ${lowest.spreadDeg} deg), highest ${highest.rollDeg} deg at ${highest.m} m (${highest.laps} laps, p10-p90 ${highest.spreadDeg} deg); a step needs ${plan.stats.stepsNeed} laps and under 1.5 deg of scatter (${plan.stats.stepsTooFew} too few, ${plan.stats.stepsTooNoisy} too noisy, filled from neighbours)`,
+        `lowest ${lowest.rollDeg} deg at ${lowest.m} m (${lowest.laps} laps, p10-p90 ${lowest.spreadDeg} deg), highest ${highest.rollDeg} deg at ${highest.m} m (${highest.laps} laps, p10-p90 ${highest.spreadDeg} deg); a step needs ${plan.stats.stepsNeed} laps and under 1.5 deg of scatter after the fit across the road (${plan.stats.stepsTooFew} too few, ${plan.stats.stepsTooNoisy} too noisy, filled from neighbours); ${plan.stats.stepsSloped} steps have a cross-slope, up to ${plan.stats.maxSlopeDegPerM} deg of roll per metre across`,
       );
   }
   if (
