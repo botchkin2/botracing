@@ -29,4 +29,20 @@ describe('road scene', () => {
     expect(b.z).toBeCloseTo(6.0, 5); // right of travel: south
     disposeGroup(group);
   });
+
+  it('lays the near ground at the road height, 60 m out from each edge', () => {
+    const centre = Array.from({length: 40}, (_, i) => ({x: i * 10, y: 0}));
+    const road = fixtureRoad(centre, 400, {left: centre.map(() => 6), right: centre.map(() => 6)});
+    const group = buildRoadScene(road, roadIndex(road), theme);
+    const ground = group.children.filter(
+      c => (c as THREE.Mesh).isMesh && (c as THREE.Mesh).material instanceof THREE.MeshBasicMaterial && (c as THREE.Mesh).geometry.getAttribute('position').count > 4,
+    ) as THREE.Mesh[];
+    // a ground strip is a two-column ribbon whose outer column is 66 m from the centre line (6 m edge + 60 m)
+    const outer = ground.filter(m => {
+      const pos = m.geometry.getAttribute('position');
+      return Math.abs(Math.abs(pos.getZ(21)) - 66) < 1e-6 || Math.abs(Math.abs(pos.getZ(20)) - 66) < 1e-6;
+    });
+    expect(outer.length).toBe(2);
+    disposeGroup(group);
+  });
 });
