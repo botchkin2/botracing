@@ -276,7 +276,6 @@ function RaceView({
     () => raceTimeFor(selection, data.laps, data.clock) ?? 0,
   );
   const clock = useRaceClock(endS, openAt);
-  (window as unknown as {__clock: unknown}).__clock = clock; // TEMP
   // Race writes the cursor back once the user has moved the clock and it has
   // rested; opening the screen never overwrites Compare's cursor.
   const touched = useRef(false);

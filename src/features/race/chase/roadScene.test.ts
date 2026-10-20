@@ -3,6 +3,7 @@ import * as THREE from 'three';
 
 import {fixtureRoad} from '@/src/analysis/chaseRoadFixture';
 import {roadIndex} from '@/src/analysis/chaseRoadIndex';
+import {USE_COLUMNS} from '@/src/analysis/roadUse';
 import {buildRoadScene, disposeGroup} from './roadScene';
 
 const theme = {
@@ -44,5 +45,33 @@ describe('road scene', () => {
     });
     expect(outer.length).toBe(2);
     disposeGroup(group);
+  });
+
+  it('draws a darker lane and a kerb where the cars ran and touched the edge, and none without use', () => {
+    const centre = Array.from({length: 40}, (_, i) => ({x: i * 10, y: 0}));
+    const base = fixtureRoad(centre, 400);
+    const plain = buildRoadScene(base, roadIndex(base), theme);
+    const kerbs = (g: THREE.Group) => g.children.filter(c => (c as THREE.Mesh).isMesh && ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).map?.image?.height === 2);
+    expect(kerbs(plain)).toHaveLength(0);
+    const rows = 40;
+    const use = {
+      shade: new Float32Array(rows * USE_COLUMNS).fill(0.5),
+      kerbLeft: new Uint8Array(rows),
+      kerbRight: new Uint8Array(rows).fill(1),
+    };
+    const withUse = buildRoadScene({...base, use}, roadIndex(base), theme);
+    expect(kerbs(withUse)).toHaveLength(2);
+    const fill = withUse.children[0] as THREE.Mesh;
+    expect((fill.material as THREE.MeshLambertMaterial).map).toBeTruthy();
+    // the right kerb has width, the left none (its flags are off): outer column vs the edge column of a mid row
+    const [left, right] = kerbs(withUse) as THREE.Mesh[];
+    const width = (m: THREE.Mesh) => {
+      const pos = m.geometry.getAttribute('position');
+      return new THREE.Vector3().fromBufferAttribute(pos, 20 * 2).distanceTo(new THREE.Vector3().fromBufferAttribute(pos, 20 * 2 + 1));
+    };
+    expect(width(left)).toBeCloseTo(0, 5);
+    expect(width(right)).toBeCloseTo(1.4, 5);
+    disposeGroup(plain);
+    disposeGroup(withUse);
   });
 });

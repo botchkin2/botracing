@@ -336,6 +336,10 @@ export function disposeGroup(group: THREE.Object3D) {
   group.traverse(o => {
     const m = o as THREE.Mesh;
     m.geometry?.dispose();
-    if (m.material) (Array.isArray(m.material) ? m.material : [m.material]).forEach(x => x.dispose());
+    if (m.material)
+      (Array.isArray(m.material) ? m.material : [m.material]).forEach(x => {
+        (x as THREE.MeshBasicMaterial).map?.dispose(); // a texture is not freed with its material
+        x.dispose();
+      });
   });
 }
