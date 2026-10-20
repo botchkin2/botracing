@@ -25,7 +25,9 @@ const NEAR_GROUND_M = 60;
 /** The datum sits this far under the lowest point of the road. */
 const DATUM_BELOW_M = 3;
 /** The rubbered line darkens the road by this much where the cars ran most. */
-const RUBBER_DARKEN = 0.5;
+const RUBBER_DARKEN = 0.45;
+/** Off the line the road is this much lighter than the theme's fill: the line reads as the darker lane the cars wore in. */
+const OFF_LINE_LIGHTEN = 0.7;
 /** A kerb is this wide past the edge, with a stripe every KERB_STRIPE_M of the path. */
 const KERB_WIDTH_M = 1.4;
 const KERB_STRIPE_M = 3;
@@ -42,11 +44,10 @@ function ribbon(
   material: THREE.Material,
   order = 0,
   lit = false,
-  extra: {uv?: (row: number, col: number) => [number, number]; color?: (row: number, col: number) => THREE.Color} = {},
+  extra: {uv?: (row: number, col: number) => [number, number]} = {},
 ) {
   const pos = new Float32Array(rows * cols * 3);
   const uvs = extra.uv ? new Float32Array(rows * cols * 2) : null;
-  const cols3 = extra.color ? new Float32Array(rows * cols * 3) : null;
   const p: Point = {x: 0, y: 0, z: 0};
   for (let r = 0; r < rows; r++) {
     for (let k = 0; k < cols; k++) {
@@ -59,10 +60,6 @@ function ribbon(
         const [u, v] = extra.uv(r, k);
         uvs[(r * cols + k) * 2] = u;
         uvs[(r * cols + k) * 2 + 1] = v;
-      }
-      if (cols3 && extra.color) {
-        const c = extra.color(r, k);
-        cols3.set([c.r, c.g, c.b], o);
       }
     }
   }
@@ -80,7 +77,6 @@ function ribbon(
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setIndex(index);
   if (uvs) g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-  if (cols3) g.setAttribute('color', new THREE.BufferAttribute(cols3, 3));
   if (lit) g.computeVertexNormals();
   const m = new THREE.Mesh(g, material);
   m.renderOrder = order;
@@ -217,15 +213,17 @@ export function buildRoadScene(road: ChaseRoad, ix: RoadIndex, T: ChaseTheme): T
 /** The road's fill: the theme's colour, darkened along the line the cars ran (roadUse.ts) when the field gave one. */
 function roadMaterial(use: RoadUse | null, rows: number, fill: string): THREE.MeshLambertMaterial {
   if (!use) return new THREE.MeshLambertMaterial({color: new THREE.Color(fill), side: THREE.DoubleSide});
-  const base = new THREE.Color(fill);
+  // the texture holds sRGB bytes; THREE.Color keeps linear values
+  const base = new THREE.Color(fill).getRGB({r: 0, g: 0, b: 0, isColor: true} as THREE.RGB, THREE.SRGBColorSpace);
   const data = new Uint8Array(rows * USE_COLUMNS * 4);
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < USE_COLUMNS; c++) {
-      const k = 1 - RUBBER_DARKEN * use.shade[r * USE_COLUMNS + c];
+      const shade = use.shade[r * USE_COLUMNS + c];
+      const k = (1 + OFF_LINE_LIGHTEN * (1 - shade)) * (1 - RUBBER_DARKEN * shade);
       const o = (r * USE_COLUMNS + c) * 4;
-      data[o] = Math.round(255 * base.r * k);
-      data[o + 1] = Math.round(255 * base.g * k);
-      data[o + 2] = Math.round(255 * base.b * k);
+      data[o] = Math.min(255, Math.round(255 * base.r * k));
+      data[o + 1] = Math.min(255, Math.round(255 * base.g * k));
+      data[o + 2] = Math.min(255, Math.round(255 * base.b * k));
       data[o + 3] = 255;
     }
   }
@@ -248,8 +246,19 @@ function addKerbs(
   rowPoint: (r: number, lam: number, lift: number, out: Point) => void,
   T: ChaseTheme,
 ) {
-  const light = new THREE.Color(T.edge);
-  const dark = new THREE.Color(T.edgeFaint);
+  // two texels along the path, nearest-filtered and repeated: hard stripes, one per KERB_STRIPE_M
+  const stripes = new Uint8Array(2 * 4);
+  const srgb = {r: 0, g: 0, b: 0, isColor: true} as THREE.RGB;
+  [new THREE.Color(T.edge), new THREE.Color(T.edgeFaint)].forEach((c, i) => {
+    c.getRGB(srgb, THREE.SRGBColorSpace);
+    stripes.set([Math.round(255 * srgb.r), Math.round(255 * srgb.g), Math.round(255 * srgb.b), 255], i * 4);
+  });
+  const map = new THREE.DataTexture(stripes, 1, 2, THREE.RGBAFormat);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.magFilter = THREE.NearestFilter;
+  map.minFilter = THREE.NearestFilter;
+  map.wrapT = THREE.RepeatWrapping;
+  map.needsUpdate = true;
   const stripe = Math.max(1, Math.round(KERB_STRIPE_M / road.stepM));
   for (const side of [-1, 1]) {
     const flags = side < 0 ? use.kerbLeft : use.kerbRight;
@@ -262,10 +271,10 @@ function addKerbs(
             const hw = side < 0 ? road.hl[r % n] : road.hr[r % n];
             rowPoint(r, side * (hw + (k && flags[r % n] ? KERB_WIDTH_M : 0)), 0.03, out);
           },
-          new THREE.MeshBasicMaterial({vertexColors: true, side: THREE.DoubleSide}),
+          new THREE.MeshBasicMaterial({map, side: THREE.DoubleSide}),
           1,
           false,
-          {color: r => (Math.floor(r / stripe) % 2 === 0 ? light : dark)},
+          {uv: (r, k) => [k, r / (2 * stripe)]},
         ),
       ),
     );
