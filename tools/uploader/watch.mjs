@@ -471,7 +471,9 @@ async function main() {
     const recorder = readJson(recorderStatus, null);
     const nowMs = Date.now();
     const refusals = trackRefusals(watch.refusals ?? [], recorder, nowMs);
-    if (refusals.length > (watch.refusals ?? []).length)
+    // A new drive's first refusal, by its start (the list is capped, so its
+    // length can stay the same).
+    if (refusals.at(-1)?.firstAtMs !== (watch.refusals ?? []).at(-1)?.firstAtMs)
       log(`recorder refused a drive: ${refusals.at(-1).reason}`);
     if (JSON.stringify(refusals) !== JSON.stringify(watch.refusals ?? [])) {
       watch.refusals = refusals;
