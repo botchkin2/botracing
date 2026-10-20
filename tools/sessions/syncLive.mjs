@@ -60,6 +60,20 @@ export async function syncLive({
   log = () => {},
   makeInputs = liveInputs,
 }) {
+  // A capture the recorder doubted (layoutSuspect) sends nothing: its drive
+  // comes from the game file.
+  let marked = null;
+  try {
+    marked = JSON.parse(
+      readFileSync(join(captureDir, 'meta.json'), 'utf8'),
+    ).layoutSuspect;
+  } catch {
+    // No meta to read: the adapter's own read reports it.
+  }
+  if (marked) {
+    log(`live: ${basename(captureDir)} is marked suspect (${marked}), not sent`);
+    return {sessions: 0};
+  }
   const {stretches} = capture.describeCapture(captureDir);
   const files = stretches
     .filter(s => s.laps.length > 0)

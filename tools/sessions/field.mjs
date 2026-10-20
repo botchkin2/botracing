@@ -33,6 +33,9 @@ export function listCaptures(root) {
       // LMU's captures only: this reads LMU's columns (the iRacing tray
       // recorder shares the folder; irCapture.mjs reads those).
       if (meta.sim && meta.sim !== 'lmu') continue;
+      // The recorder doubted its layout (layoutSuspect, recorder.rs): kept on
+      // disk for a fix to re-read, used for nothing.
+      if (meta.layoutSuspect) continue;
       const files = readdirSync(resolve(root, name))
         .filter(f => /^field-\d+\.parquet$/.test(f))
         .map(f => resolve(root, name, f));
@@ -200,6 +203,25 @@ export function undelta(values) {
   return values.map(d => (d === null ? null : (last += d)));
 }
 
+// A wrong layout garbles every car's lap distance; a car in a long pit lane
+// reads far below zero but is real (Sebring -1664 m). Garbage is non-finite or
+// beyond 100 km, the recorder's own bound (sanity.rs).
+export const LAP_DIST_BOUND_M = 100_000;
+const garbage = d => !(Number.isFinite(d) && Math.abs(d) < LAP_DIST_BOUND_M);
+
+// The rows without a garbage lap distance, or null when over a quarter are
+// garbage (a wrong layout, whatever the mark says).
+export function goodRows(c) {
+  const n = c.et.length;
+  const keep = [];
+  for (let k = 0; k < n; k++) if (!garbage(c.lapDist[k])) keep.push(k);
+  if ((n - keep.length) * 4 > n) return null;
+  if (keep.length === n) return c;
+  return Object.fromEntries(
+    Object.entries(c).map(([key, col]) => [key, keep.map(k => col[k])]),
+  );
+}
+
 // duck.mjs hands a SQL NULL back as an empty string: only a positive number is a lap.
 const bestOf = v => (Number(v) > 0 ? Number(v) : null);
 
@@ -245,14 +267,17 @@ export function fieldFor(root, session, recs) {
     {},
     ...found.map(f => f.meta.vehicleModels || {}),
   );
-  const {c, cars} = readRows(
+  const read = readRows(
     found.flatMap(f => f.files),
     models,
     fromEt,
     toEt,
   );
-  if (!c.et || c.et.length === 0)
+  const {cars} = read;
+  if (!read.c.et || read.c.et.length === 0)
     return {field: null, reason: 'capture has no rows in this session'};
+  const c = goodRows(read.c);
+  if (!c) return {field: null, reason: 'capture game data not recognised'};
   const player = {et: [], lapDist: []};
   for (let k = 0; k < c.et.length; k++) {
     if (c.player[k]) {
