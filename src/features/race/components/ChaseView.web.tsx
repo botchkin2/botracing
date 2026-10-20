@@ -267,7 +267,7 @@ function ChaseSurface({
           {now ? (
             <DriverInputs brakePct={now.brakePct} throttlePct={now.throttlePct} steeringPct={now.steeringPct} tight={tight} />
           ) : null}
-          <View style={[styles.strip, {backgroundColor: color.surface, borderColor: color.lineStrong}]}>
+          <View style={[styles.strip, tight && styles.stripTight, {backgroundColor: color.surface, borderColor: color.lineStrong}]}>
           {gaps ? (
             <View style={styles.cell}>
               <Text variant='dataStrong'>{`${gaps.classTag} P${gaps.classPlace}`}</Text>
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   toolTight: {minHeight: size.hit, minWidth: size.hit, justifyContent: 'center'},
   // One flat strip on the bottom edge: numerals in mono, nothing in the middle of the view.
   dock: {position: 'absolute', right: space.sm, bottom: space.sm, alignItems: 'flex-end', gap: space.xs, maxWidth: '62%'},
-  dockTight: {left: space.sm, maxWidth: undefined, alignItems: 'stretch'},
+  dockTight: {left: space.sm, maxWidth: '100%'},
   strip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -337,5 +337,6 @@ const styles = StyleSheet.create({
     minHeight: 32,
     justifyContent: 'space-between',
   },
+  stripTight: {gap: space.sm, alignSelf: 'stretch'},
   cell: {flexDirection: 'row', alignItems: 'baseline', gap: space.xs},
 });
