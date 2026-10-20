@@ -32,7 +32,7 @@ const MIN_WINDOW_SAMPLES = 5;
 /** The median is taken every this many grid points: it only finds outliers (4 m away), a 10 m chord sags under 0.4 m at a 30 m radius. */
 const MEDIAN_STRIDE = 5;
 /** How much work one chunk does between yields (samples, grid points), so a chunk is a fraction of a millisecond. */
-const SAMPLES_PER_CHUNK = 20000;
+const SAMPLES_PER_CHUNK = 2000;
 const GRID_POINTS_PER_CHUNK = 8;
 const ROAD_POINTS_PER_CHUNK = 200;
 

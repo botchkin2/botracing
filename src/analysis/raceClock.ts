@@ -8,8 +8,9 @@
 //
 // `raceClock(field)` does the per-field work once (lap numbers, lap runs);
 // keep the result for as long as the field lives and call it per frame.
-import {trackLengthM} from './classLaps';
+import {trackLengthM, trackLengthSteps} from './classLaps';
 import {ABSENT, type Field, type FieldCar, updateAt} from './field';
+import {runSteps, type Steps} from './steps';
 
 export interface LapPlace {
   lapNumber: number;
@@ -125,10 +126,16 @@ export function raceClock(field: Field): RaceClock {
  * car's start is in the field (a field that begins mid-race).
  */
 export function raceStartS(field: Field): number | null {
-  const trackM = trackLengthM(field.cars.map(c => [...c.lapDistM]));
+  return runSteps(raceStartSteps(field));
+}
+
+/** The same as `raceStartS`, as steps (one per car): a page drives them in time slices (`analysis/steps`). */
+export function* raceStartSteps(field: Field): Steps<number | null> {
+  const trackM = yield* trackLengthSteps(field.cars.map(c => c.lapDistM));
   if (trackM === 0) return null;
   let first: number | null = null;
   for (const car of field.cars) {
+    yield;
     const t = startCrossingS(field, car, trackM);
     if (t !== null && (first === null || t < first)) first = t;
   }

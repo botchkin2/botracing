@@ -9,8 +9,8 @@
 // The field is 5 Hz. Playing interpolates between two updates; paused snaps
 // to the nearest one, so every dot is a real sample (handoff R1, 5 Hz honesty).
 import {classOfCar} from './fieldClasses';
-import {raceStartS} from './raceClock';
-import {trackLengthM} from './classLaps';
+import {raceStartSteps} from './raceClock';
+import {trackLengthSteps} from './classLaps';
 import {ABSENT, type Field, type FieldCar, updateAt} from './field';
 import {runSteps, type Steps} from './steps';
 
@@ -149,8 +149,13 @@ export function progressOf(
  * when it never starts.
  */
 export function raceStartUpdate(field: Field, stableS = 3): number {
+  return runSteps(raceStartUpdateSteps(field, stableS));
+}
+
+/** The same as `raceStartUpdate`, as steps (one per car). */
+export function* raceStartUpdateSteps(field: Field, stableS = 3): Steps<number> {
   const n = field.timeS.length;
-  const startS = raceStartS(field);
+  const startS = yield* raceStartSteps(field);
   if (startS !== null) {
     let u = 0;
     while (u < n && field.timeS[u] < startS) u++;
@@ -180,13 +185,13 @@ export function* prepareRaceSteps(
   edges: MeasuredEdges | null = null,
 ): Steps<RacePrep> {
   const n = field.timeS.length;
-  const trackM = trackLengthM(field.cars.map(c => [...c.lapDistM]));
+  const trackM = yield* trackLengthSteps(field.cars.map(c => c.lapDistM));
   const progressM: Float32Array[] = [];
   const speedKmh: Float32Array[] = [];
   const slowRun: Int32Array[] = [];
   const pits: Int16Array[] = [];
   const firstSeen = new Int32Array(field.cars.length).fill(n);
-  const startU = raceStartUpdate(field);
+  const startU = yield* raceStartUpdateSteps(field);
   for (let i = 0; i < field.cars.length; i++) {
     yield;
     const c = field.cars[i];
