@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import type {ChaseRoad} from '@/src/analysis/chaseRoad';
 import type {RoadIndex} from '@/src/analysis/chaseRoadIndex';
 import type {ChaseTheme} from '@/src/features/race/chase/chaseTypes';
+import {USE_COLUMNS, type RoadUse} from '@/src/analysis/roadUse';
 import {buildRoadSide} from './roadSide';
 
 type Point = {x: number; y: number; z: number};
@@ -23,14 +24,29 @@ const GROUND_REACH_M = 1800;
 const NEAR_GROUND_M = 60;
 /** The datum sits this far under the lowest point of the road. */
 const DATUM_BELOW_M = 3;
+/** The rubbered line darkens the road by this much where the cars ran most. */
+const RUBBER_DARKEN = 0.5;
+/** A kerb is this wide past the edge, with a stripe every KERB_STRIPE_M of the path. */
+const KERB_WIDTH_M = 1.4;
+const KERB_STRIPE_M = 3;
 
 export function flat(color: string, extra?: THREE.MeshBasicMaterialParameters) {
   return new THREE.MeshBasicMaterial({color: new THREE.Color(color), ...extra});
 }
 
 /** A grid of rows x cols points as one triangulated surface. */
-function ribbon(rows: number, cols: number, at: At, material: THREE.Material, order = 0, lit = false) {
+function ribbon(
+  rows: number,
+  cols: number,
+  at: At,
+  material: THREE.Material,
+  order = 0,
+  lit = false,
+  extra: {uv?: (row: number, col: number) => [number, number]; color?: (row: number, col: number) => THREE.Color} = {},
+) {
   const pos = new Float32Array(rows * cols * 3);
+  const uvs = extra.uv ? new Float32Array(rows * cols * 2) : null;
+  const cols3 = extra.color ? new Float32Array(rows * cols * 3) : null;
   const p: Point = {x: 0, y: 0, z: 0};
   for (let r = 0; r < rows; r++) {
     for (let k = 0; k < cols; k++) {
@@ -39,6 +55,15 @@ function ribbon(rows: number, cols: number, at: At, material: THREE.Material, or
       pos[o] = p.x;
       pos[o + 1] = p.z;
       pos[o + 2] = -p.y;
+      if (uvs && extra.uv) {
+        const [u, v] = extra.uv(r, k);
+        uvs[(r * cols + k) * 2] = u;
+        uvs[(r * cols + k) * 2 + 1] = v;
+      }
+      if (cols3 && extra.color) {
+        const c = extra.color(r, k);
+        cols3.set([c.r, c.g, c.b], o);
+      }
     }
   }
   const index: number[] = [];
@@ -54,6 +79,8 @@ function ribbon(rows: number, cols: number, at: At, material: THREE.Material, or
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setIndex(index);
+  if (uvs) g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  if (cols3) g.setAttribute('color', new THREE.BufferAttribute(cols3, 3));
   if (lit) g.computeVertexNormals();
   const m = new THREE.Mesh(g, material);
   m.renderOrder = order;
@@ -95,12 +122,14 @@ export function buildRoadScene(road: ChaseRoad, ix: RoadIndex, T: ChaseTheme): T
         n + 1 + spill,
         2,
         (r, k, out) => rowPoint(r, k ? road.hr[r % n] : -road.hl[r % n], 0, out),
-        new THREE.MeshLambertMaterial({color: new THREE.Color(T.fill), side: THREE.DoubleSide}),
+        roadMaterial(road.use ?? null, n, T.fill),
         0,
         true,
+        {uv: (r, k) => [k, ((r % n) + 0.5) / n]},
       ),
     ),
   );
+  if (road.use) addKerbs(group, strip, road, road.use, n, spill, rowPoint, T);
   // a rung across the road every RUNG_EVERY_M of the path
   const rungs: number[] = [];
   const p: Point = {x: 0, y: 0, z: 0};
@@ -183,6 +212,64 @@ export function buildRoadScene(road: ChaseRoad, ix: RoadIndex, T: ChaseTheme): T
     for (const w of windows) w(first, windowRows);
   };
   return group;
+}
+
+/** The road's fill: the theme's colour, darkened along the line the cars ran (roadUse.ts) when the field gave one. */
+function roadMaterial(use: RoadUse | null, rows: number, fill: string): THREE.MeshLambertMaterial {
+  if (!use) return new THREE.MeshLambertMaterial({color: new THREE.Color(fill), side: THREE.DoubleSide});
+  const base = new THREE.Color(fill);
+  const data = new Uint8Array(rows * USE_COLUMNS * 4);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < USE_COLUMNS; c++) {
+      const k = 1 - RUBBER_DARKEN * use.shade[r * USE_COLUMNS + c];
+      const o = (r * USE_COLUMNS + c) * 4;
+      data[o] = Math.round(255 * base.r * k);
+      data[o + 1] = Math.round(255 * base.g * k);
+      data[o + 2] = Math.round(255 * base.b * k);
+      data[o + 3] = 255;
+    }
+  }
+  const map = new THREE.DataTexture(data, USE_COLUMNS, rows, THREE.RGBAFormat);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.magFilter = THREE.LinearFilter;
+  map.minFilter = THREE.LinearFilter;
+  map.needsUpdate = true;
+  return new THREE.MeshLambertMaterial({color: 0xffffff, map, side: THREE.DoubleSide});
+}
+
+/** Kerbs: a striped strip past the edge wherever the cars keep touching it, nothing (zero width) elsewhere. */
+function addKerbs(
+  group: THREE.Group,
+  strip: (m: THREE.Mesh) => THREE.Mesh,
+  road: ChaseRoad,
+  use: RoadUse,
+  n: number,
+  spill: number,
+  rowPoint: (r: number, lam: number, lift: number, out: Point) => void,
+  T: ChaseTheme,
+) {
+  const light = new THREE.Color(T.edge);
+  const dark = new THREE.Color(T.edgeFaint);
+  const stripe = Math.max(1, Math.round(KERB_STRIPE_M / road.stepM));
+  for (const side of [-1, 1]) {
+    const flags = side < 0 ? use.kerbLeft : use.kerbRight;
+    group.add(
+      strip(
+        ribbon(
+          n + 1 + spill,
+          2,
+          (r, k, out) => {
+            const hw = side < 0 ? road.hl[r % n] : road.hr[r % n];
+            rowPoint(r, side * (hw + (k && flags[r % n] ? KERB_WIDTH_M : 0)), 0.03, out);
+          },
+          new THREE.MeshBasicMaterial({vertexColors: true, side: THREE.DoubleSide}),
+          1,
+          false,
+          {color: r => (Math.floor(r / stripe) % 2 === 0 ? light : dark)},
+        ),
+      ),
+    );
+  }
 }
 
 function lines(pos: number[], color: string): THREE.LineSegments {

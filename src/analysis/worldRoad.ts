@@ -9,6 +9,7 @@
 import {DEFAULT_HALF_WIDTH_M, type ChaseElevation, type ChaseRoad} from './chaseRoad.ts';
 import {bankOnLap, type Bank} from './bank.ts';
 import {heightAt} from './elevation.ts';
+import {roadUse} from './roadUse.ts';
 import type {Field} from './field.ts';
 
 /** The width of the fit's kernel, metres of lap distance. */
@@ -49,11 +50,13 @@ interface Samples {
   ld: number[];
   x: number[];
   y: number[];
+  /** The car's own offset from the centre line, right of travel positive. */
+  lat: number[];
 }
 
 /** Every moving, out-of-the-pits car sample moved onto the game's centre line. */
 function centreSamples(field: Field, lapM: number): Samples {
-  const out: Samples = {ld: [], x: [], y: []};
+  const out: Samples = {ld: [], x: [], y: [], lat: []};
   const n = field.timeS.length;
   for (const car of field.cars) {
     for (let u = 1; u < n - 1; u++) {
@@ -72,6 +75,7 @@ function centreSamples(field: Field, lapM: number): Samples {
       out.ld.push(((d % lapM) + lapM) % lapM);
       out.x.push(car.xM[u] - lat * nx);
       out.y.push(car.zM[u] - lat * nz);
+      out.lat.push(lat);
     }
   }
   return out;
@@ -243,6 +247,7 @@ export function worldRoad(input: WorldRoadInput): ChaseRoad | null {
   const hr: number[] = [];
   const heightM: number[] = [];
   const bankDeg: number[] = [];
+  const ldOfPoint: number[] = [];
   const bankOk = bank !== null && bank.rollDeg.length > 3 && bank.stepM > 0 && elevationLapM > 0;
   const elev =
     elevation && elevation.heightM.length > 3 && elevation.stepM > 0 && elevationLapM > 0
@@ -268,6 +273,7 @@ export function worldRoad(input: WorldRoadInput): ChaseRoad | null {
     cx.push(fit.x[g] + (fit.x[g2] - fit.x[g]) * t);
     cy.push(fit.y[g] + (fit.y[g2] - fit.y[g]) * t);
     const ld = (g + t) * lapStep;
+    ldOfPoint.push(ld);
     hl.push(width(edges?.leftM, ld));
     hr.push(width(edges?.rightM, ld));
     if (elev) heightM.push(closedHeight(elev, ld, lapM));
@@ -278,5 +284,18 @@ export function worldRoad(input: WorldRoadInput): ChaseRoad | null {
     elevMin = Infinity;
     for (const h of elev.heightM) elevMin = Math.min(elevMin, h);
   }
-  return {stepM: step, lengthM: pathM, lapM, cx, cy, hl, hr, elev, heightM: elev ? heightM : null, elevMin, bankDeg: bankOk ? bankDeg : null};
+  return {
+    stepM: step,
+    lengthM: pathM,
+    lapM,
+    cx,
+    cy,
+    hl,
+    hr,
+    elev,
+    heightM: elev ? heightM : null,
+    elevMin,
+    bankDeg: bankOk ? bankDeg : null,
+    use: roadUse(s, lapM, ldOfPoint, hl, hr),
+  };
 }
