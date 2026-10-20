@@ -7,6 +7,7 @@ import {
   medianTrace,
   resampleTrace,
   timeDiffS,
+  traceCovers,
 } from './resample';
 
 // A lap at constant speed over a 1000 m track, sampled at 10 Hz.
@@ -261,5 +262,46 @@ describe('medianTrace', () => {
 
   it('refuses an empty set', () => {
     expect(() => medianTrace([])).toThrow();
+  });
+});
+
+describe('the recorded range', () => {
+  // R1 6, lap 0: the tray started late, so the lap's samples begin 40 % of the way round and everything before holds the first value
+  function lapFrom(startPct: number): RawTrace {
+    const full = constantLap(180);
+    const keep = full.lapDistPct.map((p, i) => i).filter(i => full.lapDistPct[i] >= startPct);
+    const pick = (a: number[]) => keep.map(i => a[i]);
+    return {
+      lapDistPct: pick(full.lapDistPct),
+      speedKph: pick(full.speedKph),
+      throttlePct: pick(full.throttlePct),
+      brakePct: pick(full.brakePct),
+      steeringPct: pick(full.steeringPct),
+      gear: pick(full.gear),
+      lat: pick(full.lat),
+      lon: pick(full.lon),
+    };
+  }
+  it('reports where a lap that starts mid-lap begins and ends', () => {
+    const g = resampleTrace(lapFrom(0.4), 1000, 5);
+    expect(g.recordedFromM).toBeGreaterThanOrEqual(400);
+    expect(g.recordedFromM).toBeLessThan(410);
+    expect(g.recordedToM).toBeGreaterThan(990);
+  });
+  it('covers a distance inside the recording and not one before it', () => {
+    const g = resampleTrace(lapFrom(0.4), 1000, 5);
+    expect(traceCovers(g, 600)).toBe(true);
+    expect(traceCovers(g, 82)).toBe(false);
+    expect(traceCovers(g, 395)).toBe(true); // one grid step before the first sample is still the grid's own neighbour
+    expect(traceCovers(g, 300)).toBe(false);
+  });
+  it('a whole lap covers its whole length', () => {
+    const g = resampleTrace(constantLap(180), 1000, 5);
+    expect(traceCovers(g, 0)).toBe(true);
+    expect(traceCovers(g, 1000)).toBe(true);
+  });
+  it('a median of laps covers only what every lap recorded', () => {
+    const m = medianTrace([resampleTrace(constantLap(180), 1000, 5), resampleTrace(lapFrom(0.4), 1000, 5)]);
+    expect(m.recordedFromM).toBeGreaterThanOrEqual(400);
   });
 });

@@ -12,6 +12,8 @@ function straight(offsetY = 0): GridTrace {
   const distanceM = Array.from({length: n}, (_, i) => i * 5);
   return {
     stepM: 5,
+    recordedFromM: 0,
+    recordedToM: 1000,
     distanceM,
     speedKph: distanceM.map(() => 200),
     throttlePct: distanceM.map(() => 100),

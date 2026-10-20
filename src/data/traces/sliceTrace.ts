@@ -43,8 +43,11 @@ export function sliceToGridTrace(
       return values[k];
     });
   };
+  const reach = lap.samples.speedKph.distanceM;
   return {
     stepM,
+    recordedFromM: reach.length > 0 ? reach[0] : NaN,
+    recordedToM: reach.length > 0 ? reach[reach.length - 1] : NaN,
     distanceM,
     speedKph: rebuilt(lap.samples.speedKph),
     throttlePct: rebuilt(lap.samples.throttlePct),
