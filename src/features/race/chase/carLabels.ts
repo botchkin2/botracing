@@ -22,6 +22,9 @@ export function createCarLabels(container: HTMLElement, T: ChaseTheme): CarLabel
   layer.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden';
   container.appendChild(layer);
   const els = new Map<number, HTMLDivElement>();
+  // what each element shows now: a style or text write that changes nothing is still a DOM mutation (and, for the text, a
+  // new node) every frame for every labelled car
+  const shown = new Map<number, {text: string; color: string; transform: string; opacity: string; on: boolean}>();
   const make = () => {
     const e = document.createElement('div');
     e.style.cssText =
@@ -38,24 +41,32 @@ export function createCarLabels(container: HTMLElement, T: ChaseTheme): CarLabel
         e = make();
         els.set(key, e);
       }
+      const was = shown.get(key) ?? {text: '', color: '', transform: '', opacity: '', on: false};
+      shown.set(key, was);
       if (!at) {
-        e.style.display = 'none';
+        if (was.on) e.style.display = 'none';
+        was.on = false;
         return;
       }
-      e.style.display = 'block';
-      e.textContent = text;
-      e.style.borderColor = color;
-      e.style.transform = `translate(${at.x.toFixed(0)}px,${at.y.toFixed(0)}px) translate(-50%,-100%)`;
-      e.style.opacity = String(clamp(FADE_START - distM / FADE_M, MIN_OPACITY, 1));
+      if (!was.on) e.style.display = 'block';
+      was.on = true;
+      if (was.text !== text) e.textContent = was.text = text;
+      if (was.color !== color) e.style.borderColor = was.color = color;
+      const transform = `translate(${at.x.toFixed(0)}px,${at.y.toFixed(0)}px) translate(-50%,-100%)`;
+      if (was.transform !== transform) e.style.transform = was.transform = transform;
+      const opacity = String(clamp(FADE_START - distM / FADE_M, MIN_OPACITY, 1));
+      if (was.opacity !== opacity) e.style.opacity = was.opacity = opacity;
     },
     drop(key) {
       els.get(key)?.remove();
       els.delete(key);
+      shown.delete(key);
     },
     keys: () => [...els.keys()],
     dispose() {
       layer.remove();
       els.clear();
+      shown.clear();
     },
   };
 }

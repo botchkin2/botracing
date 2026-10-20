@@ -12,14 +12,15 @@ export type RaceRate = (typeof RACE_RATES)[number];
  * background does not jump the race ahead (same cap as Compare's playback). */
 export const MAX_STEP_S = 0.25;
 
-/** One playback tick: `dtS` of wall time at `rate`, stopping at the end. */
+/** One playback tick: `dtS` of wall time (at most `maxStepS`) at `rate`, stopping at the end. */
 export function stepClock(
   timeS: number,
   dtS: number,
   rate: number,
   endS: number,
+  maxStepS = MAX_STEP_S,
 ): {timeS: number; ended: boolean} {
-  const next = timeS + Math.min(MAX_STEP_S, Math.max(0, dtS)) * rate;
+  const next = timeS + Math.min(maxStepS, Math.max(0, dtS)) * rate;
   return next >= endS
     ? {timeS: endS, ended: true}
     : {timeS: next, ended: false};

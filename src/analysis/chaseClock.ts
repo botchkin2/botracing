@@ -2,8 +2,17 @@
 // from its last anchor and takes the app's time only when the two part (a seek, play or pause, a new rate), so a car
 // never stands still or steps (thread 93). Plain TypeScript, no imports.
 
-/** A gap larger than this (seconds of race time per unit of rate) between the two clocks is a seek. */
-export const SEEK_S = 0.25;
+/**
+ * A gap larger than this (seconds of race time per unit of rate) between the two clocks is a seek. React hands the app
+ * clock over at the field's 5 Hz in 3D (useRaceClock tickHz), so a late or early one is up to 0.2 s of wall time plus its
+ * render apart; a real seek is seconds.
+ */
+export const SEEK_S = 0.6;
+/**
+ * The most a gap may be and still not be a seek, whatever the rate: the +-5 s buttons at 16x are a 5 s gap, and a gap that
+ * scaled to 9.6 s there would let the 3D glide on past them. At 16x the 5 Hz tick lag is 3.2 s of race, so this clears it.
+ */
+export const SEEK_MAX_S = 4.5;
 
 export interface ChaseClock {
   /** Race time at wall time `atMs`. */
@@ -22,7 +31,7 @@ export function clockAt(c: ChaseClock, nowMs: number): number {
 export function followApp(c: ChaseClock, app: {timeS: number; playing: boolean; rate: number}, nowMs: number): ChaseClock {
   const ran = clockAt(c, nowMs);
   const changed = app.playing !== c.playing || app.rate !== c.rate;
-  const parted = Math.abs(app.timeS - ran) > SEEK_S * Math.max(1, app.rate);
+  const parted = Math.abs(app.timeS - ran) > Math.min(SEEK_MAX_S, SEEK_S * Math.max(1, app.rate));
   if (!app.playing || parted) return {timeS: app.timeS, atMs: nowMs, playing: app.playing, rate: app.rate};
   if (changed) return {timeS: ran, atMs: nowMs, playing: app.playing, rate: app.rate};
   return c;
