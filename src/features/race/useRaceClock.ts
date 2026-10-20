@@ -7,6 +7,8 @@ export type RaceTimer = {
   playing: boolean;
   rate: RaceRate;
   setTimeS: (timeS: number) => void;
+  /** Play or pause by value (the app's clock arrives as a state, not a toggle). */
+  setPlaying: (playing: boolean) => void;
   toggle: () => void;
   setRate: (rate: RaceRate) => void;
 };
@@ -55,5 +57,5 @@ export function useRaceClock(endS: number, startS = 0, tickHz = 0): RaceTimer {
     setPlaying(p => !p);
   }, [endS]);
 
-  return {timeS, playing, rate, setTimeS, toggle, setRate};
+  return {timeS, playing, rate, setTimeS, setPlaying, toggle, setRate};
 }

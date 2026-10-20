@@ -48,6 +48,7 @@ import {
   type RaceFollow,
 } from './components/RaceMap';
 import {RaceTransport} from './components/RaceTransport';
+import {useEmbedClock} from './useEmbedClock';
 import {RaceLanesBlock} from './components/RaceLanesBlock';
 import {
   buildRaceModel,
@@ -141,6 +142,16 @@ function RaceShell({
   const layout = useLayout();
   const router = useRouter();
   const title = 'title' in data ? data.title : 'Race';
+  // The Android app's WebView: the 3D and nothing else, a dark page until it is ready.
+  if (embed3d) {
+    return (
+      <View style={[styles.screen, {backgroundColor: color.bg}]}>
+        {data.kind === 'ready' ? (
+          <RaceView data={data} selection={selection} onSelectionChange={onSelectionChange} embed3d />
+        ) : null}
+      </View>
+    );
+  }
   return (
     <View
       style={[
@@ -278,6 +289,8 @@ function RaceView({
   // in 3D React sees the clock at the field's own rate: the engine draws from its own clock every frame
   const [mapMode, setMapMode] = useState<MapMode>(embed3d ? 'chase' : 'track');
   const clock = useRaceClock(endS, openAt, mapMode === 'chase' && chaseAvailable ? prep.field.hz : 0);
+  // In the app's WebView the app's clock is the clock (embedBridge.ts).
+  useEmbedClock(clock, endS, embed3d);
   // Race writes the cursor back once the user has moved the clock and it has
   // rested; opening the screen never overwrites Compare's cursor.
   const touched = useRef(false);

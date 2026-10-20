@@ -9,6 +9,7 @@ import {formatGap} from '@/src/design/format';
 import {Pressable, Segment, Text} from '@/src/ui';
 
 import {ChaseTower} from '@/src/features/race/components/ChaseTower';
+import {postReady} from '@/src/features/race/useEmbedClock';
 import {DriverInputs} from '@/src/features/race/components/DriverInputs';
 import {type TowerMode, type TowerRow, towerRows} from '@/src/features/race/chase/towerRows';
 import type {TowerCar} from '@/src/features/race/chase/towerRows';
@@ -75,7 +76,7 @@ export function ChaseView(props: ChaseProps) {
 
 /** The engine, made once for the life of the view, and the element its canvas lives in. */
 function useChaseEngine(
-  {road, sample, timeS, focus, playing, rate, inputs, onPressCar}: ChaseProps,
+  {road, sample, timeS, focus, playing, rate, inputs, onPressCar, embedded}: ChaseProps,
   cam: CamValue,
 ): {failed: string | null; host: HTMLDivElement} {
   const {color} = useTheme();
@@ -120,6 +121,8 @@ function useChaseEngine(
         made.setCam(Number(cam) as ChaseCamMode);
         made.setInputs(inputs?.ribbon ?? null);
         made.update({sample, timeS, focus, playing, rate, inputIdx: inputs?.now?.idx ?? -1});
+        // the app's WebView waits under a dark cover until this: two frames on, the first one is on the screen
+        if (embedded) requestAnimationFrame(() => requestAnimationFrame(() => !dead && postReady()));
       } catch (e) {
         console.warn('3D chase did not start', e);
         if (!dead) setFailed(e instanceof Error && e.message ? e.message : 'unknown error');
@@ -246,7 +249,7 @@ function ChaseSurface({
       ) : null}
       <View style={[styles.cams, tight && styles.camsTight]}>
         <Segment options={CAMS} value={cam} onChange={setCam} />
-        {full ? (
+        {full && !embedded ? (
           <Pressable
             accessibilityLabel={playing ? 'Pause' : 'Play'}
             onPress={onToggle}
@@ -257,7 +260,7 @@ function ChaseSurface({
             </Text>
           </Pressable>
         ) : null}
-        {full ? (
+        {full && !embedded ? (
           <>
             {[-30, 30].map(d => (
               <Pressable
@@ -308,7 +311,7 @@ function ChaseSurface({
       {me ? (
         <View
           pointerEvents='none'
-          style={[styles.dock, tight && styles.dockTight, tight && {bottom: space.sm + (full ? 2 : 1) * (size.hit + space.xs)}]}>
+          style={[styles.dock, tight && styles.dockTight, tight && {bottom: space.sm + (full && !embedded ? 2 : 1) * (size.hit + space.xs)}]}>
           {now ? (
             <DriverInputs brakePct={now.brakePct} throttlePct={now.throttlePct} steeringPct={now.steeringPct} tight={tight} />
           ) : null}
