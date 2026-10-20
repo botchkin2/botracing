@@ -199,6 +199,8 @@ export function mountChase(
       renderer.render(scene, camera);
       return;
     }
+    // only the road around the followed car is drawn (a draw range per piece)
+    roadGroup?.userData.window(me.ld);
     for (const [k, s] of states) {
       let o = objects.get(k);
       if (o && o.userData.player !== s.car.player) {

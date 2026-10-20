@@ -1,7 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 import * as THREE from 'three';
 
-import {chaseRoad} from '@/src/analysis/chaseRoad';
+import {fixtureRoad} from '@/src/analysis/chaseRoadFixture';
 import {roadIndex} from '@/src/analysis/chaseRoadIndex';
 import {buildRoadScene, disposeGroup} from './roadScene';
 
@@ -16,7 +16,7 @@ describe('road scene', () => {
     const centre = Array.from({length: 40}, (_, i) => ({x: i * 10, y: 0}));
     const left = centre.map(() => 6.3);
     const right = centre.map(() => 6.0);
-    const road = chaseRoad(centre, {stepM: 10, lengthM: 400, leftM: left, rightM: right}, 10, 400, null, 0)!;
+    const road = fixtureRoad(centre, 400, {left, right});
     const group = buildRoadScene(road, roadIndex(road), theme);
     const fill = group.children[0] as THREE.Mesh;
     const pos = fill.geometry.getAttribute('position');
