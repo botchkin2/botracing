@@ -5,7 +5,7 @@ The Race screen (round 3, handoff R1): every car on the track as a dot, a leader
 - `RaceScreen.tsx`: layout (phone column, desktop `map | leaderboard` from 1280, the leaderboard below the lanes from 900 to 1279), the states of R4c, focus, class filter.
 - `chaseWorld.ts`: the 3D's road and cars' preparation as steps (`analysis/steps`), driven in 8 ms time slices by `useRaceData` when the 3D is first asked for (a second or two on a phone, never one frozen block); the map shows a placeholder until it returns, and a new field, map or race drops a fit that is running.
 - `useRaceData.ts`: gathers the session, its field, the track map and the reference lap; says whether the cars land on the drawn track (`analysis/worldMatch`).
-- `useRaceClock.ts` + `clock.ts`: race time, play/pause, rates; playback steps by wall time, paused rests on a real 5 Hz sample.
+- `useRaceClock.ts` + `clock.ts`: race time, play/pause, rates; playback steps by wall time, paused rests on a real 5 Hz sample. In 3D React sees the clock at the field's own rate (`tickHz`, 5 Hz) and the engine draws every frame from its own clock (`analysis/chaseClock`, which takes the app's time only on a seek, play, pause or rate change), so the screen re-renders 5 times a second, not 60.
 - `selectionClock.ts`: Compare's cursor (lap + metres in the URL) to race time and back, via `analysis/raceClock`.
 - `followTarget.ts`: pure. Which car Follow chases (focused, else you) and where its chase view sits and points, through the map's own projection.
 - `model.ts`: pure. Cars at a moment (`analysis/raceState`) to leaderboard groups, dots and the focus label.
