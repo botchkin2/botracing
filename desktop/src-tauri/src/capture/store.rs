@@ -268,6 +268,8 @@ impl Capture {
     /// capture with this mark.
     pub fn mark_layout_suspect(&mut self, reason: &str) {
         self.meta.entry("layoutSuspect").or_insert_with(|| json!(reason));
+        // On disk now: a drive that stops after this still carries the mark.
+        let _ = self.write_meta();
     }
 
     pub fn note_suspect(&mut self) {
