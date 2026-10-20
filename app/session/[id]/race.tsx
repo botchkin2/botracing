@@ -16,6 +16,7 @@ export default function RaceRoute() {
     hl?: string;
     c?: string;
     t?: string;
+    embed?: string;
   }>();
   const router = useRouter();
   const {laps, ref, hl, c, t} = params;
@@ -31,6 +32,7 @@ export default function RaceRoute() {
   return (
     <RaceScreen
       sessionId={params.id}
+      embed3d={params.embed === '3d'}
       selection={selection}
       onSelectionChange={patch =>
         router.setParams({hl: patch.hl ?? undefined, t: String(patch.cursorM)})

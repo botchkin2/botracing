@@ -132,6 +132,13 @@
         }
       },
       {
+        "source": "/api/auth/handoff",
+        "function": {
+          "functionId": "handoffApi",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

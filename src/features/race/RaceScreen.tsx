@@ -99,10 +99,13 @@ export function RaceScreen({
   sessionId,
   selection,
   onSelectionChange,
+  embed3d = false,
 }: {
   sessionId: string;
   selection: RaceSelection;
   onSelectionChange: (patch: SelectionPatch) => void;
+  /** The page is the Android app's WebView (`embed=3d`): it opens on the 3D, full screen. */
+  embed3d?: boolean;
 }) {
   const data = useRaceData(sessionId);
   return (
@@ -111,6 +114,7 @@ export function RaceScreen({
       data={data}
       selection={selection}
       onSelectionChange={onSelectionChange}
+      embed3d={embed3d}
     />
   );
 }
@@ -120,11 +124,13 @@ function RaceShell({
   data,
   selection,
   onSelectionChange,
+  embed3d,
 }: {
   sessionId: string;
   data: RaceData;
   selection: RaceSelection;
   onSelectionChange: (patch: SelectionPatch) => void;
+  embed3d: boolean;
 }) {
   const {color} = useTheme();
   const insets = useSafeAreaInsets();
@@ -156,6 +162,7 @@ function RaceShell({
           data={data}
           selection={selection}
           onSelectionChange={onSelectionChange}
+          embed3d={embed3d}
         />
       ) : (
         <Notice data={data} />
@@ -247,10 +254,12 @@ function RaceView({
   data,
   selection,
   onSelectionChange,
+  embed3d,
 }: {
   data: Extract<RaceData, {kind: 'ready'}>;
   selection: RaceSelection;
   onSelectionChange: (patch: SelectionPatch) => void;
+  embed3d: boolean;
 }) {
   const {color} = useTheme();
   const {mode} = data;
@@ -303,7 +312,7 @@ function RaceView({
   // R1e: per view; the design's third mode (car number) needs numbers the
   // field upload does not carry.
   const [labels, setLabels] = useState<LabelMode>('pos');
-  const [mapMode, setMapMode] = useState<MapMode>('track');
+  const [mapMode, setMapMode] = useState<MapMode>(embed3d ? 'chase' : 'track');
   // Compare's Follow zoom, so the two chase views keep one setting. A stored
   // zoom outside the steps (a hand-edited or old save) reads as 1x.
   const prefs = useComparePrefs();
@@ -487,6 +496,7 @@ function RaceView({
       chaseOk && data.chase
         ? {
             road: () => world?.()?.road ?? null,
+            embedded: embed3d,
             cars: toChase(cars),
             sample,
             timeS: shownS,

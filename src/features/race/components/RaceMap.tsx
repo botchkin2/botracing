@@ -19,7 +19,7 @@ import {
 } from '@/src/ui';
 
 import {type RaceDot} from '../model';
-import {ChaseView, chaseAvailable} from './ChaseView';
+import {ChaseView, chaseAvailable, chaseNeedsRoad} from './ChaseView';
 import {type ChaseCar, type ChaseGaps, type ChaseInputs, type ChaseSampler} from '@/src/features/race/chase/chaseTypes';
 
 // Dot radii in points by class, fastest first, from handoff R1d (desktop
@@ -60,6 +60,8 @@ export type MapMode = 'track' | 'follow' | 'chase';
 /** What the 3D chase needs beyond the cars: the road (fitted on first use, null when the field cannot give one), and whose eyes. */
 export type RaceChase = {
   road: () => ChaseRoad | null;
+  /** The page is the Android app's WebView (embed=3d): full screen, no way out. */
+  embedded: boolean;
   /** The cars now, for the strip; the engine samples its own with `sample`. */
   cars: ChaseCar[];
   sample: ChaseSampler;
@@ -150,8 +152,9 @@ export function RaceMap({
 }) {
   const {color} = useTheme();
   const following = mode === 'follow' && follow !== null;
-  const chaseRoad = mode === 'chase' && chase !== null && chaseAvailable ? chase.road() : null;
-  const chasing = chaseRoad !== null;
+  // the page that draws the 3D fits the road (the phone app's WebView page does its own)
+  const chaseRoad = mode === 'chase' && chase !== null && chaseAvailable && chaseNeedsRoad ? chase.road() : null;
+  const chasing = mode === 'chase' && chase !== null && chaseAvailable && (!chaseNeedsRoad || chaseRoad !== null);
   const scale = desktop ? DESKTOP_SCALE : PHONE_SCALE;
   const lines = useMemo(
     // Fits the view and is the band when there is no outline; no lap is drawn.
@@ -222,7 +225,7 @@ export function RaceMap({
           backgroundColor: color.surface,
         },
       ]}>
-      {chase && chaseRoad ? (
+      {chase && chasing ? (
         <ChaseView
           width={width - 2}
           height={height - 2}
@@ -240,6 +243,7 @@ export function RaceMap({
           onCycleRate={chase.onCycleRate}
           rate={chase.rate}
           onPressCar={onPressCar}
+          embedded={chase.embedded}
         />
       ) : following ? (
         <FollowMap
