@@ -39,5 +39,14 @@ describe('roadIndex', () => {
     const flat = roadIndex(fixtureRoad(centre, 400));
     expect(flat.hasHeight).toBe(false);
     expect(flat.heightAt(123)).toBe(0);
+    expect(flat.bankAt(123)).toBe(0);
+  });
+  it('gives the roll of the road in radians between its points, level without a bank', () => {
+    const banked = roadIndex(fixtureRoad(centre, 400, {bankDeg: i => (i < 0.5 ? 2 : 4)}));
+    const step = banked.stepM; // the polygon's chord, a little under 10 m
+    expect(banked.bankAt(0)).toBeCloseTo((2 * Math.PI) / 180, 10);
+    expect(banked.bankAt(30 * step)).toBeCloseTo((4 * Math.PI) / 180, 10);
+    // halfway between the last point at 2 degrees (19) and the first at 4 (20): 3 degrees
+    expect(banked.bankAt(19.5 * step)).toBeCloseTo((3 * Math.PI) / 180, 10);
   });
 });

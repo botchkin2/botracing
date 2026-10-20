@@ -583,4 +583,13 @@ describe('toTrackMap elevation', () => {
     expect(toTrackMap({...base, elevation: {stepM: 10, heightM: [1]}}).elevation).toBeNull();
     expect(toTrackMap({...base, elevation: {stepM: 0, heightM: [1, 2]}}).elevation).toBeNull();
   });
+
+  it('reads the curated bank, and is null without it or when it is not numbers', () => {
+    const base = {trackId: 'lmu-x', lengthM: 1000};
+    expect(toTrackMap(base).bank).toBeNull();
+    expect(toTrackMap({...base, bank: {stepM: 5, rollDeg: [0, 1.5, -2], source: 'capture'}}).bank).toEqual({stepM: 5, rollDeg: [0, 1.5, -2]});
+    expect(toTrackMap({...base, bank: {stepM: 5, rollDeg: [1]}}).bank).toBeNull();
+    expect(toTrackMap({...base, bank: {stepM: 0, rollDeg: [1, 2]}}).bank).toBeNull();
+    expect(toTrackMap({...base, bank: {stepM: 5, rollDeg: [1, 'x']}}).bank).toBeNull();
+  });
 });

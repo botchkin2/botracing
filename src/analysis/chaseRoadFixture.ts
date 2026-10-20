@@ -12,6 +12,8 @@ export function fixtureRoad(
     right?: number[];
     elevation?: {stepM: number; heightM: number[]} | null;
     elevationLapM?: number;
+    /** Roll in degrees at each point, or a function of the point's share of the lap. */
+    bankDeg?: number[] | ((lapShare: number) => number) | null;
   } = {},
 ): ChaseRoad {
   const n = centre.length;
@@ -29,5 +31,6 @@ export function fixtureRoad(
     elev,
     heightM: elev ? centre.map((_, i) => roadHeight(elev, (i / n) * lapM, lapM)) : null,
     elevMin: elev ? Math.min(...elev.heightM) : 0,
+    bankDeg: typeof opts.bankDeg === 'function' ? centre.map((_, i) => (opts.bankDeg as (s: number) => number)(i / n)) : opts.bankDeg ?? null,
   };
 }

@@ -6,7 +6,7 @@ import type {ChaseRoad} from '@/src/analysis/chaseRoad';
 import type {Field} from '@/src/analysis/field';
 import {type MeasuredEdges, prepareRaceSteps, type RacePrep} from '@/src/analysis/raceState';
 import type {Steps} from '@/src/analysis/steps';
-import {worldRoadSteps} from '@/src/analysis/worldRoad';
+import {type WorldRoadInput, worldRoadSteps} from '@/src/analysis/worldRoad';
 
 export type ChaseWorld = {road: ChaseRoad; prep: RacePrep};
 
@@ -16,6 +16,7 @@ export interface ChaseWorldInput {
   edges: MeasuredEdges | null;
   elevation: {stepM: number; heightM: number[]} | null;
   elevationLapM: number;
+  bank: WorldRoadInput['bank'];
 }
 
 /** Null when the field cannot give a road. */

@@ -32,7 +32,11 @@ export interface RoadIndex {
   height: Float64Array;
   /** Whether the road carries a measured height profile (otherwise all heights are 0). */
   hasHeight: boolean;
+  /** The road's roll at each point, radians, + with the right side up; all 0 without a bank. */
+  bank: Float64Array;
   heightAt(s: number): number;
+  /** The roll at lap distance `s`, radians. */
+  bankAt(s: number): number;
   widthAt(s: number, side: number): number;
   curvatureAt(s: number): number;
   tangentAt(s: number): number;
@@ -48,6 +52,7 @@ export function roadIndex(road: ChaseRoad): RoadIndex {
   const normalY = new Float64Array(n);
   const curv = new Float64Array(n);
   const height = new Float64Array(n);
+  const bank = new Float64Array(n);
   const grid = new Map<number, number[]>();
   for (let i = 0; i < n; i++) {
     const a = (i - 1 + n) % n;
@@ -68,6 +73,7 @@ export function roadIndex(road: ChaseRoad): RoadIndex {
   // Height only where the track has its curated profile; otherwise the road is flat at 0.
   const hasHeight = road.heightM !== null;
   if (road.heightM) for (let i = 0; i < n; i++) height[i] = road.heightM[i];
+  if (road.bankDeg) for (let i = 0; i < n; i++) bank[i] = (road.bankDeg[i] * Math.PI) / 180;
   const between = (s: number): [number, number, number] => {
     const f = mod(s / bin, n);
     const i = Math.floor(f);
@@ -88,7 +94,9 @@ export function roadIndex(road: ChaseRoad): RoadIndex {
     normalY,
     height,
     hasHeight,
+    bank,
     heightAt: s => at(height, s),
+    bankAt: s => at(bank, s),
     widthAt: (s, side) => at(side < 0 ? road.hl : road.hr, s),
     curvatureAt: s => at(curv, s),
     tangentAt(s) {
