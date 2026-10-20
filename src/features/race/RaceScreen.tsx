@@ -141,6 +141,16 @@ function RaceShell({
   const layout = useLayout();
   const router = useRouter();
   const title = 'title' in data ? data.title : 'Race';
+  // The Android app's WebView: the 3D and nothing else, a dark page until it is ready.
+  if (embed3d) {
+    return (
+      <View style={[styles.screen, {backgroundColor: color.bg}]}>
+        {data.kind === 'ready' ? (
+          <RaceView data={data} selection={selection} onSelectionChange={onSelectionChange} embed3d />
+        ) : null}
+      </View>
+    );
+  }
   return (
     <View
       style={[
@@ -276,6 +286,16 @@ function RaceView({
     () => raceTimeFor(selection, data.laps, data.clock) ?? 0,
   );
   const clock = useRaceClock(endS, openAt);
+  // The WebView's 3D is the only picture and its controls the only ones: it plays from the start instead of waiting
+  // on a native transport the person cannot see.
+  const started = useRef(false);
+  useEffect(() => {
+    if (embed3d && !started.current) {
+      started.current = true;
+      clock.toggle();
+    }
+    // once, on opening
+  }, []);
   // Race writes the cursor back once the user has moved the clock and it has
   // rested; opening the screen never overwrites Compare's cursor.
   const touched = useRef(false);
@@ -648,7 +668,9 @@ function RaceView({
       mode={mode}
     />
   );
-  const controls = (
+  // The native app's 3D is a WebView with its own transport: one clock, not two.
+  const pageHasOwnTransport = mapMode === 'chase' && chaseAvailable && !chaseNeedsRoad && data.chase !== null;
+  const controls = pageHasOwnTransport ? null : (
     <RaceTransport
       playing={clock.playing}
       rate={clock.rate}
