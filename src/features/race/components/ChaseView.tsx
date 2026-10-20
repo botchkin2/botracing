@@ -79,6 +79,7 @@ export function ChaseView({width, height}: {
           javaScriptEnabled
           domStorageEnabled
           setSupportMultipleWindows={false}
+          incognito
           style={{backgroundColor: color.bg}}
         />
       ) : (
