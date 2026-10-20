@@ -827,12 +827,23 @@ mod tests {
         assert!(rig.folders().is_empty());
     }
 
-    #[test]
-    fn a_car_in_a_long_pit_lane_reads_a_negative_lap_distance_and_is_recorded() {
-        // Sebring, 2026-10-19: cars at -1079 to -1664 m were refused as garbage.
-        let (rig, mut rec) = Rig::new("pitdist");
+    /// A field of `n` named cars, car i's lap distance `dist(i)`.
+    fn field_with_dists(rig: &Rig, n: usize, dist: impl Fn(usize) -> f64) {
         rig.field("Sebring International Raceway", 10, 5.0);
-        rig.put(rig.vehicle(0, "mLapDist"), &(-1664.85_f64).to_le_bytes());
+        assert!(n <= rig.lay.max_vehicles, "{} slots", rig.lay.max_vehicles);
+        rig.put(rig.scoring("mNumVehicles"), &(n as i32).to_le_bytes());
+        for i in 0..n {
+            rig.put(rig.vehicle(i, "mVehicleName"), format!("Car #{i} ").as_bytes());
+            rig.put(rig.vehicle(i, "mID"), &(if i == 0 { 7 } else { 100 + i as i32 }).to_le_bytes());
+            rig.put(rig.vehicle(i, "mLapDist"), &dist(i).to_le_bytes());
+        }
+    }
+
+    #[test]
+    fn one_car_in_a_long_pit_lane_does_not_refuse_the_field() {
+        // Sebring, 2026-10-19: cars at -1079 to -1664 m were refused as garbage.
+        let (rig, mut rec) = Rig::new("pitdist1");
+        field_with_dists(&rig, 8, |i| if i == 0 { -1664.85 } else { 100.0 * i as f64 });
         rig.player("Sebring International Raceway", 5.0);
         rec.tick(1_000);
         assert_eq!(rec.status.state, "recording", "{}", rec.status.layout_reason);
@@ -840,10 +851,18 @@ mod tests {
     }
 
     #[test]
-    fn a_lap_distance_no_track_has_is_refused() {
-        let (rig, mut rec) = Rig::new("baddist");
-        rig.field("Road Atlanta", 10, 5.0);
-        rig.put(rig.vehicle(0, "mLapDist"), &(-5.0e9_f64).to_le_bytes());
+    fn two_of_eight_cars_out_of_range_still_records() {
+        let (rig, mut rec) = Rig::new("pitdist2");
+        field_with_dists(&rig, 8, |i| if i < 2 { -5.0e9 } else { 100.0 * i as f64 });
+        rig.player("Sebring International Raceway", 5.0);
+        rec.tick(1_000);
+        assert_eq!(rec.status.state, "recording", "{}", rec.status.layout_reason);
+    }
+
+    #[test]
+    fn a_wrong_layout_garbles_every_lap_distance_and_is_refused() {
+        let (rig, mut rec) = Rig::new("pitdistall");
+        field_with_dists(&rig, 8, |_| -5.0e9);
         rec.tick(1_000);
         assert_eq!(rec.status.state, "refused");
         assert!(rec.status.layout_reason.contains("lap distance"), "{}", rec.status.layout_reason);
