@@ -1,12 +1,14 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {ABSENT, type Field, type FieldCar} from './field';
+import {runSteps} from './steps';
 import {
   CAR_HALF_WIDTH_M,
   carsAt,
   OFF_HOLD_S,
   OFF_TRACK_M,
   prepareRace,
+  prepareRaceSteps,
   raceStartUpdate,
   STOPPED_FOR_S,
 } from './raceState';
@@ -473,5 +475,15 @@ describe('the race start and the laps counter', () => {
     ]);
     expect(raceStartUpdate(f)).toBe(50);
     expect(prepareRace(f).startU).toBe(50);
+  });
+});
+
+describe('prepareRaceSteps', () => {
+  it('run to its end gives the preparation prepareRace gives', () => {
+    const f = field(10, [
+      car(0, 'GT3', 10, u => ({d: 100 + u * 10, place: 2}), true),
+      car(1, 'Hyper', 10, u => ({d: 300 + u * 10, place: 1})),
+    ]);
+    expect(runSteps(prepareRaceSteps(f))).toEqual(prepareRace(f));
   });
 });

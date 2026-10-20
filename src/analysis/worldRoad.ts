@@ -10,6 +10,7 @@ import {DEFAULT_HALF_WIDTH_M, type ChaseElevation, type ChaseRoad} from './chase
 import {bankOnLap, type Bank} from './bank.ts';
 import {heightAt} from './elevation.ts';
 import type {Field} from './field.ts';
+import {runSteps, type Steps} from './steps.ts';
 
 /** The width of the fit's kernel, metres of lap distance. */
 export const FIT_SIGMA_M = 5;
@@ -30,6 +31,10 @@ const MEDIAN_WINDOW_M = 6;
 const MIN_WINDOW_SAMPLES = 5;
 /** The median is taken every this many grid points: it only finds outliers (4 m away), a 10 m chord sags under 0.4 m at a 30 m radius. */
 const MEDIAN_STRIDE = 5;
+/** How much work one chunk does between yields (samples, grid points), so a chunk is a fraction of a millisecond. */
+const SAMPLES_PER_CHUNK = 20000;
+const GRID_POINTS_PER_CHUNK = 8;
+const ROAD_POINTS_PER_CHUNK = 200;
 
 export interface WorldRoadInput {
   field: Field;
@@ -52,11 +57,12 @@ interface Samples {
 }
 
 /** Every moving, out-of-the-pits car sample moved onto the game's centre line. */
-function centreSamples(field: Field, lapM: number): Samples {
+function* centreSamples(field: Field, lapM: number): Steps<Samples> {
   const out: Samples = {ld: [], x: [], y: []};
   const n = field.timeS.length;
   for (const car of field.cars) {
     for (let u = 1; u < n - 1; u++) {
+      if (u % SAMPLES_PER_CHUNK === 0) yield;
       const d = car.lapDistM[u];
       const lat = car.pathLateralM[u];
       if (Number.isNaN(d) || !Number.isFinite(lat) || Math.abs(lat) > MAX_LATERAL_M) continue;
@@ -78,16 +84,26 @@ function centreSamples(field: Field, lapM: number): Samples {
 }
 
 /** The samples in 1 m buckets of lap distance, so a kernel window reads only its own buckets. */
-function bucket(s: Samples, lapM: number, keep: (i: number) => boolean) {
+function* bucket(s: Samples, lapM: number, keep: (i: number) => boolean): Steps<{start: Int32Array; order: Int32Array; buckets: number}> {
   const buckets = Math.ceil(lapM / GRID_M);
   const start = new Int32Array(buckets + 1);
   const picked: number[] = [];
-  for (let i = 0; i < s.ld.length; i++) if (keep(i)) picked.push(i);
-  for (const i of picked) start[Math.min(buckets - 1, Math.floor(s.ld[i] / GRID_M)) + 1]++;
+  for (let i = 0; i < s.ld.length; i++) {
+    if (i % SAMPLES_PER_CHUNK === 0) yield;
+    if (keep(i)) picked.push(i);
+  }
+  for (let k = 0; k < picked.length; k++) {
+    if (k % SAMPLES_PER_CHUNK === 0) yield;
+    start[Math.min(buckets - 1, Math.floor(s.ld[picked[k]] / GRID_M)) + 1]++;
+  }
   for (let b = 0; b < buckets; b++) start[b + 1] += start[b];
   const fill = start.slice(0, buckets);
   const order = new Int32Array(picked.length);
-  for (const i of picked) order[fill[Math.min(buckets - 1, Math.floor(s.ld[i] / GRID_M))]++] = i;
+  for (let k = 0; k < picked.length; k++) {
+    if (k % SAMPLES_PER_CHUNK === 0) yield;
+    const i = picked[k];
+    order[fill[Math.min(buckets - 1, Math.floor(s.ld[i] / GRID_M))]++] = i;
+  }
   return {start, order, buckets};
 }
 
@@ -95,8 +111,8 @@ function bucket(s: Samples, lapM: number, keep: (i: number) => boolean) {
  * Gaussian local-linear fit of (x, y) over lap distance on a 1 m grid. Local linear, not local mean: a bend's inside
  * does not pull the fit inward. Returns null where a window holds no samples.
  */
-function fitGrid(s: Samples, lapM: number, keep: (i: number) => boolean): {x: Float64Array; y: Float64Array; n: number} | null {
-  const {start, order, buckets} = bucket(s, lapM, keep);
+function* fitGrid(s: Samples, lapM: number, keep: (i: number) => boolean): Steps<{x: Float64Array; y: Float64Array; n: number} | null> {
+  const {start, order, buckets} = yield* bucket(s, lapM, keep);
   const n = buckets;
   const gx = new Float64Array(n);
   const gy = new Float64Array(n);
@@ -104,6 +120,7 @@ function fitGrid(s: Samples, lapM: number, keep: (i: number) => boolean): {x: Fl
   const step = lapM / n;
   let empty = 0;
   for (let g = 0; g < n; g++) {
+    if (g % GRID_POINTS_PER_CHUNK === 0) yield;
     const at = g * step;
     let s0 = 0;
     let s1 = 0;
@@ -165,14 +182,15 @@ function fillHoles(gx: Float64Array, gy: Float64Array, empty: number): {x: Float
  * The line first, robustly: the median x and the median y of the samples within MEDIAN_WINDOW_M of each grid point. A
  * stray car (a spin, a rejoin) cannot pull a median the way it pulls a mean, so the outliers are found against this.
  */
-function medianGrid(s: Samples, lapM: number): {x: Float64Array; y: Float64Array; n: number} | null {
-  const {start, order, buckets} = bucket(s, lapM, () => true);
+function* medianGrid(s: Samples, lapM: number): Steps<{x: Float64Array; y: Float64Array; n: number} | null> {
+  const {start, order, buckets} = yield* bucket(s, lapM, () => true);
   const n = buckets;
   const gx = new Float64Array(n);
   const gy = new Float64Array(n);
   const reach = Math.ceil(MEDIAN_WINDOW_M / 2 / GRID_M);
   let empty = 0;
   for (let g = 0; g < n; g++) {
+    if (g % GRID_POINTS_PER_CHUNK === 0) yield;
     // only every MEDIAN_STRIDE-th point is taken; the points between are filled on the straight line between them
     if (g % MEDIAN_STRIDE !== 0) {
       gx[g] = NaN;
@@ -216,18 +234,23 @@ export function closedHeight(elev: ChaseElevation, ld: number, lapM: number): nu
 
 /** The centre line fitted from the field, or null when the field has no usable positions. */
 export function worldRoad(input: WorldRoadInput): ChaseRoad | null {
+  return runSteps(worldRoadSteps(input));
+}
+
+/** The same fit as `worldRoad`, as steps: a page drives them in time slices (`analysis/steps` `runSliced`) so it never freezes. */
+export function* worldRoadSteps(input: WorldRoadInput): Steps<ChaseRoad | null> {
   const {field, lapM, edges, elevation, elevationLapM, bank} = input;
   if (!field.hasPositions || !(lapM > 100)) return null;
-  const s = centreSamples(field, lapM);
+  const s = yield* centreSamples(field, lapM);
   if (s.ld.length < 1000) return null;
-  const first = medianGrid(s, lapM);
+  const first = yield* medianGrid(s, lapM);
   if (!first) return null;
   // then the fit, without the samples that were not on the line
   const near = (i: number) => {
     const g = Math.min(first.n - 1, Math.round((s.ld[i] / lapM) * first.n) % first.n);
     return Math.hypot(s.x[i] - first.x[g], s.y[i] - first.y[g]) < OUTLIER_M;
   };
-  const fit = fitGrid(s, lapM, near);
+  const fit = yield* fitGrid(s, lapM, near);
   if (!fit) return null;
   const n = fit.n;
   // equal arc length: the fit is on equal lap distance, which is not equal distance along the line
@@ -260,6 +283,7 @@ export function worldRoad(input: WorldRoadInput): ChaseRoad | null {
   };
   let g = 0;
   for (let k = 0; k < count; k++) {
+    if (k % ROAD_POINTS_PER_CHUNK === 0) yield;
     const target = k * step;
     while (g < n - 1 && arc[g + 1] <= target) g++;
     const span = arc[g + 1] - arc[g];

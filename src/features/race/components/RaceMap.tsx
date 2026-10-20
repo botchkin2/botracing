@@ -15,6 +15,7 @@ import {
   MAP_ZOOM_LABEL_W,
   MapZoomButtons,
   Segment,
+  Skeleton,
   Text,
 } from '@/src/ui';
 
@@ -61,6 +62,8 @@ export type MapMode = 'track' | 'follow' | 'chase';
 /** What the 3D chase needs beyond the cars: the road (fitted on first use, null when the field cannot give one), and whose eyes. */
 export type RaceChase = {
   road: () => ChaseRoad | null;
+  /** The road is being fitted: the map shows its placeholder until it returns. */
+  building: boolean;
   /** The page is the Android app's WebView (embed=3d): full screen, no way out. */
   embedded: boolean;
   /** The cars now, for the strip; the engine samples its own with `sample`. */
@@ -229,7 +232,9 @@ export function RaceMap({
           backgroundColor: color.surface,
         },
       ]}>
-      {chase && chasing ? (
+      {chase && mode === 'chase' && chase.building ? (
+        <Skeleton height={height - 2} />
+      ) : chase && chasing ? (
         <ChaseView
           width={width - 2}
           height={height - 2}
