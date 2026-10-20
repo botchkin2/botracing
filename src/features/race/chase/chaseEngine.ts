@@ -147,10 +147,11 @@ export function mountChase(
       if (ix && near) {
         tangent = ix.tangentAt(near.s);
         z = ix.heightAt(near.s);
+        // the road's grade under or beside the car: a car touching the edge margin must not change pitch with it
+        grade = (ix.heightAt(near.s + 4) - ix.heightAt(near.s - 4)) / 8;
         if (near.dist < ix.widthAt(near.s, near.side) + ON_ROAD_MARGIN_M) {
           onRoad = true;
           ld = near.s;
-          grade = (ix.heightAt(near.s + 4) - ix.heightAt(near.s - 4)) / 8;
         }
       }
       const pose = {
@@ -164,7 +165,7 @@ export function mountChase(
           speedKmh: c.speedKmh,
           onRoad,
         }),
-        pitch: onRoad ? Math.atan(grade) : 0,
+        pitch: Math.atan(grade),
       };
       if (prior) {
         Object.assign(prior, pose, {car: c, v: c.speedKmh / 3.6, ld, onRoad, travel, prev: {x, y}});
