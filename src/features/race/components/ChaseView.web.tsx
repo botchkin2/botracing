@@ -18,6 +18,8 @@ import type {ChaseCamMode, ChaseCar, ChaseEngine, ChaseGaps, ChaseInputs, ChaseS
 // they stay out of the main bundle and out of the native app. Everything on screen is the app's own tokens; nothing
 // sits in the middle.
 export const chaseAvailable = true;
+/** The road is fitted and drawn here, in the page. */
+export const chaseNeedsRoad = true;
 
 const CAMS = [
   {value: '1', label: 'Chase'},
@@ -52,13 +54,15 @@ type ChaseProps = {
   onStep: (deltaS: number) => void;
   onCycleRate: () => void;
   onPressCar: (index: number) => void;
+  /** The page is the Android app's WebView (embed=3d): full screen from the start, with no way out of it. */
+  embedded?: boolean;
 };
 
 // Full screen is a portal to the page body: the view leaves the map's frame (and its stacking order). The engine and
 // its canvas belong here, made once, and the canvas's host element moves between the two frames, so toggling full
 // screen never makes a second WebGL context (a browser keeps only a handful). The camera choice is kept here too.
 export function ChaseView(props: ChaseProps) {
-  const [full, setFull] = useState(false);
+  const [full, setFull] = useState(props.embedded === true);
   const [cam, setCam] = useState<CamValue>('1');
   const {failed, host} = useChaseEngine(props, cam);
   const surface = (
@@ -163,6 +167,7 @@ function ChaseSurface({
   onStep,
   onCycleRate,
   onPressCar,
+  embedded,
   full,
   setFull,
   cam,
@@ -182,7 +187,7 @@ function ChaseSurface({
   useEffect(() => {
     if (!full) return;
     const key = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setFull(false);
+      if (e.key === 'Escape' && !embedded) setFull(false);
       else if (e.key === ' ') {
         e.preventDefault();
         onToggle();
@@ -190,7 +195,7 @@ function ChaseSurface({
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [full, onToggle, setFull]);
+  }, [full, embedded, onToggle, setFull]);
   // the engine's canvas moves into whichever frame is showing
   const slot = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => {
@@ -278,12 +283,14 @@ function ChaseSurface({
           style={toolStyle}>
           <Text variant='dataStrong'>☰</Text>
         </Pressable>
-        <Pressable
-          accessibilityLabel={full ? 'Close full screen' : 'Full screen'}
-          onPress={() => setFull(!full)}
-          style={toolStyle}>
-          <Text variant='dataStrong'>{full ? '×' : '⤢'}</Text>
-        </Pressable>
+        {embedded ? null : (
+          <Pressable
+            accessibilityLabel={full ? 'Close full screen' : 'Full screen'}
+            onPress={() => setFull(!full)}
+            style={toolStyle}>
+            <Text variant='dataStrong'>{full ? '×' : '⤢'}</Text>
+          </Pressable>
+        )}
       </View>
       {tower.length > 0 ? (
         <View style={[styles.tower, tight && {top: size.chaseTowerTopTight}]}>
