@@ -21,7 +21,7 @@ export function DriverInputs({
   const {color} = useTheme();
   const wheel = tight ? size.chaseWheelTight : size.chaseWheel;
   // the road ribbon's colours: full throttle green, part throttle accent, brake red
-  const throttleFill = {full: color.faster, part: color.accent, coast: color.faster}[throttleState(throttlePct)];
+  const throttleFill = {full: color.faster, part: color.accent, coast: color.textMuted}[throttleState(throttlePct)];
   const pedalW = tight ? size.chasePedalWTight : size.chasePedalW;
   return (
     <View
