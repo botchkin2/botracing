@@ -313,7 +313,7 @@ export function RaceMap({
           rangeLabel={`${FOLLOW_SPANS_M[zoom]} m`}
         />
       ) : null}
-      {radar ? (
+      {radar && !chasing ? (
         <View style={styles.radar}>
           <Radar
             inset
@@ -325,7 +325,7 @@ export function RaceMap({
           />
         </View>
       ) : null}
-      {attribution && placer.real ? (
+      {attribution && placer.real && !chasing ? (
         <Text variant='attribution' tone='textFaint' style={styles.credit}>
           {attribution}
         </Text>
