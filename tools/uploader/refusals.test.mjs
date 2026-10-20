@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mutate, payload} from '../../contract/payloads.mjs';
-import {trackRefusals, REFUSAL_GAP_MS} from './refusals.mjs';
+import {newRefusal, trackRefusals, REFUSAL_GAP_MS} from './refusals.mjs';
 
 const MIN = 60 * 1000;
 // The recorder blocks of real beats (contract/payloads/heartbeat).
@@ -32,4 +32,17 @@ test('records age out after 14 days', () => {
   const l = trackRefusals([], refused('a'), 0);
   assert.equal(trackRefusals(l, null, 13 * 86400000).length, 1);
   assert.equal(trackRefusals(l, null, 15 * 86400000).length, 0);
+});
+
+test('newRefusal: a new drive yes; the same drive, an empty list and an aged-out list no (never throws)', () => {
+  const a = {firstAtMs: 1, lastAtMs: 5, count: 3, reason: 'a'};
+  const b = {firstAtMs: 100, lastAtMs: 100, count: 1, reason: 'b'};
+  assert.equal(newRefusal([], [a]), a);
+  assert.equal(newRefusal([a], [{...a, lastAtMs: 9, count: 4}]), null);
+  assert.equal(newRefusal([a], [a, b]), b);
+  assert.equal(newRefusal([a], []), null);
+  assert.equal(newRefusal([], []), null);
+  // Capped at 5: the length stays 5 but a new drive still logs.
+  const five = [1, 2, 3, 4, 5].map(n => ({...a, firstAtMs: n}));
+  assert.equal(newRefusal(five, [...five.slice(1), b]), b);
 });

@@ -55,7 +55,7 @@ import {
   readSyncLine,
 } from './syncOutput.mjs';
 import {createHeartbeatSender, httpSend} from './heartbeatSender.mjs';
-import {trackRefusals} from './refusals.mjs';
+import {newRefusal, trackRefusals} from './refusals.mjs';
 import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
 import {runWithBeats} from './syncBeats.mjs';
 import {clearStaleSyncing, stateOf} from './watchState.mjs';
@@ -471,10 +471,8 @@ async function main() {
     const recorder = readJson(recorderStatus, null);
     const nowMs = Date.now();
     const refusals = trackRefusals(watch.refusals ?? [], recorder, nowMs);
-    // A new drive's first refusal, by its start (the list is capped, so its
-    // length can stay the same).
-    if (refusals.at(-1)?.firstAtMs !== (watch.refusals ?? []).at(-1)?.firstAtMs)
-      log(`recorder refused a drive: ${refusals.at(-1).reason}`);
+    const opened = newRefusal(watch.refusals ?? [], refusals);
+    if (opened) log(`recorder refused a drive: ${opened.reason}`);
     if (JSON.stringify(refusals) !== JSON.stringify(watch.refusals ?? [])) {
       watch.refusals = refusals;
       save();
