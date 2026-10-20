@@ -139,9 +139,10 @@ export function mountChase(
       const travel = prior?.prev ? stepTravel(prior.travel, x - prior.prev.x, y - prior.prev.y) : null;
       let onRoad = false;
       let tangent: number | null = null;
-      let z = ix ? ix.heightAt(mod(c.lapDistM || 0, ix.lengthM || 1)) : 0;
+      const lapS = ix ? mod(((c.lapDistM || 0) * ix.lengthM) / (ix.lapM || 1), ix.lengthM || 1) : 0;
+      let z = ix ? ix.heightAt(lapS) : 0;
       let grade = 0;
-      let ld = ix ? mod(c.lapDistM, ix.lengthM || 1) : 0;
+      let ld = lapS;
       const near = ix?.nearest(x, y, 3) ?? null;
       if (ix && near) {
         tangent = ix.tangentAt(near.s);
@@ -229,6 +230,7 @@ export function mountChase(
         v: me.v,
       },
       state.playing,
+      state.rate,
     );
     // a car nearer the camera than the followed one would hide it: draw it see-through
     const meObj = [...states].find(([, s]) => s === me)?.[0];

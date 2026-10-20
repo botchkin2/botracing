@@ -17,7 +17,7 @@ describe('roadIndex', () => {
   it('finds the nearest lap distance and the side of the road', () => {
     const out = idx.nearest(R + 3, 0.0001)!;
     expect(out.dist).toBeCloseTo(3, 0);
-    expect(out.s % 400).toBeCloseTo(0, 0);
+    expect(out.s % idx.lengthM).toBeCloseTo(0, 0);
     // counter-clockwise travel: the outside of the circle is on the right of the car
     expect(out.side).toBe(1);
     expect(idx.nearest(R - 3, 0.0001)!.side).toBe(-1);
@@ -28,8 +28,8 @@ describe('roadIndex', () => {
   it('interpolates height by lap distance and wraps', () => {
     expect(idx.hasHeight).toBe(true);
     expect(idx.heightAt(0)).toBeCloseTo(0);
-    expect(idx.heightAt(200)).toBeCloseTo(5, 0);
-    expect(idx.heightAt(400)).toBeCloseTo(idx.heightAt(0));
+    expect(idx.heightAt(idx.lengthM / 2)).toBeCloseTo(5, 0);
+    expect(idx.heightAt(idx.lengthM)).toBeCloseTo(idx.heightAt(0));
   });
   it('points along the travel direction and measures its curvature', () => {
     expect(idx.tangentAt(0)).toBeCloseTo(Math.PI / 2, 1);

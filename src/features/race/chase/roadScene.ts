@@ -12,6 +12,7 @@ type At = (row: number, col: number, out: Point) => void;
 
 const EDGE_WIDTH_M = 0.38;
 const START_LINE_DEPTH_M = 1.2;
+const RUNG_EVERY_M = 10;
 const GRID_M = 50;
 const GRID_MARGIN_M = 400;
 /** The datum sits this far under the lowest point of the road. */
@@ -72,10 +73,11 @@ export function buildRoadScene(road: ChaseRoad, ix: RoadIndex, T: ChaseTheme): T
       true,
     ),
   );
-  // a rung across the road at every point of the path
+  // a rung across the road every RUNG_EVERY_M of the path
   const rungs: number[] = [];
   const p: Point = {x: 0, y: 0, z: 0};
-  for (let i = 0; i < n; i++) {
+  const every = Math.max(1, Math.round(RUNG_EVERY_M / road.stepM));
+  for (let i = 0; i < n; i += every) {
     rowPoint(i, -road.hl[i], 0.015, p);
     rungs.push(p.x, p.z, -p.y);
     rowPoint(i, road.hr[i], 0.015, p);

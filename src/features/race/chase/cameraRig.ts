@@ -1,30 +1,24 @@
-// The camera rides the road, not the car. Chase and High sit on the road behind the followed car, at its own offset
-// from the centre line, and look down the road ahead of it, so the car's angle to the road is what shows: the camera
-// never turns with the car's yaw, and it has no lag that would invent one (thread 83, chord #6138: the real body is
-// within 2.7 degrees of its travel at p95 in corners). Paused is the same frame as playing. TV stands trackside ahead
-// and turns to watch; Heli hovers behind along the road and can be dragged round. Off the road (pits, a spin into the
-// gravel) the camera follows the car's direction of travel instead.
+// The chase camera. Chase and High are a game's chase cam: a fixed distance behind the followed car on a smoothed
+// direction, looking at the car, so the car stays in the middle of the frame through any bend (analysis/chaseFollow.ts).
+// TV stands trackside ahead and turns to watch; Heli hovers behind along the road and can be dragged round. Neither
+// reads the road under the car for Chase or High: a road coordinate is not what keeps a car in view.
 
 import * as THREE from 'three';
-import {angDiff, clamp, ease, lerp, mod} from '@/src/analysis/chaseMath';
+import {clamp, ease, lerp, mod} from '@/src/analysis/chaseMath';
+import {followStep, newFollow} from '@/src/analysis/chaseFollow';
 import type {RoadIndex} from '@/src/analysis/chaseRoadIndex';
 import {setWorld} from './sceneFrame';
 import type {ChaseCamMode} from '@/src/features/race/chase/chaseTypes';
 
-const CHASE_BACK_M = 10;
-const CHASE_UP_M = 3.2;
+const CHASE_BACK_M = 7;
+const CHASE_UP_M = 2.2;
 const HIGH_BACK_M = 20;
 const HIGH_UP_M = 9;
-/** Look-ahead down the road: grows with speed (metres plus seconds of travel), within bounds. */
-const LOOK_MIN_M = 18;
-const LOOK_S = 0.45;
-const LOOK_MAX_M = 55;
-const LOOK_LIFT_M = 0.9;
 const BASE_FOV = 50;
 const SPEED_FOV_GAIN = 9;
 const FULL_SPEED_MS = 80;
 const OTHER_FOV = 55;
-const TV_EVERY_BINS = 45;
+const TV_EVERY_M = 450;
 const TV_OFF_ROAD_M = 18;
 const TV_UP_M = 5;
 const TV_SUBJECT_M = 14;
@@ -52,7 +46,8 @@ export interface CameraRig {
   mode: ChaseCamMode;
   /** How far Heli has been dragged round, radians. */
   orbit: number;
-  update(dt: number, me: FollowedCar, playing: boolean): void;
+  /** `dt` wall seconds, `rate` the playback rate. */
+  update(dt: number, me: FollowedCar, playing: boolean, rate: number): void;
   /** The followed car changed: place the camera afresh. */
   reset(): void;
 }
@@ -64,31 +59,17 @@ interface TvRig {
   z: number;
 }
 
-/** A point on the road at lap distance `s`, `lateral` metres right of the centre line, on the road's surface. */
-function roadPoint(ix: RoadIndex, s: number, lateral: number): {x: number; y: number; z: number} {
-  const f = mod(s / ix.stepM, ix.heading.length);
-  const i = Math.floor(f);
-  const j = (i + 1) % ix.heading.length;
-  const t = f - i;
-  const nx = lerp(ix.normalX[i], ix.normalX[j], t);
-  const ny = lerp(ix.normalY[i], ix.normalY[j], t);
-  return {
-    x: lerp(ix.centreX[i], ix.centreX[j], t) + nx * lateral,
-    y: lerp(ix.centreY[i], ix.centreY[j], t) + ny * lateral,
-    z: ix.heightAt(s),
-  };
-}
-
 export function createCameraRig(camera: THREE.PerspectiveCamera, getIndex: () => RoadIndex | null): CameraRig {
   const at = {x: 0, y: 0, z: 0, yaw: 0, lx: 0, ly: 0, lz: 0};
   const target = new THREE.Vector3();
   let init = false;
   let lastMode: ChaseCamMode | 0 = 0;
   let tv: TvRig | null = null;
+  const follow = newFollow();
 
-  /** A camera on the outside of the bend at the given bin, off the edge of the road. */
-  function tvAt(ix: RoadIndex, bin: number): TvRig {
-    const i = mod(bin, ix.heading.length);
+  /** A camera on the outside of the bend at the given lap distance, off the edge of the road. */
+  function tvAt(ix: RoadIndex, atM: number): TvRig {
+    const i = mod(Math.round(atM / ix.stepM), ix.heading.length);
     const s = i * ix.stepM;
     const side = ix.curvatureAt(s) > 0 ? 1 : -1;
     const off = ix.widthAt(s, side) + TV_OFF_ROAD_M;
@@ -105,9 +86,10 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, getIndex: () =>
     orbit: 0,
     reset() {
       init = false;
+      follow.set = false;
       tv = null;
     },
-    update(dt, me, playing) {
+    update(dt, me, playing, rate) {
       const ix = getIndex();
       if (!ix) return;
       const mode = rig.mode;
@@ -121,39 +103,28 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, getIndex: () =>
       let tp = 0.28; // position time constant, s
       let tl = 0.2; // look-at time constant, s
       if (mode === 1 || mode === 2) {
-        const back = mode === 1 ? CHASE_BACK_M : HIGH_BACK_M;
-        const up = mode === 1 ? CHASE_UP_M : HIGH_UP_M;
-        const look = clamp(LOOK_MIN_M + me.v * LOOK_S, LOOK_MIN_M, LOOK_MAX_M);
-        if (me.onRoad) {
-          // both ends on the road at the car's own offset: the view turns with the road, never with the car
-          const cam = roadPoint(ix, me.ld - back, me.lateral);
-          const ahead = roadPoint(ix, me.ld + look, me.lateral);
-          px = cam.x;
-          py = cam.y;
-          pz = cam.z + up;
-          lx = ahead.x;
-          ly = ahead.y;
-          lz = ahead.z + LOOK_LIFT_M;
-          tp = 0;
-          tl = 0;
-        } else {
-          const dir = me.travel ?? me.heading;
-          if (hard) at.yaw = dir;
-          at.yaw += angDiff(at.yaw, dir) * (hard ? 1 : ease(dt, 0.35));
-          const cx = Math.cos(at.yaw);
-          const cy = Math.sin(at.yaw);
-          px = me.x - cx * back;
-          py = me.y - cy * back;
-          pz = me.z + up;
-          lx = me.x + cx * look;
-          ly = me.y + cy * look;
-          lz = me.z + LOOK_LIFT_M;
-        }
+        const v = followStep(
+          follow,
+          me,
+          dt,
+          rate,
+          mode === 1 ? CHASE_BACK_M : HIGH_BACK_M,
+          mode === 1 ? CHASE_UP_M : HIGH_UP_M,
+          hard,
+        );
+        px = v.camX;
+        py = v.camY;
+        pz = v.camZ;
+        lx = v.lookX;
+        ly = v.lookY;
+        lz = v.lookZ;
+        tp = 0;
+        tl = 0;
       } else if (mode === 3) {
-        const bins = (s: number) => s / ix.stepM / TV_EVERY_BINS;
-        if (!tv) tv = tvAt(ix, (Math.floor(bins(me.ld)) + 1) * TV_EVERY_BINS);
+        const spots = (s: number) => s / TV_EVERY_M;
+        if (!tv) tv = tvAt(ix, (Math.floor(spots(me.ld)) + 1) * TV_EVERY_M);
         const ahead = mod(tv.s - me.ld + ix.lengthM / 2, ix.lengthM) - ix.lengthM / 2;
-        if (ahead < -60 || ahead > 650) tv = tvAt(ix, Math.ceil(bins(me.ld + 160)) * TV_EVERY_BINS);
+        if (ahead < -60 || ahead > 650) tv = tvAt(ix, Math.ceil(spots(me.ld + 160)) * TV_EVERY_M);
         px = tv.x;
         py = tv.y;
         pz = tv.z;
