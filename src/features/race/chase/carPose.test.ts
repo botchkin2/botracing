@@ -28,6 +28,24 @@ describe('a car on a banked road', () => {
     disposeGroup(group);
   });
 
+  it('the near ground holds the height of the road edge past it, so a banked road does not tilt the land', () => {
+    const group = buildRoadScene(road, ix, theme);
+    const meshes = group.children.filter(c => c instanceof THREE.Mesh) as THREE.Mesh[];
+    // the fill is the first mesh; the near ground strips come after the edges
+    let best: {inner: number; outer: number} | null = null;
+    for (const m of meshes) {
+      const pos = m.geometry.getAttribute('position');
+      if (pos.count < 80) continue;
+      const a = new THREE.Vector3().fromBufferAttribute(pos, 40);
+      const b = new THREE.Vector3().fromBufferAttribute(pos, 41);
+      if (Math.abs(a.distanceTo(b) - 60) < 1e-6) best = {inner: a.y, outer: b.y};
+    }
+    expect(best).not.toBeNull();
+    // 60 m of ground past the edge ends at the edge's height (the road's high side), not 60 x tan(10 deg) above it
+    expect(Math.abs((best as {inner: number; outer: number}).outer - (best as {inner: number; outer: number}).inner)).toBeLessThan(1e-6);
+    disposeGroup(group);
+  });
+
   it("the car's up vector is perpendicular to the road's cross-slope, and its right side is the high side", () => {
     const group = buildRoadScene(road, ix, theme);
     const pos = (group.children[0] as THREE.Mesh).geometry.getAttribute('position');

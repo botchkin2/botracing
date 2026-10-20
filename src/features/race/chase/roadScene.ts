@@ -79,8 +79,10 @@ export function buildRoadScene(road: ChaseRoad, ix: RoadIndex, T: ChaseTheme): T
     out.x = road.cx[i] + ix.normalX[i] * lam;
     out.y = road.cy[i] + ix.normalY[i] * lam;
     // a banked road is tilted about its centre line: lam is the measured horizontal distance from it, and the right
-    // side (lam > 0) rises by lam x tan(roll), so the surface leans by exactly the roll
-    out.z = ix.height[i] + lift + lam * Math.tan(ix.bank[i]);
+    // side (lam > 0) rises by lam x tan(roll), so the surface leans by exactly the roll. Past an edge the land holds
+    // the edge's height (gauge #6380): the bank is the road's, not 60 m of tilted ground
+    const onRoad = Math.max(-road.hl[i], Math.min(road.hr[i], lam));
+    out.z = ix.height[i] + lift + onRoad * Math.tan(ix.bank[i]);
   };
   // a ribbon of two columns: a quad (6 indices) per row
   const strip = (mesh: THREE.Mesh) => {
