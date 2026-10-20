@@ -369,6 +369,11 @@ export function renderPlan(plan) {
       `${b.rollDeg.length} rolls, step ${b.stepM} m, ${plan.stats?.laps ?? '?'} laps, path ${plan.stats?.pathM} m, roll ${plan.stats?.rollMin} to ${plan.stats?.rollMax} deg, lap-to-lap p90 ${plan.stats?.spreadP90} deg, ${(plan.stats?.filledShare * 100).toFixed(1)}% filled (longest ${plan.stats?.longestGapM} m)`,
     );
     lines.push(`source: ${b.source}`);
+    const {lowest, highest} = plan.stats ?? {};
+    if (lowest && highest)
+      lines.push(
+        `lowest ${lowest.rollDeg} deg at ${lowest.m} m (${lowest.laps} laps, p10-p90 ${lowest.spreadDeg} deg), highest ${highest.rollDeg} deg at ${highest.m} m (${highest.laps} laps, p10-p90 ${highest.spreadDeg} deg); a step needs ${plan.stats.stepsNeed} laps and under 1.5 deg of scatter (${plan.stats.stepsTooFew} too few, ${plan.stats.stepsTooNoisy} too noisy, filled from neighbours)`,
+      );
   }
   if (
     (plan.kind === 'elevation' || plan.kind === 'bank') &&
