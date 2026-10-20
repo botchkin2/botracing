@@ -4,6 +4,7 @@ import {ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {type LaneZoom, raceLanes} from '@/src/analysis/raceLanes';
+import {lapPath} from '@/src/analysis/inputsPath';
 import {carsAt} from '@/src/analysis/raceState';
 import {fieldClasses} from '@/src/analysis/fieldClasses';
 import {carLapsOf} from '@/src/analysis/carLaps';
@@ -418,17 +419,27 @@ function RaceView({
   const chaseOk = chaseAvailable;
   const place = mapMode === 'chase' && chaseOk ? data.clock.playerAt(shownS) : null;
   const lapId = place ? data.laps.find(l => l.lapNumber === place.lapNumber)?.id ?? null : null;
-  const [held, setHeld] = useState<GridTrace | null>(null);
+  const [held, setHeld] = useState<{trace: GridTrace; lapNumber: number} | null>(null);
   const traceLoad = useLapTraceLoad(lapId ? [lapId] : [], {lengthM: prep.trackM, stepM: 5});
   const loaded = traceLoad.traces[0];
-  if (loaded && held !== loaded) setHeld(loaded);
+  if (loaded && place && held?.trace !== loaded) setHeld({trace: loaded, lapNumber: place.lapNumber});
   // Between two laps the last lap's trace stays on screen until the next one arrives.
-  const trace = loaded ?? (mapMode === 'chase' ? held : null);
+  const shown = loaded && place ? {trace: loaded, lapNumber: place.lapNumber} : mapMode === 'chase' ? held : null;
+  const trace = shown?.trace ?? null;
+  const lapNumber = shown?.lapNumber ?? null;
+  const world = data.chase?.world;
+  // The path is the player's own world path through the field (the same points the car is drawn at); the colours are
+  // the trace's, on the same distance grid. The trace's GPS is in another frame than the road and the cars.
   const ribbon = useMemo<ChaseRibbon | null>(() => {
-    if (!trace || trace.lat.length < 8) return null;
-    const pts = placer.traceToWorld(trace, 0, trace.lat.length - 1, 1);
-    return {x: pts.map(p => p.x), y: pts.map(p => p.y), th: trace.throttlePct, br: trace.brakePct, stepM: trace.stepM};
-  }, [trace, placer]);
+    if (!trace || trace.lat.length < 8 || lapNumber === null) return null;
+    const prepW = world?.()?.prep;
+    if (!prepW) return null;
+    const path = lapPath(data.clock, lapNumber, trace.lat.length, trace.stepM, t => {
+      const me = carsAt(prepW, t, false, true).find(c => c.player);
+      return me ? {x: me.xM, y: me.zM} : null;
+    });
+    return path ? {x: path.x, y: path.y, th: trace.throttlePct, br: trace.brakePct, stepM: trace.stepM} : null;
+  }, [trace, lapNumber, world, data.clock]);
   // The inputs are shown only where the lap's trace is where the player is: on the grid, in the pit lane or after a
   // reset the trace is somewhere else, and its pedals would be another stretch's.
   const player = cars.find(c => c.player) ?? null;
@@ -474,7 +485,6 @@ function RaceView({
     [color, classes, labels],
   );
   // the 3D draws the field's own x/z (not re-placed on the surface's line), smoothed through the 5 Hz samples
-  const world = data.chase?.world;
   const sample = useCallback<ChaseSampler>(
     (t, snapped) => {
       const chasePrep = world?.()?.prep ?? prep;
