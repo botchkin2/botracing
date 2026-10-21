@@ -187,9 +187,8 @@ function raceCard(
   let working: string | null = null;
   if (race && rules.lengthMin != null && median != null) {
     const pit = race.pit;
+    // The laps and the late flag are the Race tiles; this is how they were counted.
     working = [
-      `${race.estimate} laps`,
-      race.oneMore == null ? null : `late flag ${race.oneMore}`,
       `median ${formatLapTime(median)}`,
       pit
         ? `pit ${Math.round(pit.totalS)} s (${pit.stops} × ${Math.round(

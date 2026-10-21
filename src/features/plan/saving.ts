@@ -130,22 +130,26 @@ export function savingText(s: Saving) {
 }
 
 /**
- * What the Saving card is asked for (#6684 item 4): a stint the slider has
- * made run dry at p90 needs the full load over its laps (the formation's use
- * on the first); else the drop-a-stop target; else nothing.
+ * The Saving card, or null when the plan asks for no saving (#6684 item 4).
+ * A stint the slider has made run dry at p90 needs the full load over its laps
+ * (the formation's use on the first): always shown. One stop fewer is shown
+ * only when some of his laps already used that little: a stop that could be
+ * dropped, not one no lap of his has come near.
  */
-export function savingTarget(
+export function savingFor(
   pit: PitPlan | null,
   drop: DropStop | null,
   meter: 've' | 'fuel',
   rules: PlanRules,
-): number | null {
+  history: readonly GreenLap[],
+): Saving | null {
   const full = meter === 've' ? rules.vePct : rules.fuelL;
   const formation = formationLaps(rules)[meter];
   const i = pit?.stints.findIndex(s => s.dryAtP90) ?? -1;
   if (pit && i >= 0 && full > 0) {
     const laps = pit.stints[i].laps + (i === 0 ? formation : 0);
-    return laps > 0 ? full / laps : null;
+    return laps > 0 ? savingOf(meter, full / laps, history) : null;
   }
-  return dropTarget(drop, meter);
+  const s = savingOf(meter, dropTarget(drop, meter), history);
+  return s && s.atOrUnder.n > 0 ? s : null;
 }

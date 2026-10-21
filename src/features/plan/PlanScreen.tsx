@@ -51,7 +51,7 @@ import {
   trackChoices,
 } from './model';
 import {perLapStrip} from './perLapStrip';
-import {savingOf, savingTarget} from './saving';
+import {savingFor} from './saving';
 import {useClassTiming} from './useClassTiming';
 import {usePitSlider} from './usePitSlider';
 import {useLastRaceHere, usePlanData} from './usePlanData';
@@ -129,9 +129,11 @@ export function PlanScreen() {
   const saving = useMemo(
     () =>
       plan && rules
-        ? savingOf(
+        ? savingFor(
+            slider.pit,
+            plan.dropStop,
             meter,
-            savingTarget(slider.pit, plan.dropStop, meter, rules.rules),
+            rules.rules,
             data.greenLaps,
           )
         : null,

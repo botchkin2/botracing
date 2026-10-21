@@ -91,11 +91,13 @@ function FillBar({fill}: {fill: {arrive: number; set: number}}) {
 
 const styles = StyleSheet.create({
   panel: {
+    width: '100%',
     gap: space.md,
     padding: space.lg,
     borderRadius: radius.md,
   },
-  half: {flexBasis: 0, flexGrow: 1, minWidth: 0},
+  // Two to a row on desktop, less the gap between them.
+  half: {width: 'auto', flexBasis: 0, flexGrow: 1, minWidth: 0},
   head: {
     flexDirection: 'row',
     justifyContent: 'space-between',

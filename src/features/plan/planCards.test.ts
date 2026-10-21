@@ -38,7 +38,7 @@ describe('buildPlanCards', () => {
     expect(cards.race.oneMore).toBe(73);
     expect(cards.race.stops).toBe(2);
     expect(cards.race.stopAfter).toEqual(['L28', 'L56']);
-    expect(cards.race.working).toBe('72 laps · late flag 73 · median 1:41.200');
+    expect(cards.race.working).toBe('median 1:41.200');
   });
 
   it('the Race card counts the pit time when a pit model is given, and says how', () => {
@@ -50,7 +50,7 @@ describe('buildPlanCards', () => {
     );
     expect(withPit.race.laps).toBe(71);
     expect(withPit.race.working).toBe(
-      '71 laps · late flag 72 · median 1:41.200 · pit 111 s (2 × 45 s + 70 L at 3.4 L/s)',
+      'median 1:41.200 · pit 111 s (2 × 45 s + 70 L at 3.4 L/s)',
     );
   });
 

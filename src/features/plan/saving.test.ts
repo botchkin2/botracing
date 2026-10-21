@@ -1,8 +1,9 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {type GreenLap} from '@/src/analysis/fuelPlan';
+import {type DropStop, type GreenLap} from '@/src/analysis/fuelPlan';
 
-import {bestStintMedian, MIN_STINT_LAPS, savingOf} from './saving';
+import {type PitPlan} from './pitPlan';
+import {bestStintMedian, MIN_STINT_LAPS, savingFor, savingOf} from './saving';
 
 const lap = (
   sessionId: string,
@@ -63,5 +64,35 @@ describe('savingOf', () => {
 
   it('asks nothing without a target', () => {
     expect(savingOf('ve', null, history)).toBeNull();
+  });
+});
+
+describe('savingFor', () => {
+  const rules = {
+    name: 't',
+    lengthLaps: 30,
+    lengthMin: null,
+    fuelL: 75,
+    vePct: 100,
+    formationLap: true,
+    mandatoryStops: 0,
+  };
+  const history = run('a', 2, [4.9, 5.0, 5.1, 5.0, 4.9, 5.2]);
+  const stint = (laps: number, dryAtP90 = false) =>
+    ({laps, dryAtP90} as PitPlan['stints'][number]);
+  const pit = (dry: boolean) =>
+    ({stints: [stint(19), stint(11, dry)]} as PitPlan);
+  const drop = (vePerLapPct: number) =>
+    ({vePerLapPct, fuelPerLapL: null} as DropStop);
+
+  it('a stint the slider made dry at p90 asks for the full load over its laps', () => {
+    const s = savingFor(pit(true), null, 've', rules, history)!;
+    expect(s.target).toBeCloseTo(100 / 11);
+  });
+
+  it('one stop fewer shows only when some of his laps already reach it', () => {
+    expect(savingFor(pit(false), drop(3.3), 've', rules, history)).toBeNull();
+    const s = savingFor(pit(false), drop(4.95), 've', rules, history)!;
+    expect(s.atOrUnder).toEqual({n: 2, of: 6});
   });
 });
