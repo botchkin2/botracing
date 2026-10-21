@@ -523,3 +523,38 @@ describe('startGapsS', () => {
     expect(classLapsDoc(grid(), 'Practice 1').startGapsS).toBeNull();
   });
 });
+
+// Nordschleife scale (pit wall thread 94 #6547): a 25.4 km lap in 8:30 is 50 m/s;
+// a bound picked from 4 km tracks must still count every crossing.
+describe('a 25 km lap', () => {
+  it('counts every crossing of 8:30 laps', () => {
+    const LONG = 25_400;
+    const lapS = 510;
+    const updates = Math.round((lapS * 6.2) / DT); // 6 full laps and a bit
+    const deltas = (values: number[]) => {
+      let last = 0;
+      return values.map(v => {
+        const d = v - last;
+        last = v;
+        return d;
+      });
+    };
+    const field: EncodedField = {
+      hz: 5,
+      tDs: Array.from({length: updates}, (_, u) => Math.round(u * DT * 10)),
+      cars: [{class: 'LMP2', player: true}],
+      lapDistDm: [
+        deltas(
+          Array.from({length: updates}, (_, u) =>
+            Math.round((((u * DT) / lapS) * LONG + 3000) % LONG * 10),
+          ),
+        ),
+      ],
+      inPits: [Array.from({length: updates}, () => 0)],
+      flag: [Array.from({length: updates}, () => 0)],
+    };
+    const laps = carLaps(field)[0];
+    expect(laps.length).toBeGreaterThanOrEqual(5);
+    for (const t of laps) expect(Math.abs(t - lapS)).toBeLessThan(0.3);
+  });
+});
