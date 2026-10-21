@@ -154,7 +154,7 @@ const iso = ms => (ms != null ? new Date(ms).toISOString() : null);
 // problem that is fixed is gone from the next beat. Newest first, at most 10;
 // messages scrubbed like lastError and cut to 120 characters.
 // sims: each sim's watcher state ({lastError, retryAtMs, retries}).
-export function problemsOf({sims, recorder, nowMs}) {
+export function problemsOf({sims, recorder, refusals = [], nowMs}) {
   const out = [];
   const message = m => redact(scrub(m)).slice(0, PROBLEM_MESSAGE_MAX);
   for (const st of sims) {
@@ -189,6 +189,18 @@ export function problemsOf({sims, recorder, nowMs}) {
       at: rec.updatedAt,
       message: message(rec.layoutReason ?? 'game data layout not recognised'),
     });
+  // A drive the recorder refused has no capture and no field, and stays listed
+  // after the game closes (refusals.mjs).
+  // While LMU still runs the same drive is also the recorder-layout row: one
+  // row, not two. The reason stays in the tray log (watch.mjs), not here.
+  if (!out.some(p => p.kind === 'recorder-layout'))
+    for (const r of refusals)
+      out.push({
+        kind: 'capture-missed',
+        at: iso(r.lastAtMs),
+        message: 'Drive not recorded',
+        count: r.count,
+      });
   const t = p => (p.at ? Date.parse(p.at) : 0);
   return out.sort((a, b) => t(b) - t(a)).slice(0, MAX_PROBLEMS);
 }

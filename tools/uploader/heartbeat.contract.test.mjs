@@ -149,4 +149,12 @@ test('every problem the watcher reports is one the server takes', () => {
     'sync-crashed',
   ]);
   accepted(beatFor(status.body, {problems}), 'problems');
+  const missed = problemsOf({
+    sims: [{retries: {}}],
+    recorder: status.body,
+    refusals: [{firstAtMs: 1, lastAtMs: 2, count: 3, reason: 'car 0 lap distance -1664'}],
+    nowMs,
+  });
+  assert.equal(missed[0].kind, 'capture-missed');
+  accepted(beatFor(status.body, {problems: missed}), 'problems');
 });

@@ -47,6 +47,7 @@ export const PROBLEM_KINDS = [
   'session-failed',
   'sync-crashed',
   'recorder-layout',
+  'capture-missed',
   'uploader-stopped',
   'file-unreadable',
 ];

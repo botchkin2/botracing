@@ -176,6 +176,16 @@ describe('problems', () => {
     expect(
       problemText(
         problem({
+          kind: 'capture-missed',
+          at: Date.parse('2026-10-19T23:56:00Z'),
+          message: 'Drive not recorded',
+          sessionId: null,
+        }),
+      ),
+    ).toBe('Drive not recorded · Oct 19');
+    expect(
+      problemText(
+        problem({
           kind: 'not-seen',
           at: Date.parse('2026-10-01T12:00:00Z'),
           message: '',
