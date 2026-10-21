@@ -17,7 +17,7 @@ test('every reason has a plain line, and an unknown one says not recorded', () =
     null,
   ]) {
     const text = fieldMissingText(reason);
-    assert.ok(text.length > 20 && !/capture|mID|lap distance/.test(text), text);
+    assert.ok(text.length < 50 && /^Other cars: /.test(text), text);
   }
   // Not verdicts: a live lap that could not make a field, iRacing's from the game file.
   assert.equal(fieldMissingText('iRacing: from the game file'), null);
@@ -26,6 +26,7 @@ test('every reason has a plain line, and an unknown one says not recorded', () =
   assert.equal(fieldMissingAfter(null, 'boom', 'stored line'), 'stored line');
   assert.match(fieldMissingText('no capture'), /not recorded/);
   assert.match(fieldMissingText('capture marked suspect'), /doubted/);
+  assert.equal(fieldMissingText('no capture'), 'Other cars: not recorded');
 });
 
 test('fieldMissingAfter: none with a field; a run without a reason keeps the stored line', () => {

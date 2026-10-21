@@ -394,19 +394,24 @@ impl<S: Source> Recorder<S> {
             {
                 return;
             }
-            // A layout that looks wrong is recorded and marked, never dropped:
-            // the drive stays on disk for a fix to re-read, and the tray uses
-            // nothing from a marked capture (pit wall thread 95).
-            let doubt = sanity::check_scoring(&self.layout, &self.probe, &info, &vehicles, n).err();
             self.refused_key = None;
-            self.set(now, |s| {
-                s.layout_ok = Some(doubt.is_none());
-                s.layout_reason = doubt.clone().unwrap_or_default();
-            });
             self.open_capture(now, &info, key);
-            if let (Some(reason), Some(capture)) = (doubt, self.capture.as_mut()) {
-                capture.mark_layout_suspect(&reason);
+        }
+        // A layout that looks wrong is recorded and counted, never dropped: each
+        // scoring update is one look, and the tray decides from the data
+        // (pit wall thread 95).
+        let doubt = sanity::check_scoring(&self.layout, &self.probe, &info, &vehicles, n).err();
+        let player_bad = self.player_ok == Some(false);
+        self.set(now, |s| {
+            s.layout_ok = Some(doubt.is_none() && !player_bad);
+            if let Some(reason) = &doubt {
+                s.layout_reason = reason.clone();
+            } else if !player_bad {
+                s.layout_reason = String::new();
             }
+        });
+        if let Some(capture) = self.capture.as_mut() {
+            capture.note_layout_check(doubt.as_deref());
         }
         let Some(capture) = self.capture.as_mut() else { return };
         capture.add_scoring(&info, &vehicles, n, et, now);
@@ -465,7 +470,7 @@ impl<S: Source> Recorder<S> {
                 Verdict::Bad(reason) => {
                     self.player_ok = Some(false);
                     if let Some(capture) = self.capture.as_mut() {
-                        capture.mark_layout_suspect(&reason);
+                        capture.mark_player_suspect(&reason);
                     }
                     self.set(now, |s| {
                         s.layout_ok = Some(false);
@@ -827,7 +832,11 @@ mod tests {
 
     /// A field of `n` named cars, car i's lap distance `dist(i)`.
     fn field_with_dists(rig: &Rig, n: usize, dist: impl Fn(usize) -> f64) {
-        rig.field("Sebring International Raceway", 10, 5.0);
+        field_with_dists_at(rig, n, 5.0, dist);
+    }
+
+    fn field_with_dists_at(rig: &Rig, n: usize, et: f64, dist: impl Fn(usize) -> f64) {
+        rig.field("Sebring International Raceway", 10, et);
         assert!(n <= rig.lay.max_vehicles, "{} slots", rig.lay.max_vehicles);
         rig.put(rig.scoring("mNumVehicles"), &(n as i32).to_le_bytes());
         for i in 0..n {
@@ -868,6 +877,25 @@ mod tests {
         let folders = rig.folders();
         assert_eq!(folders.len(), 1);
         assert!(rig.meta(&folders[0]).get("layoutSuspect").is_some());
+    }
+
+    #[test]
+    fn one_doubtful_beat_is_counted_not_condemned() {
+        let (rig, mut rec) = Rig::new("onebeat");
+        field_with_dists(&rig, 8, |i| 100.0 * i as f64);
+        rig.player("Sebring International Raceway", 5.0);
+        rec.tick(1_000);
+        // One beat reads garbage in every car, then it is fine again.
+        field_with_dists_at(&rig, 8, 5.2, |_| -5.0e9);
+        rec.tick(1_200);
+        field_with_dists_at(&rig, 8, 5.4, |i| 100.0 * i as f64);
+        rec.tick(1_400);
+        rec.shutdown(2_000);
+        let meta = rig.meta(&rig.folders()[0]);
+        assert_eq!(meta["layoutChecks"], 3);
+        assert_eq!(meta["layoutDoubtful"], 1);
+        assert!(meta["layoutSuspect"].as_str().unwrap().contains("lap distance"));
+        assert_eq!(rec.status.layout_ok, Some(true), "the latest look was fine");
     }
 
     #[test]

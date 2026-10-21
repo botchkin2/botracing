@@ -12,6 +12,7 @@ import {
   encode,
   fieldFor,
   fieldAfterSync,
+  captureDoubted,
   goodRows,
   listCaptures,
   modelOf,
@@ -35,17 +36,27 @@ test('goodRows: a Sebring pit car at -1664 m is kept; a minority of garbage is d
   assert.equal(goodRows(col([1e12, NaN, 5e9, 100])), null);
 });
 
-test('listCaptures skips a capture the recorder marked suspect', () => {
+test('captureDoubted: one doubtful look in 100 is used, 80 in 100 or a bad player layout is not', () => {
+  assert.equal(captureDoubted({}), false);
+  assert.equal(captureDoubted({layoutSuspect: 'x', layoutDoubtful: 1, layoutChecks: 100}), false);
+  assert.equal(captureDoubted({layoutSuspect: 'x', layoutDoubtful: 50, layoutChecks: 100}), false);
+  assert.equal(captureDoubted({layoutSuspect: 'x', layoutDoubtful: 80, layoutChecks: 100}), true);
+  assert.equal(captureDoubted({playerSuspect: 'speed 900 m/s'}), true);
+});
+
+test('listCaptures skips a capture doubted for most of the drive and keeps one with a stray look', () => {
   const root = mkdtempSync(join(tmpdir(), 'caps-'));
   for (const [name, meta] of [
     ['good', {track: 'T'}],
-    ['doubt', {track: 'T', layoutSuspect: 'car 0 lap distance'}],
+    ['stray', {track: 'T', layoutSuspect: 'car 0', layoutDoubtful: 1, layoutChecks: 100}],
+    ['doubt', {track: 'T', layoutSuspect: 'car 0', layoutDoubtful: 80, layoutChecks: 100}],
   ]) {
     mkdirSync(join(root, name));
     writeFileSync(join(root, name, 'meta.json'), JSON.stringify(meta));
     writeFileSync(join(root, name, 'field-0000.parquet'), '');
   }
-  assert.deepEqual(listCaptures(root).map(c => c.name), ['good']);
+  assert.deepEqual(listCaptures(root).map(c => c.name).sort(), ['good', 'stray']);
+  assert.deepEqual(listCaptures(root, {suspect: true}).map(c => c.name), ['doubt']);
 });
 
 test('capturesFor: overlap and either track name', () => {

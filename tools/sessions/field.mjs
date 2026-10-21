@@ -22,6 +22,14 @@ export const MAX_ALIGN_M = 20;
 // Recordings start and stop in the pits; keep the field a little either side.
 const PAD_S = 30;
 
+// The recorder counts its layout looks (recorder.rs note_layout_check): a
+// capture is doubted only when the doubt held for most of the drive, or its
+// telemetry layout failed (a wrong layout, not a wrong moment). One bad beat
+// at a session load does not cost the drive; `goodRows` judges the rows.
+export const captureDoubted = meta =>
+  Boolean(meta.playerSuspect) ||
+  (meta.layoutDoubtful ?? 0) * 2 > (meta.layoutChecks ?? 0);
+
 export function listCaptures(root, {suspect = false} = {}) {
   if (!root || !existsSync(root)) return [];
   const out = [];
@@ -33,9 +41,9 @@ export function listCaptures(root, {suspect = false} = {}) {
       // LMU's captures only: this reads LMU's columns (the iRacing tray
       // recorder shares the folder; irCapture.mjs reads those).
       if (meta.sim && meta.sim !== 'lmu') continue;
-      // The recorder doubted its layout (layoutSuspect, recorder.rs): kept on
-      // disk for a fix to re-read, used for nothing.
-      if (Boolean(meta.layoutSuspect) !== suspect) continue;
+      // Doubted for most of the drive (captureDoubted): kept on disk for a fix
+      // to re-read, used for nothing.
+      if (captureDoubted(meta) !== suspect) continue;
       const files = readdirSync(resolve(root, name))
         .filter(f => /^field-\d+\.parquet$/.test(f))
         .map(f => resolve(root, name, f));
@@ -260,18 +268,17 @@ function readRows(files, models, fromEt, toEt) {
 // drove it (the Field screen shows it as is): the analysis reason in, the line
 // out. Every reason has one, so no session without a field is silent.
 export function fieldMissingText(reason) {
-  if (reason === 'capture marked suspect')
-    return 'The recorder doubted the game data for this drive, so the other cars were not used';
+  if (reason === 'capture marked suspect') return 'Other cars: recording doubted';
   if (reason === 'capture game data not recognised')
-    return 'The game data was not recognised, so the other cars were not used';
+    return 'Other cars: game data unreadable';
   if (
     reason === 'capture has no rows in this session' ||
     reason?.startsWith('clocks disagree') ||
     reason === 'player car not in both sources'
   )
-    return 'The recording does not match the game file, so the other cars were not used';
+    return "Other cars: recording doesn't match the game file";
   if (reason === 'no capture' || reason == null)
-    return 'This drive was not recorded, so there are no other cars';
+    return 'Other cars: not recorded';
   // Not a verdict on the drive: iRacing's field comes with the game file, a
   // live lap that could not make one tries again on the next.
   return null;

@@ -263,12 +263,26 @@ impl Capture {
         write_json(&self.dir.join("meta.json"), &Value::Object(self.meta.clone()))
     }
 
-    /// The layout check did not like what it read. The capture is kept (a
-    /// layout fix can re-read it) but nothing uses it: tools/sessions skips a
-    /// capture with this mark.
-    pub fn mark_layout_suspect(&mut self, reason: &str) {
-        self.meta.entry("layoutSuspect").or_insert_with(|| json!(reason));
-        // On disk now: a drive that stops after this still carries the mark.
+    /// One look of the scoring layout check: counted, never decisive. meta.json
+    /// keeps how many looks doubted (`layoutDoubtful` of `layoutChecks`) and the
+    /// first reason (`layoutSuspect`); the tray's analysis decides from the data
+    /// and skips a capture only when the doubt held for most of the drive.
+    pub fn note_layout_check(&mut self, doubt: Option<&str>) {
+        self.count("layoutChecks", 1);
+        if let Some(reason) = doubt {
+            self.count("layoutDoubtful", 1);
+            if !self.meta.contains_key("layoutSuspect") {
+                self.meta.insert("layoutSuspect".into(), json!(reason));
+                // On disk now: a drive that stops soon still carries the first reason.
+                let _ = self.write_meta();
+            }
+        }
+    }
+
+    /// The player's telemetry layout check failed: that layout is wrong for the
+    /// whole drive, not for a moment, so the tray uses none of the capture.
+    pub fn mark_player_suspect(&mut self, reason: &str) {
+        self.meta.entry("playerSuspect").or_insert_with(|| json!(reason));
         let _ = self.write_meta();
     }
 

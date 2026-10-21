@@ -73,7 +73,7 @@ test('each lap writes only its own part; ids stay the same as laps arrive', asyn
 test('a capture the recorder marked suspect sends nothing; its drive comes from the game file', async () => {
   const work = mkdtempSync(join(tmpdir(), 'syncLive-'));
   const dir = mkdtempSync(join(tmpdir(), 'cap-'));
-  writeFileSync(join(dir, 'meta.json'), JSON.stringify({layoutSuspect: '8 of 8 cars: lap distance'}));
+  writeFileSync(join(dir, 'meta.json'), JSON.stringify({layoutSuspect: '8 of 8 cars: lap distance', layoutDoubtful: 80, layoutChecks: 100}));
   const store = memoryStore();
   const capture = fakeCapture(3);
   const r = await syncLive({captureDir: dir, ownerId: 'o', work, store, capture});

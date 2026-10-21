@@ -12,6 +12,7 @@ import {existsSync, mkdirSync, readFileSync} from 'node:fs';
 import {basename, join, resolve} from 'node:path';
 import * as irLiveCapture from './irLiveCapture.mjs';
 import * as lmuCapture from './lmuCapture.mjs';
+import {captureDoubted} from './field.mjs';
 import {liveInputs} from './liveInputs.mjs';
 import {noteNoField} from './noField.mjs';
 import {groupFiles} from './sessionFiles.mjs';
@@ -65,9 +66,8 @@ export async function syncLive({
   // comes from the game file.
   let marked = null;
   try {
-    marked = JSON.parse(
-      readFileSync(join(captureDir, 'meta.json'), 'utf8'),
-    ).layoutSuspect;
+    const meta = JSON.parse(readFileSync(join(captureDir, 'meta.json'), 'utf8'));
+    if (captureDoubted(meta)) marked = meta.playerSuspect ?? meta.layoutSuspect;
   } catch {
     // No meta to read: the adapter's own read reports it.
   }
