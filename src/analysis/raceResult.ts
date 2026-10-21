@@ -22,8 +22,11 @@ export interface ResultField {
   laps: (number | null)[][];
 }
 
-/** Bump when the rule below changes: every session recomputes it once on the next sync. */
-export const FINISH_VERSION = 3;
+/**
+ * Bump when the rule below changes: every session recomputes it once on the
+ * next sync. 4: a live race kept its first lap's result (pit wall thread 98).
+ */
+export const FINISH_VERSION = 4;
 
 export interface FinishPosition {
   /** The game's place among all cars when the player last crossed the line, from 1. */

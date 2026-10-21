@@ -25,7 +25,12 @@ import {
   classLapsDoc,
 } from '../../src/analysis/classLaps.ts';
 import {finishCurrent, finishDoc} from '../../src/analysis/raceResult.ts';
-import {fieldAfterSync, fieldMissingAfter} from './field.mjs';
+import {
+  fieldAfterSync,
+  fieldMissingAfter,
+  madeFromField,
+  stampField,
+} from './field.mjs';
 import {relabelField} from './irClasses.mjs';
 import {keepVisits, onlineAfterSync, raceAfterSync} from './keepCapture.mjs';
 import {planBlock} from './planBlock.mjs';
@@ -529,6 +534,9 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   );
   if (kept.upload) {
     await putGzip(session.field.path, out.fieldText, 'application/json');
+    session.result = stampField(session.result, session.field);
+    session.classLaps = stampField(session.classLaps, session.field);
+    session.classBests = stampField(session.classBests, session.field);
     if (relabeled) {
       const traffic = await lapTrafficFrom({
         fresh: relabeled,
@@ -544,39 +552,48 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     log('  field: kept the stored one');
     // Everything computed from the field is kept or worked out again from
     // the uploaded file, read once: the class lap times while they are this
-    // version and this kind of session (an older analysis, a changed rule, a
-    // re-typed session), and the traffic of every lap, which would otherwise
-    // be written as null for want of the capture.
+    // version, this kind of session (an older analysis, a changed rule, a
+    // re-typed session) and this field file (field.mjs madeFromField), and
+    // the traffic of every lap, which would otherwise be written as null for
+    // want of the capture.
     let loaded;
     const load = async () =>
       (loaded ??= await readStoredField(kept.field.path));
-    const stored = before?.classLaps ?? null;
-    if (classLapsCurrent(stored, session.sessionType)) {
-      session.classLaps = stored;
-    } else {
+    // A block is worked out again from the field, named after it; a field
+    // that can't be read keeps the stored block as it was (its old fieldHash
+    // makes the next run try again), never null over good data.
+    const fromField = async (name, stored, current, make) => {
+      if (
+        current(stored, session.sessionType) &&
+        madeFromField(stored, kept.field)
+      )
+        return stored;
       const field = await load();
-      session.classLaps = field
-        ? classLapsDoc(field, session.sessionType)
-        : null;
-    }
+      if (field)
+        return stampField(make(field, session.sessionType), kept.field);
+      if (stored) log(`  field: unreadable, kept the stored ${name}`);
+      return stored;
+    };
+    session.classLaps = await fromField(
+      'classLaps',
+      before?.classLaps ?? null,
+      classLapsCurrent,
+      classLapsDoc,
+    );
     // The fastest cars of each class, the same way.
-    const storedBests = before?.classBests ?? null;
-    if (classBestsCurrent(storedBests, session.sessionType)) {
-      session.classBests = storedBests;
-    } else {
-      const field = await load();
-      session.classBests = field
-        ? classBestsDoc(field, session.sessionType)
-        : null;
-    }
-    // The finishing position, kept while it is this version and kind.
-    const storedResult = before?.result ?? null;
-    if (finishCurrent(storedResult, session.sessionType)) {
-      session.result = storedResult;
-    } else {
-      const field = await load();
-      session.result = field ? finishDoc(field, session.sessionType) : null;
-    }
+    session.classBests = await fromField(
+      'classBests',
+      before?.classBests ?? null,
+      classBestsCurrent,
+      classBestsDoc,
+    );
+    // The finishing position, the same way.
+    session.result = await fromField(
+      'result',
+      before?.result ?? null,
+      finishCurrent,
+      finishDoc,
+    );
     const traffic = await lapTrafficFrom({
       fresh: null,
       stored: kept.field,
