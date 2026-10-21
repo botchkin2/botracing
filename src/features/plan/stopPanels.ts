@@ -20,7 +20,7 @@ export type StopPanel = {
   fill: {arrive: number; set: number} | null;
   /** The stint after this stop runs dry at p90 use: the hero takes the warning tone. */
   dryAtP90: boolean;
-  /** Short facts beside the number: "fuel-limited", "no fill", "assumed fill-to". */
+  /** Short facts beside the number: "fuel-limited", "no fill". */
   tags: string[];
 };
 
@@ -60,9 +60,6 @@ export function stopPanels(pit: PitPlan, input: StopPanelInput): StopPanel[] {
     const tags: string[] = [];
     if (t.fuelLimited) tags.push('fuel-limited');
     if (t.noFill) tags.push('no fill');
-    // LMP2's litre setting is taken as fill-to until Botkin confirms it (#6705).
-    if (t.verb === 'set' && meter === 'fuel' && input.sim !== 'iracing')
-      tags.push('assumed fill-to');
     return {
       stop: stop.stop,
       after: `after ${lapLabel(stop.after)}`,

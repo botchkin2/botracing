@@ -79,7 +79,7 @@ describe('stopPanels', () => {
     expect(p.tags).toEqual(['fuel-limited']);
   });
 
-  it('a fuel-only car sets litres, assumed fill-to; iRacing adds an amount', () => {
+  it('a fuel-only car sets litres to fill to; iRacing adds an amount', () => {
     const fuel = {
       ...input,
       meter: 'fuel' as const,
@@ -88,7 +88,7 @@ describe('stopPanels', () => {
     const [lmp2] = stopPanels(pit(), fuel);
     // 12 x 3.6 = 43.2 -> 44 L.
     expect(lmp2.value).toBe('Set fuel 44 L');
-    expect(lmp2.tags).toEqual(['assumed fill-to']);
+    expect(lmp2.tags).toEqual([]);
     const [ir] = stopPanels(pit(), {...fuel, sim: 'iracing'});
     // 43.2 L less the 8 L left: add 36 L.
     expect(ir.value).toBe('Add 36 L');

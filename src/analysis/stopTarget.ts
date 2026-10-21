@@ -3,7 +3,9 @@
 // leaves with, and a target under what it arrives with adds nothing (relative
 // refuelling went in Patch 2, Mar 2024). Fuel follows VE on the event's scale:
 // X % VE loads X % of the fill limit. A car without VE (LMP2) sets litres the
-// same way (assumed fill-to until Botkin confirms). iRacing adds an amount.
+// same way: Patch 2 removed relative refuelling from the whole pit menu, and
+// his first LMP2 race stop will check it from data (splash, thread 99).
+// iRacing adds an amount.
 //
 // The level covers the laps from this stop to the next one (or to the flag,
 // plus the lap a timed race's late flag can add) at the p90 use, the plan's
