@@ -12,6 +12,7 @@ const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
   ...base,
   id: `l${lapIndex}`,
   lapIndex,
+  lapNo: lapIndex,
   partial: false,
   timeS: 90,
   pitStop: null,
@@ -56,10 +57,10 @@ describe('raceFactsOfPlan', () => {
     startVePct: 87,
     formationL: 3.3,
     ownUse: {fuelL: 2.4, vePct: null},
-    end: {lapIndex: 21, fuelL: 33.2, vePct: 32.2},
+    end: {lap: 21, fuelL: 33.2, vePct: 32.2},
     stops: [
       {
-        lapIndex: 9,
+        lap: 9,
         fuelL: 12,
         vePct: 40,
         addedL: 50,
@@ -85,9 +86,9 @@ describe('raceFactsOfPlan', () => {
       playerLapsDone: 21,
       classLeaderLapsDone: 21,
       ownUse: {fuelL: 2.4, vePct: null},
-      end: {lapIndex: 21, fuelL: 33.2, vePct: 32.2},
+      end: {lap: 21, fuelL: 33.2, vePct: 32.2},
       stops: [
-        {lapIndex: 9, fuelL: 12, vePct: 40, kind: 'service', detail: null},
+        {lap: 9, fuelL: 12, vePct: 40, kind: 'service', detail: null},
       ],
     });
   });

@@ -61,7 +61,7 @@ export interface RaceFacts {
   startL: number | null;
   /** VE at the start, % of the full load (the first recorded lap's `veStartPct`); null without the channel. */
   startVePct?: number | null;
-  /** Racing laps driven: the formation lap is not counted. */
+  /** Racing laps driven: the ending lap's number from the green flag. */
   raceLaps: number;
   /** How long the race is, from the capture (tools/sessions/raceLength.mjs); null where it is not known. The laps driven are not its length: a timed race ends at the flag, a lap after the clock runs out. */
   race: {minutes: number} | null;
@@ -80,9 +80,9 @@ export interface RaceFacts {
   classLeaderLapsDone?: number | null;
   /** Median use per green lap over this race's own laps; null under 3 laps. */
   ownUse: {fuelL: number | null; vePct: number | null};
-  /** `lapIndex` is the app's lap number for the pit-in lap, as the pit stops card titles it. */
+  /** `lap` is the racing lap the pit lane was entered on (from the green flag), as the pit stops card titles it. */
   stops: {
-    lapIndex: number;
+    lap: number;
     fuelL: number | null;
     vePct: number | null;
     /** Why the car was in the lane ('service', 'repair', 'penalty', ...); null on a block before it was stored. */
@@ -90,8 +90,8 @@ export interface RaceFacts {
     /** 'stop-go' or 'drive-through' for a penalty. */
     detail?: string | null;
   }[];
-  /** The tank at the end of the last whole lap; the lap is the app's lap number. */
-  end: {lapIndex: number; fuelL: number | null; vePct: number | null} | null;
+  /** The tank at the end of the last whole lap, by its racing lap number. */
+  end: {lap: number; fuelL: number | null; vePct: number | null} | null;
 }
 
 /** Laps of use a formation lap burns, per meter. */
@@ -100,8 +100,16 @@ export interface FormationFactor {
   ve: number;
 }
 
-/** Fuel burnt by the formation lap against a median green lap, where nothing was measured: the ratio seen on the 2 Oct and 3 Oct Road Atlanta races (3.27 and 3.54 L against 2.43 and 2.45 L). */
-export const FORMATION_FUEL_ESTIMATE = 1.4;
+/**
+ * Fuel burnt by the formation lap, in median green laps, where nothing was
+ * measured. LMU's first lap of a race holds the formation and L1 together
+ * (analysis/lapNumbering.ts), so the formation is that lap's burn less one
+ * green lap: 3.27 and 3.54 L against 2.43 and 2.45 L at Road Atlanta 2 and 3
+ * Oct (0.35 and 0.44), 4.62 against 3.51 L at Silverstone 15 Oct (0.86 L to
+ * the green, then L1 3.76 L). VE does not move before the green (Silverstone
+ * and Sebring 21 Oct: 100 % at the green), so the formation burns none.
+ */
+export const FORMATION_FUEL_ESTIMATE = 0.4;
 
 export interface PlanRules {
   name: string;
@@ -116,9 +124,9 @@ export interface PlanRules {
   formationLap: boolean;
   /**
    * What the formation lap burns, as a multiple of one median green lap, per
-   * meter. Unset is 1 of each. Measured from the driver's own races where
-   * there are some (the grid procedure burns more fuel than a green lap), else
-   * an estimate (pit-wall thread 54 #2572).
+   * meter, on top of the race laps. Unset is the estimate (fuel
+   * FORMATION_FUEL_ESTIMATE, no VE). Measured from the driver's own races
+   * where there are some, else an estimate (pit-wall thread 54 #2572, 99).
    */
   formationFactor?: FormationFactor;
   mandatoryStops: number;
@@ -132,10 +140,10 @@ export interface PlanRules {
   startVePct?: number | null;
 }
 
-/** The laps of use the formation lap burns per meter: none without one, else the measured factor, else one lap of each. */
+/** The laps of use the formation lap burns per meter: none without one, else the measured factor, else the estimate. */
 export function formationLaps(rules: PlanRules): FormationFactor {
   if (!rules.formationLap) return {fuel: 0, ve: 0};
-  return rules.formationFactor ?? {fuel: 1, ve: 1};
+  return rules.formationFactor ?? {fuel: FORMATION_FUEL_ESTIMATE, ve: 0};
 }
 
 /** The first load: the start values where set (never above the caps), else the full load. */

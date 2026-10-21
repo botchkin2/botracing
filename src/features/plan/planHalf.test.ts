@@ -14,7 +14,7 @@ const facts = (over: Partial<RaceFacts> = {}): RaceFacts => ({
   startL: 75,
   raceLaps: 60,
   race: null,
-  classLeaderLapsDone: 61,
+  classLeaderLapsDone: 60,
   ownUse: {fuelL: 2.4, vePct: 3.5},
   stops: [],
   end: null,
@@ -22,8 +22,9 @@ const facts = (over: Partial<RaceFacts> = {}): RaceFacts => ({
 });
 
 // 12 green laps: 2.4 L and 3.5 % VE a lap (litres over 0.686 L per %). At that
-// use the planner's full-tank stint is 27 racing laps, then 28 (checked by
-// running planRace): a 60 lap race stops after racing laps 27 and 55.
+// use the planner's full-tank stint is 28 racing laps (the formation burns no
+// VE), then 28 (checked by running planRace): a 60 lap race stops after racing
+// laps 28 and 56.
 const history = (withVe = true): GreenLap[] =>
   Array.from({length: 12}, (_, i) => {
     const fuelL = 2.4 + (i % 2 ? 0.02 : -0.02);
@@ -36,8 +37,8 @@ const history = (withVe = true): GreenLap[] =>
   });
 const basis = {laps: 12, sessions: 2, since: '2026-09-15T00:00:00Z'};
 
-const actual = (lapIndex: number, vePct = 4): ActualStop => ({
-  lapIndex,
+const actual = (lap: number, vePct = 4): ActualStop => ({
+  lap,
   fuelL: 9.4,
   vePct,
   lapsLeft: 1.1,
@@ -74,13 +75,13 @@ describe('buildPlanHalf', () => {
     expect(h.note).toBeNull();
     expect(h.rows).toEqual([
       {k: 'Stop 1', p: 'after L28', a: 'after L24'},
-      // 28 laps burned (27 + the formation lap) of 100 % at 3.50 %/lap.
+      // 28 laps burned (the formation burns no VE) of 100 % at 3.50 %/lap.
       {k: 'In', p: '2 % VE (0.6 laps)', a: '4 % VE (1.1 laps)'},
       {k: 'Stop 2', p: 'after L56', a: 'after L49'},
       // 28 more laps.
       {k: 'In', p: '2 % VE (0.6 laps)', a: '4 % VE (1.1 laps)'},
-      // 5 laps after the last planned stop.
-      {k: 'Spare', p: '83 % VE (23.6 laps)', a: '4 % VE (1.1 laps)'},
+      // 4 laps after the last planned stop.
+      {k: 'Spare', p: '86 % VE (24.6 laps)', a: '4 % VE (1.1 laps)'},
       ...USE,
     ]);
   });
@@ -121,10 +122,10 @@ describe('buildPlanHalf', () => {
     // 40 min at the 81 s median: 29.6, so 30 racing laps, the flag on L31.
     expect(run(24)).toEqual({
       k: 'Finish',
-      p: 'flag L31',
+      p: 'flag L30',
       a: 'DNF L21 · leader L24+',
     });
-    expect(run(null)).toEqual({k: 'Finish', p: 'flag L31', a: 'DNF L21'});
+    expect(run(null)).toEqual({k: 'Finish', p: 'flag L30', a: 'DNF L21'});
   });
 
   it('a DNF without the race minutes shows the laps seen and plans nothing', () => {
@@ -158,7 +159,7 @@ describe('buildPlanHalf', () => {
     // 90 min at 81 s: 66.7, so 67 racing laps, the flag on L68.
     expect(h.rows[0]).toEqual({
       k: 'Finish',
-      p: 'flag L68',
+      p: 'flag L67',
       a: 'DNF L41 · leader L61+',
     });
     expect(h.rows.filter(r => r.k.startsWith('Stop')).length).toBeGreaterThan(
@@ -174,12 +175,12 @@ describe('buildPlanHalf', () => {
         leftEarly: true,
         playerLapsDone: 21,
         classLeaderLapsDone: 24,
-        end: {lapIndex: 21, fuelL: 3.7, vePct: 4},
+        end: {lap: 21, fuelL: 3.7, vePct: 4},
       },
       [],
     );
-    // At the end of L21: 20 racing laps and the formation lap, no planned stop
-    // before (the first is after racing lap 27): 21 x 3.4985 = 73.5 % used.
+    // At the end of L21: 21 racing laps (the formation burns no VE), no
+    // planned stop before (the first is after racing lap 28): 21 x 3.4985 = 73.5 % used.
     expect(h.rows.find(r => r.k.startsWith('Left at'))).toEqual({
       k: 'Left at L21',
       p: '27 % VE (7.6 laps)',
@@ -194,14 +195,14 @@ describe('buildPlanHalf', () => {
       limitL: 100,
       startL: 87,
       startVePct: 87,
-      raceLaps: 20,
+      raceLaps: 21,
       race: {minutes: 40},
       leftEarly: true,
       playerLapsDone: 21,
       classLeaderLapsDone: 24,
-      end: {lapIndex: 21, fuelL: 3.7, vePct: 4},
+      end: {lap: 21, fuelL: 3.7, vePct: 4},
     };
-    // Fuel: 87 - 21 x 2.40 = 36.6 L, not 100 - 50.4 = 49.6 L.
+    // Fuel: 87 - (21 + the formation's 0.4) x 2.40 = 35.6 L, not 100 - 51.4 = 48.6 L.
     const fuel = half(over, [], false);
     expect(fuel.rows.find(r => r.k === 'Start')).toEqual({
       k: 'Start',
@@ -209,7 +210,7 @@ describe('buildPlanHalf', () => {
       a: '87 L',
     });
     expect(fuel.rows.find(r => r.k.startsWith('Left at'))?.p).toBe(
-      '36.6 L (15.3 laps)',
+      '35.6 L (14.9 laps)',
     );
     // VE: 87 - 21 x 3.4985 = 13.5 %, shown whole.
     const ve = half(over, []);
@@ -229,7 +230,7 @@ describe('buildPlanHalf', () => {
 
   it('with no stop the plan is the one load to the flag', () => {
     const h = half({raceLaps: 20, race: null, classLeaderLapsDone: 21}, []);
-    // 20 racing laps and the formation lap: 21 x 3.4985 = 73.5 % used.
+    // The class leader's 21 racing laps (the formation burns no VE): 21 x 3.4985 = 73.5 % used.
     expect(h.rows).toEqual([
       {k: 'Spare', p: '27 % VE (7.6 laps)', a: '4 % VE (1.1 laps)'},
       ...USE,
@@ -239,15 +240,16 @@ describe('buildPlanHalf', () => {
   it('fuel only: litres, never a VE part or a made-up zero', () => {
     const h = half(
       {},
-      [{lapIndex: 24, fuelL: 6.2, vePct: null, lapsLeft: 2}],
+      [{lap: 24, fuelL: 6.2, vePct: null, lapsLeft: 2}],
       false,
     );
-    // Without VE the fuel sets the stint: 30 racing laps, so the stop is after L31.
-    expect(h.rows[0]).toEqual({k: 'Stop 1', p: 'after L31', a: 'after L24'});
-    // 31 laps (30 and the formation lap) x 2.4 L = 74.4 L of the 75 L limit leaves 0.6 L.
+    // Without VE the fuel sets the stint: 75 L / 2.4 L is 31.25 laps, less the
+    // formation's 0.4, so 30 racing laps and the stop is after L30.
+    expect(h.rows[0]).toEqual({k: 'Stop 1', p: 'after L30', a: 'after L24'});
+    // 30.4 laps (30 and the formation's 0.4) x 2.4 L = 72.96 L of the 75 L limit leaves 2.0 L.
     expect(h.rows[1]).toEqual({
       k: 'In',
-      p: '0.6 L (0.3 laps)',
+      p: '2.0 L (0.9 laps)',
       a: '6.2 L (2.0 laps)',
     });
     expect(JSON.stringify(h.rows)).not.toMatch(/VE/);
@@ -279,8 +281,8 @@ describe('buildPlanHalf', () => {
     const e = planRace(raceRules(facts(timed))!, history()).raceLaps!.estimate;
     expect(e).toBeGreaterThan(10);
     const spare = half(timed).rows.find(r => r.k === 'Spare')!;
-    // One load, the formation lap and the plan's own laps: 100 − (e + 1) × 3.5.
-    expect(spare.p).toContain(`${Math.round(100 - (e + 1) * 3.5)} % VE`);
+    // One load over the plan's own laps (the formation burns no VE): 100 − e × 3.5.
+    expect(spare.p).toContain(`${Math.round(100 - e * 3.5)} % VE`);
   });
 
   it('has nothing to show when the race length is not on record', () => {

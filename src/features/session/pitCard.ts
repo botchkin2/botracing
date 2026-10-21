@@ -90,7 +90,8 @@ export type PitCardEnd = {
 
 /** What the race did at one stop, in numbers, for the plan half's Actual column. */
 export type ActualStop = {
-  lapIndex: number;
+  /** The racing lap the pit lane was entered on (Lap.lapNo). */
+  lap: number | null;
   fuelL: number | null;
   vePct: number | null;
   /** The tighter meter's laps at the stint median, as the card shows. */
@@ -467,7 +468,7 @@ export function buildPitCard(
         .map(l => {
           const stop = l.pitStop as PitStop;
           return {
-            lapIndex: l.lapIndex,
+            lap: l.lapNo,
             fuelL: stop.atEntry.fuelL,
             vePct: hasVe ? stop.atEntry.vePct : null,
             lapsLeft: lapsLeft(stop.lapsLeftAtEntry),

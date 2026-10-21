@@ -20,7 +20,7 @@ const stop = (
   addedL: number | null,
   over: Partial<PlanStop> = {},
 ): PlanStop => ({
-  lapIndex: 5,
+  lap: 5,
   fuelL: 10,
   vePct: 10,
   addedL,

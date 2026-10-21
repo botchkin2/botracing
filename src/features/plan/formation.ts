@@ -1,8 +1,9 @@
 // What the formation lap burns, from the driver's own races (pit-wall thread
-// 54 #2572). The grid procedure (a slow lap, then a rolling start from pit
-// exit) burns more fuel than a green lap: 3.27 and 3.54 L against a 2.43 L
-// median on the two Road Atlanta races of the accuracy review. So the plan
-// charges the measured burn, not one median lap. Pure.
+// 54 #2572, 99). A race's first lap doc holds the formation and racing lap 1
+// together in LMU (lap 1 counts from the green, behind the line: analysis/
+// lapNumbering.ts): Silverstone 15 Oct 4.62 L = 0.86 L to the green + 3.76 L
+// for L1. The uploader stores the formation alone (planBlock.mjs formationOf)
+// and the plan charges it on top of the race laps. Pure.
 import {
   FORMATION_FUEL_ESTIMATE,
   type FormationFactor,
@@ -13,7 +14,7 @@ import {median} from '@/src/analysis/setStats';
 export const MIN_FORMATION_RACES = 2;
 
 export type FormationBurn = {
-  /** Laps of use per meter, for the plan's rules. VE stays at one lap: it matched one green lap where it was checked. */
+  /** Laps of use per meter on top of the race laps, for the plan's rules. VE is none: it does not move before the green (Silverstone, Sebring). */
   factor: FormationFactor;
   kind: 'measured' | 'estimate';
   /** Races the measurement is from; 0 for an estimate. */
@@ -23,13 +24,12 @@ export type FormationBurn = {
 };
 
 /**
- * The median first-lap burn over the driver's races at this track and car,
- * against one median green lap of fuel. Under MIN_FORMATION_RACES races, or
- * with no green median to compare with, 1.4 laps (the ratio seen on the two
- * fixtures), marked as an estimate.
+ * The median formation burn over the driver's races at this track and car, in
+ * median green laps of fuel. Under MIN_FORMATION_RACES races, or with no green
+ * median to compare with, FORMATION_FUEL_ESTIMATE, marked as an estimate.
  */
 export function formationBurnOf(
-  /** Each race's burn: the fuel its first lap used, from the first sample to the start line (`plan.race.formationL`); null where it has none. */
+  /** Each race's formation burn (`plan.race.formationL`, the formation alone); null where it has none. */
   raceBurnsL: (number | null)[],
   greenFuelL: number | null,
 ): FormationBurn {
@@ -41,14 +41,14 @@ export function formationBurnOf(
   ) {
     const burnL = median(burns)!; // burns holds at least MIN_FORMATION_RACES values
     return {
-      factor: {fuel: burnL / greenFuelL, ve: 1},
+      factor: {fuel: burnL / greenFuelL, ve: 0},
       kind: 'measured',
       races: burns.length,
       burnL,
     };
   }
   return {
-    factor: {fuel: FORMATION_FUEL_ESTIMATE, ve: 1},
+    factor: {fuel: FORMATION_FUEL_ESTIMATE, ve: 0},
     kind: 'estimate',
     races: 0,
     burnL: null,

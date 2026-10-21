@@ -140,7 +140,7 @@ describe('buildPitCard', () => {
     it('says the same lap in the column and in what the plan half compares with', () => {
       if (card?.kind !== 'stops') throw new Error('not a stops card');
       expect(card.columns[0].after).toBe('after L6');
-      expect(card.actual.stops.map(s => s.lapIndex)).toEqual([6]);
+      expect(card.actual.stops.map(s => s.lap)).toEqual([6]);
       expect(card.actual.end).toEqual({fuelL: 3.7, vePct: 4, lapsLeft: 1.1});
     });
 

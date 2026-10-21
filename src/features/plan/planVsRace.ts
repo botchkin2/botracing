@@ -4,7 +4,7 @@
 import type {PlanRules, RaceFacts} from '@/src/analysis/fuelPlan';
 import {formatDayMonth} from '@/src/design';
 
-/** A race's length: the minutes the capture recorded, or the laps a race of that length ran (the class leader's, formation not counted). */
+/** A race's length: the minutes the capture recorded, or the laps a race of that length ran (the class leader's racing laps). */
 export type ScheduledLength = {minutes: number} | {estimatedLaps: number};
 
 /**
@@ -23,8 +23,10 @@ export function scheduledLength(
 ): ScheduledLength | null {
   if (facts.race) return facts.race;
   if (facts.leftEarly) return null;
+  // The game's laps done count from the green: the formation is not one
+  // (Silverstone 15 Oct: 30 in the results file and on the field's counter).
   const leader = facts.classLeaderLapsDone;
-  return leader != null && leader > 1 ? {estimatedLaps: leader - 1} : null;
+  return leader != null && leader > 0 ? {estimatedLaps: leader} : null;
 }
 
 /**
