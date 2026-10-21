@@ -80,6 +80,8 @@ export type RaceCard = {
 export type StartLoad = {
   /** "79 % VE (54 L)" in VE, "54 L" in fuel. */
   value: string;
+  /** The tile's number: "79 % VE", or "54 L" in fuel. */
+  hero: string;
   /** What the load covers: "to finish" or "for the first stint". */
   covers: string;
 };
@@ -259,6 +261,7 @@ function startLoadOf(
     if (value == null) return null;
     return {
       value,
+      hero: value.split(' (')[0],
       covers: 'to finish',
     };
   }
@@ -278,6 +281,7 @@ function startLoadOf(
   if (value == null) return null;
   return {
     value,
+    hero: value.split(' (')[0],
     covers: 'for the first stint',
   };
 }

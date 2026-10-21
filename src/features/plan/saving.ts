@@ -5,10 +5,15 @@
 // yellow, a stint of five or more cannot. Pure.
 import {
   type DropStop,
+  formationLaps,
   type GreenLap,
   MIN_COMPARE_LAPS,
+  type PlanRules,
 } from '@/src/analysis/fuelPlan';
 import {median} from '@/src/analysis/setStats';
+import {formatLapTime} from '@/src/design';
+
+import {type PitPlan} from './pitPlan';
 
 /** Laps in a row a stint needs before its median counts (gauge #6681 item 4). */
 export const MIN_STINT_LAPS = 5;
@@ -25,7 +30,7 @@ export type Saving = {
   lapTimes: {atOrUnderS: number; allS: number} | null;
 };
 
-const useOf = (l: GreenLap, meter: 've' | 'fuel') =>
+const lapUse = (l: GreenLap, meter: 've' | 'fuel') =>
   meter === 've' ? l.vePct : l.fuelL;
 
 /**
@@ -41,7 +46,7 @@ export function bestStintMedian(
   let run: number[] = [];
   let prev: GreenLap | null = null;
   const ordered = history
-    .filter(l => l.lapIndex != null && useOf(l, meter) != null)
+    .filter(l => l.lapIndex != null && lapUse(l, meter) != null)
     .sort(
       (a, b) =>
         a.sessionId.localeCompare(b.sessionId) ||
@@ -56,7 +61,7 @@ export function bestStintMedian(
       runs.push(run);
       run = [];
     }
-    run.push(useOf(l, meter) as number);
+    run.push(lapUse(l, meter) as number);
     prev = l;
   }
   runs.push(run);
@@ -80,9 +85,9 @@ export function savingOf(
   history: readonly GreenLap[],
 ): Saving | null {
   if (target == null || !(target > 0)) return null;
-  const withUse = history.filter(l => useOf(l, meter) != null);
+  const withUse = history.filter(l => lapUse(l, meter) != null);
   if (withUse.length === 0) return null;
-  const under = withUse.filter(l => (useOf(l, meter) as number) <= target);
+  const under = withUse.filter(l => (lapUse(l, meter) as number) <= target);
   const timeOf = (laps: GreenLap[]) => median(laps.map(l => l.lapTimeS));
   const underS = under.length >= MIN_COMPARE_LAPS ? timeOf(under) : null;
   const allS = timeOf(withUse);
@@ -103,4 +108,44 @@ export function dropTarget(
 ): number | null {
   if (!drop) return null;
   return meter === 've' ? drop.vePerLapPct : drop.fuelPerLapL;
+}
+
+/** The card's words: each tile's value and line, and the lap times. */
+export function savingText(s: Saving) {
+  const unit = s.meter === 've' ? '%' : 'L';
+  return {
+    target: `≤ ${s.target.toFixed(2)} ${unit}`,
+    atOrUnder: `${s.atOrUnder.n} of ${s.atOrUnder.of}`,
+    bestStint:
+      s.bestStint == null
+        ? 'no full stint yet'
+        : `${s.bestStint.toFixed(2)} ${unit}`,
+    bestSub: s.bestStint == null ? null : `median, ${MIN_STINT_LAPS}+ laps`,
+    lapTimes: s.lapTimes
+      ? `median ${formatLapTime(s.lapTimes.atOrUnderS)} vs ${formatLapTime(
+          s.lapTimes.allS,
+        )}`
+      : null,
+  };
+}
+
+/**
+ * What the Saving card is asked for (#6684 item 4): a stint the slider has
+ * made run dry at p90 needs the full load over its laps (the formation's use
+ * on the first); else the drop-a-stop target; else nothing.
+ */
+export function savingTarget(
+  pit: PitPlan | null,
+  drop: DropStop | null,
+  meter: 've' | 'fuel',
+  rules: PlanRules,
+): number | null {
+  const full = meter === 've' ? rules.vePct : rules.fuelL;
+  const formation = formationLaps(rules)[meter];
+  const i = pit?.stints.findIndex(s => s.dryAtP90) ?? -1;
+  if (pit && i >= 0 && full > 0) {
+    const laps = pit.stints[i].laps + (i === 0 ? formation : 0);
+    return laps > 0 ? full / laps : null;
+  }
+  return dropTarget(drop, meter);
 }

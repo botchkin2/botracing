@@ -50,8 +50,13 @@ describe('stintStrip', () => {
 
   it('opens a stint on its laps, use at p90 and the level set at its stop', () => {
     const [formation, first, last] = stintStrip(pit, [panel], 've');
-    expect(formation.detail).toEqual(['0.0 %']);
-    expect(first.detail).toEqual(['19 laps', '99 % at p90', 'Set VE 63 %']);
+    expect(formation.detail).toEqual([]);
+    expect(first.detail).toEqual([
+      '19 laps',
+      '99 % at p90',
+      'formation 0.0 %',
+      'Set VE 63 %',
+    ]);
     expect(last.detail).toEqual(['11 laps', '57 % at p90']);
     expect(stripLabel(pit)).toBe('L1–L30');
   });

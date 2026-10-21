@@ -5,7 +5,7 @@
 import {lapLabel} from '@/src/analysis/lapNumbering';
 import {stopTargets, type StopTarget} from '@/src/analysis/stopTarget';
 
-import {type PitModel} from './pitBase';
+import {type PitModel} from '@/src/analysis/fuelPlan';
 import {type PitPlan} from './pitPlan';
 
 export type StopPanel = {

@@ -16,7 +16,7 @@ export type StripCell = {
   /** Share of the bar's width. */
   share: number;
   formation: boolean;
-  /** The numbers a tap opens: laps, use, the level set at the stop that ends it. */
+  /** The numbers a tap opens: laps, use, the level set at the stop that ends it; the first stint names the formation's own use too. Empty for the formation, which is too narrow to tap. */
   detail: string[];
 };
 
@@ -45,16 +45,17 @@ export function stintStrip(
       label: 'Formation',
       share: FORMATION_SHARE,
       formation: true,
-      detail:
-        formationUse == null
-          ? []
-          : [`${formationUse.toFixed(1)} ${unit === 've' ? '%' : 'L'}`],
+      detail: [],
     });
   pit.stints.forEach((s, i) => {
     const use = unit === 've' ? s.vePct?.p90 : s.fuelL?.p90;
     const detail = [`${s.laps} ${s.laps === 1 ? 'lap' : 'laps'}`];
     const useText = stintUseText(use ?? null, unit);
     if (useText) detail.push(`${useText} at p90`);
+    if (i === 0 && formationUse != null)
+      detail.push(
+        `formation ${formationUse.toFixed(1)} ${unit === 've' ? '%' : 'L'}`,
+      );
     if (panels[i]) detail.push(panels[i].value);
     cells.push({
       key: `stint-${s.n}`,
