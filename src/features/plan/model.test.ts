@@ -94,6 +94,7 @@ describe('greenLapsOf', () => {
         vePct: 5,
         lapTimeS: 110,
         sessionId: 's1',
+        lapIndex: 1,
         comparable: true,
         veMeasured: true,
         traffic: null,

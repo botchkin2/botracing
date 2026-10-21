@@ -430,6 +430,7 @@ describe('the start load', () => {
     expect(fits.race.startLoad).toEqual({
       // 20 min is 12 laps, 13 at the late flag: 13 x 3.5 = 45.5 -> 46 %.
       value: '46 % VE (46 L)',
+      hero: '46 % VE',
       covers: 'to finish',
     });
   });

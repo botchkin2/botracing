@@ -44,7 +44,4 @@ const styles = StyleSheet.create({
   tableRow: {flexDirection: 'row', gap: space.md},
   tableLabel: {flex: 1.1},
   tableCell: {flex: 1.4},
-  pair: {flexDirection: 'row', gap: space.xl, alignItems: 'flex-start'},
-  half: {flex: 1, minWidth: 0},
-  rowBox: {gap: space.xs},
 });
