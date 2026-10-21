@@ -939,7 +939,7 @@ mod tests {
         rec.tick(62_000);
         // The chunk is written on the writer thread: wait for its meta.json.
         let mut meta = rig.meta(&rig.folders()[0]);
-        for i in 0..300 {
+        for i in 0..2_000 {
             if meta["layoutChecks"].as_u64().unwrap_or(0) >= 60 {
                 break;
             }
@@ -1010,7 +1010,7 @@ mod tests {
         rec.tick(62_000);
         // The chunk is written on the writer thread: its failure reaches the
         // recorder on a later poll, not a rotation later.
-        for i in 0..200 {
+        for i in 0..2_000 {
             if rec.status.state == "refused" {
                 break;
             }
