@@ -41,12 +41,13 @@ value.
 | `MIN_RECORDING_SEC` (`sessionFiles.mjs:15`) | 30 s | A shorter recording is skipped | A menu, a false start | Keep: no real session is under 30 s; but it must log the file, not skip silently (check) |
 | `SESSION_GAP_H` (`:11`) | 6 h | A longer gap between recordings starts a new session | Separate sessions | **Change**: a 24 h race can hold a 6 h red flag. Use the same event (same track, series and session clock restart rules already in `sessionFiles`) instead of wall time, or scale to the race length |
 | `RESTART_MAX_SEC`, `RESTART_GAP_SEC` (`:12-13`) | 300 s, 120 s | Whether two recordings are one race with a restart | Two races starting on the default clock | Keep: relative to the start clock, not size |
-| `MAX_ALIGN_M` (`field.mjs:21`) | 20 m | The whole field is dropped when the player's lap distance differs from the game file by more | A restart or rejoin reset the clock | **Change to mark**: keep the field, stamp `fieldMissing` "does not match", never wrong positions silently. Scale: 20 m is a car and a half; fine at any track length |
+| `MAX_ALIGN_M` (`field.mjs:21`) | 20 m | The whole field is dropped when the player's lap distance differs from the game file by more | A restart or rejoin reset the clock | **Keep dropping** (gauge #6563: wrong car positions are worse than none), always with the `fieldMissing` line ("Other cars: recording doesn't match the game file", already so since #705). 20 m is a car and a half, a comparison of two measures of the same car, so it holds at any track length |
 | `MAX_TICK_RISE_M` (`gridLap.mjs:24`) | 100 m per sample | The lap is flagged partial (kept, not comparable) | A race lap 0 from the grid (Sebring 0 to 4800 m) | Keep: per sample, not per lap; 100 m in 10 ms is 36000 km/h |
 | `LINE_M`, `LENGTH_TOLERANCE` (`analyze.mjs:944-945`) | 30 m, 2% of the map length | A lap starting past 30 m or off the length gets no corner split (lap kept) | Grid start, reset | `LENGTH_TOLERANCE` is relative: keep. `LINE_M` 30 m is absolute: **make it a share of the sample step** (2 samples at the lap's own speed) so a 25 km lap at 5 Hz capture rates is not wrongly cut |
 | `GRID_PARKED_SEC` (`gridLap.mjs:40`) | 10 s | Picks the partial reason | Grid start | Keep (a label) |
 | Slow lap | relative: 3.5 robust sigmas above the stint pace curve, at least 0.3 s, needs 5 laps (`paceEvents.ts`) | A lap is not comparable (kept) | Slow laps | Keep: relative to the session's own pace |
-| `MAX_DOC_BYTES` (`docShape.mjs:9`, `uploadCore.ts:27`) | 900 000 bytes | The whole upload is refused (413) | Firestore's 1 MiB doc limit | Keep the number (it is Firestore's); **prove** a 24 h, 100-car session doc fits (test below) |
+| `MAX_DOC_BYTES` (`docShape.mjs:9`, `uploadCore.ts:27`) | 900 000 bytes | The whole upload is refused (413) | Firestore's 1 MiB doc limit | Keep the number (it is Firestore's). **The session doc grows with laps** (stints, class laps, plan stops, track-limit strikes, pit visits), so it has to be proven at Le Mans scale: 24 h is about 23 000 car-laps in the field and ~400 laps of his own. Unmeasured today (a size-per-lap measure from the current analyser on his Algarve capture, extrapolated, is the first step; the real proof is a synthetic 24 h session through `analyzeFromArchive` and `docProblems`) |
+| Field file size (`field.mjs`, gz in the bucket) | grows with cars x hours | none today; the Algarve race hour is ~2 MB gzip per race-hour (STORAGE.md) | Scale row | A 24 h, 62-car field is ~50 MB gz and its decode and the 3D road fit run on the phone: **measure** decode time and memory at that size before claiming it works |
 | `MAX_OPS` (`uploadCore.ts:32`) | 400 per request | 413, the client chunks (`CHUNK_OPS`) | Firestore's 500 batch limit | Keep |
 | `MAX_FILE_BYTES`, `MAX_BODY_BYTES` | 200 MB, 8 MB | 413 | Bound a signed URL; files go by URL | Keep: per-lap parts are a few MB |
 
@@ -68,7 +69,7 @@ beyond the layout's array, no session-length cap: the audit found none to remove
 
 ## Nordschleife-scale proof (to add with the changes above)
 
-A test with 25.4 km laps, 8:30 laps, 110 cars and a 24 h clock (86 400 s) that
+The proof is two scales, because size grows with laps: Nordschleife (25.4 km laps, 8:30 laps, 110 cars) and Le Mans 24 h (~23 000 car-laps, 62 cars, 86 400 s clock). A test at each that
 passes every row marked Keep: the recorder's `check_scoring` and the field's
 `goodRows`; `classLaps` counts every crossing; `gridLap` flags no real lap
-partial; a synthetic 24 h, 110-car session doc is under `MAX_DOC_BYTES`.
+partial; a synthetic Le Mans 24 h session doc is under `MAX_DOC_BYTES`; the 24 h field file's size and decode time are measured and written here.
