@@ -1,4 +1,5 @@
 import {useMemo} from 'react';
+import {lapLabel} from '@/src/analysis/lapNumbering';
 
 import {
   type SessionFacets,
@@ -150,8 +151,10 @@ export function raceResultText(finish: FinishPosition | null): string | null {
   const place = `P${finish.inClass}`;
   const laps =
     finish.classLeaderLapsDone != null
-      ? `L${finish.lapsDone} of L${finish.classLeaderLapsDone}+`
-      : `L${finish.lapsDone}`;
+      ? `${lapLabel(finish.lapsDone)} of ${lapLabel(
+          finish.classLeaderLapsDone,
+        )}+`
+      : lapLabel(finish.lapsDone);
   return `${place} · ${laps} (left early)`;
 }
 
