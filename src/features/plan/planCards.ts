@@ -14,14 +14,12 @@ import {
   refuelRateScope,
   refuelSecondsAt,
 } from '@/src/analysis/refuel';
+import {lapLabel} from '@/src/analysis/lapNumbering';
 import {formatLapTime} from '@/src/design';
 
 import {effectiveUnit, type Unit} from './unit';
 
 import {type PitWindow, pitWindows} from '@/src/analysis/pitWindow';
-
-/** The app's lap name for the planner's racing lap n: L1 is the formation lap. */
-export const lapName = (racingLap: number) => `L${racingLap + 1}`;
 
 /**
  * The words of a stint's use and of the formation lap's, on every Plan card
@@ -43,15 +41,18 @@ export function formationUseText(
 
 /**
  * The one way a stint's laps are named, on every Plan card: by the lap names
- * the stops use. The formation lap is L1 and is its own, so the first stint
- * starts at L2 ("L2–L13": the stop after L13 ends it); one lap reads "L14".
+ * the stops use. Racing lap 1 is L1 (the formation lap has no number), so the
+ * first stint reads "L1–L12" when the stop after L12 ends it; one lap reads
+ * "L14".
  * `counts` are the racing laps of each stint, first to last.
  */
 export function stintLaps(counts: readonly number[], index: number): string {
   let first = 1;
   for (let i = 0; i < index; i++) first += counts[i];
   const last = first + counts[index] - 1;
-  return first >= last ? lapName(last) : `${lapName(first)}–${lapName(last)}`;
+  return first >= last
+    ? lapLabel(last)
+    : `${lapLabel(first)}–${lapLabel(last)}`;
 }
 
 export type RaceCard = {
@@ -206,7 +207,7 @@ function raceCard(
     // One plan (thread 44 #1877): the p90 stops, the ones the Stops card, the
     // windows and the Pit plan show. The median's count is a fact beside them.
     stops: planned.stops,
-    stopAfter: planned.stopLaps.map(lapName),
+    stopAfter: planned.stopLaps.map(n => lapLabel(n)),
     working,
     medianNote:
       med.stops != null && planned.stops != null && med.stops !== planned.stops
@@ -245,7 +246,10 @@ function startLoadOf(
   const shown = effectiveUnit(unit, ve != null && !fuelOnly);
   const rows = plan.loadToFinish;
   if (rows && rows.length > 0) {
-    const own = rows[0];
+    // A timed race's flag can fall a lap late: the load covers that lap too.
+    // At the plan's own count it ran short in 4 of his 17 races since 1 Sep,
+    // at the late-flag count in none (pit-wall thread 99, the FML backtest).
+    const own = rows[rows.length - 1];
     const value = loadText(
       own.atP90.fuelL,
       own.atP90.vePct,
@@ -384,12 +388,12 @@ export const NO_WINDOW_NOTE =
 function windowText(w: PitWindow, medianLap: number | null): string {
   const laps = w.latest - w.earliest + 1;
   const median =
-    medianLap == null ? '' : ` · at median use ${lapName(medianLap)}`;
+    medianLap == null ? '' : ` · at median use ${lapLabel(medianLap)}`;
   const within =
     w.withinLaps == null
       ? ''
       : `, within ${w.withinLaps} laps of stop ${w.stop - 1}`;
-  return `Stop ${w.stop}: after ${lapName(w.earliest)} to ${lapName(
+  return `Stop ${w.stop}: after ${lapLabel(w.earliest)} to ${lapLabel(
     w.latest,
   )} · ${laps} ${laps === 1 ? 'lap' : 'laps'}${median}${within}`;
 }
@@ -528,7 +532,7 @@ function stopsCard(
     full = stopRow(
       'full',
       stints,
-      planned.stopLaps.map(lapName),
+      planned.stopLaps.map(n => lapLabel(n)),
       fuelPerLap,
       vePerLap,
       rules,
@@ -549,7 +553,7 @@ function stopsCard(
       left -= n;
     }
     let at = 0;
-    const after = stints.slice(0, -1).map(n => lapName((at += n)));
+    const after = stints.slice(0, -1).map(n => lapLabel((at += n)));
     equal = stopRow(
       'equal',
       stints,

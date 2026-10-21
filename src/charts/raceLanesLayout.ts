@@ -1,6 +1,7 @@
 // Where the YOUR RACE lanes' marks go: race time to x in the lane area, spans
 // clipped to the window. Pure, so it is tested without a renderer.
 import type {RaceLanes, Span} from '@/src/analysis/raceLanes';
+import {lapLabel} from '@/src/analysis/lapNumbering';
 
 export const LANE_ORDER = ['pit', 'tow', 'battle', 'blue', 'pass'] as const;
 export type LaneKey = (typeof LANE_ORDER)[number];
@@ -115,7 +116,7 @@ export function lanesLayout({
       .filter(l => inside(l.timeS))
       .map(l => ({
         x: xOf(l.timeS),
-        label: l.lap % lapLabelEvery === 0 ? `L${l.lap}` : null,
+        label: l.lap % lapLabelEvery === 0 ? lapLabel(l.lap) : null,
       })),
     height: LANE_ORDER.length * laneHeight,
   };

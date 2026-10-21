@@ -7,7 +7,13 @@
 // a planned stop or at the flag, so those are derived here, at the median use
 // per lap of the Plan screen's own per-lap number: the meter's full load minus
 // the laps a stint burns times that use. They are labelled "at the median use".
-import type {FuelPlan, PlanRules, RaceFacts} from '@/src/analysis/fuelPlan';
+import {
+  formationLaps,
+  type FuelPlan,
+  type PlanRules,
+  type RaceFacts,
+} from '@/src/analysis/fuelPlan';
+import {lapLabel} from '@/src/analysis/lapNumbering';
 
 import {oneDecimal} from '@/src/design';
 import type {ActualEnd, ActualStop} from '@/src/features/session/pitCard';
@@ -44,8 +50,8 @@ const load = (hasVe: boolean, v: number) =>
 
 /**
  * The Finish row of a DNF, one thing a column (canard's audit, #4166): the
- * plan's side is where the plan's flag falls (its own race laps, in the lap
- * table's labels: L1 is the formation lap), "—" without a plan. The race's
+ * plan's side is where the plan's flag falls (its own race laps, named from
+ * the green flag as the lap table names them), "—" without a plan. The race's
  * side is what happened: the player's DNF lap, and the furthest lap the class
  * leader was seen to finish, with a "+" because the recording stops with the
  * player, mid-lap for the leader (pit-wall thread 1 #3136).
@@ -55,13 +61,13 @@ export function finishRow(
   /** The plan's racing laps; null without a plan. */
   planLaps: number | null,
 ): PlanHalfRow {
-  const at = facts.playerLapsDone ?? facts.end?.lapIndex ?? null;
+  const at = facts.playerLapsDone ?? facts.end?.lap ?? null;
   const leader = facts.classLeaderLapsDone;
-  const dnf = at != null ? `DNF L${at}` : 'DNF';
+  const dnf = at != null ? `DNF ${lapLabel(at)}` : 'DNF';
   return {
     k: 'Finish',
-    p: planLaps != null ? `flag L${planLaps + 1}` : MISSING,
-    a: leader != null ? `${dnf} · leader L${leader}+` : dnf,
+    p: planLaps != null ? `flag ${lapLabel(planLaps)}` : MISSING,
+    a: leader != null ? `${dnf} · leader ${lapLabel(leader)}+` : dnf,
   };
 }
 
@@ -121,6 +127,8 @@ export function buildPlanHalf(input: {
       rows: [],
     };
   const capacity = hasVe ? rules.vePct : rules.fuelL;
+  // Laps of use the formation lap burns from the first load, in this meter.
+  const formation = formationLaps(rules)[hasVe ? 've' : 'fuel'];
   const stopLaps = option.stopLaps;
   // What the car really started with, when the race records it. The plan is
   // for a full load; reading what is left against it would show a short start
@@ -145,13 +153,13 @@ export function buildPlanHalf(input: {
     const stop = stops[i];
     rows.push({
       k: `Stop ${i + 1}`,
-      // The planner counts racing laps from 1 after the formation lap; the app
-      // numbers laps from the formation lap as L1, so racing lap n is L(n+1).
-      p: n != null ? `after L${n + 1}` : MISSING,
-      a: stop ? `after L${stop.lapIndex}` : MISSING,
+      // The planner and the lap table both count racing laps from the green.
+      p: n != null ? `after ${lapLabel(n)}` : MISSING,
+      a: stop ? `after ${lapLabel(stop.lap)}` : MISSING,
     });
     // The first stint also burns the formation lap.
-    const burned = n == null ? null : i === 0 ? n + 1 : n - stopLaps[i - 1];
+    const burned =
+      n == null ? null : i === 0 ? n + formation : n - stopLaps[i - 1];
     rows.push({
       k: 'In',
       p: burned == null ? MISSING : planned(hasVe, capacity, use, burned),
@@ -181,16 +189,16 @@ export function buildPlanHalf(input: {
   // finished (the plan's flag against the race's), at the end of the last
   // whole lap after a DNF (where the plan would be then, against what the car
   // had), never the plan's flag against a DNF.
-  const endLap = facts.leftEarly ? facts.end?.lapIndex ?? null : null;
-  const upTo = endLap != null ? endLap - 1 : planLaps;
+  const endLap = facts.leftEarly ? facts.end?.lap ?? null : null;
+  const upTo = endLap ?? planLaps;
   const lastStop = [...stopLaps].reverse().find(n => n < upTo) ?? null;
-  const burnedTo = lastStop == null ? upTo + 1 : upTo - lastStop;
+  const burnedTo = lastStop == null ? upTo + formation : upTo - lastStop;
   // Before the plan's first stop both sides run on the first load, so the plan
   // side starts from the load the car had: the row then compares use. After a
   // planned stop the plan refuels to the full load either way.
   const from = lastStop == null ? actualStart ?? capacity : capacity;
   rows.push({
-    k: endLap != null ? `Left at L${endLap}` : 'Spare',
+    k: endLap != null ? `Left at ${lapLabel(endLap)}` : 'Spare',
     p: planned(hasVe, from, use, burnedTo),
     a: end ? left(hasVe, end, end.lapsLeft) : MISSING,
   });

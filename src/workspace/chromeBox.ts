@@ -1,4 +1,5 @@
 import {lapSlots} from '@/src/analysis/lapSlots';
+import {lapLabel} from '@/src/analysis/lapNumbering';
 import {
   type Lap,
   type SessionDetail,
@@ -47,7 +48,7 @@ export function chromeBox({
   hasField: boolean;
   /** A day cut at different corner windows: the Corner tab is off. */
   cornerOff?: boolean;
-  laps: Pick<Lap, 'id' | 'lapIndex'>[] | undefined;
+  laps: Pick<Lap, 'id' | 'lapIndex' | 'lapNo'>[] | undefined;
   selection: {laps?: string; ref?: string; hl?: string};
   cornerN: number | null;
   corners: Pick<TrackCorner, 'n' | 'official'>[] | undefined;
@@ -60,7 +61,7 @@ export function chromeBox({
   // Chip colours are the lap's slot (Ref 0, the rest by lap number), not its URL position.
   const slots = lapSlots(found, ref);
   const lapRows = found.map(lap => ({
-    label: `L${lap.lapIndex}`,
+    label: lapLabel(lap.lapNo),
     color: lapStroke(scheme, slots.get(lap.id) as number, false).color,
   }));
   const cornerLabel =

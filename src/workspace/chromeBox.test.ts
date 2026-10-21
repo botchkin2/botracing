@@ -12,9 +12,9 @@ const race = {
   online: null,
 };
 const laps = [
-  {id: 'a', lapIndex: 16},
-  {id: 'b', lapIndex: 22},
-  {id: 'c', lapIndex: 9},
+  {id: 'a', lapIndex: 16, lapNo: 16},
+  {id: 'b', lapIndex: 22, lapNo: 22},
+  {id: 'c', lapIndex: 9, lapNo: 9},
 ];
 const base = {
   session: race,

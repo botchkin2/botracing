@@ -880,7 +880,7 @@
   }
  ],
  "plan": {
-  "v": 2,
+  "v": 3,
   "fuel": {
    "fillLimitL": 100,
    "startL": 85,
@@ -1170,19 +1170,19 @@
    }
   ],
   "race": {
-   "raceLaps": 20,
+   "raceLaps": 21,
    "minutes": 40,
    "leftEarly": true,
    "playerLapsDone": 21,
    "classLeaderLapsDone": 21,
    "startVePct": 85,
-   "formationL": 3.27,
+   "formationL": 0.84,
    "ownUse": {
     "fuelL": 2.43,
     "vePct": 2.5
    },
    "end": {
-    "lapIndex": 21,
+    "lap": 21,
     "fuelL": 33.23,
     "vePct": 32.2
    },

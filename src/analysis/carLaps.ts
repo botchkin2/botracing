@@ -19,8 +19,9 @@ export interface CarLap {
 }
 
 /**
- * The app's lap number is the player's lap list position (`lapIndex = i + 1`).
- * LMU's laps counter, read at the end of a lap, is that number. iRacing's
+ * A car's lap is named as the player's are (analysis/lapNumbering.ts): LMU's
+ * laps counter, read at the end of a lap, is its number from the green flag
+ * (L1 ends on counter 1). iRacing's
  * counter runs one behind (Sebring practice: counter 6 is the app's L7), so
  * its laps add one. The sims are told apart as everywhere else: iRacing has
  * no world positions (`Field.hasPositions`).

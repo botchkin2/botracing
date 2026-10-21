@@ -26,7 +26,8 @@ export type PlanLap = {
 };
 
 export type PlanStop = {
-  lapIndex: number;
+  /** The racing lap the pit lane was entered on, from the green flag (Lap.lapNo). */
+  lap: number;
   fuelL: number | null;
   vePct: number | null;
   /** Litres added in the stop. */
@@ -63,10 +64,11 @@ export type PlanRace = {
   playerLapsDone: number | null;
   classLeaderLapsDone: number | null;
   startVePct: number | null;
-  /** The first lap's burn, the formation procedure. */
+  /** The formation's burn alone, litres (planBlock.mjs formationOf); null without the lap that holds it. */
   formationL: number | null;
   ownUse: {fuelL: number | null; vePct: number | null};
-  end: {lapIndex: number; fuelL: number | null; vePct: number | null};
+  /** The last whole lap, by its racing number (Lap.lapNo). */
+  end: {lap: number; fuelL: number | null; vePct: number | null};
   stops: PlanStop[];
 };
 
@@ -132,10 +134,10 @@ function toLap(v: unknown): PlanLap | null {
 
 function toStop(v: unknown): PlanStop | null {
   const s = obj(v);
-  const lapIndex = num(s.lapIndex);
-  if (lapIndex == null) return null;
+  const lap = num(s.lap);
+  if (lap == null) return null;
   return {
-    lapIndex,
+    lap,
     fuelL: num(s.fuelL),
     vePct: num(s.vePct),
     addedL: num(s.addedL),
@@ -151,7 +153,9 @@ function toRace(v: unknown): PlanRace | null {
   const r = obj(v);
   const raceLaps = num(r.raceLaps);
   const end = obj(r.end);
-  const endLap = num(end.lapIndex);
+  // A block before PLAN_VERSION 3 numbered by list position: no `lap`, no race
+  // side, until the tray writes it again.
+  const endLap = num(end.lap);
   if (raceLaps == null || endLap == null) return null;
   const own = obj(r.ownUse);
   return {
@@ -163,7 +167,7 @@ function toRace(v: unknown): PlanRace | null {
     startVePct: num(r.startVePct),
     formationL: num(r.formationL),
     ownUse: {fuelL: num(own.fuelL), vePct: num(own.vePct)},
-    end: {lapIndex: endLap, fuelL: num(end.fuelL), vePct: num(end.vePct)},
+    end: {lap: endLap, fuelL: num(end.fuelL), vePct: num(end.vePct)},
     stops: (Array.isArray(r.stops) ? r.stops : []).flatMap(s => {
       const stop = toStop(s);
       return stop ? [stop] : [];

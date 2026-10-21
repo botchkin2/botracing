@@ -53,19 +53,20 @@ describe('a real LMU race through the plan block', () => {
       limitL: 100,
       startL: 85,
       startVePct: 85,
-      raceLaps: 20,
+      // The game's 21 laps done; the first lap doc holds the formation and L1.
+      raceLaps: 21,
       race: {minutes: 40},
       leftEarly: true,
       playerLapsDone: 21,
       classLeaderLapsDone: 21,
       ownUse: {fuelL: 2.43, vePct: 2.5},
-      end: {lapIndex: 21, fuelL: 33.23, vePct: 32.2},
+      end: {lap: 21, fuelL: 33.23, vePct: 32.2},
       stops: [],
     });
   });
 
-  it('gives the formation burn the plan measures (3.27 L, one race: an estimate) and no pit base without stops', () => {
-    expect(block.race?.formationL).toBe(3.27);
+  it('gives the formation burn the plan measures (the 3.27 L first lap less its 2.43 L L1; one race: an estimate) and no pit base without stops', () => {
+    expect(block.race?.formationL).toBe(0.84);
     const burn = formationBurnOf([block.race!.formationL], 2.43);
     expect(burn.kind).toBe('estimate');
     expect(pitLaneBase([block.race!], refuelRateOf([], 'GT3'))).toBeNull();

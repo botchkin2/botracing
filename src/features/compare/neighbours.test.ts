@@ -9,6 +9,7 @@ const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
   traceHz: null,
   lapIndex,
   lapNumber: lapIndex - 1,
+  lapNo: lapIndex,
   timeS: 80,
   sectorsS: [],
   stint: 1,

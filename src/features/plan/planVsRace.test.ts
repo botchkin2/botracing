@@ -11,10 +11,10 @@ const facts = (over: Partial<RaceFacts> = {}): RaceFacts => ({
   startL: 75,
   raceLaps: 30,
   race: null,
-  classLeaderLapsDone: 31,
+  classLeaderLapsDone: 30,
   ownUse: {fuelL: 2.4, vePct: 3.5},
-  stops: [{lapIndex: 19, fuelL: 12.9, vePct: 0}],
-  end: {lapIndex: 30, fuelL: 13.1, vePct: 5},
+  stops: [{lap: 19, fuelL: 12.9, vePct: 0}],
+  end: {lap: 30, fuelL: 13.1, vePct: 5},
   ...over,
 });
 
@@ -76,9 +76,9 @@ describe('scheduledLength', () => {
     });
   });
 
-  it('falls back to the leader laps without the formation lap, then to nothing', () => {
+  it('falls back to the leader laps (racing laps: the formation is not one), then to nothing', () => {
     expect(scheduledLength({race: null, classLeaderLapsDone: 24})).toEqual({
-      estimatedLaps: 23,
+      estimatedLaps: 24,
     });
     expect(scheduledLength({race: null, classLeaderLapsDone: null})).toBeNull();
     expect(scheduledLength({race: null})).toBeNull();

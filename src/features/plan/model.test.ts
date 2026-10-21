@@ -476,10 +476,10 @@ describe('planView', () => {
     });
     expect(v.cards.some(c => c.key === 'stops')).toBe(false);
     const load = v.loadTable!;
-    // 10 laps + the formation lap at 3.5 L and 5 %: 38.50 L, 55.00 % VE.
+    // 10 laps + the formation's 0.4 laps of fuel (no VE) at 3.5 L and 5 %: 36.40 L, 50.00 % VE.
     expect(load.rows[0].label).toBe('10 laps + form.');
-    expect(load.rows[0].median).toContain('38.50 L');
-    expect(load.rows[0].median).toContain('55.00 %');
+    expect(load.rows[0].median).toContain('36.40 L');
+    expect(load.rows[0].median).toContain('50.00 %');
     expect(load.head[2]).toContain('p90');
   });
 

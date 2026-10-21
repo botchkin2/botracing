@@ -7,6 +7,7 @@
 // and eventLoad read, computed once here. The series week is not stored: it
 // depends on the viewer's time zone and is worked out from startedAt.
 
+import {lapNoOf} from '../../src/analysis/lapNumbering.ts';
 import {REFUEL_L_PER_S} from '../../src/analysis/refuel.ts';
 
 /**
@@ -15,7 +16,10 @@ import {REFUEL_L_PER_S} from '../../src/analysis/refuel.ts';
  */
 // 2: a stop names its visit's kind (service, repair, penalty) and the pump's
 //    rate (fillLPerS); the pit loss is learnt from service visits only.
-export const PLAN_VERSION = 2;
+// 3: the race's stops and end carry the racing lap (`lap`, from the green
+//    flag: analysis/lapNumbering.ts) and raceLaps is the ending lap's, not a
+//    count from the lap list's first position (pit-wall thread 99, row FML).
+export const PLAN_VERSION = 3;
 
 const finite = x => (Number.isFinite(x) ? x : null);
 
@@ -123,6 +127,23 @@ function lossOf(laps, i) {
 
 const MIN_OWN_LAPS = 3;
 
+/**
+ * The formation lap's own burn, litres. LMU's lap the race starts in (L1)
+ * holds the formation and L1 together (lap 1 starts at the green, behind the
+ * line), so it is that lap's burn less this race's median green lap
+ * (Silverstone 15 Oct: 4.62 L = 0.86 L to the green + 3.76 L of L1). iRacing's
+ * formation is a lap of its own (lapNo null). Null when the capture started
+ * after it (Daytona 10-07 starts on L2) or without the numbers.
+ */
+function formationOf(laps, lapNo, ownFuelL) {
+  const i = laps.findIndex((lap, k) => lapNo(lap, k) == null);
+  if (i >= 0) return laps[i].fuel?.usedL > 0 ? laps[i].fuel.usedL : null;
+  const j = laps.findIndex((lap, k) => lapNo(lap, k) === 1);
+  const usedL = j >= 0 ? laps[j].fuel?.usedL : null;
+  if (!(usedL > 0) || ownFuelL == null) return null;
+  return Math.round(Math.max(0, usedL - ownFuelL) * 100) / 100;
+}
+
 function median(values) {
   if (values.length < MIN_OWN_LAPS) return null;
   const v = [...values].sort((x, y) => x - y);
@@ -133,50 +154,61 @@ function median(values) {
 /**
  * The race's side, for "plan vs what happened" and the formation burn
  * (src/data/sessions/raceFacts.ts reads the same from the lap docs): null for
- * anything but a race with a whole lap to end on. The ending lap is the last
- * one that was not cut short and has a fuel level; lap numbers count from the
- * first racing lap (the formation lap is 0), so the ending lap's position
- * minus one is the racing laps.
+ * anything but a race with a whole racing lap to end on. The ending lap is the
+ * last one that was not cut short and has a fuel level. Laps are named by the
+ * game's counter from the green flag (lapNoOf), never by their place in the
+ * list: a capture can start late (Daytona 10-07 starts on L2). The racing laps
+ * driven are the ending lap's number.
  */
 function raceBlock({laps, race, result}) {
+  const lapNo = (lap, i) =>
+    lapNoOf({
+      sim: lap.sim ?? 'lmu',
+      race: true,
+      lapNumber: Number.isFinite(lap.lapNumber) ? lap.lapNumber : null,
+      lapIndex: i + 1,
+    });
   let end = -1;
   laps.forEach((lap, i) => {
     if (!(lap.reasons ?? []).includes('partial') && lap.fuel?.endL != null)
       end = i;
   });
-  if (end < 0) return null;
+  const endLap = end < 0 ? null : lapNo(laps[end], end);
+  if (endLap == null) return null;
   const fuelOf = lap => lap.fuel ?? {};
   const green = laps.filter(l => l.fuel?.green && (l.fuel.usedL ?? 0) > 0);
+  const ownFuelL = median(green.map(l => l.fuel.usedL));
   const finish = result?.finish ?? null;
-  const first = fuelOf(laps[0]);
+  // A capture that started after the start (lapNo past 1) has no start load.
+  const first = (lapNo(laps[0], 0) ?? 0) > 1 ? {} : fuelOf(laps[0]);
   return {
-    raceLaps: Math.max(0, end),
+    raceLaps: endLap,
     minutes: finite(race?.minutes),
     leftEarly: finish?.leftEarly === true,
     playerLapsDone: finite(finish?.lapsDone),
     classLeaderLapsDone: finite(finish?.classLeaderLapsDone),
-    // What the car started the race on, and the first lap's burn (the
-    // formation procedure burns more than a green lap).
+    // What the car started the race on, and the formation's own burn.
     startVePct: finite(first.veStartPct),
-    formationL: first.usedL > 0 ? first.usedL : null,
+    formationL: formationOf(laps, lapNo, ownFuelL),
     ownUse: {
-      fuelL: median(green.map(l => l.fuel.usedL)),
+      fuelL: ownFuelL,
       vePct: median(
         green.map(l => l.fuel.veUsedPct).filter(v => v != null && v > 0),
       ),
     },
     end: {
-      lapIndex: end + 1,
+      lap: endLap,
       fuelL: finite(fuelOf(laps[end]).endL),
       vePct: finite(fuelOf(laps[end]).veEndPct),
     },
-    // The service before the start is not a stop: a pit window on the first
-    // lap counts only when the lap ends in the pit lane.
+    // The service before the start is not a stop: a pit window on the lap the
+    // race starts in (the formation, or L1 with the formation inside it)
+    // counts only when the lap ends in the pit lane.
     stops: laps.flatMap((lap, i) =>
-      lap.pitStop != null && (i !== 0 || lap.pitIn)
+      lap.pitStop != null && ((lapNo(lap, i) ?? 0) > 1 || lap.pitIn)
         ? [
             {
-              lapIndex: i + 1,
+              lap: lapNo(lap, i),
               fuelL: finite(lap.pitStop.atEntry?.fuelL),
               vePct: finite(lap.pitStop.atEntry?.vePct),
               // For the pit lane base: litres added and the lane loss.

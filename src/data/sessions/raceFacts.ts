@@ -27,23 +27,24 @@ export function endingLap(laps: Lap[]): Lap | null {
  */
 export function racePitLaps(sessionType: SessionType, laps: Lap[]): Lap[] {
   if (sessionType !== 'R') return [];
-  const first = laps.length > 0 ? laps[0].lapIndex : 0;
-  // The service before the start is a window on the first lap that the car
-  // leaves (an out lap, `pitOut`), before any timed lap. A stop on the first
-  // lap is a real one when the lap ends in the pit lane (`pitIn`): Road
-  // Atlanta 09-25 changed the FL on L1, 87 s, after a 267 s lap (camber,
-  // thread 43 #1279).
+  // The service before the start is a window on the lap the race starts in
+  // (L1, which holds LMU's formation, or iRacing's formation lap), which the
+  // car leaves (an out lap, `pitOut`). A stop on it is a real one when the lap
+  // ends in the pit lane (`pitIn`): Road Atlanta 09-25 changed the FL on L1,
+  // 87 s, after a 267 s lap (camber, thread 43 #1279). Named by the lap's
+  // racing number, never its place: a capture that starts late in the pits
+  // (Daytona 10-07, on L2) is a stop.
   return laps.filter(
-    l => l.pitStop !== null && (l.lapIndex !== first || l.pitIn),
+    l => l.pitStop !== null && ((l.lapNo ?? 0) > 1 || l.pitIn),
   );
 }
 
 /**
  * The race's side of the comparison, from the session's plan block (the
  * uploader worked it out off the laps: tools/sessions/planBlock.mjs). Null for
- * anything but a race with a whole lap to end on, and for a session uploaded
- * before the block existed (no data, not a guess). Lap numbers count from the
- * first racing lap: the formation lap is lap 0.
+ * anything but a race with a whole lap to end on, and for a session whose
+ * block is from before racing lap numbers (no data, not a guess). Laps are
+ * named from the green flag (analysis/lapNumbering.ts).
  */
 export function raceFactsOfPlan(
   session: {startedAt: string; plan: PlanBlock | null},
@@ -66,7 +67,7 @@ export function raceFactsOfPlan(
     ownUse: race.ownUse,
     end: race.end,
     stops: race.stops.map(s => ({
-      lapIndex: s.lapIndex,
+      lap: s.lap,
       fuelL: s.fuelL,
       vePct: s.vePct,
       kind: s.kind,

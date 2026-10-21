@@ -64,6 +64,7 @@ export function dayLapSet(
 ): DaySet {
   const dayMembers = members.map(m => ({
     sessionId: m.session.id,
+    race: m.session.sessionType === 'R',
     laps: m.laps,
   }));
   const laps = mergeDayLaps(dayMembers);

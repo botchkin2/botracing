@@ -4,7 +4,9 @@ import {space, useTheme} from '@/src/design';
 import {Button, Text} from '@/src/ui';
 
 import {type PitPlan} from '../pitPlan';
-import {lapName, stintLaps} from '../planCards';
+import {lapLabel} from '@/src/analysis/lapNumbering';
+
+import {stintLaps} from '../planCards';
 import {
   finalStintWarning,
   finishLine,
@@ -57,7 +59,7 @@ export function PitPlanCard({
                 <Text variant='label' tone='textMuted'>
                   {`Stop ${s.stop}`}
                 </Text>
-                <Text variant='dataStrong'>{`after ${lapName(s.after)}`}</Text>
+                <Text variant='dataStrong'>{`after ${lapLabel(s.after)}`}</Text>
               </View>
               <StopSlider
                 after={s.after}

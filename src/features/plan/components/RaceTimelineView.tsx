@@ -2,6 +2,8 @@ import {useEffect, useRef, useState} from 'react';
 import {PanResponder, StyleSheet, View} from 'react-native';
 import {G, Line, Rect} from 'react-native-svg';
 
+import {lapLabel} from '@/src/analysis/lapNumbering';
+
 import {ChartLabel, ChartSvg} from '@/src/charts/ChartLabel';
 import {EDGE_PT} from '@/src/charts/labelBox';
 
@@ -78,13 +80,16 @@ export function RaceTimelineView({
               stroke={color.line}
               strokeWidth={stroke.grey}
             />
-            <ChartLabel
-              x={xOf(t)}
-              y={size.timelineAxis - 6}
-              anchor='middle'
-              fill={color.textMuted}>
-              {`L${t}`}
-            </ChartLabel>
+            {/* A tick is the end of lap t; the start (0) is no lap, so no name. */}
+            {t > 0 ? (
+              <ChartLabel
+                x={xOf(t)}
+                y={size.timelineAxis - 6}
+                anchor='middle'
+                fill={color.textMuted}>
+                {lapLabel(t)}
+              </ChartLabel>
+            ) : null}
           </G>
         ))}
         <ChartLabel

@@ -233,10 +233,10 @@ describe('describing a stop in one unit', () => {
 });
 
 describe('naming the laps of a stint', () => {
-  it('is one helper: the formation lap is L1, stints start at L2, and a stop ends a stint on the lap it is named for', () => {
-    expect(stintLaps([12, 2], 0)).toBe('L2–L13');
-    expect(stintLaps([12, 2], 1)).toBe('L14–L15');
-    expect(stintLaps([12, 1], 1)).toBe('L14');
+  it('is one helper: racing lap 1 is L1, the formation has no number, and a stop ends a stint on the lap it is named for', () => {
+    expect(stintLaps([12, 2], 0)).toBe('L1–L12');
+    expect(stintLaps([12, 2], 1)).toBe('L13–L14');
+    expect(stintLaps([12, 1], 1)).toBe('L13');
   });
 
   it('gives the Pit plan card and the Stops card the same stint, in the same words', () => {
@@ -249,12 +249,12 @@ describe('naming the laps of a stint', () => {
       expect(cards.stops.full!.lines.map(l => l.laps)).toEqual(pitCard);
       // Each stint ends on the lap its stop is named for.
       p.stops.forEach((s, i) =>
-        expect(pitCard[i].split('–').pop()).toBe(`L${s.after + 1}`),
+        expect(pitCard[i].split('–').pop()).toBe(`L${s.after}`),
       );
       // Same rows, same words: the Formation row and each stint's use.
       const full = cards.stops.full!;
       expect(formationRow(p, 've')!.use).toBe(cards.stops.formationUse);
-      expect(formationRow(p, 've')!.laps).toBe('L1');
+      expect(formationRow(p, 've')!.laps).toBe('–');
       p.stints.forEach((st, i) =>
         expect(stintRow(st, 've', pitCard[i]).use).toBe(full.lines[i].use),
       );

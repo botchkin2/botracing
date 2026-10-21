@@ -141,15 +141,13 @@ describe('toPlanBlock', () => {
         startVePct: null,
         formationL: 2.68,
         ownUse: {fuelL: 2.55, vePct: null},
-        end: {lapIndex: 28, fuelL: 6.91, vePct: null},
-        stops: [
-          {lapIndex: 19, fuelL: 6.98, vePct: null, addedL: 23, lossS: 34.18},
-        ],
+        end: {lap: 28, fuelL: 6.91, vePct: null},
+        stops: [{lap: 19, fuelL: 6.98, vePct: null, addedL: 23, lossS: 34.18}],
       },
     });
     expect(out?.race?.stops).toEqual([
       {
-        lapIndex: 19,
+        lap: 19,
         fuelL: 6.98,
         vePct: null,
         addedL: 23,
@@ -165,11 +163,11 @@ describe('toPlanBlock', () => {
       laps: null,
       race: {
         raceLaps: 3,
-        end: {lapIndex: 4},
+        end: {lap: 4},
         stops: [
-          {lapIndex: 2, kind: 'repair', detail: null, fillLPerS: 3.37},
-          {lapIndex: 3, kind: 'penalty', detail: 'stop-go'},
-          {lapIndex: 4, kind: 'nonsense'},
+          {lap: 2, kind: 'repair', detail: null, fillLPerS: 3.37},
+          {lap: 3, kind: 'penalty', detail: 'stop-go'},
+          {lap: 4, kind: 'nonsense'},
         ],
       },
     });

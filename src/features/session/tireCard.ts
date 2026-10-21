@@ -4,6 +4,7 @@
 // advice (CODE_STANDARDS §7).
 //
 import {WHEELS, type Wheel, wearReadAtStops} from '@/src/analysis/tyres';
+import {lapLabel, lapRangeLabel} from '@/src/analysis/lapNumbering';
 import type {Lap, SessionDetail} from '@/src/data/sessions';
 
 import {median} from '@/src/analysis/setStats';
@@ -165,8 +166,6 @@ export const absentLapsNote = (n: number) =>
     n === 1 ? '' : 's'
   } (recorder bug, fixed in 0.1.11)`;
 
-const lapLabel = (l: Lap) => `L${l.lapIndex}`;
-
 const hasTyres = (l: Lap) =>
   l.tyres != null &&
   (l.tyres.wearPct != null ||
@@ -255,12 +254,12 @@ function coolDownBlock(all: Lap[], firstLapIndex: number): CoolDownBlock {
   if (tyres?.changed && tyres.wheels.length === 4)
     return {
       kind: 'absent',
-      why: `All four tires changed after L${stopLap.lapIndex}`,
+      why: `All four tires changed after ${lapLabel(stopLap.lapNo)}`,
     };
   if (!cool)
     return {
       kind: 'absent',
-      why: `No cool-down reading after L${stopLap.lapIndex}`,
+      why: `No cool-down reading after ${lapLabel(stopLap.lapNo)}`,
     };
   const wheels = WHEELS.flatMap((wheel): CoolDownWheel[] => {
     const w = {
@@ -276,11 +275,13 @@ function coolDownBlock(all: Lap[], firstLapIndex: number): CoolDownBlock {
   if (wheels.length === 0)
     return {
       kind: 'absent',
-      why: `No cool-down reading on the kept tires after L${stopLap.lapIndex}`,
+      why: `No cool-down reading on the kept tires after ${lapLabel(
+        stopLap.lapNo,
+      )}`,
     };
   return {
     kind: 'readings',
-    after: `After L${stopLap.lapIndex}`,
+    after: `After ${lapLabel(stopLap.lapNo)}`,
     afterS: cool.afterS,
     wheels,
   };
@@ -315,7 +316,7 @@ function axleSeries(
     return median(v);
   };
   return {
-    lapLabels: laps.map(lapLabel),
+    lapLabels: laps.map(l => lapLabel(l.lapNo)),
     front: laps.map((l, i) => axle(l, i, front, pick)),
     rear: laps.map((l, i) => axle(l, i, rear, pick)),
     medianFront: med(front),
@@ -348,12 +349,12 @@ export function setAges(
   return out;
 }
 
-export function setAgeText(ages: Record<Wheel, number>, lastLap: number) {
+export function setAgeText(ages: Record<Wheel, number>, lastLap: string) {
   const v = WHEELS.map(w => ages[w]);
   const unit = (n: number) => `${n}-lap`;
   if (v.every(n => n === v[0]))
-    return `All four on ${unit(v[0])} sets at L${lastLap}`;
-  return `Set age at L${lastLap}: ${WHEELS.map(
+    return `All four on ${unit(v[0])} sets at ${lastLap}`;
+  return `Set age at ${lastLap}: ${WHEELS.map(
     w => `${w} ${ages[w]} ${ages[w] === 1 ? 'lap' : 'laps'}`,
   ).join(' · ')}`;
 }
@@ -394,7 +395,11 @@ function stintTires(
       // Every lap is a bar, so a lock-up on an untimed lap shows; only green laps feed the median.
       // Read at stops only, a lap has no loss of its own to show.
       if (!atStops && w != null && before != null && before >= w)
-        bars.push({lapLabel: lapLabel(l), lossPct: before - w, green: isGreen});
+        bars.push({
+          lapLabel: lapLabel(l.lapNo),
+          lossPct: before - w,
+          green: isGreen,
+        });
       const h = isGreen ? l.tyres?.hotPressureKpa?.[wheel] : null;
       if (h != null) hot.push(h);
     });
@@ -411,8 +416,8 @@ function stintTires(
     if (from != null) {
       const lastValid = from > 0 ? withData[from - 1] : null;
       flat = {
-        fromLap: lapLabel(withData[from]),
-        lastValidLap: lastValid ? lapLabel(lastValid) : null,
+        fromLap: lapLabel(withData[from].lapNo),
+        lastValidLap: lastValid ? lapLabel(lastValid.lapNo) : null,
         lastValidPct: lastValid?.tyres?.wearPct?.[wheel] ?? null,
       };
     }
@@ -449,15 +454,21 @@ function stintTires(
   return {
     n,
     tab: `Stint ${n}`,
-    title: `Stint ${n} · L${first}–L${last}`,
+    title: `Stint ${n} · ${lapRangeLabel(
+      withData[0].lapNo,
+      withData[withData.length - 1].lapNo,
+    )}`,
     sub: `${greenLaps.length} green ${greenLaps.length === 1 ? 'lap' : 'laps'}`,
-    setAge: setAgeText(setAges(all, last), last),
+    setAge: setAgeText(
+      setAges(all, last),
+      lapLabel(withData[withData.length - 1].lapNo),
+    ),
     greenLaps: greenLaps.length,
     kind,
     wearRead: atStops ? 'stops' : 'every-lap',
     wheels,
     readings: greenLaps.map(l => ({
-      label: lapLabel(l),
+      label: lapLabel(l.lapNo),
       wearPct: l.tyres?.wearPct ?? {FL: null, FR: null, RL: null, RR: null},
     })),
     pressure: axleSeries(

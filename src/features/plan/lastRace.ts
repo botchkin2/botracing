@@ -2,6 +2,7 @@
 // at a track and car, as data. The Plan screen prints it under the chips and
 // the Track page's Plan card reads its date and length. Pure.
 import type {RaceFacts} from '@/src/analysis/fuelPlan';
+import {lapLabel} from '@/src/analysis/lapNumbering';
 
 export type LastRace = {
   sessionId: string;
@@ -40,7 +41,7 @@ export function lastRaceOf(
     startedAt: facts.startedAt,
     raceLaps: facts.raceLaps,
     stops: facts.stops.map(s => ({
-      lap: `L${s.lapIndex}`,
+      lap: lapLabel(s.lap),
       fuelL: s.fuelL,
       vePct: s.vePct,
       kind: s.kind ?? null,
@@ -52,7 +53,7 @@ export function lastRaceOf(
     classLeaderLapsDone: facts.classLeaderLapsDone ?? null,
     end: facts.end
       ? {
-          lap: `L${facts.end.lapIndex}`,
+          lap: lapLabel(facts.end.lap),
           fuelL: facts.end.fuelL,
           vePct: facts.end.vePct,
         }
@@ -63,9 +64,8 @@ export function lastRaceOf(
 /**
  * The one line under "Your last race here": the stops by the lap the pit lane
  * was entered (as the pit stops card names them), and what was left at the
- * end of the last whole lap. One numbering, the lap table's: no lap count
- * beside "L21", which counts the formation lap (apex, #1309). VE is left out
- * of a fuel-only race.
+ * end of the last whole lap. One numbering, the lap table's, from the green
+ * flag (apex, #1309). VE is left out of a fuel-only race.
  * "2 stops at L25, L49 · 4.9 L / 3 % VE left at the end of L73". A visit that
  * was not a service is named by what it was, not counted as a stop:
  * "no stop · repair L11 · stop-go L12" (canard's audit, #4166).
@@ -75,7 +75,9 @@ export function lastRaceLine(race: LastRace): string {
     race.leftEarly &&
     race.playerLapsDone != null &&
     race.classLeaderLapsDone != null
-      ? `DNF at L${race.playerLapsDone} of L${race.classLeaderLapsDone}+`
+      ? `DNF at ${lapLabel(race.playerLapsDone)} of ${lapLabel(
+          race.classLeaderLapsDone,
+        )}+`
       : null;
   // A service, or a visit from a block that does not say, is a stop.
   const services = race.stops.filter(

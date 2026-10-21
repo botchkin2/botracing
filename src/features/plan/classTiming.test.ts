@@ -143,7 +143,7 @@ describe('classTiming', () => {
       }),
     );
     // p10 96 s: 96 / 14 = 6.9 laps; p90 100 s: 100 / 10 = 10 laps.
-    expect(row(t, 'hypercar').firstText).toBe('L8–L11');
+    expect(row(t, 'hypercar').firstText).toBe('L7–L10');
     expect(row(t, 'hypercar').passes.length).toBeGreaterThan(0);
   });
 
@@ -167,7 +167,7 @@ describe('classTiming', () => {
       }),
     );
     // Leader 20 s, p10 96 s: 96 * 90 / (110 * 14) = 5.6 laps; tail 10 s, p90 100 s: 100 * 100 / (110 * 10) = 9.1.
-    expect(row(t, 'hypercar').firstText).toBe('L7–L10');
+    expect(row(t, 'hypercar').firstText).toBe('L6–L9');
     expect(row(t, 'hypercar').srcText).toBe(
       '4 races · 360 laps · grid gap 10–20 s',
     );

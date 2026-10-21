@@ -256,7 +256,7 @@ export function LapTimeBars({
               y={baselineOver(height + AXIS_H, TICK_PT)}
               anchor='middle'
               fill={color.textFaint}>
-              {`L${i + 1}`}
+              {b.label}
             </ChartLabel>
           ) : null,
         )}

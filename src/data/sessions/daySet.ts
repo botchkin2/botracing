@@ -16,6 +16,9 @@ import {paceCandidates} from './defaultLaps';
 /** One session of a sitting, as the day set reads it. */
 export type DayMember = {
   sessionId: string;
+  /** A race keeps each lap's racing number (lapNo); other laps are named by
+   *  their place in the day. */
+  race: boolean;
   laps: Lap[];
 };
 
@@ -26,7 +29,8 @@ export const dayLapId = (sessionId: string, lapId: string) =>
 /**
  * The members' laps as one list in driving order: ids `sessionId~lapId`,
  * stints renumbered so none spans two sessions (a session break is a stint
- * break, as it is on track), lap numbers running on from 1. Everything else
+ * break, as it is on track), lap numbers running on from 1 (a race's keep
+ * the green-flag count). Everything else
  * on a lap is carried unchanged.
  */
 export function mergeDayLaps(members: readonly DayMember[]): Lap[] {
@@ -40,6 +44,7 @@ export function mergeDayLaps(members: readonly DayMember[]): Lap[] {
         ...lap,
         id: dayLapId(m.sessionId, lap.id),
         lapIndex: out.length + 1,
+        lapNo: m.race ? lap.lapNo : out.length + 1,
         stint: stintOf.get(lap.stint) as number,
       });
     }
