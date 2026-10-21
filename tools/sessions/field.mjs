@@ -361,3 +361,17 @@ export function fieldAfterSync(fresh, stored) {
     stored?.path && stored.path !== fresh.path ? stored.path : null;
   return {field: fresh, upload: true, deletePath};
 }
+
+// A block worked out from the field (result, classLaps, classBests) names the
+// field file it was read from, and a stored one is kept only while the session
+// still points at that file. A live session's field grows every lap under a
+// new name, so a block kept on its version alone stayed what the first lap
+// gave: the 2026-10-21 Sebring race read his grid slot as his finish (pit wall
+// thread 98).
+export function stampField(block, field) {
+  return block ? {...block, fieldHash: field?.hash ?? null} : block;
+}
+
+export function madeFromField(block, field) {
+  return Boolean(block && field?.hash && block.fieldHash === field.hash);
+}

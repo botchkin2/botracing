@@ -246,7 +246,13 @@ HTTP from the tray, the same calls in the cloud).
 **What `upload` keeps from the stored doc when its run lacked an input**
 (`store.mjs` 387-499): the field and the class laps, bests and result made
 from it; lap traffic redone from the stored field; the LMU race length; pit
-visits built from damage. Each kept block is named in `analysis.kept`.
+visits built from damage. Each kept block is named in `analysis.kept`. The
+class laps, bests and result each carry the `fieldHash` they were read from
+and are kept only while the session points at that field
+(`field.mjs madeFromField`). A live session's field is new every lap, so they
+follow it; before, they stayed what the first lap gave, and every live race
+read its first lap's place as its finish (pit wall thread 98,
+`liveResult.test.mjs`).
 
 These keep rules are inputs in disguise: they are why a cloud run without a
 field looked fine for every game-file session and silently empty for every

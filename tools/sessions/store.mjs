@@ -25,7 +25,12 @@ import {
   classLapsDoc,
 } from '../../src/analysis/classLaps.ts';
 import {finishCurrent, finishDoc} from '../../src/analysis/raceResult.ts';
-import {fieldAfterSync, fieldMissingAfter} from './field.mjs';
+import {
+  fieldAfterSync,
+  fieldMissingAfter,
+  madeFromField,
+  stampField,
+} from './field.mjs';
 import {relabelField} from './irClasses.mjs';
 import {keepVisits, onlineAfterSync, raceAfterSync} from './keepCapture.mjs';
 import {planBlock} from './planBlock.mjs';
@@ -544,14 +549,18 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     log('  field: kept the stored one');
     // Everything computed from the field is kept or worked out again from
     // the uploaded file, read once: the class lap times while they are this
-    // version and this kind of session (an older analysis, a changed rule, a
-    // re-typed session), and the traffic of every lap, which would otherwise
-    // be written as null for want of the capture.
+    // version, this kind of session (an older analysis, a changed rule, a
+    // re-typed session) and this field file (field.mjs madeFromField), and
+    // the traffic of every lap, which would otherwise be written as null for
+    // want of the capture.
     let loaded;
     const load = async () =>
       (loaded ??= await readStoredField(kept.field.path));
     const stored = before?.classLaps ?? null;
-    if (classLapsCurrent(stored, session.sessionType)) {
+    if (
+      classLapsCurrent(stored, session.sessionType) &&
+      madeFromField(stored, kept.field)
+    ) {
       session.classLaps = stored;
     } else {
       const field = await load();
@@ -561,7 +570,10 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     }
     // The fastest cars of each class, the same way.
     const storedBests = before?.classBests ?? null;
-    if (classBestsCurrent(storedBests, session.sessionType)) {
+    if (
+      classBestsCurrent(storedBests, session.sessionType) &&
+      madeFromField(storedBests, kept.field)
+    ) {
       session.classBests = storedBests;
     } else {
       const field = await load();
@@ -569,9 +581,12 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
         ? classBestsDoc(field, session.sessionType)
         : null;
     }
-    // The finishing position, kept while it is this version and kind.
+    // The finishing position, kept while it is this version, kind and field.
     const storedResult = before?.result ?? null;
-    if (finishCurrent(storedResult, session.sessionType)) {
+    if (
+      finishCurrent(storedResult, session.sessionType) &&
+      madeFromField(storedResult, kept.field)
+    ) {
       session.result = storedResult;
     } else {
       const field = await load();
@@ -587,6 +602,9 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
       lap.traffic = traffic[k];
     });
   }
+  session.result = stampField(session.result, session.field);
+  session.classLaps = stampField(session.classLaps, session.field);
+  session.classBests = stampField(session.classBests, session.field);
   // What only the capture gave, kept when it is gone (keepCapture.mjs): the
   // race length, and the visits read from the car's damage.
   const keptBlocks = [];
