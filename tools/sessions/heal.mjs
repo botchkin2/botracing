@@ -172,3 +172,25 @@ export async function settleSupersedes(pending, supersede, log = () => {}) {
     }
   }
 }
+
+/**
+ * Game-file sessions uploaded as a drive's second copy, from before the cover
+ * rule saw their live stretch (pit wall thread 98: a recorder that started a
+ * minute late split the 2026-10-21 Sebring race and practice). An uploaded
+ * session whose recordings one usable live session covers, all of them, is
+ * that drive's copy: {hashId: liveId}, for settleSupersedes. `cover` is
+ * liveSession.mjs liveCover; `uploaded(id)` reads the sync state.
+ */
+export function coveredCopies(sessions, liveIndex, cover, uploaded) {
+  const copies = {};
+  for (const s of sessions) {
+    if (!uploaded(s.id)) continue;
+    const ids = new Set(
+      s.files.map(f => cover(liveIndex, f.info)?.sessionId ?? null),
+    );
+    if (ids.size !== 1) continue;
+    const [id] = ids;
+    if (id && id !== s.id) copies[s.id] = id;
+  }
+  return copies;
+}

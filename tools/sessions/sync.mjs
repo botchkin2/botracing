@@ -53,7 +53,12 @@ import {describeCheck} from './irCapture.mjs';
 import {captureExtractFor, liveExtractSessions} from './captureExtractFor.mjs';
 import {resultsForSpan} from './lmuResults.mjs';
 import {backlogCandidates, uploadResultsBacklog} from './resultsBacklog.mjs';
-import {adoptLiveIds, confirmAdoptions, settleSupersedes} from './heal.mjs';
+import {
+  adoptLiveIds,
+  confirmAdoptions,
+  coveredCopies,
+  settleSupersedes,
+} from './heal.mjs';
 import {liveCover, readLiveIndex} from './liveSession.mjs';
 import {usableLiveIndex} from './brokenWheels.mjs';
 import {makeBuilder} from './buildSession.mjs';
@@ -480,6 +485,19 @@ async function main() {
       Boolean(await remoteStore.getSession(id)),
     ))
       log(`  ${s.id}: the game file replaces the live copy in place`);
+    // A drive's second copy, uploaded from its game file before the cover
+    // rule saw its live stretch, is hidden behind the live session. Only
+    // while that session exists: a deleted live copy leaves the game file's.
+    const copies = coveredCopies(group(scanned), liveIndex, liveCover, id =>
+      Boolean(state.sessions[id]),
+    );
+    for (const [oldId, liveId] of Object.entries(copies)) {
+      if (!(await remoteStore.getSession(liveId))) continue;
+      log(`  ${oldId}: a copy of live session ${liveId}, hidden behind it`);
+      (state.pendingSupersede ??= {})[oldId] = liveId;
+      delete state.sessions[oldId];
+      saveState(state);
+    }
   }
   // A tombstone that failed after its healed upload is tried again here.
   if (remoteStore && Object.keys(state.pendingSupersede ?? {}).length)

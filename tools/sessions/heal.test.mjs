@@ -4,6 +4,7 @@ import {test} from 'node:test';
 import {
   adoptLiveIds,
   confirmAdoptions,
+  coveredCopies,
   healPlan,
   settleSupersedes,
   tombstoneExpired,
@@ -86,7 +87,17 @@ test('the game-file session takes the live id only for a defective capture, and 
   };
   const session = id => ({
     id,
-    files: [{info: {sim: 'lmu', layout: 'Sil', recordedAt: at(1)}}],
+    files: [
+      {
+        info: {
+          sim: 'lmu',
+          layout: 'Sil',
+          recordedAt: at(1),
+          startT: 0,
+          endT: 590,
+        },
+      },
+    ],
   });
   const a = session('hash1');
   assert.deepEqual(adoptLiveIds([a], full, {}, liveCover), [a]);
@@ -188,7 +199,17 @@ test('an adoption whose live session is gone from the store is undone, never re-
   };
   const mk = () => ({
     id: 'hash1',
-    files: [{info: {sim: 'lmu', layout: 'Sil', recordedAt: at(1)}}],
+    files: [
+      {
+        info: {
+          sim: 'lmu',
+          layout: 'Sil',
+          recordedAt: at(1),
+          startT: 0,
+          endT: 590,
+        },
+      },
+    ],
   });
   const gone = mk();
   const adopted = adoptLiveIds([gone], full, {}, liveCover);
@@ -351,4 +372,40 @@ test('a sweep never takes a doc a live session lists, however old its mark', () 
     tombstoneExpired({id: 'h1', ...mark}, old + 86_400_000, new Set()),
     false,
   );
+});
+
+test('an uploaded game-file session one live session covers whole is its copy; nothing else is', () => {
+  const index = {
+    'seb_10#0': {
+      sessionId: '0dddbcb7',
+      sim: 'lmu',
+      layout: 'Seb',
+      sessionType: 'Race',
+      startMs: Date.parse('2026-10-21T00:40:23.279Z'),
+      endMs: Date.parse('2026-10-21T01:42:17.293Z'),
+    },
+  };
+  const file = (recordedAt, sessionType, durationS) => ({
+    info: {
+      sim: 'lmu',
+      layout: 'Seb',
+      sessionType,
+      recordedAt,
+      startT: 7,
+      endT: 7 + durationS,
+    },
+  });
+  const race = file('2026-10-21T00:39:17Z', 'Race', 3778);
+  const quali = file('2026-10-21T00:28:01Z', 'Qualify', 740);
+  const sessions = [
+    {id: '53128f6f', files: [race]},
+    {id: 'notUp', files: [race]},
+    {id: 'q', files: [quali]},
+    {id: 'mixed', files: [quali, race]},
+    {id: '0dddbcb7', files: [race]},
+  ];
+  const uploaded = id => id !== 'notUp';
+  assert.deepEqual(coveredCopies(sessions, index, liveCover, uploaded), {
+    '53128f6f': '0dddbcb7',
+  });
 });
