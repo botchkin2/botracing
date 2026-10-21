@@ -660,7 +660,7 @@ export function buildCornerModel(input: {
       `in ${sec.sectionLabel}`,
       `${set.length} lap${set.length === 1 ? '' : 's'}`,
       // The basis, named the way Compare names it: a Ref lap, else the median.
-      ref ? `vs L${ref.lapIndex}` : `vs median of ${set.length}`,
+      ref ? `vs ${lapLabel(ref.lapNo)}` : `vs median of ${set.length}`,
     ]
       .filter(Boolean)
       .join(' · '),

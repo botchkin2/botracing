@@ -257,7 +257,7 @@ function refNote(
 ): string | null {
   const at = refId ? laps.findIndex(l => l.id === refId) : -1;
   if (at < 0 || laps.length < 2 || states[at] === 'ok') return null;
-  return `Reference L${laps[at].lapIndex} ${
+  return `Reference ${lapLabel(laps[at].lapNo)} ${
     states[at] === 'stale'
       ? 'is pending re-analysis'
       : states[at] === 'pit'
