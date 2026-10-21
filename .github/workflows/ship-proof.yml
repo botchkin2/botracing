@@ -1,0 +1,34 @@
+# `ship-proof` (pit-wall thread 96 #6565): a PR that reaches the app or the tray
+# needs a "## Proof where he uses it" section in its body. The rule and its
+# paths are tools/ci/shipProof.mjs; docs/CODE_STANDARDS.md section 11 says it.
+#
+# Runs on every PR (no path filter, so it can be made required later without
+# holding other PRs) and again when the body is edited. It deploys nothing and
+# reads no secrets; it is not in any deploy workflow's `paths`.
+name: Ship proof
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+permissions:
+  contents: read
+concurrency:
+  group: ship-proof-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  ship-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      # The body goes in through the environment, never into the script text.
+      - name: PR body names the proof where he uses it
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node tools/ci/shipProof.mjs
