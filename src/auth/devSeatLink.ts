@@ -8,13 +8,13 @@ import {customTokenUid} from './devSeatSignIn';
 
 const SEAT_UID = 'seat-test';
 const LINK_HOST = 'dev-seat';
+const LINK_PREFIX = `botracing61://${LINK_HOST}?`;
 
 /** The custom token in a `botracing61://dev-seat?ct=...` link, or null for any other link. */
 export function seatTokenFromUrl(url: string | null): string | null {
-  if (!url) return null;
-  const match = /^botracing61:\/\/dev-seat\?(.*)$/.exec(url);
-  if (!match) return null;
-  const token = new URLSearchParams(match[1]).get('ct');
+  // plain strings, not a regex: Hermes compiles a regex literal to bytecode, and CI looks for this text in an exported bundle
+  if (!url || !url.startsWith(LINK_PREFIX)) return null;
+  const token = new URLSearchParams(url.slice(LINK_PREFIX.length)).get('ct');
   return token && customTokenUid(token) === SEAT_UID ? token : null;
 }
 
