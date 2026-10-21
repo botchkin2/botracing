@@ -8,8 +8,8 @@
 // The level covers the laps from this stop to the next one (or to the flag,
 // plus the lap a timed race's late flag can add) at the p90 use, the plan's
 // own margin; it never depends on what the car arrives with. Rounded up to a
-// whole % or litre: the menu's step is not known yet (#6684, a question to
-// Botkin). Pure.
+// whole %: LMU's pit menu steps VE by 1 % (Botkin, thread 99 #6705), and by
+// whole litres for a fuel-only car. Pure.
 
 export type StopTarget = {
   /** What the number is in: VE % for a VE car, litres otherwise. */
