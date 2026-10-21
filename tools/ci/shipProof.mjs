@@ -44,12 +44,21 @@ const EXEMPT = [
   /\.web\.tsx?$/,
 ];
 
+// The gate itself: a PR that edits the rule or its workflow needs proof too.
+// (The workflow also runs the BASE copy of the rule, so a PR cannot pass
+// itself by loosening it.) Reported as `reaches: 'gate'`.
+const GATE = [/^\.github\/workflows\/ship-proof\.yml$/, /^tools\/ci\/shipProof(\.test)?\.mjs$/];
+
 const matches = (patterns, path) => patterns.some(p => p.test(path));
 
-/** Files of the diff that reach a device: [{path, reaches: 'app' | 'tray'}]. */
+/** Files of the diff that reach a device: [{path, reaches: 'app' | 'tray' | 'gate'}]. */
 export function deviceFiles(paths) {
   const out = [];
   for (const path of paths) {
+    if (matches(GATE, path)) {
+      out.push({path, reaches: 'gate'});
+      continue;
+    }
     if (matches(EXEMPT, path)) continue;
     if (matches(APP, path)) out.push({path, reaches: 'app'});
     else if (matches(TRAY, path)) out.push({path, reaches: 'tray'});
@@ -76,7 +85,7 @@ export function proofSection(body) {
 export function checkShipProof({files, body, commits, head}) {
   const device = deviceFiles(files);
   if (device.length === 0) {
-    return {ok: true, device, problems: [], notes: ['No app or tray code in the diff: exempt.']};
+    return {ok: true, device, problems: [], notes: ['No app, tray or gate code in the diff: exempt.']};
   }
   const problems = [];
   const notes = [];

@@ -31,4 +31,8 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_BODY: ${{ github.event.pull_request.body }}
-        run: node tools/ci/shipProof.mjs
+        # The BASE branch's copy of the rule, so a PR cannot loosen it and pass
+        # itself; the head's copy only when base has none (the PR that adds it).
+        run: |
+          git show "$BASE_SHA:tools/ci/shipProof.mjs" > "$RUNNER_TEMP/shipProof.mjs" || cp tools/ci/shipProof.mjs "$RUNNER_TEMP/shipProof.mjs"
+          node "$RUNNER_TEMP/shipProof.mjs"

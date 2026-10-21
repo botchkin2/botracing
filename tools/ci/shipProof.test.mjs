@@ -21,7 +21,7 @@ test('app and tray paths reach a device; docs, tests, fixtures and web-only file
   for (const p of ['docs/API.md', 'src/charts/README.md', 'src/analysis/lap.test.ts', 'src/features/race/__fixtures__/x.json',
     'src/auth/signIn.web.ts', 'src/features/race/components/ChaseView.web.tsx', 'tools/uploader/heartbeat.test.mjs',
     'tools/capture/tests/test_writer.py', 'tools/sessions/__fixtures__/a.json', 'desktop/README.md',
-    'functions/src/dataApi.ts', 'tools/dev/live.mjs', 'tools/ci/shipProof.mjs', '.github/workflows/test.yml', 'contract/payloads/a.json']) {
+    'functions/src/dataApi.ts', 'tools/dev/live.mjs', 'tools/ci/waitForDeploys.mjs', '.github/workflows/test.yml', 'contract/payloads/a.json']) {
     assert.equal(reach(p), null, p);
   }
 });
@@ -72,11 +72,9 @@ test('the template hint and other sections do not count as the proof', () => {
   assert.equal(proofSection(`x\r\n${PROOF_HEADING.toUpperCase()}\r\nbody`).trim(), 'body');
 });
 
-test('the files this check adds are not device code', () => {
-  assert.deepEqual(deviceFiles([
-    '.github/workflows/ship-proof.yml',
-    '.github/pull_request_template.md',
-    'tools/ci/shipProof.mjs',
-    'tools/ci/shipProof.test.mjs',
-  ]), []);
+test('editing the gate itself needs proof; the template and README do not', () => {
+  const r = check(['.github/workflows/ship-proof.yml', 'tools/ci/shipProof.mjs', 'tools/ci/shipProof.test.mjs'], 'x');
+  assert.equal(r.ok, false);
+  assert.deepEqual(r.device.map(f => f.reaches), ['gate', 'gate', 'gate']);
+  assert.deepEqual(deviceFiles(['.github/pull_request_template.md', 'tools/ci/waitForDeploys.mjs']), []);
 });
