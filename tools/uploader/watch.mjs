@@ -56,6 +56,7 @@ import {
 } from './syncOutput.mjs';
 import {createHeartbeatSender, httpSend} from './heartbeatSender.mjs';
 import {newRefusal, trackRefusals} from './refusals.mjs';
+import {readNoField} from '../sessions/noField.mjs';
 import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
 import {runWithBeats} from './syncBeats.mjs';
 import {clearStaleSyncing, stateOf} from './watchState.mjs';
@@ -513,6 +514,7 @@ async function main() {
         sims: all.map(a => a.st),
         recorder,
         refusals: watch.refusals,
+        noField: Object.assign({}, ...SIMS.map(sim => readNoField(workOf(sim)))),
         nowMs,
       }),
       // The tray writes this file when an update is downloaded (update.rs).

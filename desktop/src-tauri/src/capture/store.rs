@@ -263,6 +263,37 @@ impl Capture {
         write_json(&self.dir.join("meta.json"), &Value::Object(self.meta.clone()))
     }
 
+    /// One look of the scoring layout check: counted, never decisive. meta.json
+    /// keeps how many looks doubted (`layoutDoubtful` of `layoutChecks`) and the
+    /// first reason (`layoutSuspect`); the tray's analysis decides from the data
+    /// and skips a capture only when the doubt held for most of the drive.
+    pub fn note_layout_check(&mut self, doubt: Option<&str>) {
+        self.count("layoutChecks", 1);
+        if let Some(reason) = doubt {
+            self.count("layoutDoubtful", 1);
+            if !self.meta.contains_key("layoutSuspect") {
+                self.meta.insert("layoutSuspect".into(), json!(reason));
+                // On disk now: a drive that stops soon still carries the first reason.
+                let _ = self.write_meta();
+            }
+        }
+    }
+
+    /// One look of the player's telemetry layout check, counted like the
+    /// scoring one (`playerChecks`, `playerDoubtful`, first reason
+    /// `playerSuspect`): "player car not in the field" reads wrong for a beat
+    /// while a session loads, so one look never condemns the drive.
+    pub fn note_player_check(&mut self, doubt: Option<&str>) {
+        self.count("playerChecks", 1);
+        if let Some(reason) = doubt {
+            self.count("playerDoubtful", 1);
+            if !self.meta.contains_key("playerSuspect") {
+                self.meta.insert("playerSuspect".into(), json!(reason));
+                let _ = self.write_meta();
+            }
+        }
+    }
+
     pub fn note_suspect(&mut self) {
         let n = self.meta.get("suspectFrames").and_then(Value::as_u64).unwrap_or(0);
         self.meta.insert("suspectFrames".into(), json!(n + 1));

@@ -25,7 +25,7 @@ import {
   classLapsDoc,
 } from '../../src/analysis/classLaps.ts';
 import {finishCurrent, finishDoc} from '../../src/analysis/raceResult.ts';
-import {fieldAfterSync} from './field.mjs';
+import {fieldAfterSync, fieldMissingAfter} from './field.mjs';
 import {relabelField} from './irClasses.mjs';
 import {keepVisits, onlineAfterSync, raceAfterSync} from './keepCapture.mjs';
 import {planBlock} from './planBlock.mjs';
@@ -522,6 +522,11 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   }
   const kept = fieldAfterSync(session.field, before?.field ?? null);
   session.field = kept.field;
+  session.fieldMissing = fieldMissingAfter(
+    kept.field,
+    out.fieldReason,
+    before?.fieldMissing,
+  );
   if (kept.upload) {
     await putGzip(session.field.path, out.fieldText, 'application/json');
     if (relabeled) {
@@ -819,6 +824,11 @@ async function uploadLive(backend, out, {log = () => {}} = {}) {
   await Promise.all([parts, inputs]);
   if (newField) session.field = out.field;
   else if (before?.field) session.field = before.field;
+  session.fieldMissing = fieldMissingAfter(
+    session.field,
+    out.fieldReason,
+    before?.fieldMissing,
+  );
   const ops = out.recordings.map(rec => ({
     op: 'set',
     coll: 'recordings',

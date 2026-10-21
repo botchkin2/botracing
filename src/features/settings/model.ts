@@ -112,6 +112,10 @@ export function problemText(p: UploaderProblem): string {
       ? ['Sync crashed', p.message.replace(/^sync crashed: /, ''), retry]
       : p.kind === 'recorder-layout'
       ? ['Recorder stopped', p.message]
+      : p.kind === 'field-missing'
+      ? [`Session ${(p.sessionId ?? '').slice(0, 8)}`, p.message]
+      : p.kind === 'capture-suspect'
+      ? ['Recording marked doubtful, not used', p.message]
       : p.kind === 'capture-missed'
       ? [p.message, p.at != null ? formatDay(p.at) : '']
       : p.kind === 'file-unreadable'

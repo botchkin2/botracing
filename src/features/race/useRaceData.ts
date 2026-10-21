@@ -42,7 +42,7 @@ export type RaceData =
   | {kind: 'loading'}
   | {kind: 'error'; message: string}
   /** The session predates the recorder, or it was not joined. */
-  | {kind: 'no-field'; title: string}
+  | {kind: 'no-field'; title: string; why: string | null}
   /** No timed lap: no racing line to put the cars on. */
   | {kind: 'no-lap'; title: string}
   /** A best lap whose trace has no GPS or no length to grid on. */
@@ -248,7 +248,8 @@ export function useRaceData(sessionId: string): RaceData {
   const title = `${shortTrackName(detail.track)} · ${
     SESSION_TITLE[detail.sessionType]
   }`;
-  if (gate === 'no-field') return {kind: 'no-field', title};
+  if (gate === 'no-field')
+    return {kind: 'no-field', title, why: detail.fieldMissing};
   if (gate === 'field-error')
     return {
       kind: 'field-error',

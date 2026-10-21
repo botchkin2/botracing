@@ -22,6 +22,9 @@ const GAME_CHECK_MS: u64 = 5_000;
 /// No scoring update this long: the session is over. Long enough that a pause
 /// or a garage wait with the clock frozen stays in one capture.
 const SESSION_GONE_MS: u64 = 10 * 60_000;
+/// The player's layout is looked at this often (game seconds).
+const PLAYER_LOOK_S: f64 = 0.2;
+
 /// A refused session is checked again after this, so a glitch while the game
 /// loads the field recovers instead of losing the whole session.
 const REFUSE_RETRY_MS: u64 = 10_000;
@@ -113,6 +116,11 @@ pub struct Recorder<S: Source> {
     last_scoring_et: Option<f64>,
     last_scoring_ms: u64,
     last_player_et: Option<f64>,
+    /// What the latest scoring and player layout looks doubted, if anything.
+    scoring_doubt: Option<String>,
+    player_doubt: Option<String>,
+    /// The player's clock at the last layout look (PLAYER_LOOK_S apart).
+    last_player_look: Option<f64>,
     last_game_check: Option<u64>,
     last_field: Option<(Vec<u8>, Vec<u8>, usize)>,
     /// (elapsed time, speed, position) of the last player frame.
@@ -152,6 +160,9 @@ impl<S: Source> Recorder<S> {
             last_scoring_et: None,
             last_scoring_ms: 0,
             last_player_et: None,
+            last_player_look: None,
+            scoring_doubt: None,
+            player_doubt: None,
             last_game_check: None,
             last_field: None,
             prev_motion: None,
@@ -209,6 +220,7 @@ impl<S: Source> Recorder<S> {
                 self.laps_pending = 0;
                 self.cut_due = None;
                 self.player_ok = None;
+                self.last_player_look = None;
                 self.prev_motion = None;
                 self.frames = (0, 0);
                 self.set(now, |s| {
@@ -234,8 +246,18 @@ impl<S: Source> Recorder<S> {
         self.key = None;
     }
 
-    /// The capture is dropped. A sanity refusal removes its folder; a write
-    /// error keeps the chunks already on disk (meta.json then has no endUtc).
+    /// Status shows the latest looks: ok when neither doubts.
+    fn show_layout(&mut self, now: u64) {
+        let reason = self.scoring_doubt.clone().or_else(|| self.player_doubt.clone());
+        self.set(now, |s| {
+            s.layout_ok = Some(reason.is_none());
+            s.layout_reason = reason.unwrap_or_default();
+        });
+    }
+
+    /// The capture is dropped on a write error (a full disk): the chunks already
+    /// on disk stay (meta.json then has no endUtc). A layout that looks wrong is
+    /// not a refusal: it is recorded and marked (`layoutSuspect`).
     fn refuse(&mut self, now: u64, key: Option<(String, i32)>, reason: &str) {
         self.capture = None;
         self.key = None;
@@ -248,18 +270,6 @@ impl<S: Source> Recorder<S> {
             s.layout_reason = reason;
             s.session_dir = None;
         });
-    }
-
-    fn refuse_and_remove(&mut self, now: u64, key: Option<(String, i32)>, reason: &str) {
-        if let Some(capture) = self.capture.take() {
-            self.status.capture_bytes = self.status.capture_bytes.saturating_sub(capture.bytes);
-            let dir = capture.dir.clone();
-            // Dropped first: that waits for its writer thread, which may still be
-            // writing a chunk into the folder.
-            drop(capture);
-            let _ = std::fs::remove_dir_all(&dir);
-        }
-        self.refuse(now, key, reason);
     }
 
     // The loop -------------------------------------------------------------
@@ -405,16 +415,17 @@ impl<S: Source> Recorder<S> {
             {
                 return;
             }
-            if let Err(reason) = sanity::check_scoring(&self.layout, &self.probe, &info, &vehicles, n) {
-                self.refuse_and_remove(now, Some(key), &reason);
-                return;
-            }
             self.refused_key = None;
-            self.set(now, |s| {
-                s.layout_ok = Some(true);
-                s.layout_reason = String::new();
-            });
             self.open_capture(now, &info, key);
+        }
+        // A layout that looks wrong is recorded and counted, never dropped: each
+        // scoring update is one look, and the tray decides from the data
+        // (pit wall thread 95).
+        let doubt = sanity::check_scoring(&self.layout, &self.probe, &info, &vehicles, n).err();
+        self.scoring_doubt = doubt.clone();
+        self.show_layout(now);
+        if let Some(capture) = self.capture.as_mut() {
+            capture.note_layout_check(doubt.as_deref());
         }
         let Some(capture) = self.capture.as_mut() else { return };
         capture.add_scoring(&info, &vehicles, n, et, now);
@@ -465,16 +476,29 @@ impl<S: Source> Recorder<S> {
         let Some(view) = self.view.as_mut() else { return };
         let Some(sample) = frame::player(view, layout) else { return };
         self.last_player_et = Some(sample.et);
-        if self.player_ok.is_none() {
-            let Some((info, vehicles, n)) = self.last_field.as_ref() else { return };
-            match sanity::check_player(&self.probe, info, vehicles, *n, &sample.raw) {
-                Verdict::Ok => self.player_ok = Some(true),
-                Verdict::Wait => {}
-                Verdict::Bad(reason) => {
-                    self.player_ok = Some(false);
-                    let key = self.key.clone();
-                    self.refuse_and_remove(now, key, &reason);
-                    return;
+        // The player's layout is looked at every PLAYER_LOOK_S of the game clock
+        // and counted, never decisive (see Capture::note_player_check).
+        if self.player_ok.is_none() && self.last_field.is_none() {
+            return;
+        }
+        let look_due = self
+            .last_player_look
+            .map_or(true, |t| sample.et < t || sample.et - t >= PLAYER_LOOK_S);
+        if look_due {
+            if let Some((info, vehicles, n)) = self.last_field.as_ref() {
+                let verdict = sanity::check_player(&self.probe, info, vehicles, *n, &sample.raw);
+                if !matches!(verdict, Verdict::Wait) {
+                    self.last_player_look = Some(sample.et);
+                    let doubt = match verdict {
+                        Verdict::Bad(reason) => Some(reason),
+                        _ => None,
+                    };
+                    self.player_ok = Some(doubt.is_none());
+                    if let Some(capture) = self.capture.as_mut() {
+                        capture.note_player_check(doubt.as_deref());
+                    }
+                    self.player_doubt = doubt;
+                    self.show_layout(now);
                 }
             }
         }
@@ -815,21 +839,27 @@ mod tests {
     }
 
     #[test]
-    fn a_layout_that_reads_garbage_is_refused_and_leaves_no_folder() {
+    fn a_layout_that_reads_garbage_is_recorded_and_marked_never_dropped() {
         let (rig, mut rec) = Rig::new("refuse");
         rig.field("Road Atlanta", 10, 5.0);
         // A control byte where a car name should be.
         rig.put(rig.vehicle(0, "mVehicleName"), &[1, 2, 3, 0]);
         rec.tick(1_000);
-        assert_eq!(rec.status.state, "refused");
+        assert_eq!(rec.status.state, "recording");
         assert_eq!(rec.status.layout_ok, Some(false));
         assert!(rec.status.layout_reason.contains("car names are not text"), "{}", rec.status.layout_reason);
-        assert!(rig.folders().is_empty());
+        let folders = rig.folders();
+        assert_eq!(folders.len(), 1);
+        assert!(rig.meta(&folders[0])["layoutSuspect"].as_str().unwrap().contains("not text"));
     }
 
     /// A field of `n` named cars, car i's lap distance `dist(i)`.
     fn field_with_dists(rig: &Rig, n: usize, dist: impl Fn(usize) -> f64) {
-        rig.field("Sebring International Raceway", 10, 5.0);
+        field_with_dists_at(rig, n, 5.0, dist);
+    }
+
+    fn field_with_dists_at(rig: &Rig, n: usize, et: f64, dist: impl Fn(usize) -> f64) {
+        rig.field("Sebring International Raceway", 10, et);
         assert!(n <= rig.lay.max_vehicles, "{} slots", rig.lay.max_vehicles);
         rig.put(rig.scoring("mNumVehicles"), &(n as i32).to_le_bytes());
         for i in 0..n {
@@ -860,13 +890,98 @@ mod tests {
     }
 
     #[test]
-    fn a_wrong_layout_garbles_every_lap_distance_and_is_refused() {
+    fn a_wrong_layout_garbles_every_lap_distance_and_is_marked_not_dropped() {
         let (rig, mut rec) = Rig::new("pitdistall");
         field_with_dists(&rig, 8, |_| -5.0e9);
         rec.tick(1_000);
-        assert_eq!(rec.status.state, "refused");
+        assert_eq!(rec.status.state, "recording");
+        assert_eq!(rec.status.layout_ok, Some(false));
         assert!(rec.status.layout_reason.contains("lap distance"), "{}", rec.status.layout_reason);
-        assert!(rig.folders().is_empty());
+        let folders = rig.folders();
+        assert_eq!(folders.len(), 1);
+        assert!(rig.meta(&folders[0]).get("layoutSuspect").is_some());
+    }
+
+    #[test]
+    fn one_doubtful_beat_is_counted_not_condemned() {
+        let (rig, mut rec) = Rig::new("onebeat");
+        field_with_dists(&rig, 8, |i| 100.0 * i as f64);
+        rig.player("Sebring International Raceway", 5.0);
+        rec.tick(1_000);
+        // One beat reads garbage in every car, then it is fine again.
+        field_with_dists_at(&rig, 8, 5.2, |_| -5.0e9);
+        rec.tick(1_200);
+        field_with_dists_at(&rig, 8, 5.4, |i| 100.0 * i as f64);
+        rec.tick(1_400);
+        rec.shutdown(2_000);
+        let meta = rig.meta(&rig.folders()[0]);
+        assert_eq!(meta["layoutChecks"], 3);
+        assert_eq!(meta["layoutDoubtful"], 1);
+        assert!(meta["layoutSuspect"].as_str().unwrap().contains("lap distance"));
+        assert_eq!(rec.status.layout_ok, Some(true), "the latest look was fine");
+    }
+
+    #[test]
+    fn counts_reach_the_disk_with_each_chunk_not_only_at_close() {
+        // Session load: the first look doubts, then 59 are fine. After the next
+        // chunk flush, with no close, meta.json says 1 of 60 (gauge #6571).
+        let (rig, mut rec) = Rig::new("counts");
+        field_with_dists_at(&rig, 8, 5.0, |_| -5.0e9);
+        rig.player("Sebring International Raceway", 5.0);
+        rec.tick(1_000);
+        for k in 1..60 {
+            field_with_dists_at(&rig, 8, 5.0 + 0.2 * k as f64, |i| 100.0 * i as f64);
+            rig.player("Sebring International Raceway", 5.0 + 0.2 * k as f64);
+            rec.tick(1_000 + 200 * k as u64);
+        }
+        field_with_dists_at(&rig, 8, 20.0, |i| 100.0 * i as f64);
+        rig.player("Sebring International Raceway", 20.0);
+        rec.tick(62_000);
+        // The chunk is written on the writer thread: wait for its meta.json.
+        let mut meta = rig.meta(&rig.folders()[0]);
+        for i in 0..300 {
+            if meta["layoutChecks"].as_u64().unwrap_or(0) >= 60 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            rec.tick(62_001 + i);
+            meta = rig.meta(&rig.folders()[0]);
+        }
+        assert!(meta["endUtc"].is_null(), "not closed");
+        assert_eq!(meta["layoutDoubtful"], 1);
+        assert!(meta["layoutChecks"].as_u64().unwrap() >= 60, "{}", meta["layoutChecks"]);
+    }
+
+    #[test]
+    fn one_transient_player_look_is_counted_not_condemned() {
+        let (rig, mut rec) = Rig::new("playerlook");
+        field_with_dists(&rig, 8, |i| 100.0 * i as f64);
+        rig.player("Sebring International Raceway", 5.0);
+        rec.tick(1_000);
+        // The telemetry's car name reads wrong for one look (names still filling).
+        field_with_dists_at(&rig, 8, 5.4, |i| 100.0 * i as f64);
+        rig.player("Sebring International Raceway", 5.4);
+        rig.put(rig.telem("mVehicleName"), b"Nobody ");
+        rec.tick(1_400);
+        rig.put(rig.telem("mVehicleName"), b"Car #1 ");
+        field_with_dists_at(&rig, 8, 5.8, |i| 100.0 * i as f64);
+        rig.player("Sebring International Raceway", 5.8);
+        rec.tick(1_800);
+        rec.shutdown(2_000);
+        let meta = rig.meta(&rig.folders()[0]);
+        assert_eq!(meta["playerDoubtful"], 1);
+        assert!(meta["playerChecks"].as_u64().unwrap() >= 3);
+        assert_eq!(rec.status.layout_ok, Some(true), "the latest looks were fine");
+    }
+
+    #[test]
+    fn a_good_layout_is_not_marked() {
+        let (rig, mut rec) = Rig::new("pitdistgood");
+        field_with_dists(&rig, 8, |i| 100.0 * i as f64);
+        rig.player("Sebring International Raceway", 5.0);
+        rec.tick(1_000);
+        assert_eq!(rec.status.layout_ok, Some(true));
+        assert!(rig.meta(&rig.folders()[0]).get("layoutSuspect").is_none());
     }
 
     #[test]
