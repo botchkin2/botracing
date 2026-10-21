@@ -227,7 +227,7 @@ describe('setAges', () => {
     l[2] = lap(3, 99, {endedInReset: true});
     const ages = setAges(l, 8);
     expect(ages.FL).toBe(5);
-    expect(setAgeText({...ages, FR: 2}, 8)).toBe(
+    expect(setAgeText({...ages, FR: 2}, 'L8')).toBe(
       'Set age at L8: FL 5 laps · FR 2 laps · RL 5 laps · RR 5 laps',
     );
   });

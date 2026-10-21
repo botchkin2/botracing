@@ -63,11 +63,11 @@ export function finishRow(
 ): PlanHalfRow {
   const at = facts.playerLapsDone ?? facts.end?.lap ?? null;
   const leader = facts.classLeaderLapsDone;
-  const dnf = at != null ? `DNF L${at}` : 'DNF';
+  const dnf = at != null ? `DNF ${lapLabel(at)}` : 'DNF';
   return {
     k: 'Finish',
     p: planLaps != null ? `flag ${lapLabel(planLaps)}` : MISSING,
-    a: leader != null ? `${dnf} · leader L${leader}+` : dnf,
+    a: leader != null ? `${dnf} · leader ${lapLabel(leader)}+` : dnf,
   };
 }
 

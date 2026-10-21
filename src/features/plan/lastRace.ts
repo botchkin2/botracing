@@ -75,7 +75,9 @@ export function lastRaceLine(race: LastRace): string {
     race.leftEarly &&
     race.playerLapsDone != null &&
     race.classLeaderLapsDone != null
-      ? `DNF at L${race.playerLapsDone} of L${race.classLeaderLapsDone}+`
+      ? `DNF at ${lapLabel(race.playerLapsDone)} of ${lapLabel(
+          race.classLeaderLapsDone,
+        )}+`
       : null;
   // A service, or a visit from a block that does not say, is a stop.
   const services = race.stops.filter(
