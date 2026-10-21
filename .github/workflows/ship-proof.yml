@@ -1,0 +1,46 @@
+# `ship-proof` (pit-wall thread 96 #6565): a PR that reaches the app or the tray
+# needs a "## Proof where he uses it" section in its body. The rule and its
+# paths are tools/ci/shipProof.mjs; docs/CODE_STANDARDS.md section 11 says it.
+#
+# pull_request_target: this file and the rule come from the BASE branch, so a
+# PR cannot rewrite either to pass itself. It is safe because it checks out the
+# base and runs no PR code: it fetches the PR's commits and diffs them, and the
+# PR body reaches the script through the environment only. contents: read, no
+# secrets. (Consequence: it first runs once this file is on main.)
+#
+# Runs on every PR (no path filter, so it can be made required later without
+# holding other PRs) and again when the body is edited. It deploys nothing and
+# reads no secrets; it is not in any deploy workflow's `paths`.
+name: Ship proof
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+permissions:
+  contents: read
+concurrency:
+  group: ship-proof-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  ship-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The base branch (the default for this event): the rule runs from here.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      # Commits only; nothing from the PR is checked out or run.
+      - name: Fetch the PR's commits
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: git fetch --no-tags origin "+refs/pull/$PR/head:refs/remotes/pr/head"
+      - name: PR body names the proof where he uses it
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node tools/ci/shipProof.mjs

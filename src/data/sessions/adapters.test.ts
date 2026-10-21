@@ -593,3 +593,14 @@ describe('toTrackMap elevation', () => {
     expect(toTrackMap({...base, bank: {stepM: 5, rollDeg: [1, 'x']}}).bank).toBeNull();
   });
 });
+
+describe('toSessionDetail fieldMissing', () => {
+  it('reads why the session has no field; null when absent or empty', () => {
+    expect(toSessionDetail(raw).fieldMissing).toBeNull();
+    expect(toSessionDetail({...raw, fieldMissing: ''}).fieldMissing).toBeNull();
+    expect(
+      toSessionDetail({...raw, fieldMissing: 'This drive was not recorded'})
+        .fieldMissing,
+    ).toBe('This drive was not recorded');
+  });
+});

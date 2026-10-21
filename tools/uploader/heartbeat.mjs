@@ -154,7 +154,7 @@ const iso = ms => (ms != null ? new Date(ms).toISOString() : null);
 // problem that is fixed is gone from the next beat. Newest first, at most 10;
 // messages scrubbed like lastError and cut to 120 characters.
 // sims: each sim's watcher state ({lastError, retryAtMs, retries}).
-export function problemsOf({sims, recorder, refusals = [], nowMs}) {
+export function problemsOf({sims, recorder, refusals = [], noField = {}, nowMs}) {
   const out = [];
   const message = m => redact(scrub(m)).slice(0, PROBLEM_MESSAGE_MAX);
   for (const st of sims) {
@@ -183,7 +183,15 @@ export function problemsOf({sims, recorder, refusals = [], nowMs}) {
       });
   }
   const rec = recorder ? recorderBlock(recorder, nowMs) : null;
-  if (rec && rec.layoutOk === false)
+  // A recorder that records what it doubts (layoutSuspect) is still recording;
+  // only a refusal (a full disk) is a stopped recorder.
+  if (rec && rec.layoutOk === false && rec.state === 'recording')
+    out.push({
+      kind: 'capture-suspect',
+      at: rec.updatedAt,
+      message: message(rec.layoutReason ?? 'game data not recognised'),
+    });
+  else if (rec && rec.layoutOk === false)
     out.push({
       kind: 'recorder-layout',
       at: rec.updatedAt,
@@ -201,6 +209,15 @@ export function problemsOf({sims, recorder, refusals = [], nowMs}) {
         message: 'Drive not recorded',
         count: r.count,
       });
+  // A session uploaded without a field, from the last two weeks (noField.mjs):
+  // its row opens the session, whose Field screen says why.
+  for (const [sessionId, e] of Object.entries(noField))
+    out.push({
+      kind: 'field-missing',
+      at: iso(e.endMs),
+      message: message(e.why),
+      sessionId,
+    });
   const t = p => (p.at ? Date.parse(p.at) : 0);
   return out.sort((a, b) => t(b) - t(a)).slice(0, MAX_PROBLEMS);
 }

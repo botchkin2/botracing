@@ -186,6 +186,14 @@ describe('problems', () => {
     expect(
       problemText(
         problem({
+          kind: 'field-missing',
+          message: 'This drive was not recorded, so there are no other cars',
+        }),
+      ),
+    ).toBe('Session 4dda01bc · This drive was not recorded, so there are no other cars');
+    expect(
+      problemText(
+        problem({
           kind: 'not-seen',
           at: Date.parse('2026-10-01T12:00:00Z'),
           message: '',

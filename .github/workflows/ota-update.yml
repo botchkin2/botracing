@@ -73,6 +73,12 @@ jobs:
 
       - name: App tests
         run: npx jest
+      # The emulator-only seat-test sign-in (src/auth/devSeatLink.ts) must not be in what ships to phones: export the real
+      # Android bundle with the normal env and look for its marker.
+      - name: No seat sign-in in the Android bundle
+        run: |
+          npx expo export --platform android --clear --output-dir dist-android
+          node tools/ci/assertNoSeatSignIn.mjs dist-android
 
       # The new bundle talks to the server of this same push (the API rename,
       # #591: /api/sessions exists only once dataApi and its Hosting rewrites

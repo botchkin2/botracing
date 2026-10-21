@@ -6,7 +6,7 @@ import {WebView, type WebViewMessageEvent} from 'react-native-webview';
 import {type ChaseRoad} from '@/src/analysis/chaseRoad';
 import {fetchHandoffToken} from '@/src/data/handoff';
 import {radius, space, useTheme} from '@/src/design';
-import {Pressable, Text} from '@/src/ui';
+import {Pressable, Skeleton, Text} from '@/src/ui';
 
 import {type TowerCar} from '@/src/features/race/chase/towerRows';
 import {type ChaseCar, type ChaseGaps, type ChaseInputs, type ChaseSampler} from '@/src/features/race/chase/chaseTypes';
@@ -17,8 +17,8 @@ import {clockMessage, clockNeedsSending, isReadyMessage, type SentClock} from '.
 
 /** The app resends its clock this often, whatever else happens (the page runs its own between messages). */
 const RESYNC_MS = 1000;
-/** A page that has not drawn a frame by now is not coming: the cover gives way to Retry. */
-const READY_TIMEOUT_MS = 30_000;
+/** A page that has not drawn a frame by now is not coming: the cover gives way to Retry. A cold first open (sign-in, the field, the road) took up to ~35 s on the emulator, so a phone gets much longer than that. */
+const READY_TIMEOUT_MS = 120_000;
 
 /**
  * The 3D chase draws with WebGL, in a page: on the phone it is the web page itself, in a WebView inside the app
@@ -130,7 +130,11 @@ export function ChaseView({width, height, timeS, playing, rate}: {
           style={{backgroundColor: color.bg}}
         />
       ) : null}
-      {state.kind === 'ready' && !ready ? <View pointerEvents='none' style={[StyleSheet.absoluteFill, {backgroundColor: color.bg}]} /> : null}
+      {(state.kind === 'ready' && !ready) || state.kind === 'loading' ? (
+        <View pointerEvents='none' style={[StyleSheet.absoluteFill, {backgroundColor: color.bg}]}>
+          <Skeleton height={height} />
+        </View>
+      ) : null}
       {state.kind !== 'ready' ? (
         <View style={styles.center}>
           {state.kind === 'failed' ? <Text tone='textMuted'>3D unavailable</Text> : null}
