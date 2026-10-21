@@ -29,8 +29,11 @@ export function liveSessionDoc({ownerId, sessionId, recordings, nowIso}) {
     .flatMap(r => r.parts)
     .filter(p => !p.partial && p.lapTimeS > 0)
     .map(p => p.lapTimeS);
-  const endT = last.parts.length ? last.parts[last.parts.length - 1].t1 : last.info.startT;
-  const endMs = Date.parse(last.info.recordedAt) + (endT - last.info.startT) * 1000;
+  const endT = last.parts.length
+    ? last.parts[last.parts.length - 1].t1
+    : last.info.startT;
+  const endMs =
+    Date.parse(last.info.recordedAt) + (endT - last.info.startT) * 1000;
   return {
     id: sessionId,
     ownerId,
@@ -47,7 +50,9 @@ export function liveSessionDoc({ownerId, sessionId, recordings, nowIso}) {
     archiveParts: recordings.reduce((n, r) => n + r.parts.length, 0),
     lapCount: recordings.reduce((n, r) => n + r.parts.length, 0),
     // 3 decimals as every analysed doc; the capture's lap time is a float32.
-    bestLapTime: timed.length ? Math.round(Math.min(...timed) * 1000) / 1000 : null,
+    bestLapTime: timed.length
+      ? Math.round(Math.min(...timed) * 1000) / 1000
+      : null,
     live: {updatedAt: nowIso},
     analysis: LIVE_STAMP,
     updatedAt: nowIso,
@@ -95,16 +100,33 @@ export function writeLiveIndex(work, index) {
   writeFileSync(liveIndexPath(work), JSON.stringify(index, null, 1));
 }
 
+/** How much of the shorter of a game recording and a live stretch must overlap the other. */
+export const MIN_COVER_SHARE = 0.5;
+
 /**
- * The live stretch covering a game recording, or null: same sim and layout,
- * and the recording starts within the stretch (the game file and the capture
- * open on the same realtime flag, ~2 s apart, lmuCapture.mjs).
+ * The live stretch covering a game recording, or null: same sim, layout and
+ * session type (an index entry written before stretches carried the type
+ * matches any), and the two overlap by at least MIN_COVER_SHARE of the
+ * shorter one; of several, the one it overlaps most. Not its start alone: a
+ * recorder that starts late (refused at the session load, a tray started
+ * mid-session) opens its stretch a minute after the game file, and the
+ * 2026-10-21 Sebring race became two sessions (pit wall thread 98).
  */
-export function liveCover(index, info, slackMs = 15_000) {
+export function liveCover(index, info) {
   const start = Date.parse(info.recordedAt);
+  const end = start + (info.endT - info.startT) * 1000;
+  let cover = null;
+  let coverMs = 0;
   for (const span of Object.values(index)) {
     if (span.sim !== info.sim || span.layout !== info.layout) continue;
-    if (start >= span.startMs - slackMs && start <= span.endMs) return span;
+    if (span.sessionType && span.sessionType !== info.sessionType) continue;
+    const overlapMs = Math.min(end, span.endMs) - Math.max(start, span.startMs);
+    const shorterMs = Math.min(end - start, span.endMs - span.startMs);
+    if (overlapMs <= 0 || overlapMs < MIN_COVER_SHARE * shorterMs) continue;
+    if (overlapMs > coverMs) {
+      cover = span;
+      coverMs = overlapMs;
+    }
   }
-  return null;
+  return cover;
 }
