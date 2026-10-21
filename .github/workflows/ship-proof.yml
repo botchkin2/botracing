@@ -2,12 +2,18 @@
 # needs a "## Proof where he uses it" section in its body. The rule and its
 # paths are tools/ci/shipProof.mjs; docs/CODE_STANDARDS.md section 11 says it.
 #
+# pull_request_target: this file and the rule come from the BASE branch, so a
+# PR cannot rewrite either to pass itself. It is safe because it checks out the
+# base and runs no PR code: it fetches the PR's commits and diffs them, and the
+# PR body reaches the script through the environment only. contents: read, no
+# secrets. (Consequence: it first runs once this file is on main.)
+#
 # Runs on every PR (no path filter, so it can be made required later without
 # holding other PRs) and again when the body is edited. It deploys nothing and
 # reads no secrets; it is not in any deploy workflow's `paths`.
 name: Ship proof
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, reopened, synchronize, edited, ready_for_review]
 permissions:
   contents: read
@@ -19,20 +25,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # The base branch (the default for this event): the rule runs from here.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      # The body goes in through the environment, never into the script text.
+      # Commits only; nothing from the PR is checked out or run.
+      - name: Fetch the PR's commits
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: git fetch --no-tags origin "+refs/pull/$PR/head:refs/remotes/pr/head"
       - name: PR body names the proof where he uses it
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_BODY: ${{ github.event.pull_request.body }}
-        # The BASE branch's copy of the rule, so a PR cannot loosen it and pass
-        # itself; the head's copy only when base has none (the PR that adds it).
-        run: |
-          git show "$BASE_SHA:tools/ci/shipProof.mjs" > "$RUNNER_TEMP/shipProof.mjs" || cp tools/ci/shipProof.mjs "$RUNNER_TEMP/shipProof.mjs"
-          node "$RUNNER_TEMP/shipProof.mjs"
+        run: node tools/ci/shipProof.mjs

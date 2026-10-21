@@ -8,7 +8,7 @@
 // present and names a commit of this PR; the reviewer still opens the artifact
 // and checks it ran at the head (docs/CODE_STANDARDS.md, section 11).
 //
-// CLI (.github/workflows/ship-proof.yml):
+// CLI (.github/workflows/ship-proof.yml, pull_request_target so the base runs it):
 //   BASE_SHA, HEAD_SHA, PR_BODY   (set by the workflow)
 import {execFileSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
