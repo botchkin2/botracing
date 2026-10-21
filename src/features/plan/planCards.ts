@@ -246,7 +246,10 @@ function startLoadOf(
   const shown = effectiveUnit(unit, ve != null && !fuelOnly);
   const rows = plan.loadToFinish;
   if (rows && rows.length > 0) {
-    const own = rows[0];
+    // A timed race's flag can fall a lap late: the load covers that lap too.
+    // At the plan's own count it ran short in 4 of his 17 races since 1 Sep,
+    // at the late-flag count in none (pit-wall thread 99, the FML backtest).
+    const own = rows[rows.length - 1];
     const value = loadText(
       own.atP90.fuelL,
       own.atP90.vePct,
