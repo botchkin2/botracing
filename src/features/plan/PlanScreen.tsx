@@ -367,7 +367,18 @@ export function PlanScreen() {
         )
       ) : view ? (
         <>
-          {perLap ? <PerLapStripView strip={perLap} /> : null}
+          {perLap ? (
+            <PerLapStripView
+              strip={perLap}
+              notes={[
+                view.basis.from,
+                view.basis.ratio,
+                view.basis.drift
+                  ? `${view.basis.drift.label}: ${view.basis.drift.value}`
+                  : null,
+              ].filter((n): n is string => n != null)}
+            />
+          ) : null}
           {data.cards ? (
             <PlanCard title='Race'>
               <RaceCardView card={data.cards.race} />

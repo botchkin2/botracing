@@ -39,17 +39,6 @@ export interface GreenLap {
    * plot. Unset counts as comparable.
    */
   comparable?: boolean;
-  /**
-   * The lap's traffic facts (the lap doc's `traffic`), for the clean and
-   * traffic medians of the Plan's Per green lap card; null or unset without a field.
-   */
-  traffic?: {
-    trafficAheadS: number;
-    passesSufferedAll: number;
-    blueFlagS: number;
-    battleS: number;
-    overtakes: unknown[];
-  } | null;
 }
 
 /** What the race itself gives the comparison. */

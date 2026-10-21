@@ -1,10 +1,9 @@
-import {type ReactNode} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {space} from '@/src/design';
 import {Text} from '@/src/ui';
 
-import {type LoadTable, type PlanView} from '../model';
+import {type LoadTable} from '../model';
 
 import {PlanCard} from './PlanCard';
 

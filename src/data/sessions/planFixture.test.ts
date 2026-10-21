@@ -41,7 +41,6 @@ describe('a real LMU race through the plan block', () => {
     const fuel = laps.map(l => l.fuelL).sort((a, b) => a - b);
     expect((fuel[9] + fuel[10]) / 2).toBeCloseTo(2.43, 2);
     expect(laps.every(l => l.vePct != null && l.veMeasured)).toBe(true);
-    expect(laps.some(l => l.traffic != null)).toBe(true);
   });
 
   it('gives the race side the comparison reads', () => {

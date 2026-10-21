@@ -5,8 +5,19 @@ import {Text} from '@/src/ui';
 
 import {type PerLapStrip} from '../perLapStrip';
 
-/** The Plan's first line (thread 99, PLN): use per lap as the hero, its p90, the laps a tank and the litres a % beside it. */
-export function PerLapStripView({strip}: {strip: PerLapStrip}) {
+/**
+ * The Plan's first line (thread 99, PLN): use per lap as the hero, its p90,
+ * the laps a tank and the litres a % beside it, then what the numbers stand
+ * on (`notes`: the laps and sessions, the VE ratio's source, the newest
+ * session's drift).
+ */
+export function PerLapStripView({
+  strip,
+  notes,
+}: {
+  strip: PerLapStrip;
+  notes: string[];
+}) {
   return (
     <View style={styles.box}>
       <Text variant='label' tone='textMuted'>
@@ -18,6 +29,11 @@ export function PerLapStripView({strip}: {strip: PerLapStrip}) {
           {strip.detail}
         </Text>
       </View>
+      {notes.map(n => (
+        <Text key={n} variant='dataSmall' tone='textMuted'>
+          {n}
+        </Text>
+      ))}
     </View>
   );
 }

@@ -14,14 +14,8 @@ import {
   type SessionFuel,
   type SessionSummary,
 } from '@/src/data/sessions';
-import {type SessionTraffic} from '@/src/analysis/traffic';
 import {trackInfo} from '@/src/data/tracks';
-import {
-  carLabel,
-  formatDate,
-  formatLapTime,
-  shortTrackName,
-} from '@/src/design';
+import {carLabel, formatDate, shortTrackName} from '@/src/design';
 import {planComboKey} from '@/src/nav/routes';
 import {type FuelPreset, type RaceLength} from '@/src/state/fuelPresets';
 
@@ -237,30 +231,6 @@ export function veRatioFor(
 }
 
 /**
- * A lap's traffic facts for the clean and traffic medians. A lap whose block
- * lacks any of them has no traffic facts (null): a missing number is never 0.
- */
-function trafficOf(t: PlanLap['traffic']): GreenLap['traffic'] {
-  if (
-    !t ||
-    t.aheadS == null ||
-    t.passes == null ||
-    t.blueS == null ||
-    t.battleS == null ||
-    t.overtakes == null
-  )
-    return null;
-  return {
-    trafficAheadS: t.aheadS,
-    passesSufferedAll: t.passes,
-    blueFlagS: t.blueS,
-    battleS: t.battleS,
-    // Counts only travel; the planner reads how many there were.
-    overtakes: Array.from({length: t.overtakes}),
-  };
-}
-
-/**
  * Clean laps of one session, as the planner reads them: fuel in litres, and
  * VE % as those litres over the ratio (null without one). The block holds
  * only the laps the planner keeps (green, fuel used, timed), so there is
@@ -279,7 +249,6 @@ export function greenLapsOf(
     lapIndex: l.n,
     comparable: l.comparable,
     veMeasured: l.veUsedPct != null && l.veUsedPct > 0,
-    traffic: trafficOf(l.traffic),
   }));
 }
 
@@ -482,12 +451,6 @@ export function rulesFor(
 
 export type Row = {label: string; value: string; note?: string};
 
-export type Card = {
-  key: string;
-  title: string;
-  rows: Row[];
-};
-
 /** The Load to finish card: one row per race length, the median and p90 loads side by side. */
 export type LoadTable = {
   title: string;
@@ -500,7 +463,8 @@ export type PlanView = {
   rulesLine: string;
   /** "preset 75 L · last race 84 L" when the preset may be stale. */
   stale: string | null;
-  cards: Card[];
+  /** What the per-lap numbers stand on: the newest session's drift, the VE ratio's source, and the laps and sessions (thread 99, #6684). */
+  basis: {drift: Row | null; ratio: string | null; from: string};
   /** Set when the race fits one load. */
   loadTable: LoadTable | null;
 };
@@ -508,13 +472,6 @@ export type PlanView = {
 const NL = String.fromCharCode(10);
 const l2 = (v: number) => `${v.toFixed(2)} L`;
 const pct2 = (v: number) => `${v.toFixed(2)} %`;
-
-function usageText(
-  u: {median: number; p10: number; p90: number},
-  fmt: (v: number) => string,
-): string {
-  return `${fmt(u.median)}  (${fmt(u.p10)} to ${fmt(u.p90)})`;
-}
 
 function ratioNote(
   ratio: VeRatio | null,
@@ -595,10 +552,6 @@ export function driftRowOf(d: HistoryDrift): Row {
   return {label: 'Newest session', value: meters.join(NL), note};
 }
 
-function lapTime(s: number): string {
-  return formatLapTime(s);
-}
-
 export function planView(
   preset: FuelPreset | null,
   rules: Rules,
@@ -615,8 +568,6 @@ export function planView(
     eventText?: string | null;
     /** Set when the newest session's use has moved away from the older ones. */
     drift: HistoryDrift | null;
-    /** Median lap time of the clean and of the traffic laps among the green laps; null without a field. */
-    traffic?: SessionTraffic | null;
   },
   /** The one unit the rows speak in: VE where the plan has it, unless fuel is asked for (thread 44 #1826). */
   unit: Unit = 've',
@@ -653,167 +604,31 @@ export function planView(
       : null;
   const stale = [fuelStale, ratioStale].filter(Boolean).join(' · ') || null;
 
-  const cards: Card[] = [];
-  const {fuel, ve, lapTimeS, lapTimeBasis} = plan.perLap;
-  // The lap time is over the comparable green laps, or the green laps when too
-  // few are comparable (`paceLaps`): say which, never "all green laps" for the first.
-  const paceSet =
-    lapTimeBasis === 'green' ? 'green laps' : 'comparable green laps';
-  const shown = effectiveUnit(unit, ve != null);
+  const {ve} = plan.perLap;
   const since = history.since ? `, since ${formatDate(history.since)}` : '';
-  const driftRow = history.drift ? driftRowOf(history.drift) : null;
-  const fuelRow: Row = {
-    label: 'Fuel',
-    value: fuel ? usageText(fuel, l2) : 'no data',
-    note: fuel ? undefined : 'Needs 3 green laps',
-  };
-  const veRow: Row = {
-    label: 'Virtual Energy',
-    value: ve ? usageText(ve, pct2) : 'no data',
-    note: ratioNote(
-      history.ratio,
-      r.fuelL,
-      history.ratioLoadsL,
-      preset ? null : history.eventText ?? null,
-    ),
-  };
-  cards.push({
-    key: 'perLap',
-    title: 'Per green lap',
-    rows: [
-      ...(driftRow ? [driftRow] : []),
-      ...(shown === 'fuel' ? [fuelRow] : []),
-      // Without VE laps the row stays when it has a reason to give (the load
-      // no session ran), so the missing VE is explained, not silent.
-      ...(shown === 've' || (ve == null && veRow.note) ? [veRow] : []),
-      {
-        label: 'Lap time',
-        value: lapTimeS
-          ? `${lapTime(lapTimeS.median)}  (${lapTime(
-              lapTimeS.p10,
-            )} to ${lapTime(lapTimeS.p90)})`
-          : 'no data',
-        note: lapTimeS ? paceSet : undefined,
-      },
-      ...(history.traffic?.clean.medianS != null
-        ? [
-            {
-              label: 'Clean laps',
-              value: lapTime(history.traffic.clean.medianS),
-            },
-          ]
-        : []),
-      ...(history.traffic?.traffic.medianS != null
-        ? [
-            {
-              label: 'Traffic laps',
-              value: lapTime(history.traffic.traffic.medianS),
-            },
-          ]
-        : []),
-      {
-        label: 'From',
-        value: `${plan.history.laps} ${
-          plan.history.laps === 1 ? 'lap' : 'laps'
-        } in ${plan.history.sessions} ${
-          plan.history.sessions === 1 ? 'session' : 'sessions'
-        }${since}`,
-      },
-    ],
-  });
-
-  // A race that fits one load reads the Stops card the other way round; every
-  // other race's Race, Per tank and Stops cards are typed (`planCards.ts`).
-
-  const d = plan.dropStop;
-  if (d) {
-    const stopWord = d.targetStops === 1 ? 'stop' : 'stops';
-    // Only the meter that has to use less gets the saving; one that would
-    // still reach is said to be no limit (apex, thread 35 #1003).
-    const meterLine = (
-      name: string,
-      perLap: number | null,
-      save: number | null,
-      savePctOfMedian: number | null,
-      fmt: (v: number) => string,
-    ): string | null => {
-      if (perLap == null || save == null) return null;
-      if (save <= 0)
-        return `${name}: not the limit (${fmt(
-          perLap,
-        )} a lap would still reach)`;
-      return `${name}: at most ${fmt(perLap)} a lap  (${fmt(save)}${
-        savePctOfMedian == null
-          ? ''
-          : `, ${savePctOfMedian.toFixed(1)} % less than your median`
-      })`;
-    };
-    const rows: Row[] = [
-      {
-        label: `${d.targetStops} ${stopWord}`,
-        value: [
-          shown === 'fuel'
-            ? meterLine('Fuel', d.fuelPerLapL, d.saveFuelL, d.saveFuelPct, l2)
-            : meterLine(
-                'VE',
-                d.vePerLapPct,
-                d.saveVePct,
-                d.saveVePctOfMedian,
-                pct2,
-              ),
-        ]
-          .filter(Boolean)
-          .join(NL),
-      },
-    ];
-    const c = d.compare;
-    const limits = [
-      shown === 'fuel' && c.atMost.fuelL != null
-        ? `<= ${l2(c.atMost.fuelL)}`
+  const shown = effectiveUnit(unit, ve != null);
+  const basis = {
+    drift: history.drift ? driftRowOf(history.drift) : null,
+    ratio:
+      shown === 've' || ve == null
+        ? ratioNote(
+            history.ratio,
+            r.fuelL,
+            history.ratioLoadsL,
+            preset ? null : history.eventText ?? null,
+          ) ?? null
         : null,
-      shown === 've' && c.atMost.vePct != null
-        ? `<= ${pct2(c.atMost.vePct)} VE`
-        : null,
-    ]
-      .filter(Boolean)
-      .join(' and ');
-    const label = limits ? `Your laps at ${limits}` : 'Your laps';
-    rows.push(
-      'medianLapTimeS' in c
-        ? {
-            label,
-            value: `median ${lapTime(c.medianLapTimeS)}`,
-            note: `${paceSet}: ${lapTime(c.allMedianLapTimeS)}`,
-          }
-        : {
-            label,
-            value: 'no data',
-            note:
-              c.lowestFuelL != null || c.lowestVePct != null
-                ? `lowest tenth: ${[
-                    shown === 'fuel' && c.lowestFuelL != null
-                      ? l2(c.lowestFuelL)
-                      : null,
-                    shown === 've' && c.lowestVePct != null
-                      ? pct2(c.lowestVePct)
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' and ')}`
-                : undefined,
-          },
-    );
-    cards.push({
-      key: 'dropStop',
-      title: 'To drop a stop',
-      rows,
-    });
-  }
+    from: `${plan.history.laps} ${
+      plan.history.laps === 1 ? 'lap' : 'laps'
+    } in ${plan.history.sessions} ${
+      plan.history.sessions === 1 ? 'session' : 'sessions'
+    }${since}`,
+  };
 
   return {
     rulesLine,
     stale,
-    cards,
+    basis,
     loadTable: plan.loadToFinish ? loadTable(plan.loadToFinish, r) : null,
   };
 }
