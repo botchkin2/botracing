@@ -26,6 +26,8 @@ export interface GreenLap {
   vePct: number | null;
   lapTimeS: number;
   sessionId: string;
+  /** The lap's place in its session (the plan block's `n`), for runs of laps in a row; unset when not known. */
+  lapIndex?: number;
   /**
    * Whether this lap's own VE use was recorded (its `veUsedPct`), as opposed to
    * `vePct` being fuel over the ratio. Unset counts as not measured.
