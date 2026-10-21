@@ -181,3 +181,5 @@ export function formatOffline(
     ? null
     : `Offline · ${formatSince(offlineSince, now)}`;
 }
+
+// ship-proof demo, do not merge
