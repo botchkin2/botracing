@@ -14,6 +14,8 @@ import {newFreeCam, type FreeCam} from './chaseFreeCam.ts';
 export const YAW_TAU_S = 0.2;
 /** Time constant of the turn-rate estimate the lead uses, seconds of wall time. */
 export const RATE_TAU_S = 0.15;
+/** A turn rate under this (rad/s, 9 deg/s) is noise on a straight, not a bend: it earns no lead, and the lead grows from here. */
+export const RATE_DEADBAND = 0.15;
 /** Time constant of the camera's height following the car's. */
 export const LIFT_TAU_S = 0.25;
 /** A move of the car further than this in one frame (more than the playback rate explains) is a seek or a pit teleport: no smoothing. */
@@ -100,10 +102,11 @@ export function followStep(
   st.x = car.x;
   st.y = car.y;
   st.set = true;
-  const aim = st.yaw + (snap ? 0 : st.rate * tau);
+  const lead = snap ? 0 : Math.sign(st.rate) * Math.max(0, Math.abs(st.rate) - RATE_DEADBAND);
+  const aim = st.yaw + lead * tau;
   const cx = Math.cos(aim);
   const cy = Math.sin(aim);
-  const lead = Math.min(LEAD_MAX_M, car.v * LEAD_S);
+  const ahead = Math.min(LEAD_MAX_M, car.v * LEAD_S);
   // the user's turn, raise and zoom round the car; none of them is the chase pose (no offset: exactly backM and upM)
   const radius = Math.hypot(backM, upM) * free.zoom;
   const elev = clamp(Math.atan2(upM, backM) + free.pitch, MIN_ELEV_RAD, MAX_ELEV_RAD);
@@ -113,8 +116,8 @@ export function followStep(
     camX: car.x - fx * radius * Math.cos(elev),
     camY: car.y - fy * radius * Math.cos(elev),
     camZ: st.z - upM + radius * Math.sin(elev),
-    lookX: car.x + cx * lead,
-    lookY: car.y + cy * lead,
+    lookX: car.x + cx * ahead,
+    lookY: car.y + cy * ahead,
     lookZ: car.z + LOOK_LIFT_M,
   };
 }

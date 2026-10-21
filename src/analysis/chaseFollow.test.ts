@@ -54,6 +54,23 @@ describe('followStep', () => {
     expect(errs[Math.floor(errs.length * 0.95)]).toBeLessThan(8);
     expect(errs.at(-1)).toBeLessThan(10);
   });
+  it('adds no wobble on a straight from heading noise (the lead has a dead band)', () => {
+    const yaws = (noiseRad: number) => {
+      const st = newFollow();
+      let seed = 7;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) - 0.5;
+      const out: number[] = [];
+      for (let i = 0; i < 600; i++) {
+        const h = noiseRad * rnd();
+        const v = followStep(st, {x: i * 0.4, y: 0, z: 0, heading: h, travel: h, v: 25}, 1 / 60, 1, 7, 2.2, false);
+        out.push(Math.atan2(-v.camY, -(v.camX - i * 0.4)));
+      }
+      const mean = out.reduce((a, b) => a + b, 0) / out.length;
+      return Math.sqrt(out.reduce((a, b) => a + (b - mean) ** 2, 0) / out.length);
+    };
+    // the camera view wobbles less than a fifth of the heading's own 1 degree noise, as it did before the lead (0.07 deg)
+    expect(yaws(0.0175) * (180 / Math.PI)).toBeLessThan(0.15);
+  });
   it('does not move at all when the car has not (dt 0: a pause), whatever the smoothing still owed', () => {
     const st = newFollow();
     for (let t = 0; t < 1; t += 1 / 60) followStep(st, lap(t), 1 / 60, 1, 7, 2.2, false);
