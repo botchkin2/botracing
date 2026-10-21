@@ -92,8 +92,17 @@ export function scanFolder({
 export function sameSession(prev, next) {
   const wall =
     (Date.parse(next.recordedAt) - Date.parse(prev.recordedAt)) / 1000;
-  if (wall > SESSION_GAP_H * 3600) return false;
+  // A race's game clock keeps pace with the wall clock through any pause (a 24 h
+  // race can hold a red flag of hours), so a race has no wall-gap cap; the
+  // clock matching to 90 s over such a gap is no coincidence. Practice and
+  // qualifying can sit open for a night: past SESSION_GAP_H it is a new sitting.
+  const race = /^r/i.test(next.sessionType ?? '');
+  const capped = !race && wall > SESSION_GAP_H * 3600;
+  if (capped) return false;
   if (Math.abs(next.startT - prev.startT - wall) < 90) return true;
+  // The same start clock only joins within the gap: the default race clock
+  // repeats, so a false start and a race a day later would otherwise merge.
+  if (wall > SESSION_GAP_H * 3600) return false;
   // Same start clock only means a restart when the previous file was a short
   // false start, or the next one began right after it. The default race clock
   // repeats, so two real races would otherwise merge.

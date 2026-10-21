@@ -28,6 +28,17 @@ test('files whose session timer kept pace with the wall clock are one session', 
   assert.deepEqual(sessions[0].files.map(f => f.info.source), [a, b, c].map(f => f.info.source), 'in time order, whatever order they came in');
 });
 
+test('a race holds a pause of hours (Le Mans red flag): the game clock kept pace, so it is one session; a practice does not', () => {
+  const race = (n, extra) => info(n, {sessionType: 'Race', ...extra});
+  const gap = 8 * 3600 / (20 * 60); // 8 hours in 20-minute steps
+  const a = race(0), b = race(gap);
+  assert.equal(sameSession(a, b), true);
+  const practice = (n) => info(n, {sessionType: 'Practice'});
+  assert.equal(sameSession(practice(0), practice(gap)), false);
+  // A race whose clock did not advance with the wall (a restart a day later) is another race.
+  assert.equal(sameSession(race(0), race(gap, {startT: 1000, endT: 1900})), false);
+});
+
 test('a gap of more than six hours, a different car, layout or session type, or another owner is another session', () => {
   const far = file(30); // 10 hours later
   assert.equal(sameSession(file(0).info, far.info), false);
