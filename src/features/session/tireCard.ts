@@ -166,7 +166,6 @@ export const absentLapsNote = (n: number) =>
     n === 1 ? '' : 's'
   } (recorder bug, fixed in 0.1.11)`;
 
-
 const hasTyres = (l: Lap) =>
   l.tyres != null &&
   (l.tyres.wearPct != null ||
@@ -394,7 +393,11 @@ function stintTires(
       // Every lap is a bar, so a lock-up on an untimed lap shows; only green laps feed the median.
       // Read at stops only, a lap has no loss of its own to show.
       if (!atStops && w != null && before != null && before >= w)
-        bars.push({lapLabel: lapLabel(l.lapNo), lossPct: before - w, green: isGreen});
+        bars.push({
+          lapLabel: lapLabel(l.lapNo),
+          lossPct: before - w,
+          green: isGreen,
+        });
       const h = isGreen ? l.tyres?.hotPressureKpa?.[wheel] : null;
       if (h != null) hot.push(h);
     });

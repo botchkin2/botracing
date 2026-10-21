@@ -42,8 +42,12 @@ describe('lapNoOf: a race lap is numbered from the green flag', () => {
     const [first, second] = lmu.silverstone.parts;
     const [[, greenS]] = lmu.silverstone.resultLaps;
     expect(first[1] < greenS && greenS < first[2]).toBe(true);
-    expect(lapNoOf({sim: 'lmu', race: true, lapNumber: first[0], lapIndex: 1})).toBe(1);
-    expect(lapNoOf({sim: 'lmu', race: true, lapNumber: second[0], lapIndex: 2})).toBe(2);
+    expect(
+      lapNoOf({sim: 'lmu', race: true, lapNumber: first[0], lapIndex: 1}),
+    ).toBe(1);
+    expect(
+      lapNoOf({sim: 'lmu', race: true, lapNumber: second[0], lapIndex: 2}),
+    ).toBe(2);
   });
 
   it('Daytona 10-07: the capture starts in the pits on counter 1, after lap 1, so its first lap is L2', () => {
@@ -70,20 +74,28 @@ describe('lapNoOf: a race lap is numbered from the green flag', () => {
     const parts = race.lapChanges.filter(([, t]) => t < 172 || t > 178);
     const green = race.greenS;
     for (const [lapNumber, t] of parts) {
-      const crossed = parts.filter(([n, at]) => n > 0 && at >= green && at <= t).length;
-      expect(lapNoOf({sim: 'iracing', race: true, lapNumber, lapIndex: 0})).toBe(
-        crossed === 0 ? null : crossed,
-      );
+      const crossed = parts.filter(
+        ([n, at]) => n > 0 && at >= green && at <= t,
+      ).length;
+      expect(
+        lapNoOf({sim: 'iracing', race: true, lapNumber, lapIndex: 0}),
+      ).toBe(crossed === 0 ? null : crossed);
     }
   });
 
   it('practice and qualifying keep the place in driving order', () => {
-    expect(lapNoOf({sim: 'lmu', race: false, lapNumber: 6, lapIndex: 3})).toBe(3);
-    expect(lapNoOf({sim: 'iracing', race: false, lapNumber: 0, lapIndex: 1})).toBe(1);
+    expect(lapNoOf({sim: 'lmu', race: false, lapNumber: 6, lapIndex: 3})).toBe(
+      3,
+    );
+    expect(
+      lapNoOf({sim: 'iracing', race: false, lapNumber: 0, lapIndex: 1}),
+    ).toBe(1);
   });
 
   it('a race lap doc with no counter keeps its place', () => {
-    expect(lapNoOf({sim: 'lmu', race: true, lapNumber: null, lapIndex: 4})).toBe(4);
+    expect(
+      lapNoOf({sim: 'lmu', race: true, lapNumber: null, lapIndex: 4}),
+    ).toBe(4);
   });
 });
 

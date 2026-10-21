@@ -285,7 +285,9 @@ function rangeText(lo: number, hi: number): string {
   const first = Math.ceil(lo);
   if (!Number.isFinite(hi)) return `${lapLabel(first)} or later`;
   const last = Math.max(first, Math.floor(hi));
-  return first === last ? lapLabel(first) : `${lapLabel(first)}–${lapLabel(last)}`;
+  return first === last
+    ? lapLabel(first)
+    : `${lapLabel(first)}–${lapLabel(last)}`;
 }
 
 /** The words in a class lane that has no pass inside the race. */

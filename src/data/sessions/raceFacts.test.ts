@@ -87,9 +87,7 @@ describe('raceFactsOfPlan', () => {
       classLeaderLapsDone: 21,
       ownUse: {fuelL: 2.4, vePct: null},
       end: {lap: 21, fuelL: 33.2, vePct: 32.2},
-      stops: [
-        {lap: 9, fuelL: 12, vePct: 40, kind: 'service', detail: null},
-      ],
+      stops: [{lap: 9, fuelL: 12, vePct: 40, kind: 'service', detail: null}],
     });
   });
 

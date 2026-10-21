@@ -66,9 +66,7 @@ export function formationRow(
   unit: Unit,
 ): {label: string; laps: string; use: string; tyres: string} | null {
   const use = formationUseText(p.formation, unit);
-  return use == null
-    ? null
-    : {label: 'Formation', laps: '–', use, tyres: '–'};
+  return use == null ? null : {label: 'Formation', laps: '–', use, tyres: '–'};
 }
 
 /** One stint's row: laps (named by `stintLaps` when given, else the count), what it uses in `unit`, the tyre laps. */

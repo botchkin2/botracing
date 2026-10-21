@@ -32,7 +32,12 @@ export type LapCount = {
  * flag, null for the formation lap; elsewhere (and on a race lap doc with no
  * counter) its place in driving order.
  */
-export function lapNoOf({sim, race, lapNumber, lapIndex}: LapCount): number | null {
+export function lapNoOf({
+  sim,
+  race,
+  lapNumber,
+  lapIndex,
+}: LapCount): number | null {
   if (!race || lapNumber == null) return lapIndex;
   if (sim === 'iracing') return lapNumber > 0 ? lapNumber : null;
   return lapNumber + 1;
@@ -44,7 +49,10 @@ export function lapLabel(lapNo: number | null): string {
 }
 
 /** "L3–L9" over a run of laps; one lap reads "L3". */
-export function lapRangeLabel(first: number | null, last: number | null): string {
+export function lapRangeLabel(
+  first: number | null,
+  last: number | null,
+): string {
   return first === last
     ? lapLabel(first)
     : `${lapLabel(first)}–${lapLabel(last)}`;

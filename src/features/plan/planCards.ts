@@ -21,7 +21,6 @@ import {effectiveUnit, type Unit} from './unit';
 
 import {type PitWindow, pitWindows} from '@/src/analysis/pitWindow';
 
-
 /**
  * The words of a stint's use and of the formation lap's, on every Plan card
  * (the Pit plan and the Stops cards print the same rows): a stint rounds to
@@ -51,7 +50,9 @@ export function stintLaps(counts: readonly number[], index: number): string {
   let first = 1;
   for (let i = 0; i < index; i++) first += counts[i];
   const last = first + counts[index] - 1;
-  return first >= last ? lapLabel(last) : `${lapLabel(first)}–${lapLabel(last)}`;
+  return first >= last
+    ? lapLabel(last)
+    : `${lapLabel(first)}–${lapLabel(last)}`;
 }
 
 export type RaceCard = {

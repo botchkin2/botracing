@@ -573,10 +573,11 @@ export function buildSessionModel(
           title: `${laps.length} laps, none comparable`,
           reasons: laps.map(
             l =>
-              `${lapLabel(l.lapNo)}: ${statusFor(l, median, basisTimes.n).replace(
-                'Excluded · ',
-                '',
-              )}`,
+              `${lapLabel(l.lapNo)}: ${statusFor(
+                l,
+                median,
+                basisTimes.n,
+              ).replace('Excluded · ', '')}`,
           ),
         }
       : null;

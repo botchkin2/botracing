@@ -177,7 +177,10 @@ describe('buildPlanCards', () => {
     expect(full.stintLaps).toEqual([41, 31]);
     expect(full.refuel).toEqual([
       // 31 x 2.38 = 73.78 L, less the 100 - 41.4 x 2.38 = 1.47 L still in the tank.
-      {litres: expect.closeTo(31 * 2.38 - (100 - 41.4 * 2.38), 5), toFinish: true},
+      {
+        litres: expect.closeTo(31 * 2.38 - (100 - 41.4 * 2.38), 5),
+        toFinish: true,
+      },
     ]);
   });
 
@@ -189,7 +192,10 @@ describe('buildPlanCards', () => {
     // 41.4 x 2.38 = 98.5 L used the tank holds 1.47 L, so it adds 19.95 L.
     expect(full.stintLaps).toEqual([41, 9]);
     expect(full.refuel[0].toFinish).toBe(true);
-    expect(full.refuel[0].litres).toBeCloseTo(9 * 2.38 - (100 - 41.4 * 2.38), 2);
+    expect(full.refuel[0].litres).toBeCloseTo(
+      9 * 2.38 - (100 - 41.4 * 2.38),
+      2,
+    );
   });
 
   it('the Stops card: a pit window for each stop, at p90 use, with the median lap beside it', () => {

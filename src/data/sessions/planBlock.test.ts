@@ -142,9 +142,7 @@ describe('toPlanBlock', () => {
         formationL: 2.68,
         ownUse: {fuelL: 2.55, vePct: null},
         end: {lap: 28, fuelL: 6.91, vePct: null},
-        stops: [
-          {lap: 19, fuelL: 6.98, vePct: null, addedL: 23, lossS: 34.18},
-        ],
+        stops: [{lap: 19, fuelL: 6.98, vePct: null, addedL: 23, lossS: 34.18}],
       },
     });
     expect(out?.race?.stops).toEqual([
