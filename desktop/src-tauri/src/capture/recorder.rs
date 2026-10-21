@@ -975,6 +975,17 @@ mod tests {
     }
 
     #[test]
+    fn nordschleife_and_le_mans_scale_numbers_are_not_doubted() {
+        // A 25.4 km lap, 24 h in (86 400 s on the clock): every check passes.
+        let (rig, mut rec) = Rig::new("scale");
+        field_with_dists_at(&rig, 8, 86_400.0, |i| 25_400.0 * (i as f64 + 1.0) / 9.0);
+        rig.player("Sebring International Raceway", 86_400.0); // the helper names the track; the numbers are Nordschleife-scale
+        rec.tick(1_000);
+        assert_eq!(rec.status.layout_ok, Some(true), "{}", rec.status.layout_reason);
+        assert!(rig.meta(&rig.folders()[0]).get("layoutSuspect").is_none());
+    }
+
+    #[test]
     fn a_good_layout_is_not_marked() {
         let (rig, mut rec) = Rig::new("pitdistgood");
         field_with_dists(&rig, 8, |i| 100.0 * i as f64);

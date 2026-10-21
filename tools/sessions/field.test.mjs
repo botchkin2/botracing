@@ -45,6 +45,16 @@ test('captureDoubted: one doubtful look in 100 is used, 80 in 100 or a bad playe
   assert.equal(captureDoubted({playerSuspect: 'x', playerDoubtful: 90, playerChecks: 100}), true);
 });
 
+test('goodRows: a 25.4 km track, 110 cars and a 24 h clock lose no row', () => {
+  const n = 110 * 50;
+  const c = {
+    et: Array.from({length: n}, (_, k) => 86_000 + k * 0.2),
+    lapDist: Array.from({length: n}, (_, k) => (k * 17.3) % 25_400),
+    id: Array.from({length: n}, (_, k) => k % 110),
+  };
+  assert.equal(goodRows(c), c);
+});
+
 test('listCaptures skips a capture doubted for most of the drive and keeps one with a stray look', () => {
   const root = mkdtempSync(join(tmpdir(), 'caps-'));
   for (const [name, meta] of [

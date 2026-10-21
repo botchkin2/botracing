@@ -371,7 +371,7 @@ test('a rebuild carries the current rules whatever the old file said', () => {
   const rebuilt = buildSurface(LENGTH_M, [
     {id: 'a', csvs: [csv({pl: 0, edge: -6})]},
   ]);
-  assert.equal(rebuilt.surface.rules, 2);
+  assert.equal(rebuilt.surface.rules, 3);
 });
 
 test('foldSurfaces says how far it is, one line per track and a last one: the watcher reads them', async () => {

@@ -5,7 +5,8 @@ import {
   addSession,
   dropOsmInsideSurface,
   emptySurface,
-  MAX_EDGE_M,
+  edgeLimits,
+  EDGE_MEDIAN_X,
   MIN_EDGE_LAPS,
   measuredHalfWidths,
   type SurfaceLap,
@@ -94,7 +95,10 @@ describe('addLap and surfaceGeometry', () => {
 
   it('a lap with no edge in range still gives the centre (centre only)', () => {
     const s = emptySurface(LENGTH_M);
-    addLap(s, lap(1, MAX_EDGE_M + 5));
+    // Edges at 25 m on every bin and every lap: the bin's own median, so they are
+    // the road there and are kept. A lap with NO edge reading is centre only.
+    const none = lap(1, 0);
+    addLap(s, none);
     const g = surfaceGeometry(s);
     expect(g.coverage).toEqual({bins: 100, both: 0, oneEdge: 0, centreOnly: 1});
     expect(g.runs[0].centre[3].y).toBeCloseTo(0, 6);
@@ -185,6 +189,45 @@ describe('measuredHalfWidths', () => {
     const s = emptySurface(LENGTH_M);
     addLap(s, lap(0, 6));
     expect(measuredHalfWidths(s)).toBeNull();
+  });
+});
+
+describe('edge limits (pit wall thread 94 #6596)', () => {
+  // Six laps over a road whose edge reads 8 m, one lap with a single reading of
+  // 51.8 m at 300 m (a pit-entry opening, as at Sebring).
+  const laps = () => {
+    const six = [0, 1, 2, 3, 4, 5].map(() => lap(0, 8));
+    six[0].trackEdgeM = six[0].distM.map(d => (d === 300 ? 51.8 : 8));
+    return six;
+  };
+  const bin = 30; // 300 m / 10 m
+
+  it("drops a reading far past its bin's median and keeps the road", () => {
+    const set = laps();
+    const limits = edgeLimits(LENGTH_M, set);
+    expect(limits.r[bin]).toBeCloseTo(EDGE_MEDIAN_X * 8, 6);
+    const s = emptySurface(LENGTH_M);
+    addSession(s, 'a', set, limits);
+    const b = s.bins[bin];
+    expect(b.sR / b.nR).toBeCloseTo(8, 6); // the 51.8 did not pull the mean
+    expect(b.nR).toBe(6 * 2 - 1); // 12 samples in the bin, one dropped
+  });
+
+  it('keeps a bin that reads wide on every lap (the road really is that wide, or a flat 30.0 cap)', () => {
+    const set = [0, 1, 2, 3, 4].map(() => lap(0, 30));
+    const limits = edgeLimits(LENGTH_M, set);
+    expect(limits.r[40]).toBeCloseTo(90, 6);
+    const s = emptySurface(LENGTH_M);
+    addSession(s, 'a', set, limits);
+    expect(s.bins[40].nR).toBe(5 * 2);
+  });
+
+  it("a bin with too few samples takes its neighbours' median; with no data anywhere there is no limit", () => {
+    const one = lap(0, 8, [0, 30]);
+    const limits = edgeLimits(LENGTH_M, [one]);
+    expect(limits.r[0]).toBeCloseTo(EDGE_MEDIAN_X * 8, 6);
+    expect(limits.r[50]).toBeCloseTo(EDGE_MEDIAN_X * 8, 6);
+    expect(edgeLimits(LENGTH_M, [lap(0, 0)]).r[0]).toBe(Infinity);
   });
 });
 

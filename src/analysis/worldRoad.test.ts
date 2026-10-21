@@ -96,6 +96,35 @@ describe('worldRoad', () => {
     expect(withData.heightM![q]).toBeCloseTo(3, 0);
     expect(road.heightM).toBeNull();
   });
+  it("draws an opening at its own side's bound, not as a 50 m road (Sebring pit entry), and leaves the other side and an ordinary road alone", () => {
+    const bins = Math.ceil(LAP / 10);
+    const left = Array.from({length: bins}, () => 10);
+    const right = Array.from({length: bins}, (_, b) => (b >= 30 && b < 44 ? 50 : 6)); // 140 m reading 50 m
+    const edges = {stepM: 10, lengthM: LAP, leftM: left, rightM: right};
+    const bounded = worldRoad({...base, field: field(cars), edges})!;
+    const at = (b: number) => Math.round((b * 10 * bounded.cx.length) / LAP);
+    // bound = 3 x the side's median (6) = 18 m; the opening is drawn at it
+    expect(Math.max(...bounded.hr)).toBeLessThanOrEqual(18 + 1e-9);
+    expect(bounded.hr[at(36)]).toBeCloseTo(18, 6);
+    expect(bounded.hr[at(10)]).toBeCloseTo(6, 6); // away from it, as measured
+    for (const h of bounded.hl) expect(h).toBeCloseTo(10, 6); // the other side is untouched
+  });
+  it('a road with no opening is drawn exactly as measured (nothing exceeds 3x its median)', () => {
+    const bins = Math.ceil(LAP / 10);
+    const wavy = (base: number) => Array.from({length: bins}, (_, b) => base + 2 * Math.sin(b / 7));
+    const edges = {stepM: 10, lengthM: LAP, leftM: wavy(6), rightM: wavy(7)};
+    const drawn = worldRoad({...base, field: field(cars), edges})!;
+    const lerp = (arr: number[], i: number) => {
+      const ld = (i * LAP) / drawn.cx.length; // same mapping as worldRoad
+      const f = ld / 10;
+      const k = Math.floor(f);
+      return arr[k % bins] + (arr[(k + 1) % bins] - arr[k % bins]) * (f - k);
+    };
+    for (let i = 0; i < drawn.hl.length; i += 5) {
+      expect(drawn.hl[i]).toBeCloseTo(lerp(edges.leftM, i), 2);
+      expect(drawn.hr[i]).toBeCloseTo(lerp(edges.rightM, i), 2);
+    }
+  });
   it('closes the height on itself: the end of the lap is the start of the lap, to 5 cm', () => {
     // a profile that ends 0.3 m above where it began (the drift of a GPS height over a lap)
     const elev = {stepM: 10, heightM: Array.from({length: 11}, (_, i) => i * 0.3 + (i === 10 ? 0.3 : 0)), lengthM: 105};
