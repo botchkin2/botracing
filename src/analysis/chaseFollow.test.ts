@@ -28,8 +28,8 @@ describe('followStep', () => {
     for (const d of run(60)) expect(d.dist).toBeCloseTo(7, 9);
   });
   it('keeps the car on the camera axis in a steady bend: the lead cancels the lag', () => {
-    // without the lead a time constant of 0.2 s on a 0.5 rad/s turn trails by tau x rate = 0.1 rad (5.7 deg)
-    for (const d of run(60).slice(120)) expect(d.offAxis * (180 / Math.PI)).toBeLessThan(0.5);
+    // without the lead 0.2 s on a 0.5 rad/s turn trails 5.7 deg; the dead band leaves 0.15 x 0.2 rad (1.7 deg)
+    for (const d of run(60).slice(120)) expect(d.offAxis * (180 / Math.PI)).toBeLessThan(2);
   });
   it.each([1, 4])('stays within a few degrees through a hairpin at %ix (the old 0.3 s lag was 17 to 18 degrees)', rate => {
     const R = 20;
