@@ -15,6 +15,8 @@ import {type usePlanData} from './usePlanData';
 export function usePitSlider(
   data: ReturnType<typeof usePlanData>,
   comboKey: string,
+  /** The combo's sim: LMU fills to a level, iRacing adds an amount. */
+  sim: string,
 ) {
   const {plan, rules, cards, fuelOnly, pitBase, refuelRate, hist} = data;
   const windows = cards?.stops.windows;
@@ -49,8 +51,7 @@ export function usePitSlider(
     () =>
       pit && input
         ? stopPanels(pit, {
-            // The combo key starts with the sim's track id ("lmu-…", "iracing-…").
-            sim: comboKey.split('-')[0],
+            sim,
             meter,
             p90: {
               fuelL: input.plan.perLap.fuel?.p90 ?? null,
@@ -62,7 +63,7 @@ export function usePitSlider(
             pitModel: input.pitModel,
           })
         : [],
-    [pit, input, meter, comboKey],
+    [pit, input, meter, sim],
   );
   const strip = useMemo(
     () => (pit ? stintStrip(pit, panels, meter) : []),

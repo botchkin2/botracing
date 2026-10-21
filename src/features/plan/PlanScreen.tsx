@@ -103,7 +103,7 @@ export function PlanScreen() {
   const eventWeek =
     eventPick && eventPick.key === combo?.key ? eventPick.week : null;
   const data = usePlanData(combo, unit, start, eventWeek);
-  const slider = usePitSlider(data, combo?.key ?? '');
+  const slider = usePitSlider(data, combo?.key ?? '', combo?.sim ?? 'lmu');
   const chosen = useMemo(
     () =>
       slider.pit
