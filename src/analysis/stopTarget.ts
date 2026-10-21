@@ -54,7 +54,8 @@ export function stopTargets(input: StopTargetInput): StopTarget[] {
     const last = k + 2 === stintLaps.length;
     const lapsAfter = stintLaps[k + 1] + (last && input.lateFlag ? 1 : 0);
     const arrive = input.arrive[k] ?? null;
-    let level: number;
+    let need: number;
+    let cap: number;
     let fuelLimited = false;
     if (meter === 've') {
       if (p90.vePct == null) return [];
@@ -65,28 +66,29 @@ export function stopTargets(input: StopTargetInput): StopTarget[] {
           ? 0
           : ((lapsAfter * p90.fuelL) / fillLimitL) * fullVePct;
       fuelLimited = fuelNeed > veNeed;
-      level = Math.min(fullVePct, wholeUp(Math.max(veNeed, fuelNeed)));
+      need = Math.max(veNeed, fuelNeed);
+      cap = fullVePct;
     } else {
       if (p90.fuelL == null) return [];
-      level = Math.min(fillLimitL, wholeUp(lapsAfter * p90.fuelL));
+      need = lapsAfter * p90.fuelL;
+      cap = fillLimitL;
     }
     if (verb === 'add') {
       // iRacing: the litres to put in over what is left, within the tank.
-      const value =
-        arrive == null
-          ? level
-          : Math.min(fillLimitL - arrive, Math.max(0, level - arrive));
+      const room = arrive == null ? cap : cap - arrive;
+      const value = Math.min(room, wholeUp(Math.max(0, need - (arrive ?? 0))));
       out.push({
         meter,
         verb,
-        value: Math.max(0, wholeUp(value)),
+        value,
         arrive,
-        added: Math.max(0, wholeUp(value)),
+        added: value,
         fuelLimited,
         noFill: value <= 0,
       });
       continue;
     }
+    const level = Math.min(cap, wholeUp(need));
     const noFill = arrive != null && arrive >= level;
     out.push({
       meter,
