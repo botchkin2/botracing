@@ -56,8 +56,8 @@ value.
 | Limit | Value | Effect | Meant to catch | Verdict |
 |---|---|---|---|---|
 | `MAX_SPEED_MS` (`classLaps.ts:152`) | 120 m/s x dt + 20 m | A jump that is bigger is not a line crossing: the lap is not counted | A reset to the garage, a teleport | Keep: scales with the time step, above any car |
-| `MAX_EDGE_M`, `MAX_GAP_M` (`trackSurface.ts:73,75`) | 20 m, 30 m | An edge further than 20 m from the centre is not road; a longer gap gives no heading | Daytona pit entry reads 25.8 m against a 14.8 m p90 | **Change**: relative to the track's own p90 half-width (e.g. 3x), not metres picked from tracks we drove |
-| `MAX_LATERAL_M`, `OUTLIER_M`, `MIN_SPEED_MS` (`worldRoad.ts:20-24`) | 30 m, 4 m, 2 m/s | Samples dropped from the road fit | Grid, spin, pit exit | `MAX_LATERAL_M`: **relative** like above. The others are about the car, keep |
+| `MAX_EDGE_M`, `MAX_GAP_M` (`trackSurface.ts:73,75`) | 20 m, 30 m | An edge further than 20 m from the centre is not road; a longer gap gives no heading | Daytona pit entry reads 25.8 m against a 14.8 m p90 | **Open, display only**: the rule wants it from the track's own width, but `addLap` accumulates lap by lap with no track median in hand, so it needs a second pass over the surface. Real half-widths (Nordschleife 4-6 m, Le Mans 6-8 m, the widest straights ~12 m) sit far under 20 m, so no real track is cut; only openings (pit entry) are. Proposal: keep, unless gauge wants the two-pass |
+| `MAX_LATERAL_M`, `OUTLIER_M`, `MIN_SPEED_MS` (`worldRoad.ts:20-24`) | 30 m, 4 m, 2 m/s | Samples dropped from the road fit | Grid, spin, pit exit | Same as above for `MAX_LATERAL_M` (a lateral offset from the centre path, 30 m is over twice the widest real half-width). The others are about the car: keep |
 | `MAX_PROJECT_M` (`fieldOnLine.ts:63`) | 30 m | A car further from the centre path is drawn at its world x/z | Position handling | Keep: it falls back, it does not drop |
 | Bank (`bank.mjs`) | `MIN_SPEED_KPH` 60, `MAX_GAP_M` 100, share limits | Curation of banking | Curator data | Keep: curation, not user data |
 | Minimum laps (`MIN_*_LAPS`) | 3 to 20 | A statistic is not shown | Sufficiency | Out of scope |
