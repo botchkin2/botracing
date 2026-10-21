@@ -6,7 +6,9 @@ import {
   startLoad,
 } from '@/src/analysis/fuelPlan';
 
-import {lapName, stopRow, type StopWindow} from './planCards';
+import {lapLabel} from '@/src/analysis/lapNumbering';
+
+import {stopRow, type StopWindow} from './planCards';
 
 // The pit-lap slider's model (pit-wall thread 44 #1812/#1819): the stops of the
 // plan, each movable over its window, and everything that follows from where
@@ -154,7 +156,7 @@ function work(
   const row = stopRow(
     'full',
     stints,
-    after.map(lapName),
+    after.map(n => lapLabel(n)),
     plan.perLap.fuel?.median ?? null,
     plan.perLap.ve?.median ?? null,
     rules,

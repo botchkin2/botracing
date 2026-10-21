@@ -1,4 +1,5 @@
 import {toggle} from '@/src/state/lapSelection';
+import {lapLabel} from '@/src/analysis/lapNumbering';
 import {nearestSample, type NativeSamples} from '@/src/analysis/nativeSamples';
 import {lateralText} from '@/src/charts/screenLateral';
 import {type LabelFormat} from '@/src/charts/scale';
@@ -782,7 +783,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
   const ownTag = foreignTags.size > 0 ? input.foreign?.ownTag : undefined;
   const nameOf = (l: Lap) => {
     const tag = foreignTags.get(l.id) ?? ownTag;
-    return tag ? `L${l.lapIndex} · ${tag}` : `L${l.lapIndex}`;
+    return tag ? `${lapLabel(l.lapNo)} · ${tag}` : lapLabel(l.lapNo);
   };
   // Lap-number order, this session's laps before another session's; the order
   // the laps were checked in carries no meaning.
@@ -1513,7 +1514,7 @@ function allLapsByStint(
         const slot = slotOf.get(l.id);
         return {
           lapId: l.id,
-          label: `L${l.lapIndex}`,
+          label: lapLabel(l.lapNo),
           time: l.timeS == null ? '—' : formatLapTime(l.timeS),
           gap: gap == null ? null : formatGap(gap),
           gapFaster: gap != null && gap < 0,

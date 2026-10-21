@@ -1,4 +1,5 @@
 import {basisOf} from '@/src/analysis/lapBasis';
+import {lapRangeLabel} from '@/src/analysis/lapNumbering';
 import {useMemo} from 'react';
 
 import {columnStats} from '@/src/analysis/segments';
@@ -77,8 +78,8 @@ export function buildStintTable(
   for (const s of session.stints) {
     const stintLaps = laps.filter(l => l.stint === s.n);
     if (stintLaps.length === 0) continue;
-    const first = stintLaps[0].lapIndex;
-    const last = stintLaps[stintLaps.length - 1].lapIndex;
+    const first = stintLaps[0].lapNo;
+    const last = stintLaps[stintLaps.length - 1].lapNo;
     const picked = stintLaps.filter(l => basis.has(l.id));
     const stats = lapTimeStats(picked);
     rows.push({
@@ -90,7 +91,7 @@ export function buildStintTable(
       best: stats.bestS == null ? dash : formatLapTime(stats.bestS),
       spread:
         stats.n > 1 && stats.spreadS != null ? stats.spreadS.toFixed(2) : dash,
-      detail: `L${first}–L${last}`,
+      detail: lapRangeLabel(first, last),
     });
   }
   return rows;

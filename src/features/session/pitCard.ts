@@ -8,6 +8,7 @@
 // shown as 0 or "—". The refuel time is litres added over the measured rate
 // and is left out where that rate is not measured (src/analysis/refuel.ts).
 import {firstLapOf} from '@/src/analysis/lapSlots';
+import {lapLabel} from '@/src/analysis/lapNumbering';
 import {
   REFUEL_FUEL_MIN_L,
   REFUEL_VE_MIN_PCT,
@@ -332,7 +333,7 @@ function column(
   return {
     key: lap.id,
     title: count === 1 ? 'Stop' : `Stop ${i + 1}`,
-    after: `after L${lap.lapIndex}`,
+    after: `after ${lapLabel(lap.lapNo)}`,
     lapIndex: lap.lapIndex,
     inTank: inCell(stop, hasVe),
     added: addedCell(stop, hasVe),
@@ -382,7 +383,7 @@ function fuelCard(
   // the start is on the first lap.
   const addedL = upto.reduce((s, l) => s + (l.fuel?.addedL ?? 0), 0);
   const usedL = round1(round1(first.startL) + round1(addedL) - round1(f.endL));
-  const n = ending.lapIndex;
+  const n = ending.lapNo ?? 0;
   const startVe = first.veStartPct;
   const endVe = f.veEndPct;
   const addedVe = upto.reduce((s, l) => s + (l.fuel?.veAddedPct ?? 0), 0);
@@ -410,7 +411,7 @@ function fuelCard(
         ],
         ' / ',
       ),
-      note: addedL > 0.05 ? `+${litres(addedL)} added on L1` : null,
+      note: addedL > 0.05 ? `+${litres(addedL)} added before the start` : null,
     },
     used: {
       value: join(
@@ -423,7 +424,7 @@ function fuelCard(
       note: n > 0 ? `over ${n} laps` : '',
     },
     end: {
-      title: `End of L${ending.lapIndex}`,
+      title: `End of ${lapLabel(ending.lapNo)}`,
       value: leftText(f, hasVe),
       // Share of what was loaded that was used, for the bar (grey used, white left).
       usedShare:
@@ -485,7 +486,7 @@ export function buildPitCard(
     columns,
     end: f
       ? {
-          title: `End of L${ending.lapIndex}`,
+          title: `End of ${lapLabel(ending.lapNo)}`,
           spare: leftText(f, hasVe),
           last: lastLine(last, f.endL),
         }

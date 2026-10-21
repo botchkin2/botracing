@@ -1,5 +1,7 @@
 import {type PitPlan, type PitStint, type SliderStop} from './pitPlan';
-import {formationUseText, lapName, stintUseText} from './planCards';
+import {lapLabel} from '@/src/analysis/lapNumbering';
+
+import {formationUseText, stintUseText} from './planCards';
 import {type Unit} from './unit';
 
 // The words of the Pit plan card, finished here so the component only draws.
@@ -52,13 +54,13 @@ export function finalStintWarning(p: PitPlan): string | null {
 /** The p90 fact for a stop past its safe end; null inside it. */
 export function stopWarning(s: SliderStop): string | null {
   return s.after > s.p90Max
-    ? `At p90 use the tank is empty after ${lapName(
+    ? `At p90 use the tank is empty after ${lapLabel(
         s.p90Max,
       )}: this stint runs dry in the heavier 10 % of the laps.`
     : null;
 }
 
-/** The formation lap's own row, as on the Stops card ("Formation · L1 · 3.5 %"); null without one. */
+/** The formation lap's own row, as on the Stops card ("Formation · – · 3.5 %": a lap before the green has no number); null without one. */
 export function formationRow(
   p: PitPlan,
   unit: Unit,
@@ -66,7 +68,7 @@ export function formationRow(
   const use = formationUseText(p.formation, unit);
   return use == null
     ? null
-    : {label: 'Formation', laps: lapName(0), use, tyres: '–'};
+    : {label: 'Formation', laps: '–', use, tyres: '–'};
 }
 
 /** One stint's row: laps (named by `stintLaps` when given, else the count), what it uses in `unit`, the tyre laps. */

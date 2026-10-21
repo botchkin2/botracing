@@ -16,6 +16,7 @@ import {
   sessionOptimum,
   type TrackMapData,
 } from '@/src/data/sessions';
+import {lapLabel} from '@/src/analysis/lapNumbering';
 import {formatGap, formatWhole, turnLabel} from '@/src/design';
 import {sectionNameOf} from '@/src/analysis/turnNames';
 import {medianOfSet} from '@/src/analysis/setStats';
@@ -171,7 +172,7 @@ export function buildSectionWindow(input: {
 
   const rows: SectionWindowRow[] = laps.map((lap, i) => {
     const state = states[i];
-    const base = {lapId: lap.id, label: `L${lap.lapIndex}`, state};
+    const base = {lapId: lap.id, label: lapLabel(lap.lapNo), state};
     const facts = lap.sections[index];
     const w = facts?.window;
     if (state === 'stale' || !facts || !w) {
@@ -274,7 +275,7 @@ function optimumRows(
   // session's opening laps, the same basis Session uses), so it needs no
   // fallback to the comparable laps.
   const optimum = sessionOptimum(laps, map, {picked: true});
-  const lapIndexOf = new Map(laps.map(l => [l.id, l.lapIndex]));
+  const lapNoOf = new Map(laps.map(l => [l.id, l.lapNo]));
   const at = optimum?.windows.findIndex(
     w => w.kind === 'section' && w.section === sectionN,
   );
@@ -287,8 +288,8 @@ function optimumRows(
       label: `Stint ${s.stint}`,
       n: `${w.n} ${w.n === 1 ? 'lap' : 'laps'}`,
       best: seconds(w.bestS),
-      bestLap: lapIndexOf.has(w.bestLapId ?? '')
-        ? `L${lapIndexOf.get(w.bestLapId ?? '')}`
+      bestLap: lapNoOf.has(w.bestLapId ?? '')
+        ? lapLabel(lapNoOf.get(w.bestLapId ?? '') ?? null)
         : '—',
       median: seconds(w.medianS),
       gap: formatGap(w.medianS - w.bestS),

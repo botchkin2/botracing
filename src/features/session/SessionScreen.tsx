@@ -1,4 +1,5 @@
 import {useRouter} from 'expo-router';
+import {lapLabel} from '@/src/analysis/lapNumbering';
 import {
   type ReactNode,
   useCallback,
@@ -279,7 +280,7 @@ function SessionView({
     () =>
       (model.chart?.bars ?? []).map(b => ({
         key: b.lapId,
-        label: `L${b.lapIndex}`,
+        label: lapLabel(b.lapNo),
         deltaS: b.deltaS,
         excluded: !b.comparable,
         highlighted: b.highlighted,

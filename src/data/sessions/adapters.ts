@@ -1,4 +1,5 @@
 import {paceFieldsOf} from '@/src/analysis/paceSet';
+import {lapNoOf} from '@/src/analysis/lapNumbering';
 import {
   type ClassLaps,
   type ClassLapsKind,
@@ -545,9 +546,14 @@ export type Lap = {
   traceHz: number | null;
   /** Position in driving order, from 1. Lap numbers restart per recording. */
   lapIndex: number;
-  /** The game's laps-completed count when the lap began (0 is the first
-   *  lap of a race); matches Field's lap counter. Null on old lap docs. */
+  /** The game's lap counter when the lap began (LMU: laps completed, so 0 is
+   *  the lap the race starts in; iRacing: laps started); matches Field's lap
+   *  counter. Null on old lap docs. */
   lapNumber: number | null;
+  /** The lap's number as the app shows it (analysis/lapNumbering): in a race,
+   *  from the green flag, null for the formation lap; else lapIndex. Every
+   *  label goes through lapLabel(lapNo). */
+  lapNo: number | null;
   timeS: number | null;
   sectorsS: (number | null)[];
   stint: number;
@@ -1079,6 +1085,12 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
       id: str(raw.id),
       lapIndex: i + 1,
       lapNumber: num(raw.lapNumber),
+      lapNo: lapNoOf({
+        sim: str(raw.sim, 'lmu'),
+        race: toSessionType(raw.sessionType) === 'R',
+        lapNumber: num(raw.lapNumber),
+        lapIndex: i + 1,
+      }),
       recordingId: str(raw.recordingId) || null,
       timeS: pace.timeS,
       sectorsS: Array.isArray(raw.sectors) ? raw.sectors.map(num) : [],

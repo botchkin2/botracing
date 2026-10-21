@@ -7,6 +7,8 @@
 // The fill limit is not checked: the capture has no car setup yet (a gap in
 // SESSION_PIPELINE.md), so every recorded drive would miss it.
 
+import {lapLabel, lapNoOf} from '../../src/analysis/lapNumbering.ts';
+
 const wheels = ['FL', 'FR', 'RL', 'RR'];
 
 // A lap that ran from line to line, so the game times it or invalidates it.
@@ -21,16 +23,21 @@ export function checkSession(
   if (!session) return ['session: missing'];
   if (laps.length === 0) miss('laps', 'none');
 
-  for (const lap of laps) {
+  laps.forEach((lap, i) => {
+    const name = lapLabel(
+      lapNoOf({
+        sim: lap.sim ?? 'lmu',
+        race: lap.sessionType === 'Race',
+        lapNumber: lap.lapNumber ?? null,
+        lapIndex: i + 1,
+      }),
+    );
     if (whole(lap) && !lap.timed && lap.invalid !== true)
-      miss(
-        'lap time',
-        `L${lap.lapNumber + 1} has neither a time nor the game's invalid flag`,
-      );
+      miss('lap time', `${name} has neither a time nor the game's invalid flag`);
     // The flag is the game's track-limits call, and only that: never a pit lap.
     if (lap.invalid === true && (lap.pitIn || lap.pitOut))
-      miss('invalid', `L${lap.lapNumber + 1} is a pit lap flagged invalid`);
-  }
+      miss('invalid', `${name} is a pit lap flagged invalid`);
+  });
 
   if (!session.weather) miss('weather', 'empty');
   if (session.fuel?.startL == null) miss('fuel', 'no start level');

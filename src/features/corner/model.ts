@@ -1,4 +1,5 @@
 import {toLocalMetres} from '@/src/analysis/geo';
+import {lapLabel} from '@/src/analysis/lapNumbering';
 import {bestLapOf, lapSlots} from '@/src/analysis/lapSlots';
 import {medianBasisOf} from '@/src/analysis/medianBasis';
 import {
@@ -478,7 +479,7 @@ export function buildCornerModel(input: {
     ) as CornerRow['cells'];
     return {
       lapId: l.id,
-      label: `L${l.lapIndex}`,
+      label: lapLabel(l.lapNo),
       selIndex: i,
       isRef: l.id === ref?.id,
       highlighted: l.id === hl,

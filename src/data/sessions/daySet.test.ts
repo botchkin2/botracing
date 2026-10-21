@@ -40,6 +40,7 @@ const session = (
   over: Record<string, unknown> = {},
 ) => ({
   sessionId: sid,
+  race: false,
   laps: toLaps(times.map((t, i) => raw(`${sid}${i}`, 1, i, t, over))),
 });
 
@@ -94,6 +95,7 @@ describe('daySlowIds', () => {
   it('leaves out laps with a stored reason other than slow', () => {
     const reasoned = {
       sessionId: 'a',
+      race: false,
       laps: toLaps([
         ...steady.map((t, i) => raw(`a${i}`, 1, i, t)),
         raw('x', 1, 8, 130, {reasons: ['pit-out'], comparable: false}),
@@ -107,6 +109,7 @@ describe('daySlowIds', () => {
   it('sections count only when every lap was cut at the same boundaries, else the day is lap time only', () => {
     const rev = (sid: string, r: number) => ({
       sessionId: sid,
+      race: false,
       laps: toLaps(
         steady.map((t, i) =>
           raw(`${sid}${i}`, 1, i, t, {cornerBoundaries: {v: 1, rev: r}}),
@@ -118,6 +121,7 @@ describe('daySlowIds', () => {
     // A member with no windows at all (cut before them) is the same: no sections.
     const bare = {
       sessionId: 'c',
+      race: false,
       laps: toLaps(
         steady.map((t, i) => raw(`c${i}`, 1, i, t, {cornerBoundaries: null})),
       ),

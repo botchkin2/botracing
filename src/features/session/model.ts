@@ -1,4 +1,5 @@
 import {basisOf} from '@/src/analysis/lapBasis';
+import {lapLabel, lapRangeLabel} from '@/src/analysis/lapNumbering';
 import {useMemo} from 'react';
 
 import type {StripLap} from './lapStrip';
@@ -97,6 +98,8 @@ export const factLabel = (f: Fact): string =>
 export type Bar = {
   lapId: string;
   lapIndex: number;
+  /** The lap's number as shown (Lap.lapNo). */
+  lapNo: number | null;
   comparable: boolean;
   /** Median minus lap time, clamped to ±BAR_CLAMP_S. Up (positive) = faster. */
   deltaS: number;
@@ -321,7 +324,6 @@ export function trafficPaceFacts(
 export const BAR_CLAMP_S = 1.5;
 
 const TYPE_TITLE = {R: 'Race', Q: 'Qualifying', P: 'Practice'} as const;
-const lapLabel = (lap: Lap) => `L${lap.lapIndex}`;
 const timeOrDash = (t: number | null) => (t == null ? '—' : formatLapTime(t));
 const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v));
 
@@ -536,6 +538,7 @@ export function buildSessionModel(
           bars: laps.map(l => ({
             lapId: l.id,
             lapIndex: l.lapIndex,
+            lapNo: l.lapNo,
             comparable: l.comparable,
             deltaS:
               l.comparable && l.timeS != null
@@ -570,7 +573,7 @@ export function buildSessionModel(
           title: `${laps.length} laps, none comparable`,
           reasons: laps.map(
             l =>
-              `${lapLabel(l)}: ${statusFor(l, median, basisTimes.n).replace(
+              `${lapLabel(l.lapNo)}: ${statusFor(l, median, basisTimes.n).replace(
                 'Excluded · ',
                 '',
               )}`,
@@ -592,12 +595,12 @@ export function buildSessionModel(
   for (const stint of stintList) {
     const stintLaps = laps.filter(l => l.stint === stint.n);
     if (stintLaps.length === 0) continue;
-    const first = stintLaps[0].lapIndex;
-    const last = stintLaps[stintLaps.length - 1].lapIndex;
+    const first = stintLaps[0].lapNo;
+    const last = stintLaps[stintLaps.length - 1].lapNo;
     // A day names a stint by when its session began.
     const bits = [
       stint.startedAt ? formatClock(stint.startedAt) : `Stint ${stint.n}`,
-      `L${first}–L${last}`,
+      lapRangeLabel(first, last),
     ];
     const line = stintLines.get(stint.n);
     if (line?.lapTimes.medianS != null) {
@@ -625,7 +628,7 @@ export function buildSessionModel(
       rows.push({
         kind: 'lap',
         lapId: l.id,
-        label: lapLabel(l),
+        label: lapLabel(l.lapNo),
         stint: l.stint,
         time: timeOrDash(l.timeS ?? l.invalidTimeS),
         gap: gap == null ? null : formatGap(gap),
@@ -651,7 +654,7 @@ export function buildSessionModel(
   const hlLap = laps.find(l => l.id === selection.hl) ?? null;
   const detail: DetailModel | null = hlLap && {
     lapId: hlLap.id,
-    title: `${lapLabel(hlLap)} · ${timeOrDash(hlLap.timeS)}`,
+    title: `${lapLabel(hlLap.lapNo)} · ${timeOrDash(hlLap.timeS)}`,
     status: statusFor(hlLap, median, basisTimes.n),
     excluded: !hlLap.comparable,
     fuel: lapFuelLines(hlLap),
@@ -674,7 +677,7 @@ export function buildSessionModel(
             selected.length === 0
               ? ''
               : selected.length <= 3
-              ? selected.map(lapLabel).join(' · ')
+              ? selected.map(l => lapLabel(l.lapNo)).join(' · ')
               : `${selected.length} laps`,
           stints,
         }

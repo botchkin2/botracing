@@ -15,6 +15,7 @@ const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
   ...toLaps([{...fixture.laps[0], newTyres: false}])[0],
   id: `l${lapIndex}`,
   lapIndex,
+  lapNo: lapIndex,
   stint: 1,
   timeS: 90,
   partial: false,
@@ -667,7 +668,7 @@ describe('buildPitCard', () => {
       ];
       const card = buildPitCard('R', laps, session());
       if (card?.kind !== 'fuel') throw new Error('not the fuel card');
-      expect(card.start.note).toBe('+15.0 L added on L1');
+      expect(card.start.note).toBe('+15.0 L added before the start');
       // 30 + 15 - 3.7 = 41.3 L.
       expect(card.used.value).toBe('41.3 L / 64 % VE');
     });

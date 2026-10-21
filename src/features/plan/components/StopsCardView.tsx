@@ -10,8 +10,8 @@ import {type StintLine, type StopRow, type StopsCard} from '../planCards';
  * a table with one row per stint and one number a cell: laps, what the stint
  * uses in the unit shown, what the stop that ends it refuels, and the lap that
  * stop comes after. The full-tank plan is at full ink, equal stints under it
- * as the comparison in secondary ink. The formation lap has its own row, so
- * "after L10" after a first stint of 9 reads as L1 plus nine racing laps.
+ * as the comparison in secondary ink. The formation lap has its own row and
+ * no number: "after L9" after a first stint of 9 racing laps.
  */
 export function StopsCardView({card}: {card: StopsCard}) {
   const {color} = useTheme();
@@ -60,7 +60,7 @@ export function StopsCardView({card}: {card: StopsCard}) {
           'tableHeader',
         )}
         {card.formationUse != null
-          ? cells(['Formation', 'L1', card.formationUse, null, null], tone)
+          ? cells(['Formation', '–', card.formationUse, null, null], tone)
           : null}
         {r.lines.map(l => (
           <View key={l.n}>{line(l)}</View>

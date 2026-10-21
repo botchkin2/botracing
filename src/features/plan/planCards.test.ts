@@ -6,7 +6,7 @@ import {type GreenLap, planRace, type PlanRules} from '@/src/analysis/fuelPlan';
 
 import {pitWindows} from '@/src/analysis/pitWindow';
 
-import {buildPlanCards, lapName} from './planCards';
+import {buildPlanCards} from './planCards';
 
 // The round 5 frame's example, with our own lap names: a 2 h race at 101.2 s a
 // lap, 2.38 L and 3.5 % VE a lap, a 100 L / 100 % load and a formation lap.
@@ -30,13 +30,6 @@ const RATIO = 0.68;
 const history = (withVe = true): GreenLap[] =>
   Array.from({length: 12}, () => lap(2.38, withVe ? 3.5 : null));
 
-describe('lapName', () => {
-  it('names racing lap n as the app does: L1 is the formation lap', () => {
-    expect(lapName(0)).toBe('L1');
-    expect(lapName(27)).toBe('L28');
-  });
-});
-
 describe('buildPlanCards', () => {
   const cards = buildPlanCards(planRace(rules, history()), rules, false, RATIO);
 
@@ -44,7 +37,7 @@ describe('buildPlanCards', () => {
     expect(cards.race.laps).toBe(72);
     expect(cards.race.oneMore).toBe(73);
     expect(cards.race.stops).toBe(2);
-    expect(cards.race.stopAfter).toEqual(['L28', 'L56']);
+    expect(cards.race.stopAfter).toEqual(['L27', 'L55']);
     expect(cards.race.working).toBe('72 laps · late flag 73 · median 1:41.200');
   });
 
@@ -99,7 +92,7 @@ describe('buildPlanCards', () => {
 
   it('the Stops card: full tank first with its stint laps, VE per stint and the litres each stop refuels', () => {
     const full = cards.stops.full!;
-    expect(full.stopAfter).toEqual(['L28', 'L56']);
+    expect(full.stopAfter).toEqual(['L27', 'L55']);
     expect(full.stintLaps).toEqual([27, 28, 17]);
     // The first stint also burns the formation lap: (27 + 1) x 3.5 = 98.
     expect(full.vePerStint.map(Math.round)).toEqual([98, 98, 60]);
@@ -108,16 +101,16 @@ describe('buildPlanCards', () => {
     // One line per stint, one number a cell, in the unit shown (VE first). The
     // formation lap has its own row, so stint 1 shows 98 - 3.5 = 94.5 -> 95 %.
     expect(full.lines).toEqual([
-      {n: 1, laps: 'L2–L28', use: '95 %', refuel: '66.6 L', stopAfter: 'L28'},
-      {n: 2, laps: 'L29–L56', use: '98 %', refuel: '39.1 L', stopAfter: 'L56'},
-      {n: 3, laps: 'L57–L73', use: '60 %', refuel: null, stopAfter: null},
+      {n: 1, laps: 'L1–L27', use: '95 %', refuel: '66.6 L', stopAfter: 'L27'},
+      {n: 2, laps: 'L28–L55', use: '98 %', refuel: '39.1 L', stopAfter: 'L55'},
+      {n: 3, laps: 'L56–L72', use: '60 %', refuel: null, stopAfter: null},
     ]);
     // The ranges and the stops are one answer: each stint ends on the lap the
     // stop after it is named for, and the next one starts the lap after.
     expect(full.lines.map(l => l.laps.split('–')[1])).toEqual([
-      'L28',
-      'L56',
-      'L73',
+      'L27',
+      'L55',
+      'L72',
     ]);
     // The equal-stints table partitions the race the same way.
     const equal = cards.stops.equal;
@@ -209,7 +202,7 @@ describe('buildPlanCards', () => {
         latest: 27,
         planLap: 27,
         medianLap: 27,
-        text: 'Stop 1: after L17 to L28 · 12 laps · at median use L28',
+        text: 'Stop 1: after L16 to L27 · 12 laps · at median use L27',
       },
       {
         stop: 2,
@@ -217,7 +210,7 @@ describe('buildPlanCards', () => {
         latest: 55,
         planLap: 55,
         medianLap: 55,
-        text: 'Stop 2: after L45 to L56 · 12 laps · at median use L56, within 28 laps of stop 1',
+        text: 'Stop 2: after L44 to L55 · 12 laps · at median use L55, within 28 laps of stop 1',
       },
     ]);
     expect(cards.stops.windowNote).toBeNull();
@@ -375,7 +368,7 @@ describe('buildPlanCards', () => {
     const equal = cards.stops.equal!;
     expect(equal.kind).toBe('equal');
     expect(equal.stintLaps).toEqual([24, 24, 24]);
-    expect(equal.stopAfter).toEqual(['L25', 'L49']);
+    expect(equal.stopAfter).toEqual(['L24', 'L48']);
     expect(equal.stintLaps.reduce((a, b) => a + b, 0)).toBe(72);
   });
 });
@@ -393,7 +386,7 @@ describe('the fuel-only plan', () => {
     expect(cards.stops.full!.vePerStint).toEqual([]);
     // Fuel alone: (100 - 2.38) / 2.38 = 41 laps in the first stint.
     expect(cards.stops.full!.stintLaps[0]).toBe(41);
-    expect(cards.stops.full!.stopAfter).toEqual(['L42']);
+    expect(cards.stops.full!.stopAfter).toEqual(['L41']);
   });
 
   it('drops the VE meter even when VE numbers exist, if the plan is fuel-only by the data', () => {

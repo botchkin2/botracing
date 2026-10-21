@@ -6,7 +6,7 @@ import {
 import {type SessionClassLaps} from '@/src/data/sessions';
 import {formatGap, formatLapTime} from '@/src/design';
 
-import {lapName} from './planCards';
+import {lapLabel} from '@/src/analysis/lapNumbering';
 import {median} from '@/src/analysis/setStats';
 
 // Class pace on the Plan (round 6, section 2; pit-wall thread 44; Botkin's
@@ -283,9 +283,9 @@ export function passesOf(
 
 function rangeText(lo: number, hi: number): string {
   const first = Math.ceil(lo);
-  if (!Number.isFinite(hi)) return `${lapName(first)} or later`;
+  if (!Number.isFinite(hi)) return `${lapLabel(first)} or later`;
   const last = Math.max(first, Math.floor(hi));
-  return first === last ? lapName(first) : `${lapName(first)}–${lapName(last)}`;
+  return first === last ? lapLabel(first) : `${lapLabel(first)}–${lapLabel(last)}`;
 }
 
 /** The words in a class lane that has no pass inside the race. */

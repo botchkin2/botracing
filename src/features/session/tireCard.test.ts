@@ -27,6 +27,7 @@ const lap = (
   ...toLaps([{...fixture.laps[0], newTyres: false}])[0],
   id: `l${lapIndex}`,
   lapIndex,
+  lapNo: lapIndex,
   stint: 1,
   fuel: {green: true} as Lap['fuel'],
   tyres: {
