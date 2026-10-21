@@ -91,7 +91,8 @@ export function savingOf(
     target,
     atOrUnder: {n: under.length, of: withUse.length},
     bestStint: bestStintMedian(withUse, meter),
-    lapTimes: underS != null && allS != null ? {atOrUnderS: underS, allS} : null,
+    lapTimes:
+      underS != null && allS != null ? {atOrUnderS: underS, allS} : null,
   };
 }
 
