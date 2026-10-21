@@ -132,6 +132,31 @@ test('blocks made from the field the session points at are kept as stored', asyn
   assert.deepEqual(written.classBests, stored.classBests);
 });
 
+test('a field that cannot be read keeps the stored blocks, never null over them', async () => {
+  const lap1Result = {
+    version: FINISH_VERSION,
+    kind: 'race',
+    finish: {overall: 3, inClass: 2, lapsDone: 1},
+    fieldHash: 'aaa',
+  };
+  const classLaps = {version: 0, kind: 'race', classes: {gt3: {}}};
+  const logs = [];
+  const backend = stubBackend(
+    {field: fieldRef('bbb'), result: lap1Result, classLaps},
+    {},
+  );
+  backend.getFile = async () => {
+    throw new Error('storage is down');
+  };
+  await createStore(backend).upload(cloudRun(), {log: m => logs.push(m)});
+  const written = backend.docs.get('sessions/s1');
+  assert.deepEqual(written.result, lap1Result);
+  assert.deepEqual(written.classLaps, classLaps);
+  assert.equal(written.classBests, null);
+  assert.ok(logs.includes('  field: unreadable, kept the stored result'));
+  assert.ok(logs.includes('  field: unreadable, kept the stored classLaps'));
+});
+
 test('stampField and madeFromField', () => {
   assert.equal(stampField(null, fieldRef('a')), null);
   assert.deepEqual(stampField({v: 1}, null), {v: 1, fieldHash: null});
