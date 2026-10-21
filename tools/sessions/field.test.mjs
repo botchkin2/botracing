@@ -41,7 +41,8 @@ test('captureDoubted: one doubtful look in 100 is used, 80 in 100 or a bad playe
   assert.equal(captureDoubted({layoutSuspect: 'x', layoutDoubtful: 1, layoutChecks: 100}), false);
   assert.equal(captureDoubted({layoutSuspect: 'x', layoutDoubtful: 50, layoutChecks: 100}), false);
   assert.equal(captureDoubted({layoutSuspect: 'x', layoutDoubtful: 80, layoutChecks: 100}), true);
-  assert.equal(captureDoubted({playerSuspect: 'speed 900 m/s'}), true);
+  assert.equal(captureDoubted({playerSuspect: 'x', playerDoubtful: 1, playerChecks: 100}), false);
+  assert.equal(captureDoubted({playerSuspect: 'x', playerDoubtful: 90, playerChecks: 100}), true);
 });
 
 test('listCaptures skips a capture doubted for most of the drive and keeps one with a stray look', () => {

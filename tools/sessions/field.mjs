@@ -23,11 +23,11 @@ export const MAX_ALIGN_M = 20;
 const PAD_S = 30;
 
 // The recorder counts its layout looks (recorder.rs note_layout_check): a
-// capture is doubted only when the doubt held for most of the drive, or its
-// telemetry layout failed (a wrong layout, not a wrong moment). One bad beat
-// at a session load does not cost the drive; `goodRows` judges the rows.
+// capture is doubted only when the doubt held for most of the drive, for the
+// scoring or the player looks alike. One bad beat at a session load does not
+// cost the drive; `goodRows` judges the rows.
 export const captureDoubted = meta =>
-  Boolean(meta.playerSuspect) ||
+  (meta.playerDoubtful ?? 0) * 2 > (meta.playerChecks ?? 0) ||
   (meta.layoutDoubtful ?? 0) * 2 > (meta.layoutChecks ?? 0);
 
 export function listCaptures(root, {suspect = false} = {}) {

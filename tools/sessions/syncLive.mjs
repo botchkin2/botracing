@@ -67,7 +67,7 @@ export async function syncLive({
   let marked = null;
   try {
     const meta = JSON.parse(readFileSync(join(captureDir, 'meta.json'), 'utf8'));
-    if (captureDoubted(meta)) marked = meta.playerSuspect ?? meta.layoutSuspect;
+    if (captureDoubted(meta)) marked = meta.layoutSuspect ?? meta.playerSuspect;
   } catch {
     // No meta to read: the adapter's own read reports it.
   }

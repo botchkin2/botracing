@@ -279,11 +279,19 @@ impl Capture {
         }
     }
 
-    /// The player's telemetry layout check failed: that layout is wrong for the
-    /// whole drive, not for a moment, so the tray uses none of the capture.
-    pub fn mark_player_suspect(&mut self, reason: &str) {
-        self.meta.entry("playerSuspect").or_insert_with(|| json!(reason));
-        let _ = self.write_meta();
+    /// One look of the player's telemetry layout check, counted like the
+    /// scoring one (`playerChecks`, `playerDoubtful`, first reason
+    /// `playerSuspect`): "player car not in the field" reads wrong for a beat
+    /// while a session loads, so one look never condemns the drive.
+    pub fn note_player_check(&mut self, doubt: Option<&str>) {
+        self.count("playerChecks", 1);
+        if let Some(reason) = doubt {
+            self.count("playerDoubtful", 1);
+            if !self.meta.contains_key("playerSuspect") {
+                self.meta.insert("playerSuspect".into(), json!(reason));
+                let _ = self.write_meta();
+            }
+        }
     }
 
     pub fn note_suspect(&mut self) {
