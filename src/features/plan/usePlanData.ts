@@ -1,5 +1,4 @@
 import {planRace, usage} from '@/src/analysis/fuelPlan';
-import {trafficMedians} from '@/src/analysis/traffic';
 import {raceFactsOfPlan} from '@/src/data/sessions';
 import {planComboKey} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
@@ -91,15 +90,6 @@ export function usePlanData(
             ratio: hist.ratio,
             lastRatio: hist.measured.find(m => m.ratio != null)?.ratio ?? null,
             drift: hist.chosen.drift,
-            // Over the comparable laps of the pooled green laps: a lap time is
-            // pace only when it is comparable (the plan basis, paceLaps).
-            traffic: trafficMedians(
-              greenLaps.map(l => ({
-                timeS: l.lapTimeS,
-                comparable: l.comparable !== false,
-                traffic: l.traffic ?? null,
-              })),
-            ),
             ratioLoadsL: [
               ...new Set(
                 hist.measured

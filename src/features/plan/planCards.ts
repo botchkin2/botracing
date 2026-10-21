@@ -80,6 +80,8 @@ export type RaceCard = {
 export type StartLoad = {
   /** "79 % VE (54 L)" in VE, "54 L" in fuel. */
   value: string;
+  /** The tile's number: "79 % VE", or "54 L" in fuel. */
+  hero: string;
   /** What the load covers: "to finish" or "for the first stint". */
   covers: string;
 };
@@ -185,9 +187,8 @@ function raceCard(
   let working: string | null = null;
   if (race && rules.lengthMin != null && median != null) {
     const pit = race.pit;
+    // The laps and the late flag are the Race tiles; this is how they were counted.
     working = [
-      `${race.estimate} laps`,
-      race.oneMore == null ? null : `late flag ${race.oneMore}`,
       `median ${formatLapTime(median)}`,
       pit
         ? `pit ${Math.round(pit.totalS)} s (${pit.stops} × ${Math.round(
@@ -259,6 +260,7 @@ function startLoadOf(
     if (value == null) return null;
     return {
       value,
+      hero: value.split(' (')[0],
       covers: 'to finish',
     };
   }
@@ -278,6 +280,7 @@ function startLoadOf(
   if (value == null) return null;
   return {
     value,
+    hero: value.split(' (')[0],
     covers: 'for the first stint',
   };
 }

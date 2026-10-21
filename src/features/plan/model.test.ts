@@ -94,30 +94,11 @@ describe('greenLapsOf', () => {
         vePct: 5,
         lapTimeS: 110,
         sessionId: 's1',
+        lapIndex: 1,
         comparable: true,
         veMeasured: true,
-        traffic: null,
       },
     ]);
-  });
-
-  it('carries the traffic facts of a lap for the clean and traffic medians', () => {
-    const [out] = greenLapsOf(
-      's1',
-      [
-        planLap({
-          traffic: {aheadS: 6, passes: 1, blueS: 0, battleS: 0.5, overtakes: 2},
-        }),
-      ],
-      0.7,
-    );
-    expect(out.traffic).toEqual({
-      trafficAheadS: 6,
-      passesSufferedAll: 1,
-      blueFlagS: 0,
-      battleS: 0.5,
-      overtakes: [undefined, undefined],
-    });
   });
 
   it('marks a lap whose own VE was not recorded, even when the ratio gives it a VE', () => {
@@ -131,25 +112,6 @@ describe('greenLapsOf', () => {
       [3.5, null],
       [3.5, null],
     ]);
-  });
-
-  it('a lap whose block lacks a traffic number has no traffic facts, never a 0', () => {
-    const [out] = greenLapsOf(
-      's1',
-      [
-        planLap({
-          traffic: {
-            aheadS: 6,
-            passes: null,
-            blueS: 0,
-            battleS: 0.5,
-            overtakes: 1,
-          },
-        }),
-      ],
-      0.7,
-    );
-    expect(out.traffic).toBeNull();
   });
 
   it('is empty for a session whose block has no lap rows', () => {
@@ -349,113 +311,13 @@ describe('planView', () => {
     );
   });
 
-  it('prints the row cards that are left: Per green lap and To drop a stop', () => {
-    // Race, Per tank and Stops are typed cards now (planCards.test.ts).
-    expect(view.cards.map(c => c.key)).toEqual(['perLap', 'dropStop']);
-    // One unit at a time, VE first (thread 44 #1826).
-    const perLap = view.cards[0].rows;
-    expect(perLap.map(r => r.label)).not.toContain('Fuel');
-    expect(perLap[0].value).toBe('5.00 %  (5.00 % to 5.00 %)');
-    expect(perLap[perLap.length - 1].value).toContain(
-      '10 laps in 2 sessions, since ',
-    );
-  });
-
-  it('asked for fuel it prints the fuel row and not the VE one', () => {
-    const fuel = planView(
-      preset,
-      rules,
-      planRace(rules.rules, history),
-      {
-        since: '2026-09-01T10:00:00Z',
-        lastFillLimitL: 75,
-        ratio,
-        lastRatio: 0.7,
-        ratioLoadsL: [84],
-        drift: null,
-      },
-      'fuel',
-    );
-    const rows = fuel.cards[0].rows;
-    expect(rows[0].value).toBe('3.50 L  (3.50 L to 3.50 L)');
-    expect(rows.map(r => r.label)).not.toContain('Virtual Energy');
-    // The drop-a-stop line speaks fuel too.
-    const drop = fuel.cards.find(c => c.key === 'dropStop')!.rows[0].value;
-    expect(drop).toContain('Fuel:');
-    expect(drop).not.toContain('VE:');
-  });
-
-  it('Per green lap: the all-green median is the headline and sets the race laps, clean and traffic follow with their n', () => {
-    const withTraffic = planView(
-      preset,
-      rules,
-      planRace(rules.rules, history),
-      {
-        since: null,
-        lastFillLimitL: 75,
-        ratio,
-        lastRatio: 0.7,
-        ratioLoadsL: [84],
-        drift: null,
-        traffic: {
-          v: 4,
-          clean: {laps: 4, medianS: 108.2},
-          traffic: {laps: 5, medianS: 111.5},
-        },
-      },
-    );
-    const rows = withTraffic.cards[0].rows;
-    const time = rows.find(r => r.label === 'Lap time')!;
-    expect(time.value).toBe('1:50.000  (1:50.000 to 1:50.000)');
-    expect(time.note).toBe('comparable green laps');
-    const clean = rows.find(r => r.label === 'Clean laps')!;
-    expect(clean.value).toBe('1:48.200');
-    expect(clean.note).toBeUndefined();
-    const traffic = rows.find(r => r.label === 'Traffic laps')!;
-    expect(traffic.value).toBe('1:51.500');
-    expect(traffic.note).toBeUndefined();
-    // The headline comes first, the secondary rows after it.
-    const labels = rows.map(r => r.label);
-    expect(labels.indexOf('Lap time')).toBeLessThan(
-      labels.indexOf('Clean laps'),
-    );
-  });
-
-  it('Per green lap: a set under 3 laps, or no field, adds no row', () => {
-    const few = planView(preset, rules, planRace(rules.rules, history), {
-      since: null,
-      lastFillLimitL: 75,
-      ratio,
-      lastRatio: 0.7,
-      ratioLoadsL: [84],
-      drift: null,
-      traffic: {
-        v: 4,
-        clean: {laps: 2, medianS: null},
-        traffic: {laps: 7, medianS: 111.5},
-      },
-    });
-    const labels = few.cards[0].rows.map(r => r.label);
-    expect(labels).not.toContain('Clean laps');
-    expect(labels).toContain('Traffic laps');
-    // The view above has no traffic at all: neither row.
-    expect(view.cards[0].rows.map(r => r.label)).not.toContain('Traffic laps');
-    expect(view.cards[0].rows.map(r => r.label)).not.toContain('Clean laps');
-  });
-
-  it('prints the drop-one-stop line', () => {
-    const drop = view.cards[1].rows;
-    expect(drop[0].label).toBe('1 stop');
-    // Fuel (3.5 L) would still reach at 3.65 L a lap: only VE has to drop,
-    // and VE is the one unit the line speaks in.
-    expect(drop[0].value).toContain('VE: at most 4.35 % a lap');
-    expect(drop[0].value).not.toContain('Fuel:');
-    expect(drop[1].label).toBe('Your laps at <= 4.35 % VE');
-    expect(drop[1].value).toBe('no data');
+  it('names what the per-lap numbers stand on: laps, sessions and since when', () => {
+    expect(view.basis.from).toMatch(/^10 laps in 2 sessions, since /);
+    expect(view.basis.drift).toBeNull();
   });
 
   it('shows where the VE ratio came from', () => {
-    const note = view.cards[0].rows[0].note;
+    const note = view.basis.ratio;
     expect(note).toContain('0.700 L per 1 % VE');
     expect(note).toContain('measured in the session of ');
   });
@@ -474,7 +336,6 @@ describe('planView', () => {
       ratioLoadsL: [],
       drift: null,
     });
-    expect(v.cards.some(c => c.key === 'stops')).toBe(false);
     const load = v.loadTable!;
     // 10 laps + the formation's 0.4 laps of fuel (no VE) at 3.5 L and 5 %: 36.40 L, 50.00 % VE.
     expect(load.rows[0].label).toBe('10 laps + form.');
@@ -494,7 +355,7 @@ describe('planView', () => {
       ratioLoadsL: [84, 100],
       drift: null,
     });
-    expect(v.cards[0].rows[0].note).toBe(
+    expect(v.basis.ratio).toBe(
       'no VE: none of your sessions ran 60 L (they ran 84, 100 L) and the ratio follows the load; type it into the preset',
     );
   });
@@ -547,8 +408,8 @@ describe('planView', () => {
       ratioLoadsL: [],
       drift: null,
     });
-    expect(empty.cards[0].rows[0].value).toBe('no data');
-    expect(empty.cards.some(c => c.key === 'dropStop')).toBe(false);
+    expect(empty.basis.from).toBe('0 laps in 0 sessions');
+    expect(empty.loadTable).toBeNull();
   });
 });
 
