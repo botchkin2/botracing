@@ -65,9 +65,10 @@ type ChaseProps = {
 export function ChaseView(props: ChaseProps) {
   const [full, setFull] = useState(props.embedded === true);
   const [cam, setCam] = useState<CamValue>('1');
-  const {failed, host} = useChaseEngine(props, cam);
+  const [free, setFree] = useState(false);
+  const {failed, host, reset} = useChaseEngine(props, cam, setFree);
   const surface = (
-    <ChaseSurface {...props} full={full} setFull={setFull} cam={cam} setCam={setCam} host={host} failed={failed} />
+    <ChaseSurface {...props} full={full} setFull={setFull} cam={cam} setCam={setCam} host={host} failed={failed} free={free} onReset={reset} />
   );
   return full && typeof document !== 'undefined'
     ? createPortal(surface, document.body)
@@ -78,7 +79,8 @@ export function ChaseView(props: ChaseProps) {
 function useChaseEngine(
   {road, sample, timeS, focus, playing, rate, inputs, onPressCar, embedded}: ChaseProps,
   cam: CamValue,
-): {failed: string | null; host: HTMLDivElement} {
+  onFree: (free: boolean) => void,
+): {failed: string | null; host: HTMLDivElement; reset: () => void} {
   const {color} = useTheme();
   const [host] = useState(() => {
     const el = document.createElement('div');
@@ -115,7 +117,7 @@ function useChaseEngine(
       try {
         const {mountChase} = await import('../chase/chaseEngine');
         if (dead) return;
-        made = mountChase(host, {onPick: (i: number) => pick.current(i), theme});
+        made = mountChase(host, {onPick: (i: number) => pick.current(i), theme, onFree});
         engine.current = made;
         made.setRoad(road);
         made.setCam(Number(cam) as ChaseCamMode);
@@ -150,7 +152,7 @@ function useChaseEngine(
   useEffect(() => {
     engine.current?.setCam(Number(cam) as ChaseCamMode);
   }, [cam]);
-  return {failed, host};
+  return {failed, host, reset: () => engine.current?.resetCam()};
 }
 
 function ChaseSurface({
@@ -177,6 +179,8 @@ function ChaseSurface({
   setCam,
   host,
   failed,
+  free,
+  onReset,
 }: ChaseProps & {
   full: boolean;
   setFull: (f: boolean) => void;
@@ -184,6 +188,8 @@ function ChaseSurface({
   setCam: (c: CamValue) => void;
   host: HTMLDivElement;
   failed: string | null;
+  free: boolean;
+  onReset: () => void;
 }) {
   const {color} = useTheme();
   // Full screen: its own play toggle (Space) and a way out (Esc).
@@ -249,6 +255,11 @@ function ChaseSurface({
       ) : null}
       <View style={[styles.cams, tight && styles.camsTight]}>
         <Segment options={CAMS} value={cam} onChange={setCam} />
+        {free && (cam === '1' || cam === '2') ? (
+          <Pressable accessibilityLabel='Reset the camera to chase' onPress={onReset} style={toolStyle}>
+            <Text variant='dataSmall'>Reset</Text>
+          </Pressable>
+        ) : null}
         {full && !embedded ? (
           <Pressable
             accessibilityLabel={playing ? 'Pause' : 'Play'}
