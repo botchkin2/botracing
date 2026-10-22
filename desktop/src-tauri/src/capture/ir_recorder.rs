@@ -897,7 +897,10 @@ mod tests {
         frame_on_lap(&mut sim.borrow_mut().mem, first_after, 4);
         rec.tick(ms);
         // The writer is a thread: polls without a new tick pick its result up.
-        for _ in 0..200 {
+        // Up to 20 s: the loop leaves as soon as the chunk is on disk, and a slow
+        // CI disk (Defender scanning the new parquet) took over the old 1 s (the
+        // 0.1.16 release run, 223 tests, 25 s against 3.7 s here).
+        for _ in 0..4_000 {
             if rec.status.last_lap_at.is_some() {
                 break;
             }

@@ -474,7 +474,9 @@ mod tests {
             cap.flush((chunk + 1) * 60_000).unwrap();
             slowest = slowest.max(t.elapsed());
         }
-        assert!(slowest < Duration::from_millis(5), "flush held the poll for {slowest:?}");
+        // A hand-off, not a wait: the writer takes 200 ms per chunk, so under 100 ms
+        // still tells the two apart (5 ms failed on a loaded runner at 12.6 ms).
+        assert!(slowest < Duration::from_millis(100), "flush held the poll for {slowest:?}");
         let t = Instant::now();
         cap.close(180_000).unwrap();
         // close waits for the writer: three chunks at 200 ms each, at least.
