@@ -162,7 +162,8 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, getIndex: () =>
         tl = 0;
       }
       const kp = hard || tp === 0 ? 1 : ease(dt, tp);
-      const kl = hard ? 1 : ease(dt, tl);
+      // tl is 0 for a camera that is not smoothed: ease(0, 0) is NaN, which a paused frame (dt 0) would hand to the look-at for good
+      const kl = hard || tl === 0 ? 1 : ease(dt, tl);
       const kz = hard || tp === 0 ? 1 : ease(dt, tp * 1.4);
       at.x = lerp(at.x, px, kp);
       at.y = lerp(at.y, py, kp);

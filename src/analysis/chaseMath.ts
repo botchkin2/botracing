@@ -7,4 +7,4 @@ export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 /** The signed turn from angle a to angle b, in (-pi, pi]. */
 export const angDiff = (a: number, b: number) => mod(b - a + Math.PI, TAU) - Math.PI;
 /** Frame-rate independent exponential approach: the share of the gap closed in dt with time constant tau. */
-export const ease = (dt: number, tau: number) => 1 - Math.exp(-dt / tau);
+export const ease = (dt: number, tau: number) => (tau > 0 ? 1 - Math.exp(-dt / tau) : dt > 0 ? 1 : 0);
