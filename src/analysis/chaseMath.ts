@@ -1,3 +1,4 @@
+// Baseline of main before #688 (the near ground) for the view-distance comparison, not for merge.
 // Small numeric helpers the chase view shares. Plain TypeScript, no imports.
 
 export const TAU = Math.PI * 2;
