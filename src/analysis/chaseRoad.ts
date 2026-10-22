@@ -3,6 +3,7 @@
 // live here. Plain TypeScript with erasable syntax only.
 
 import {type Elevation, heightOnLap} from './elevation.ts';
+import type {RoadUse} from './roadUse.ts';
 
 /** The curated profile (the track map's `elevation`): heightM[i] at i * stepM metres of a lap of lengthM metres. */
 export interface ChaseElevation extends Elevation {
@@ -31,6 +32,8 @@ export interface ChaseRoad {
   elevMin: number;
   /** The road's roll at each path point, degrees, + with the right side of travel up (the curated `bank`); null without one, where the road is level across. */
   bankDeg: number[] | null;
+  /** Where across the road the cars ran and where they touch an edge (roadUse.ts), from the same field; absent on a hand-made road. */
+  use?: RoadUse | null;
 }
 
 /** Used where no edge was measured on either side. */
