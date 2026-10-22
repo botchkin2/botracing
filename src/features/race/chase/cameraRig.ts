@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import {clamp, ease, lerp, mod} from '@/src/analysis/chaseMath';
 import {followStep, newFollow} from '@/src/analysis/chaseFollow';
+import {newFreeCam, stepFree, type FreeCam} from '@/src/analysis/chaseFreeCam';
 import type {RoadIndex} from '@/src/analysis/chaseRoadIndex';
 import {setWorld} from './sceneFrame';
 import type {ChaseCamMode} from '@/src/features/race/chase/chaseTypes';
@@ -46,6 +47,8 @@ export interface CameraRig {
   mode: ChaseCamMode;
   /** How far Heli has been dragged round, radians. */
   orbit: number;
+  /** The user's turn, raise and zoom round the followed car in Chase and High (the browser's free camera). */
+  free: FreeCam;
   /** `dt` wall seconds, `rate` the playback rate. */
   update(dt: number, me: FollowedCar, playing: boolean, rate: number): void;
   /** The followed car changed: place the camera afresh. */
@@ -66,6 +69,7 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, getIndex: () =>
   let lastMode: ChaseCamMode | 0 = 0;
   let tv: TvRig | null = null;
   const follow = newFollow();
+  const last = {x: NaN, y: NaN, heading: NaN};
 
   /** A camera on the outside of the bend at the given lap distance, off the edge of the road. */
   function tvAt(ix: RoadIndex, atM: number): TvRig {
@@ -84,16 +88,26 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, getIndex: () =>
   const rig: CameraRig = {
     mode: 1,
     orbit: 0,
+    free: newFreeCam(),
     reset() {
       init = false;
       follow.set = false;
       tv = null;
     },
-    update(dt, me, playing, rate) {
+    update(dtS, me, playing, rate) {
+      let dt = dtS;
       const ix = getIndex();
       if (!ix) return;
       const mode = rig.mode;
-      const hard = !init || lastMode !== mode || !playing;
+      // Paused: nothing eases. The camera stays exactly where the last frame left it unless the car was moved (a seek:
+      // placed afresh) or the user moves the camera, so a pause never shifts the view.
+      const carMoved = me.x !== last.x || me.y !== last.y || me.heading !== last.heading;
+      const hard = !init || lastMode !== mode || (!playing && carMoved);
+      if (!playing && !carMoved) dt = 0;
+      last.x = me.x;
+      last.y = me.y;
+      last.heading = me.heading;
+      stepFree(rig.free, dtS);
       let px: number;
       let py: number;
       let pz: number;
@@ -111,6 +125,7 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, getIndex: () =>
           mode === 1 ? CHASE_BACK_M : HIGH_BACK_M,
           mode === 1 ? CHASE_UP_M : HIGH_UP_M,
           hard,
+          rig.free,
         );
         px = v.camX;
         py = v.camY;
@@ -147,7 +162,8 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, getIndex: () =>
         tl = 0;
       }
       const kp = hard || tp === 0 ? 1 : ease(dt, tp);
-      const kl = hard ? 1 : ease(dt, tl);
+      // tl is 0 for a camera that is not smoothed: ease(0, 0) is NaN, which a paused frame (dt 0) would hand to the look-at for good
+      const kl = hard || tl === 0 ? 1 : ease(dt, tl);
       const kz = hard || tp === 0 ? 1 : ease(dt, tp * 1.4);
       at.x = lerp(at.x, px, kp);
       at.y = lerp(at.y, py, kp);

@@ -41,6 +41,8 @@ export interface ChaseEngine {
   setInputs(ribbon: ChaseRibbon | null): void;
   update(u: Partial<ChaseUpdate>): void;
   setCam(mode: ChaseCamMode): void;
+  /** Ease the free camera (drag, wheel) back to the chase view. */
+  resetCam(): void;
   dispose(): void;
 }
 

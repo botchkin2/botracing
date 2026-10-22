@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import {clamp, mod} from '@/src/analysis/chaseMath';
 import {clockAt, followApp, type ChaseClock} from '@/src/analysis/chaseClock';
 import {surfacePose} from '@/src/analysis/chasePose';
+import {dragFree, isFree, resetFree, zoomFree} from '@/src/analysis/chaseFreeCam';
 import {chaseHeading, stepTravel} from '@/src/analysis/chaseHeading';
 import type {ChaseRoad} from '@/src/analysis/chaseRoad';
 import {roadIndex, type RoadIndex} from '@/src/analysis/chaseRoadIndex';
@@ -35,7 +36,7 @@ const LABEL_RANGE_M = 120;
 const LABEL_LIFT_M = 1.6;
 const PICK_REACH_PX = 46;
 const INPUT_WINDOW = 70;
-const DRAG_RAD_PER_PX = 0.008;
+const HELI_DRAG_RAD_PER_PX = 0.008;
 
 interface CarState {
   /** The pose drawn: the data's own at the engine's clock. */
@@ -59,7 +60,7 @@ interface CarState {
 
 export function mountChase(
   container: HTMLElement,
-  opts: {theme: ChaseTheme; onPick: (index: number) => void},
+  opts: {theme: ChaseTheme; onPick: (index: number) => void; onFree?: (free: boolean) => void},
 ): ChaseEngine {
   const T = opts.theme;
   const renderer = new THREE.WebGLRenderer({antialias: true, powerPreference: 'high-performance'});
@@ -83,7 +84,7 @@ export function mountChase(
   let ribbon: ChaseRibbon | null = null;
   let inputIdx = -1;
   let state: ChaseUpdate = {sample: () => [], timeS: 0, focus: null, playing: false, rate: 1, inputIdx: -1};
-  let clock: ChaseClock = {timeS: 0, atMs: performance.now(), playing: false, rate: 1};
+  let clock: ChaseClock = {timeS: 0, atMs: performance.now(), playing: false, rate: 1, appS: 0};
   let dirty = true;
   let alive = true;
   let last = performance.now();
@@ -292,15 +293,19 @@ export function mountChase(
     }
   }
 
+  let wasFree = false;
   function frame(now: number) {
     if (!alive) return;
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     if (dirty || state.playing) {
       dirty = false;
-      // every car where the data puts it at this instant: the field interpolated (paused: the nearest update)
-      ingest(state.sample(clockAt(clock, now), !clock.playing));
+      // every car where the data puts it at this instant: the field interpolated, paused too, so pausing moves nothing
+      ingest(state.sample(clockAt(clock, now), false));
       render(dt);
+      if (rig.free.resetting) dirty = true;
+      const free = isFree(rig.free);
+      if (free !== wasFree) opts.onFree?.((wasFree = free));
     }
     requestAnimationFrame(frame);
   }
@@ -317,19 +322,33 @@ export function mountChase(
   observer.observe(container);
   resize();
 
-  // press: the nearest car within a finger's reach; Heli: drag to look around
-  let drag: {x: number; orbit: number; moved: boolean} | null = null;
+  // press: the nearest car within a finger's reach; drag: Heli looks round, Chase and High turn and raise the camera
+  // round the car (chaseFreeCam); the wheel zooms; a double click is Reset
+  let drag: {x: number; y: number; px: number; py: number; orbit: number; moved: boolean} | null = null;
   const onDown = (e: PointerEvent) => {
-    drag = {x: e.clientX, orbit: rig.orbit, moved: false};
+    drag = {x: e.clientX, y: e.clientY, px: e.clientX, py: e.clientY, orbit: rig.orbit, moved: false};
   };
   const onMove = (e: PointerEvent) => {
-    if (!drag || rig.mode !== 4) return;
+    if (!drag) return;
     const dx = e.clientX - drag.x;
-    if (Math.abs(dx) > 4) drag.moved = true;
-    rig.orbit = drag.orbit - dx * DRAG_RAD_PER_PX;
+    if (Math.abs(dx) > 4 || Math.abs(e.clientY - drag.y) > 4) drag.moved = true;
+    if (rig.mode === 4) rig.orbit = drag.orbit - dx * HELI_DRAG_RAD_PER_PX;
+    else if ((rig.mode === 1 || rig.mode === 2) && drag.moved) dragFree(rig.free, e.clientX - drag.px, e.clientY - drag.py);
+    drag.px = e.clientX;
+    drag.py = e.clientY;
     dirty = true;
   };
   const onUp = () => setTimeout(() => (drag = null), 0);
+  const onWheel = (e: WheelEvent) => {
+    if (rig.mode !== 1 && rig.mode !== 2) return;
+    e.preventDefault();
+    zoomFree(rig.free, e.deltaY);
+    dirty = true;
+  };
+  const onDouble = () => {
+    resetFree(rig.free);
+    dirty = true;
+  };
   const onClick = (e: MouseEvent) => {
     if (drag?.moved) return;
     const r = el.getBoundingClientRect();
@@ -348,6 +367,8 @@ export function mountChase(
   };
   el.addEventListener('pointerdown', onDown);
   el.addEventListener('click', onClick);
+  el.addEventListener('dblclick', onDouble);
+  el.addEventListener('wheel', onWheel, {passive: false});
   addEventListener('pointermove', onMove);
   addEventListener('pointerup', onUp);
   requestAnimationFrame(frame);
@@ -367,6 +388,10 @@ export function mountChase(
       if (u.focus !== undefined && u.focus !== was) rig.reset();
       dirty = true;
     },
+    resetCam() {
+      resetFree(rig.free);
+      dirty = true;
+    },
     setCam(mode: ChaseCamMode) {
       rig.mode = mode;
       dirty = true;
@@ -376,6 +401,8 @@ export function mountChase(
       observer.disconnect();
       el.removeEventListener('pointerdown', onDown);
       el.removeEventListener('click', onClick);
+      el.removeEventListener('dblclick', onDouble);
+      el.removeEventListener('wheel', onWheel);
       removeEventListener('pointermove', onMove);
       removeEventListener('pointerup', onUp);
       for (const o of objects.values()) {
