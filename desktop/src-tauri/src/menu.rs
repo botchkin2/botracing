@@ -81,6 +81,9 @@ pub struct Inputs<'a> {
     pub iracing: &'a Rec,
     /// Sims whose cleanup waits on an upload that keeps failing.
     pub cleanup_blocked: &'a [String],
+    /// The cleanup's own problems (prune_schedule::problems): recordings not
+    /// stored yet and when they go.
+    pub cleanup_problems: &'a [String],
 }
 
 pub fn problems(i: &Inputs) -> Vec<String> {
@@ -122,6 +125,7 @@ fn finish(mut out: Vec<String>, i: &Inputs) -> Vec<String> {
     if !i.cleanup_blocked.is_empty() {
         out.push("Cleanup is waiting on failing uploads".into());
     }
+    out.extend(i.cleanup_problems.iter().cloned());
     out
 }
 
@@ -475,7 +479,17 @@ mod tests {
             lmu: rec,
             iracing: rec,
             cleanup_blocked: blocked,
+            cleanup_problems: &[],
         }
+    }
+
+    #[test]
+    fn a_recording_not_stored_yet_is_a_problem() {
+        let (up, rec) = (Upload::Idle, Rec::Idle);
+        let cleanup = vec!["Recording not stored yet · deleted in 3 days".to_string()];
+        let mut i = inputs(&up, &rec, &[]);
+        i.cleanup_problems = &cleanup;
+        assert_eq!(problems(&i), cleanup);
     }
 
     #[test]

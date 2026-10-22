@@ -1,16 +1,24 @@
 // Keeps the capture folder from growing. A capture is a folder under the
 // capture root, with a meta.json (its sim, and endUtc once it has finished).
-// Sync writes `uploaded.json` inside a capture once it has uploaded that
-// capture's session.
+// Sync writes `uploaded.json` inside a capture once it has uploaded the
+// capture's sessions, with each session it read back from the store and found
+// matching under `verified` (tools/sessions/verifyStored.mjs).
+//
+// Only a verified capture counts toward the size cap: every session that read
+// it was read back and matched (pit-wall thread 100, L6; decisions/lap/
+// 2026-10-21-no-validation-drops-data.md). An unverified one is never taken
+// for the cap; over it, its bytes are reported (`held_bytes`).
 //
 // Every deletion needs its sim to be idle: no sync running and no retry
 // pending (the uploader's state). A switched-off sim is never touched.
-// A marked capture (uploaded) goes once it has finished (meta.json has an
-// endUtc) and is older than `keep`; then, while the folder is still over
-// `cap_bytes`, the oldest finished marked captures go first.
-// An unmarked capture (no uploaded session read it) goes once it ended more
-// than `keep` ago AND the uploader completed a run after it ended. It is never
-// taken for the size cap. Without the uploader's state, nothing unmarked goes.
+// A verified capture goes once it has finished (meta.json has an endUtc) and
+// is older than `keep`; then, while the folder is still over `cap_bytes`, the
+// oldest finished verified captures go first.
+// An unverified capture (never uploaded, or uploaded and not matching) goes
+// once it ended more than `keep` ago AND the uploader completed a run after it
+// ended: Botkin's approved exception ("14 days is acceptable", the decision
+// above). Until then it is `waiting`, which the tray shows in Problems with
+// the days left, so it never goes silently.
 
 use std::collections::HashMap;
 use std::fs;
@@ -20,7 +28,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
-/// The file sync writes inside a capture once its session is uploaded.
+/// The file sync writes inside a capture once its sessions are uploaded.
 pub const UPLOADED_MARKER: &str = "uploaded.json";
 /// The capture's own record, written at the start and again at the end.
 pub const META: &str = "meta.json";
@@ -39,10 +47,13 @@ pub struct Entry {
     pub ended: SystemTime,
     /// meta.json has an endUtc: the recorder finished the capture.
     pub finished: bool,
-    /// The marker's time for an uploaded capture, else the folder's time.
+    /// The marker's time for a marked capture, else the folder's time.
     pub modified: SystemTime,
     pub bytes: u64,
-    pub uploaded: bool,
+    /// It has an `uploaded.json`.
+    pub marked: bool,
+    /// Every session that read it was read back from the store and matched.
+    pub verified: bool,
 }
 
 /// What the uploader's state.json says about one sim.
@@ -72,39 +83,85 @@ pub struct Policy {
     pub sims: Vec<String>,
 }
 
-/// Whether a capture folder holds the sync marker.
-pub fn has_marker(path: &Path) -> bool {
-    path.is_dir() && path.join(UPLOADED_MARKER).is_file()
+/// Whether a capture's marker lists at least one session and every one of
+/// them under `verified`. A marker without `verified` (written before the
+/// read-back) is not.
+pub fn is_verified(marker: &Value) -> bool {
+    let ids: Vec<&str> = match marker.get("sessionIds").and_then(Value::as_array) {
+        Some(ids) => ids.iter().filter_map(Value::as_str).collect(),
+        None => marker
+            .get("sessionId")
+            .and_then(Value::as_str)
+            .into_iter()
+            .collect(),
+    };
+    let Some(verified) = marker.get("verified").and_then(Value::as_object) else {
+        return false;
+    };
+    !ids.is_empty() && ids.iter().all(|id| verified.contains_key(*id))
 }
 
-/// The paths to delete, oldest first.
+fn read_marker(path: &Path) -> Option<Value> {
+    let text = fs::read_to_string(path.join(UPLOADED_MARKER)).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
+/// What one cleanup decides.
+#[derive(Debug, Default, PartialEq)]
+pub struct Plan {
+    /// The paths to delete, oldest first.
+    pub doomed: Vec<PathBuf>,
+    /// Of `doomed`, the ones never verified (deleted at the 14-day exception).
+    pub doomed_unverified: Vec<PathBuf>,
+    /// The switched-on sims' unverified captures the uploader has run past and
+    /// that stay: each with the time left before it goes.
+    pub waiting: Vec<(PathBuf, Duration)>,
+    /// Bytes of unverified captures while the folder stays over the cap (0
+    /// when it ends under it).
+    pub held_bytes: u64,
+}
+
+/// What to delete, and what is held over the cap.
 pub fn plan(
     entries: &[Entry],
     now: SystemTime,
     policy: &Policy,
     states: &HashMap<String, SimState>,
-) -> Vec<PathBuf> {
+) -> Plan {
     let on = |e: &Entry| policy.sims.iter().any(|s| *s == e.sim);
     let old = |t: SystemTime| now.duration_since(t).map_or(false, |age| age > policy.keep);
     // A sim with no state at all is not idle: nothing of it is pruned.
     let idle = |e: &Entry| states.get(&e.sim).map_or(false, |s| s.idle());
     let mut total: u64 = entries.iter().map(|e| e.bytes).sum();
     let mut doomed: Vec<PathBuf> = Vec::new();
+    let mut doomed_unverified: Vec<PathBuf> = Vec::new();
+    let mut waiting: Vec<(PathBuf, Duration)> = Vec::new();
 
-    for e in entries.iter().filter(|e| on(e) && !e.uploaded && idle(e)) {
+    for e in entries.iter().filter(|e| on(e) && !e.verified) {
         let Some(st) = states.get(&e.sim) else {
             continue;
         };
-        let run_since_end = st.last_run.map_or(false, |run| run > e.ended);
-        if old(e.ended) && run_since_end {
+        // The uploader had its chance: a run completed after the capture ended.
+        if !st.last_run.map_or(false, |run| run > e.ended) {
+            continue;
+        }
+        // Its 14 days run from the later of its end and its marker: a capture
+        // marked before the read-back existed keeps the deadline it had.
+        let since = if e.marked { e.ended.max(e.modified) } else { e.ended };
+        if old(since) && st.idle() {
             doomed.push(e.path.clone());
+            doomed_unverified.push(e.path.clone());
             total = total.saturating_sub(e.bytes);
+        } else {
+            let age = now.duration_since(since).unwrap_or_default();
+            waiting.push((e.path.clone(), policy.keep.saturating_sub(age)));
         }
     }
+    waiting.sort_by_key(|(_, left)| *left);
 
     let mut candidates: Vec<&Entry> = entries
         .iter()
-        .filter(|e| on(e) && e.uploaded && e.finished && idle(e))
+        .filter(|e| on(e) && e.verified && e.finished && idle(e))
         .collect();
     candidates.sort_by_key(|e| e.modified);
     for e in &candidates {
@@ -123,7 +180,21 @@ pub fn plan(
         doomed.push(e.path.clone());
         total = total.saturating_sub(e.bytes);
     }
-    doomed
+    let held_bytes = if total > policy.cap_bytes {
+        entries
+            .iter()
+            .filter(|e| on(e) && !e.verified && !doomed.contains(&e.path))
+            .map(|e| e.bytes)
+            .sum()
+    } else {
+        0
+    };
+    Plan {
+        doomed,
+        doomed_unverified,
+        waiting,
+        held_bytes,
+    }
 }
 
 /// The top-level captures of `root` with their sizes, sims and marker state.
@@ -132,8 +203,9 @@ pub fn scan(root: &Path) -> io::Result<Vec<Entry>> {
     for item in fs::read_dir(root)? {
         let path = item.map_err(io::Error::from)?.path();
         let folder = fs::metadata(&path)?.modified().unwrap_or(UNIX_EPOCH);
-        let uploaded = has_marker(&path);
-        let modified = if uploaded {
+        let marked = path.is_dir() && path.join(UPLOADED_MARKER).is_file();
+        let verified = marked && read_marker(&path).as_ref().map_or(false, is_verified);
+        let modified = if marked {
             fs::metadata(path.join(UPLOADED_MARKER))?
                 .modified()
                 .unwrap_or(UNIX_EPOCH)
@@ -147,7 +219,8 @@ pub fn scan(root: &Path) -> io::Result<Vec<Entry>> {
             ended,
             finished,
             sim,
-            uploaded,
+            marked,
+            verified,
             path,
         });
     }
@@ -239,36 +312,36 @@ pub fn blocked_sims(policy: &Policy, states: &HashMap<String, SimState>) -> Vec<
         .collect()
 }
 
-/// What `prune` would delete under `root`, as (captures, bytes). Nothing is
-/// deleted.
+/// What `prune` would do under `root`, and the bytes it would delete.
+/// Nothing is deleted.
 pub fn dry_run(
     root: &Path,
     now: SystemTime,
     policy: &Policy,
     states: &HashMap<String, SimState>,
-) -> io::Result<(usize, u64)> {
+) -> io::Result<(Plan, u64)> {
     let entries = scan(root)?;
-    let doomed = plan(&entries, now, policy, states);
+    let p = plan(&entries, now, policy, states);
     let bytes = entries
         .iter()
-        .filter(|e| doomed.contains(&e.path))
+        .filter(|e| p.doomed.contains(&e.path))
         .map(|e| e.bytes)
         .sum();
-    Ok((doomed.len(), bytes))
+    Ok((p, bytes))
 }
 
-/// Deletes what `plan` chooses under `root` and returns the paths removed.
+/// Deletes what `plan` chooses under `root`, and returns the plan.
 pub fn prune(
     root: &Path,
     now: SystemTime,
     policy: &Policy,
     states: &HashMap<String, SimState>,
-) -> io::Result<Vec<PathBuf>> {
-    let doomed = plan(&scan(root)?, now, policy, states);
-    for path in &doomed {
+) -> io::Result<Plan> {
+    let p = plan(&scan(root)?, now, policy, states);
+    for path in &p.doomed {
         fs::remove_dir_all(path)?;
     }
-    Ok(doomed)
+    Ok(p)
 }
 
 #[cfg(test)]
@@ -276,6 +349,26 @@ mod tests {
     use super::*;
 
     const DAY: Duration = Duration::from_secs(86_400);
+    /// Markers as sync writes them (tools/sessions/captureMarker.mjs).
+    const VERIFIED: &str = r#"{"sessionId":"s1","sessionIds":["s1"],"uploadedUtc":"2026-09-01T00:00:00Z","verified":{"s1":{"laps":31,"fieldHash":"abc","utc":"2026-09-01T00:00:00Z"}}}"#;
+    const SENT: &str = r#"{"sessionId":"s1","sessionIds":["s1"],"uploadedUtc":"2026-09-01T00:00:00Z","verified":{}}"#;
+
+    #[test]
+    fn a_capture_is_verified_only_when_every_session_that_read_it_is() {
+        let v = |text: &str| is_verified(&serde_json::from_str(text).unwrap());
+        assert!(v(VERIFIED));
+        assert!(!v(SENT));
+        // Written before the read-back existed.
+        assert!(!v(r#"{"sessionId":"s1","sessionIds":["s1"],"uploadedUtc":"x"}"#));
+        assert!(!v("{}"));
+        // Two sessions read it; only one was read back.
+        assert!(!v(
+            r#"{"sessionId":"s2","sessionIds":["s1","s2"],"verified":{"s1":{}}}"#
+        ));
+        assert!(v(
+            r#"{"sessionId":"s2","sessionIds":["s1","s2"],"verified":{"s1":{},"s2":{}}}"#
+        ));
+    }
 
     fn at(days_ago: u32, now: SystemTime) -> SystemTime {
         now - DAY * days_ago
@@ -289,8 +382,8 @@ mod tests {
         }
     }
 
-    /// A finished LMU capture that ended `days_ago`, marked or not.
-    fn entry(name: &str, days_ago: u32, bytes: u64, uploaded: bool, now: SystemTime) -> Entry {
+    /// A finished LMU capture that ended `days_ago`, verified or not.
+    fn entry(name: &str, days_ago: u32, bytes: u64, verified: bool, now: SystemTime) -> Entry {
         Entry {
             path: PathBuf::from(name),
             sim: "lmu".into(),
@@ -298,8 +391,13 @@ mod tests {
             finished: true,
             modified: at(days_ago, now),
             bytes,
-            uploaded,
+            marked: verified,
+            verified,
         }
+    }
+
+    fn doomed(p: Plan) -> Vec<PathBuf> {
+        p.doomed
     }
 
     /// LMU with its last run `days_ago`, nothing syncing or retrying.
@@ -314,17 +412,19 @@ mod tests {
     }
 
     #[test]
-    fn deletes_finished_marked_captures_older_than_keep_days() {
+    fn deletes_finished_verified_captures_older_than_keep_days() {
         let now = SystemTime::now();
         let entries = vec![
-            entry("old-marked", 20, 10, true, now),
-            entry("old-unmarked", 20, 10, false, now),
-            entry("recent-marked", 3, 10, true, now),
+            entry("old-verified", 20, 10, true, now),
+            entry("old-unverified", 20, 10, false, now),
+            entry("recent-verified", 3, 10, true, now),
+            // Verified on day 13, a day before it would have gone: kept.
+            entry("verified-day-13", 13, 10, true, now),
         ];
-        // The last run came before these captures ended: the unmarked one stays.
+        // The last run came before these captures ended: the unverified one stays.
         assert_eq!(
-            plan(&entries, now, &policy(14, u64::MAX), &ran_at(25, now)),
-            vec![PathBuf::from("old-marked")]
+            doomed(plan(&entries, now, &policy(14, u64::MAX), &ran_at(25, now))),
+            vec![PathBuf::from("old-verified")]
         );
     }
 
@@ -335,7 +435,7 @@ mod tests {
             entry("old-marked", 20, 10, true, now),
             entry("old-unmarked", 20, 10, false, now),
         ];
-        assert!(plan(&entries, now, &policy(14, 5), &HashMap::new()).is_empty());
+        assert!(doomed(plan(&entries, now, &policy(14, 5), &HashMap::new())).is_empty());
     }
 
     #[test]
@@ -343,7 +443,7 @@ mod tests {
         let now = SystemTime::now();
         let mut cut_short = entry("cut-short-marked", 30, 10, true, now);
         cut_short.finished = false;
-        assert!(plan(&[cut_short], now, &policy(14, u64::MAX), &ran_at(0, now)).is_empty());
+        assert!(doomed(plan(&[cut_short], now, &policy(14, u64::MAX), &ran_at(0, now))).is_empty());
     }
 
     #[test]
@@ -370,42 +470,71 @@ mod tests {
                     ..busy
                 },
             )]);
-            assert!(plan(&entries, now, &policy(14, u64::MAX), &states).is_empty());
+            assert!(doomed(plan(&entries, now, &policy(14, u64::MAX), &states)).is_empty());
         }
     }
 
     #[test]
-    fn size_cap_never_takes_an_unmarked_capture() {
+    fn size_cap_never_takes_an_unverified_capture_and_reports_it_held() {
         let now = SystemTime::now();
         // Recent, so only the cap could take them.
         let entries = vec![
             entry("a", 3, 500, false, now),
             entry("b", 1, 500, false, now),
         ];
-        assert!(plan(&entries, now, &policy(14, 100), &ran_at(0, now)).is_empty());
+        let p = plan(&entries, now, &policy(14, 100), &ran_at(0, now));
+        assert!(p.doomed.is_empty());
+        assert_eq!(p.held_bytes, 1000);
+        // Under the cap nothing is held.
+        assert_eq!(
+            plan(&entries, now, &policy(14, 5000), &ran_at(0, now)).held_bytes,
+            0
+        );
     }
 
     #[test]
-    fn unmarked_is_pruned_only_when_old_and_a_run_came_after_it_ended() {
+    fn an_unverified_capture_goes_at_14_days_and_waits_with_its_days_left_until_then() {
+        // Botkin 2026-10-22: "14 days is acceptable", if it is never silent.
         let now = SystemTime::now();
-        let old = vec![entry("old-unmarked", 20, 10, false, now)];
-        // A run 2 days ago, after the capture ended 20 days ago: pruned.
+        let entries = vec![
+            entry("old-unverified", 20, 10, false, now),
+            entry("unverified-day-11", 11, 10, false, now),
+            entry("unverified-day-2", 2, 10, false, now),
+        ];
+        let p = plan(&entries, now, &policy(14, u64::MAX), &ran_at(1, now));
+        assert_eq!(p.doomed, vec![PathBuf::from("old-unverified")]);
+        assert_eq!(p.doomed_unverified, vec![PathBuf::from("old-unverified")]);
         assert_eq!(
-            plan(&old, now, &policy(14, u64::MAX), &ran_at(2, now)),
-            vec![PathBuf::from("old-unmarked")]
+            p.waiting,
+            vec![
+                (PathBuf::from("unverified-day-11"), DAY * 3),
+                (PathBuf::from("unverified-day-2"), DAY * 12),
+            ]
         );
-        // The last run is older than the capture's end: kept.
-        assert!(plan(&old, now, &policy(14, u64::MAX), &ran_at(25, now)).is_empty());
-        // Not old enough yet: kept even after a run.
-        let recent = vec![entry("recent-unmarked", 5, 10, false, now)];
-        assert!(plan(&recent, now, &policy(14, u64::MAX), &ran_at(0, now)).is_empty());
+        // The last run is older than their end: nothing goes or waits yet
+        // (the uploader has not had its chance).
+        let p = plan(&entries, now, &policy(14, u64::MAX), &ran_at(25, now));
+        assert!(p.doomed.is_empty() && p.waiting.is_empty());
+    }
+
+    #[test]
+    fn a_capture_marked_before_the_read_back_keeps_its_old_deadline() {
+        // Ended 20 days ago, marked (old format, no `verified`) 4 days ago:
+        // 10 days left, as the marker's age gave it before.
+        let now = SystemTime::now();
+        let mut e = entry("old-format", 20, 10, false, now);
+        e.marked = true;
+        e.modified = at(4, now);
+        let p = plan(&[e], now, &policy(14, u64::MAX), &ran_at(1, now));
+        assert!(p.doomed.is_empty());
+        assert_eq!(p.waiting, vec![(PathBuf::from("old-format"), DAY * 10)]);
     }
 
     #[test]
     fn a_switched_off_sim_is_never_pruned() {
         let now = SystemTime::now();
-        let lmu = entry("lmu-marked", 30, 10, true, now);
-        let mut iracing = entry("ir-unmarked", 30, 10, false, now);
+        let lmu = entry("lmu-verified", 30, 10, true, now);
+        let mut iracing = entry("ir-verified", 30, 10, true, now);
         iracing.sim = "iracing".into();
         let only_iracing = Policy {
             keep: DAY * 14,
@@ -429,13 +558,13 @@ mod tests {
             ),
         ]);
         assert_eq!(
-            plan(&[lmu, iracing], now, &only_iracing, &states),
-            vec![PathBuf::from("ir-unmarked")]
+            doomed(plan(&[lmu, iracing], now, &only_iracing, &states)),
+            vec![PathBuf::from("ir-verified")]
         );
     }
 
     #[test]
-    fn size_cap_removes_oldest_finished_marked_captures_until_under_cap() {
+    fn size_cap_removes_oldest_finished_verified_captures_until_under_cap() {
         let now = SystemTime::now();
         let entries = vec![
             entry("oldest", 5, 400, true, now),
@@ -443,7 +572,7 @@ mod tests {
             entry("newest", 1, 400, true, now),
         ];
         assert_eq!(
-            plan(&entries, now, &policy(14, 800), &ran_at(0, now)),
+            doomed(plan(&entries, now, &policy(14, 800), &ran_at(0, now))),
             vec![PathBuf::from("oldest")]
         );
     }
@@ -478,12 +607,13 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let now = SystemTime::now();
-        // (name, uploaded, finished, age in days of the marker or of meta.json)
-        for (name, marked, finished, age_days) in [
-            ("old-marked", true, true, 30u32),
-            ("old-unmarked", false, true, 30),
-            ("cut-short-marked", true, false, 30),
-            ("recent-marked", true, true, 1),
+        // (name, marker, finished, age in days of the marker or of meta.json)
+        for (name, marker, finished, age_days) in [
+            ("old-verified", Some(VERIFIED), true, 30u32),
+            ("old-sent-unverified", Some(SENT), true, 30),
+            ("old-unmarked", None, true, 30),
+            ("cut-short-verified", Some(VERIFIED), false, 30),
+            ("recent-verified", Some(VERIFIED), true, 1),
         ] {
             let dir = root.join(name);
             fs::create_dir_all(&dir).unwrap();
@@ -495,31 +625,37 @@ mod tests {
                 ""
             };
             fs::write(&meta, format!(r#"{{"sim":"lmu"{end}}}"#)).unwrap();
-            let file = if marked {
+            let mut files = vec![meta];
+            if let Some(body) = marker {
                 let marker = dir.join(UPLOADED_MARKER);
-                fs::write(&marker, b"{}").unwrap();
-                marker
-            } else {
-                meta
-            };
-            fs::File::options()
-                .write(true)
-                .open(&file)
-                .unwrap()
-                .set_modified(at(age_days, now))
-                .unwrap();
+                fs::write(&marker, body).unwrap();
+                files.push(marker);
+            }
+            for file in files {
+                fs::File::options()
+                    .write(true)
+                    .open(&file)
+                    .unwrap()
+                    .set_modified(at(age_days, now))
+                    .unwrap();
+            }
         }
-        let removed = prune(&root, now, &policy(14, u64::MAX), &ran_at(1, now)).unwrap();
-        let mut names: Vec<_> = removed
+        let p = prune(&root, now, &policy(14, u64::MAX), &ran_at(1, now)).unwrap();
+        assert_eq!(p.held_bytes, 0);
+        let mut names: Vec<_> = p
+            .doomed
             .iter()
             .map(|p| p.file_name().unwrap().to_owned())
             .collect();
         names.sort();
-        assert_eq!(names, vec!["old-marked", "old-unmarked"]);
-        assert!(!root.join("old-marked").exists());
+        // The unverified ones go at 14 days (the exception), listed as such.
+        assert_eq!(names, vec!["old-sent-unverified", "old-unmarked", "old-verified"]);
+        assert_eq!(p.doomed_unverified.len(), 2);
+        assert!(!root.join("old-verified").exists());
+        assert!(!root.join("old-sent-unverified").exists());
         assert!(!root.join("old-unmarked").exists());
-        assert!(root.join("cut-short-marked").exists());
-        assert!(root.join("recent-marked").exists());
+        assert!(root.join("cut-short-verified").exists());
+        assert!(root.join("recent-verified").exists());
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -561,7 +697,7 @@ mod tests {
             fs::write(&meta, r#"{"sim":"lmu","endUtc":"2026-09-01T00:00:00Z"}"#).unwrap();
             let file = if uploaded {
                 let marker = dir.join(UPLOADED_MARKER);
-                fs::write(&marker, b"{}").unwrap();
+                fs::write(&marker, VERIFIED).unwrap();
                 marker
             } else {
                 meta
@@ -587,11 +723,11 @@ mod tests {
             cap_bytes: u64::MAX,
             sims: vec!["lmu".into()],
         };
-        let (count, bytes) = dry_run(&root, now, &policy, &states).unwrap();
-        assert_eq!(count, 2);
-        // Each folder: chunk.bin (100), its meta.json; old-a also its marker ("{}").
+        let (p, bytes) = dry_run(&root, now, &policy, &states).unwrap();
+        assert_eq!(p.doomed.len(), 2);
+        // Each folder: chunk.bin (100), its meta.json; old-a also its marker.
         let meta_len = r#"{"sim":"lmu","endUtc":"2026-09-01T00:00:00Z"}"#.len() as u64;
-        assert_eq!(bytes, (100 + meta_len + 2) + (100 + meta_len));
+        assert_eq!(bytes, (100 + meta_len + VERIFIED.len() as u64) + (100 + meta_len));
         assert!(root.join("old-a").exists());
         assert!(root.join("old-b").exists());
         let _ = fs::remove_dir_all(&root);
