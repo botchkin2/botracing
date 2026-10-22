@@ -20,6 +20,12 @@ fn printable(s: &str) -> bool {
     !s.is_empty() && !s.chars().any(char::is_control)
 }
 
+// Only garbage is out of range: a car in the garage or pit box reads a negative
+// lap distance as far back as the pit lane is long (Sebring -1079 to -1664 m,
+// 2026-10-19). What a wrong layout does is garble every car, so the check
+// counts the cars out of range and refuses on the share, as it does for names.
+const LAP_DIST_BOUND: f64 = 100_000.0;
+
 /// From the field alone, before the player is in a car.
 pub fn check_scoring(
     layout: &Layout,
@@ -41,6 +47,7 @@ pub fn check_scoring(
     }
     let size = vehicles.len() / n;
     let mut bad_names = Vec::new();
+    let mut bad_dists = Vec::new();
     for i in 0..n {
         let car = &vehicles[i * size..(i + 1) * size];
         let name = text_at(car, p.v_name);
@@ -52,9 +59,12 @@ pub fn check_scoring(
             return Err(format!("car {i} place {place}"));
         }
         let dist = f64_at(car, p.v_lap_dist);
-        if !(dist.is_finite() && dist > -1000.0 && dist < 100_000.0) {
-            return Err(format!("car {i} lap distance {dist}"));
+        if !(dist.is_finite() && dist.abs() < LAP_DIST_BOUND) {
+            bad_dists.push(format!("car {i} lap distance {dist}"));
         }
+    }
+    if bad_dists.len() * 4 > n {
+        return Err(format!("{} of {n} cars: {}", bad_dists.len(), bad_dists[0]));
     }
     // A wrong layout garbles every name; one odd or still-blank name while a
     // 58-car field loads does not (2026-09-29 Daytona). Refuse only when more

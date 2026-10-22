@@ -263,6 +263,37 @@ impl Capture {
         write_json(&self.dir.join("meta.json"), &Value::Object(self.meta.clone()))
     }
 
+    /// One look of the scoring layout check: counted, never decisive. meta.json
+    /// keeps how many looks doubted (`layoutDoubtful` of `layoutChecks`) and the
+    /// first reason (`layoutSuspect`); the tray's analysis decides from the data
+    /// and skips a capture only when the doubt held for most of the drive.
+    pub fn note_layout_check(&mut self, doubt: Option<&str>) {
+        self.count("layoutChecks", 1);
+        if let Some(reason) = doubt {
+            self.count("layoutDoubtful", 1);
+            if !self.meta.contains_key("layoutSuspect") {
+                self.meta.insert("layoutSuspect".into(), json!(reason));
+                // On disk now: a drive that stops soon still carries the first reason.
+                let _ = self.write_meta();
+            }
+        }
+    }
+
+    /// One look of the player's telemetry layout check, counted like the
+    /// scoring one (`playerChecks`, `playerDoubtful`, first reason
+    /// `playerSuspect`): "player car not in the field" reads wrong for a beat
+    /// while a session loads, so one look never condemns the drive.
+    pub fn note_player_check(&mut self, doubt: Option<&str>) {
+        self.count("playerChecks", 1);
+        if let Some(reason) = doubt {
+            self.count("playerDoubtful", 1);
+            if !self.meta.contains_key("playerSuspect") {
+                self.meta.insert("playerSuspect".into(), json!(reason));
+                let _ = self.write_meta();
+            }
+        }
+    }
+
     pub fn note_suspect(&mut self) {
         let n = self.meta.get("suspectFrames").and_then(Value::as_u64).unwrap_or(0);
         self.meta.insert("suspectFrames".into(), json!(n + 1));
@@ -443,7 +474,9 @@ mod tests {
             cap.flush((chunk + 1) * 60_000).unwrap();
             slowest = slowest.max(t.elapsed());
         }
-        assert!(slowest < Duration::from_millis(5), "flush held the poll for {slowest:?}");
+        // A hand-off, not a wait: the writer takes 200 ms per chunk, so under 100 ms
+        // still tells the two apart (5 ms failed on a loaded runner at 12.6 ms).
+        assert!(slowest < Duration::from_millis(100), "flush held the poll for {slowest:?}");
         let t = Instant::now();
         cap.close(180_000).unwrap();
         // close waits for the writer: three chunks at 200 ms each, at least.

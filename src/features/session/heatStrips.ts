@@ -7,6 +7,7 @@
 // units only: no bands, no cause (we do not know a car's window, and a lap's
 // tyre temperature is not separable from its fuel load or wear). Pure.
 import {WHEELS, type Wheel} from '@/src/analysis/tyres';
+import {lapLabel} from '@/src/analysis/lapNumbering';
 import type {Lap} from '@/src/data/sessions';
 import {oneDecimal} from '@/src/design';
 
@@ -119,7 +120,7 @@ export function buildHeatStrips(
       green.push(lap.fuel?.green === true);
       columns.push({
         lapId: lap.id,
-        label: `L${lap.lapIndex}`,
+        label: lapLabel(lap.lapNo),
         stint: lap.stint,
         best: lap.id === bestLapId,
         values,

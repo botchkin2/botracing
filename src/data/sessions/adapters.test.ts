@@ -579,17 +579,73 @@ describe('toTrackMap elevation', () => {
   it('reads the curated height, and is null without it', () => {
     const base = {trackId: 'lmu-x', lengthM: 1000};
     expect(toTrackMap(base).elevation).toBeNull();
-    expect(toTrackMap({...base, elevation: {stepM: 10, heightM: [1, 2, 3, 4, 5]}}).elevation).toEqual({stepM: 10, heightM: [1, 2, 3, 4, 5]});
-    expect(toTrackMap({...base, elevation: {stepM: 10, heightM: [1]}}).elevation).toBeNull();
-    expect(toTrackMap({...base, elevation: {stepM: 0, heightM: [1, 2]}}).elevation).toBeNull();
+    expect(
+      toTrackMap({...base, elevation: {stepM: 10, heightM: [1, 2, 3, 4, 5]}})
+        .elevation,
+    ).toEqual({stepM: 10, heightM: [1, 2, 3, 4, 5]});
+    expect(
+      toTrackMap({...base, elevation: {stepM: 10, heightM: [1]}}).elevation,
+    ).toBeNull();
+    expect(
+      toTrackMap({...base, elevation: {stepM: 0, heightM: [1, 2]}}).elevation,
+    ).toBeNull();
   });
 
   it('reads the curated bank, and is null without it or when it is not numbers', () => {
     const base = {trackId: 'lmu-x', lengthM: 1000};
     expect(toTrackMap(base).bank).toBeNull();
-    expect(toTrackMap({...base, bank: {stepM: 5, rollDeg: [0, 1.5, -2], source: 'capture'}}).bank).toEqual({stepM: 5, rollDeg: [0, 1.5, -2]});
-    expect(toTrackMap({...base, bank: {stepM: 5, rollDeg: [1]}}).bank).toBeNull();
-    expect(toTrackMap({...base, bank: {stepM: 0, rollDeg: [1, 2]}}).bank).toBeNull();
-    expect(toTrackMap({...base, bank: {stepM: 5, rollDeg: [1, 'x']}}).bank).toBeNull();
+    expect(
+      toTrackMap({
+        ...base,
+        bank: {stepM: 5, rollDeg: [0, 1.5, -2], source: 'capture'},
+      }).bank,
+    ).toEqual({stepM: 5, rollDeg: [0, 1.5, -2]});
+    expect(
+      toTrackMap({...base, bank: {stepM: 5, rollDeg: [1]}}).bank,
+    ).toBeNull();
+    expect(
+      toTrackMap({...base, bank: {stepM: 0, rollDeg: [1, 2]}}).bank,
+    ).toBeNull();
+    expect(
+      toTrackMap({...base, bank: {stepM: 5, rollDeg: [1, 'x']}}).bank,
+    ).toBeNull();
+  });
+});
+
+describe('toSessionDetail fieldMissing', () => {
+  it('reads why the session has no field; null when absent or empty', () => {
+    expect(toSessionDetail(raw).fieldMissing).toBeNull();
+    expect(toSessionDetail({...raw, fieldMissing: ''}).fieldMissing).toBeNull();
+    expect(
+      toSessionDetail({...raw, fieldMissing: 'This drive was not recorded'})
+        .fieldMissing,
+    ).toBe('This drive was not recorded');
+  });
+});
+
+describe('toLaps lap numbers (pit-wall thread 99, row FML)', () => {
+  const counted = (sessionType: string, sim: string, counters: number[]) =>
+    toLaps(
+      counters.map((lapNumber, i) => ({
+        id: `l${i}`,
+        sessionType,
+        sim,
+        lapNumber,
+      })),
+    ).map(l => l.lapNo);
+
+  it('a race counts from the green flag, from the game counter: LMU counter 0 is L1', () => {
+    expect(counted('Race', 'lmu', [0, 1, 2])).toEqual([1, 2, 3]);
+    // A capture that starts in the pits on counter 1 (Daytona 10-07) starts on L2.
+    expect(counted('Race', 'lmu', [1, 2])).toEqual([2, 3]);
+  });
+
+  it("iRacing's counter-0 race lap is the formation", () => {
+    expect(counted('Race', 'iracing', [0, 1, 2])).toEqual([null, 1, 2]);
+  });
+
+  it('practice and qualifying keep their place in driving order', () => {
+    expect(counted('Practice', 'lmu', [3, 4, 5])).toEqual([1, 2, 3]);
+    expect(counted('Qualify', 'iracing', [0, 1])).toEqual([1, 2]);
   });
 });

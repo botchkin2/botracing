@@ -67,12 +67,62 @@ export const SURFACE_STEP_M = 10;
  */
 const RIGHT = 1;
 /**
- * An edge further than this from the centre is not the road: Daytona reads up
- * to 25.8 m where the pit entry opens, against a 14.8 m p90 width.
+ * An edge reading is kept when it is within EDGE_MEDIAN_X times the median edge
+ * distance of its own 10 m bin and side, over every lap in the build. No metre
+ * constant: the game's edge channel reads far past the road where it opens
+ * (a pit entry, Algarve's flat 30.0, which looks like the game's range cap,
+ * Sebring's 51.8) and a bin's median is the road there. A fixed 20 m cut
+ * clipped real wide edges at four tracks (Algarve, Sebring, Circuit of the
+ * Americas, Daytona; docs/SANITY_LIMITS.md, pit wall thread 94 #6596).
  */
-export const MAX_EDGE_M = 20;
-/** Neighbours further apart than this (a gap in the 10 Hz samples) give no heading. */
-const MAX_GAP_M = 30;
+export const EDGE_MEDIAN_X = 3;
+/** A bin with fewer samples than this takes its neighbours' median. */
+export const MIN_BIN_SAMPLES = 5;
+/** A neighbour pair further apart than this many of the lap's own median steps gives no heading (a gap in the samples). */
+const GAP_STEPS = 4;
+
+/** Per bin, the largest edge distance kept on each side; Infinity where there is nothing to judge by. */
+export interface EdgeLimits {
+  l: number[];
+  r: number[];
+}
+
+/**
+ * The limits of a build's laps: per bin and side, EDGE_MEDIAN_X times the
+ * median |edge| there, or of the nearest bins that together hold
+ * MIN_BIN_SAMPLES readings.
+ */
+export function edgeLimits(
+  lengthM: number,
+  laps: SurfaceLap[],
+  stepM: number = SURFACE_STEP_M,
+): EdgeLimits {
+  const n = Math.ceil(lengthM / stepM);
+  const left: number[][] = Array.from({length: n}, () => []);
+  const right: number[][] = Array.from({length: n}, () => []);
+  for (const lap of laps) {
+    for (let i = 0; i < lap.distM.length; i++) {
+      const te = lap.trackEdgeM[i];
+      const d = lap.distM[i];
+      if (!Number.isFinite(te) || !Number.isFinite(d) || te === 0) continue;
+      const b = Math.min(n - 1, Math.max(0, Math.floor(d / stepM)));
+      (te < 0 ? left : right)[b].push(Math.abs(te));
+    }
+  }
+  const limit = (side: number[][]): number[] =>
+    side.map((_, b) => {
+      // Widen to the nearest bins until MIN_BIN_SAMPLES readings are in hand.
+      for (let w = 0; w < n; w++) {
+        const pool: number[] = [];
+        for (let k = Math.max(0, b - w); k <= Math.min(n - 1, b + w); k++) {
+          pool.push(...side[k]);
+        }
+        if (pool.length >= MIN_BIN_SAMPLES) return EDGE_MEDIAN_X * median(pool);
+      }
+      return Infinity;
+    });
+  return {l: limit(left), r: limit(right)};
+}
 
 export function emptySurface(
   lengthM: number,
@@ -97,16 +147,26 @@ export function emptySurface(
 }
 
 /** Unit vector to the right of travel between two points; null if they coincide or are a gap apart. */
-function rightNormal(a: Pt, b: Pt): Pt | null {
+function rightNormal(a: Pt, b: Pt, maxGapM: number): Pt | null {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const len = Math.hypot(dx, dy);
-  if (len === 0 || len > MAX_GAP_M) return null;
+  if (len === 0 || len > maxGapM) return null;
   return {x: dy / len, y: -dx / len};
 }
 
 /** Adds one lap's samples. Laps that are pit, partial or not comparable are the caller's to leave out. */
-export function addLap(s: TrackSurface, lap: SurfaceLap): void {
+export function addLap(
+  s: TrackSurface,
+  lap: SurfaceLap,
+  limits?: EdgeLimits,
+): void {
+  // A gap in the samples is a jump of several of this lap's own steps.
+  const steps: number[] = [];
+  for (let i = 1; i < lap.x.length; i++) {
+    steps.push(Math.hypot(lap.x[i] - lap.x[i - 1], lap.y[i] - lap.y[i - 1]));
+  }
+  const maxGapM = steps.length > 0 ? GAP_STEPS * 2 * median(steps) : Infinity;
   const seenC = new Set<number>();
   const seenL = new Set<number>();
   const seenR = new Set<number>();
@@ -120,6 +180,7 @@ export function addLap(s: TrackSurface, lap: SurfaceLap): void {
     const n = rightNormal(
       {x: lap.x[Math.max(0, i - 1)], y: lap.y[Math.max(0, i - 1)]},
       {x: lap.x[Math.min(last, i + 1)], y: lap.y[Math.min(last, i + 1)]},
+      maxGapM,
     );
     if (!n) continue;
     const b = Math.min(s.bins.length - 1, Math.max(0, Math.floor(d / s.stepM)));
@@ -133,7 +194,8 @@ export function addLap(s: TrackSurface, lap: SurfaceLap): void {
     }
     // 0 is not a side (the game never writes it: 0 of 71,513 samples on Road
     // Atlanta and Daytona), so it would only pull an edge onto the centre.
-    if (te === 0 || Math.abs(te) > MAX_EDGE_M) continue;
+    if (te === 0) continue;
+    if (limits && Math.abs(te) > (te < 0 ? limits.l[b] : limits.r[b])) continue;
     if (te < 0) {
       bin.nL += 1;
       bin.sL += te;
@@ -161,9 +223,10 @@ export function addSession(
   s: TrackSurface,
   sessionId: string,
   laps: SurfaceLap[],
+  limits: EdgeLimits = edgeLimits(s.lengthM, laps, s.stepM),
 ): boolean {
   if (laps.length === 0) return false;
-  for (const lap of laps) addLap(s, lap);
+  for (const lap of laps) addLap(s, lap, limits);
   if (!s.sessions.includes(sessionId)) s.sessions.push(sessionId);
   return true;
 }
@@ -288,8 +351,12 @@ function buildRun(
     const c = centre[i] as Pt;
     const prev = (i > from ? centre[i - 1] : c) as Pt;
     const next = (i < to - 1 ? centre[i + 1] : c) as Pt;
+    // Bins of one run are consecutive: a jump of GAP_STEPS bin pairs is a break.
+    const gapM = GAP_STEPS * 2 * s.stepM;
     const n =
-      rightNormal(prev, next) ?? rightNormal(c, next) ?? rightNormal(prev, c);
+      rightNormal(prev, next, gapM) ??
+      rightNormal(c, next, gapM) ??
+      rightNormal(prev, c, gapM);
     const b = s.bins[i];
     const at = (lateral: number): Pt | null =>
       n

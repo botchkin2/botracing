@@ -5,7 +5,7 @@ import {radius, size, space, useTheme} from '@/src/design';
 import {Chip, Text} from '@/src/ui';
 
 import {lapAt} from '../pitPlan';
-import {lapName} from '../planCards';
+import {lapLabel} from '@/src/analysis/lapNumbering';
 
 /** react-native-web applies the selection of a drag to the page text: hold it off while dragging. */
 function holdSelection(hold: boolean) {
@@ -76,7 +76,7 @@ export function StopSlider({
       <View style={styles.slider}>
         <View
           accessibilityRole='adjustable'
-          accessibilityLabel={`${name}: after ${lapName(after)}`}
+          accessibilityLabel={`${name}: after ${lapLabel(after)}`}
           accessibilityValue={{min, max, now: after}}
           onLayout={e => setTrackW(e.nativeEvent.layout.width)}
           {...responder.panHandlers}
@@ -116,13 +116,13 @@ export function StopSlider({
         </View>
         <View style={styles.ends}>
           <Text variant='axis' tone='textMuted'>
-            {lapName(min)}
+            {lapLabel(min)}
           </Text>
           <Text variant='axis' tone='textFaint'>
-            {lapName(Math.round((min + max) / 2))}
+            {lapLabel(Math.round((min + max) / 2))}
           </Text>
           <Text variant='axis' tone='textMuted'>
-            {lapName(max)}
+            {lapLabel(max)}
           </Text>
         </View>
       </View>

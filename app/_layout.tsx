@@ -87,6 +87,9 @@ function Navigation() {
     },
   };
   const {isDesktop} = useLayout();
+  // The Android app's WebView shows the race page for the 3D alone (src/features/race/embed3d.ts): no app chrome around it,
+  // not even while it loads.
+  const {embed} = useGlobalSearchParams<{embed?: string}>();
   // Set only inside the tray's own window; the banner then has a Restart.
   const restart = typeof window === 'undefined' ? null : trayRestart(window);
   const stack = (
@@ -100,11 +103,17 @@ function Navigation() {
   return (
     <ThemeProvider value={navTheme}>
       <View style={[styles.root, {backgroundColor: color.bg}]}>
-        <UpdateBanner restart={restart} />
-        {isDesktop && <DesktopChrome />}
-        <View style={styles.root}>
-          {isDesktop ? stack : <PhoneFrame>{stack}</PhoneFrame>}
-        </View>
+        {embed === '3d' ? (
+          stack
+        ) : (
+          <>
+            <UpdateBanner restart={restart} />
+            {isDesktop && <DesktopChrome />}
+            <View style={styles.root}>
+              {isDesktop ? stack : <PhoneFrame>{stack}</PhoneFrame>}
+            </View>
+          </>
+        )}
       </View>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
     </ThemeProvider>

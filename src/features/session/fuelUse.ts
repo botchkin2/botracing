@@ -5,6 +5,7 @@
 // #1203), so the only honest question is whether his stints differ by more
 // than the laps inside each stint do (camber, #1205).
 import {sameLimit} from '@/src/analysis/fuelHistory';
+import {lapLabel} from '@/src/analysis/lapNumbering';
 import type {Lap, SessionDetail} from '@/src/data/sessions';
 import {formatGap, formatLapTime, oneDecimal} from '@/src/design';
 import {iqr, median} from '@/src/analysis/setStats';
@@ -103,7 +104,7 @@ export function buildFuelUse(
   if (usable.length === 0) return null;
   const points: FuelUsePoint[] = usable.map(l => ({
     lapId: l.id,
-    label: `L${l.lapIndex}`,
+    label: lapLabel(l.lapNo),
     stint: l.stint,
     fuelL: l.fuel!.usedL as number,
     timeS: l.timeS as number,

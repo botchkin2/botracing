@@ -87,3 +87,16 @@ The `update` job, "Tray update rehearsal (N-1 to N)", builds 0.0.1 and 0.0.2 wit
 ## The API in the emulators
 
 `functions/test/emulator/*.test.mjs` send real requests to the read API in the Firebase emulators (functions, Firestore, Auth, Storage; config `firebase.emulator.json`, a demo project, nothing reaches production). Run them with `npm run test:emulator` in `functions/`: it builds the functions, starts the emulators, seeds what each test needs and signs a user in through the Auth emulator. firebase-tools needs **Java 21+** (`JAVA_HOME`; on this PC Android Studio's `jbr` qualifies, the system JDK 17 does not). CI runs them in the `functions` job.
+
+## The Android app on an emulator
+
+Nothing ships to the phone without a run of the real app where it will be used. The emulator `tyre_pixel` (android-35 google_apis x86_64) runs the real app; the SDK pieces are `cmdline-tools` and `system-images;android-35;google_apis;x86_64`.
+
+1. Build an x86_64 release variant that bundles its JS and has the seat-test sign-in switched on (`android/` is prebuild output and stays out of git):
+   `npx expo prebuild --platform android`, then in `android/` with JDK 17 and `ANDROID_HOME` set: `EXPO_PUBLIC_SEAT_LINK=1 ./gradlew.bat assembleRelease -PreactNativeArchitectures=x86_64`. Only a seat building by hand sets that variable; a test fails if a workflow, `eas.json` or the app config does, and `ota-update.yml` fails if the exported bundle has the sign-in.
+2. Boot `emulator -avd tyre_pixel -no-snapshot -gpu angle_indirect`, `adb install -r android/app/build/outputs/apk/release/app-release.apk`.
+3. Sign in as seat-test: mint a custom token (`node functions/scripts/mintTestToken.mjs --custom-token-file <file outside the repo>`), then `adb shell am start -a android.intent.action.VIEW -d "botracing61://dev-seat?ct=<token>" app.botracing.android`. Open the screen to prove after that: `botracing61://session/<id>/race` works the same way.
+4. **Capture only after signing in, and clear the token first.** The link carries a credential (seat-test only, an hour): `adb logcat -c` right after the sign-in so the log has no token, and delete the token file. Never attach a screenshot taken while the link was on screen; take images after the sign-in, from `adb exec-out screencap -p`, and look at each before attaching it.
+5. Shut the emulator when done: `adb emu kill`.
+
+The page the WebView shows is the hosted web app, so a change to the web page is proved on the emulator only after it is deployed (or against a preview origin).

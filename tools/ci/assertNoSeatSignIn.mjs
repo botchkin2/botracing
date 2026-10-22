@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-export const FORBIDDEN = ['__seat-token', 'DEV_SEAT_SIGNIN'];
+export const FORBIDDEN = ['__seat-token', 'DEV_SEAT_SIGNIN', 'dev-seat'];
 
 /** Returns "<file>: <needle>" for every forbidden string found under dir. */
 export function findSeatSignIn(dir, fsApi = fs) {

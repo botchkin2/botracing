@@ -3,6 +3,7 @@
 // analysis/referenceLap.ts; this picks the pool and says, in numbers and
 // matches only, what each candidate has in common with the lap. No verdict.
 import {rankReferenceLaps, type RefMatch} from '@/src/analysis/referenceLap';
+import {lapLabel} from '@/src/analysis/lapNumbering';
 import {
   type Lap,
   refLapOf,
@@ -47,6 +48,8 @@ export type Candidate = {
   sessionId: string;
   lapId: string;
   lapIndex: number;
+  /** The lap's number as shown (Lap.lapNo). */
+  lapNo: number | null;
   /** Null when the lap is from the session being looked at. */
   startedAt: string | null;
   sessionType: string;
@@ -97,6 +100,7 @@ export function referenceCandidates(
         sessionId: r.sessionId,
         lapId: r.lapId,
         lapIndex: at.lap.lapIndex,
+        lapNo: at.lap.lapNo,
         startedAt:
           r.sessionId === current.id ? null : at.source.session.startedAt,
         sessionType: at.source.session.sessionType,
@@ -112,7 +116,7 @@ const SESSION_WORD = {R: 'Race', Q: 'Qualifying', P: 'Practice'} as const;
 /** "L12 · 25 Sep · Race · 1:21.234 · +0.412 s". */
 export function candidateLine(c: Candidate): string {
   return [
-    `L${c.lapIndex}`,
+    lapLabel(c.lapNo),
     c.startedAt ? formatDay(c.startedAt) : 'this session',
     SESSION_WORD[c.sessionType as keyof typeof SESSION_WORD] ?? c.sessionType,
     formatLapTime(c.timeS),

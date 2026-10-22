@@ -8,6 +8,7 @@ import {
   type SegmentLap,
   type SegmentTimes,
 } from '@/src/analysis/segments';
+import {lapLabel} from '@/src/analysis/lapNumbering';
 import {sectionNameOf} from '@/src/analysis/turnNames';
 import {isCompound} from './corners';
 
@@ -45,7 +46,7 @@ export function turnSegmentTimes(
       comparable: lap.comparable,
       timesS: windowTimesOf(lap, frame),
       stop: lap.pitStop != null,
-      label: `L${lap.lapIndex}`,
+      label: lapLabel(lap.lapNo),
     });
   }
   return out.length > 0 ? {segments, laps: out} : null;
@@ -61,7 +62,7 @@ export function sectorSegmentTimes(laps: Lap[]): SegmentTimes | null {
     comparable: l.comparable,
     timesS: Array.from({length: count}, (_, i) => l.sectorsS[i] ?? null),
     stop: l.pitStop != null,
-    label: `L${l.lapIndex}`,
+    label: lapLabel(l.lapNo),
   }));
   return {
     segments: Array.from({length: count}, (_, i) => ({

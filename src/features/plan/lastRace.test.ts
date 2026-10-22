@@ -14,10 +14,10 @@ const facts: RaceFacts = {
   race: null,
   ownUse: {fuelL: 2.4, vePct: 3.5},
   stops: [
-    {lapIndex: 25, fuelL: 12.9, vePct: 4},
-    {lapIndex: 49, fuelL: 10.1, vePct: 3},
+    {lap: 25, fuelL: 12.9, vePct: 4},
+    {lap: 49, fuelL: 10.1, vePct: 3},
   ],
-  end: {lapIndex: 73, fuelL: 4.9, vePct: 3},
+  end: {lap: 73, fuelL: 4.9, vePct: 3},
 };
 
 describe('lastRaceOf', () => {

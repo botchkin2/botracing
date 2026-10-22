@@ -6,6 +6,7 @@
 // Width: the surface's measured half-widths (frame-free). Height: the curated profile at the point's lap distance.
 // Plain TypeScript with erasable syntax only: Node can run it.
 
+import {EDGE_MEDIAN_X} from './trackSurface.ts';
 import {DEFAULT_HALF_WIDTH_M, type ChaseElevation, type ChaseRoad} from './chaseRoad.ts';
 import {bankOnLap, type Bank} from './bank.ts';
 import {heightAt} from './elevation.ts';
@@ -276,7 +277,21 @@ export function* worldRoadSteps(input: WorldRoadInput): Steps<ChaseRoad | null> 
     elevation && elevation.heightM.length > 3 && elevation.stepM > 0 && elevationLapM > 0
       ? {stepM: elevation.stepM, heightM: elevation.heightM, lengthM: elevationLapM}
       : null;
+  // The surface keeps the measured asphalt, openings included (a pit entry reads
+  // 50 m on every lap at Sebring); the DRAWN road is bounded by EDGE_MEDIAN_X
+  // times that side's own median half-width, so an opening is not a 50 m road.
+  // The posts and the ground beside the road key off these halves, so they follow.
+  const capOf = (arr: number[] | undefined): number => {
+    const v = (arr ?? []).filter(x => Number.isFinite(x) && x > 1).sort((p, q) => p - q);
+    return v.length > 0 ? EDGE_MEDIAN_X * v[v.length >> 1] : Infinity;
+  };
+  const capL = capOf(edges?.leftM);
+  const capR = capOf(edges?.rightM);
   const width = (arr: number[] | undefined, ld: number) => {
+    const cap = arr === edges?.leftM ? capL : capR;
+    return Math.min(cap, widthRaw(arr, ld));
+  };
+  const widthRaw = (arr: number[] | undefined, ld: number) => {
     if (!edges || !arr || arr.length === 0) return DEFAULT_HALF_WIDTH_M;
     const f = (((ld * edges.lengthM) / lapM / edges.stepM) % arr.length + arr.length) % arr.length;
     const i = Math.floor(f);

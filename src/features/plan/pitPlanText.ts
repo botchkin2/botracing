@@ -1,11 +1,11 @@
-import {type PitPlan, type PitStint, type SliderStop} from './pitPlan';
-import {formationUseText, lapName, stintUseText} from './planCards';
+import {type PitPlan, type PitStint} from './pitPlan';
+
+import {formationUseText, stintUseText} from './planCards';
 import {type Unit} from './unit';
 
 // The words of the Pit plan card, finished here so the component only draws.
 // Facts and arithmetic, no advice (CODE_STANDARDS §7).
 
-const one = (v: number) => v.toFixed(1);
 const secs = (v: number) => `${Math.round(v)} s`;
 const signed = (v: number, unit: string) =>
   `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v))} ${unit}`;
@@ -19,54 +19,21 @@ export function unitOf(p: PitPlan): Unit {
   return p.stints.some(s => s.vePct) ? 've' : 'fuel';
 }
 
-/**
- * "arrives with 14.2 % VE left · adds 62.0 L · 71 s in the pit", or less when
- * the model has less. `stint` is the one that ends at this stop. The litres
- * stay: the refuel time comes from them.
- */
-export function stopLine(s: SliderStop, stint: PitStint, unit: Unit): string {
-  const parts: string[] = [];
-  const left = unit === 've' ? stint.left.vePct : stint.left.fuelL;
-  if (left != null)
-    parts.push(
-      `arrives with ${one(left)} ${unit === 've' ? '% VE' : 'L'} left`,
-    );
-  if (s.refuel)
-    parts.push(
-      `adds ${one(s.refuel.litres)} L${s.refuel.toFinish ? ' to finish' : ''}`,
-    );
-  if (s.pitS != null) parts.push(`${secs(s.pitS)} in the pit`);
-  return parts.join(' · ');
-}
-
-/** The stint after the last stop, when a tank does not reach the flag: the fact, at the median and at p90. */
+/** The stint after the last stop, when a tank does not reach the flag: a short fact (thread 99, #6684). */
 export function finalStintWarning(p: PitPlan): string | null {
   const last = p.stints[p.stints.length - 1];
-  if (last.dryAtMedian)
-    return `Stint ${last.n} runs dry before the flag at the median use.`;
-  if (last.dryAtP90)
-    return `At p90 use stint ${last.n} runs dry before the flag: a tank covers fewer laps in the heavier 10 % of the laps.`;
+  if (last.dryAtMedian) return `Stint ${last.n} dry at median`;
+  if (last.dryAtP90) return `Stint ${last.n} dry at p90`;
   return null;
 }
 
-/** The p90 fact for a stop past its safe end; null inside it. */
-export function stopWarning(s: SliderStop): string | null {
-  return s.after > s.p90Max
-    ? `At p90 use the tank is empty after ${lapName(
-        s.p90Max,
-      )}: this stint runs dry in the heavier 10 % of the laps.`
-    : null;
-}
-
-/** The formation lap's own row, as on the Stops card ("Formation · L1 · 3.5 %"); null without one. */
+/** The formation lap's own row, as on the Stops card ("Formation · – · 3.5 %": a lap before the green has no number); null without one. */
 export function formationRow(
   p: PitPlan,
   unit: Unit,
 ): {label: string; laps: string; use: string; tyres: string} | null {
   const use = formationUseText(p.formation, unit);
-  return use == null
-    ? null
-    : {label: 'Formation', laps: lapName(0), use, tyres: '–'};
+  return use == null ? null : {label: 'Formation', laps: '–', use, tyres: '–'};
 }
 
 /** One stint's row: laps (named by `stintLaps` when given, else the count), what it uses in `unit`, the tyre laps. */

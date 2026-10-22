@@ -1,0 +1,107 @@
+// One panel per stop of the Pit plan (pit-wall thread 99, row PLN, #6684 and
+// the UX note #6729): the number he puts in the pit menu as the hero, a short
+// line under it, a fill bar from the arrival to the level, and the stop's
+// state as a word. Pure.
+import {lapLabel} from '@/src/analysis/lapNumbering';
+import {stopTargets, type StopTarget} from '@/src/analysis/stopTarget';
+
+import {type PitModel} from '@/src/analysis/fuelPlan';
+import {type PitPlan} from './pitPlan';
+
+export type StopPanel = {
+  stop: number;
+  /** "after L19". */
+  after: string;
+  /** The pit-menu number: "Set VE 62 %", "Set fuel 48 L", "Add 48 L". */
+  value: string;
+  /** "arrive 4 % · +58 % · 34 s"; the parts the model has. */
+  line: string;
+  /** The bar, as shares of a full load: what the car arrives with and the level; null for an amount to add. */
+  fill: {arrive: number; set: number} | null;
+  /** The stint after this stop runs dry at p90 use: the hero takes the warning tone. */
+  dryAtP90: boolean;
+  /** Short facts beside the number: "fuel-limited", "no fill", "assumed fill-to". */
+  tags: string[];
+};
+
+export type StopPanelInput = {
+  sim: string;
+  /** VE for a car with Virtual Energy, litres otherwise. */
+  meter: 've' | 'fuel';
+  p90: {fuelL: number | null; vePct: number | null};
+  fillLimitL: number;
+  fullVePct: number;
+  /** A timed race: the last stop covers the lap a late flag can add. */
+  lateFlag: boolean;
+  pitModel: PitModel | null;
+};
+
+const whole = (v: number) => String(Math.round(v));
+
+export function stopPanels(pit: PitPlan, input: StopPanelInput): StopPanel[] {
+  const {meter, fillLimitL, fullVePct} = input;
+  const arrive = pit.stints
+    .slice(0, -1)
+    .map(s => (meter === 've' ? s.left.vePct : s.left.fuelL));
+  const targets = stopTargets({
+    sim: input.sim,
+    meter,
+    stintLaps: pit.stints.map(s => s.laps),
+    lateFlag: input.lateFlag,
+    p90: input.p90,
+    fillLimitL,
+    fullVePct,
+    arrive,
+  });
+  const full = meter === 've' ? fullVePct : fillLimitL;
+  const unit = meter === 've' ? '%' : 'L';
+  return targets.map((t, k) => {
+    const stop = pit.stops[k];
+    const tags: string[] = [];
+    if (t.fuelLimited) tags.push('fuel-limited');
+    if (t.noFill) tags.push('no fill');
+    // LMP2's litre setting is taken as fill-to until Botkin confirms it (#6705).
+    if (t.verb === 'set' && meter === 'fuel' && input.sim !== 'iracing')
+      tags.push('assumed fill-to');
+    return {
+      stop: stop.stop,
+      after: `after ${lapLabel(stop.after)}`,
+      value: valueText(t),
+      line: lineOf(t, unit, seconds(t, input)),
+      fill:
+        t.verb === 'set' && full > 0
+          ? {arrive: Math.min(1, (t.arrive ?? 0) / full), set: t.value / full}
+          : null,
+      dryAtP90:
+        pit.stints[k + 1]?.dryAtP90 === true || stop.after > stop.p90Max,
+      tags,
+    };
+  });
+}
+
+function valueText(t: StopTarget): string {
+  if (t.verb === 'add') return `Add ${whole(t.value)} L`;
+  return t.meter === 've'
+    ? `Set VE ${whole(t.value)} %`
+    : `Set fuel ${whole(t.value)} L`;
+}
+
+/** Seconds in the pit: the lane loss and the fill the stop adds; null without a pit model. */
+function seconds(t: StopTarget, input: StopPanelInput): number | null {
+  const {pitModel} = input;
+  if (!pitModel || t.added == null) return null;
+  const litres =
+    t.meter === 've' && input.fullVePct > 0
+      ? (t.added * input.fillLimitL) / input.fullVePct
+      : t.added;
+  return pitModel.baseS + litres / pitModel.refuelLPerS;
+}
+
+function lineOf(t: StopTarget, unit: string, s: number | null): string {
+  const parts: string[] = [];
+  if (t.arrive != null) parts.push(`arrive ${whole(t.arrive)} ${unit}`);
+  if (t.added != null && t.verb === 'set')
+    parts.push(`+${whole(t.added)} ${unit}`);
+  if (s != null) parts.push(`${whole(s)} s`);
+  return parts.join(' · ');
+}

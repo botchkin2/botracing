@@ -15,14 +15,7 @@ import {
 } from '@/src/design';
 import {sessionHref} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
-import {
-  EmptyState,
-  Pressable,
-  Segment,
-  Skeleton,
-  StatusBanner,
-  Text,
-} from '@/src/ui';
+import {EmptyState, Pressable, Skeleton, StatusBanner, Text} from '@/src/ui';
 
 import {ClassTimingSection} from './components/ClassTimingSection';
 import {PitPlanCard} from './components/PitPlanCard';
@@ -33,10 +26,10 @@ import {StartLoad} from './components/StartLoad';
 import {PooledUseCard} from './components/PooledUseCard';
 import {RulesBlock} from './components/RulesBlock';
 import {TrackCarPicker} from './components/TrackCarPicker';
-import {LoadTableCard, Pair, RowsCard} from './components/PlanCards';
+import {LoadTableCard} from './components/PlanCards';
 import {RaceCardView} from './components/RaceCardView';
-import {StopsCardView} from './components/StopsCardView';
-import {TankCardView} from './components/TankCardView';
+import {PerLapStripView} from './components/PerLapStripView';
+import {SavingCardView} from './components/SavingCardView';
 import {lastRaceLine} from './lastRace';
 import {
   pickerCombos,
@@ -45,7 +38,7 @@ import {
   resolveCombo,
   showsLapCards,
 } from './planState';
-import {effectiveUnit, type Unit, UNITS} from './unit';
+import {effectiveUnit, type Unit} from './unit';
 import {
   carChoices,
   comboCar,
@@ -57,6 +50,8 @@ import {
   startChips,
   trackChoices,
 } from './model';
+import {perLapStrip} from './perLapStrip';
+import {savingFor} from './saving';
 import {useClassTiming} from './useClassTiming';
 import {usePitSlider} from './usePitSlider';
 import {useLastRaceHere, usePlanData} from './usePlanData';
@@ -81,7 +76,8 @@ export function PlanScreen() {
   // A link from a session opens the plan on its track and car.
   const {combo: comboParam} = useLocalSearchParams<{combo?: string}>();
   const [comboKey, setComboKey] = useState<string | null>(comboParam ?? null);
-  const [unit, setUnit] = useState<Unit>('ve');
+  // The car decides the unit (thread 99, #6684): VE where the plan has it.
+  const unit: Unit = 've';
   const combo = resolveCombo(combos, comboKey, defaultCombo(combos));
   // What the car starts with, as typed for this track and car; blank is a full
   // load, and the last race's start is only offered (parc #1902).
@@ -107,7 +103,7 @@ export function PlanScreen() {
   const eventWeek =
     eventPick && eventPick.key === combo?.key ? eventPick.week : null;
   const data = usePlanData(combo, unit, start, eventWeek);
-  const slider = usePitSlider(data, combo?.key ?? '');
+  const slider = usePitSlider(data, combo?.key ?? '', combo?.sim ?? 'lmu');
   const chosen = useMemo(
     () =>
       slider.pit
@@ -120,9 +116,29 @@ export function PlanScreen() {
   );
   const classTiming = useClassTiming(combo ?? null, data, chosen);
   const {preset, length, rules, view, plan, hist, limits} = data;
-  // The switch shows only where there is VE to switch to.
   const hasVe = !data.fuelOnly && plan?.perLap.ve != null;
   const {lastFuel, pending: detailsPending} = limits;
+  const meter = slider.meter;
+  const perLap = useMemo(
+    () =>
+      plan && rules
+        ? perLapStrip(plan, rules.rules, meter, hist.ratio?.perPctL ?? null)
+        : null,
+    [plan, rules, meter, hist.ratio],
+  );
+  const saving = useMemo(
+    () =>
+      plan && rules
+        ? savingFor(
+            slider.pit,
+            plan.dropStop,
+            meter,
+            rules.rules,
+            data.greenLaps,
+          )
+        : null,
+    [plan, rules, meter, slider.pit, data.greenLaps],
+  );
   const {history, loading: planLoading, measured} = hist;
   const state = combo
     ? planState({
@@ -217,12 +233,6 @@ export function PlanScreen() {
   // under the length.
   const setup = !combo ? null : (
     <>
-      {wide && hasVe ? (
-        <Section title='Units'>
-          <Segment options={UNITS} value={unit} onChange={setUnit} />
-        </Section>
-      ) : null}
-
       <TrackCarPicker
         track={comboTrack(combo)}
         car={comboCar(combo)}
@@ -359,27 +369,40 @@ export function PlanScreen() {
         )
       ) : view ? (
         <>
-          <Pair wide={wide}>
-            {data.cards ? (
-              <PlanCard title='Race'>
-                <RaceCardView card={data.cards.race} />
-              </PlanCard>
-            ) : null}
-            {wide && data.cards ? (
-              <PlanCard title='Per tank'>
-                <TankCardView card={data.cards.tank} />
-              </PlanCard>
-            ) : null}
-          </Pair>
+          {perLap ? (
+            <PerLapStripView
+              strip={perLap}
+              notes={[
+                view.basis.from,
+                view.basis.ratio,
+                view.basis.drift
+                  ? `${view.basis.drift.label}: ${view.basis.drift.value}`
+                  : null,
+              ].filter((n): n is string => n != null)}
+            />
+          ) : null}
+          {data.cards ? (
+            <PlanCard title='Race'>
+              <RaceCardView card={data.cards.race} />
+            </PlanCard>
+          ) : null}
           {data.cards && slider.pit ? (
             <PitPlanCard
               pit={slider.pit}
               planned={slider.planned}
+              panels={slider.panels}
+              strip={slider.strip}
+              stripLabel={slider.stripLabel}
               unit={effectiveUnit(unit, hasVe)}
               wide={wide}
               onStop={slider.setStop}
               onReset={slider.reset}
             />
+          ) : null}
+          {saving ? (
+            <PlanCard title='Saving'>
+              <SavingCardView saving={saving} />
+            </PlanCard>
           ) : null}
           {plan?.loadToFinish ? (
             <>
@@ -393,19 +416,6 @@ export function PlanScreen() {
                 </Text>
               ) : null}
             </>
-          ) : data.cards && (wide || !slider.pit) ? (
-            <PlanCard title='Stops'>
-              <StopsCardView card={data.cards.stops} />
-            </PlanCard>
-          ) : null}
-          {wide ? (
-            <Pair wide={wide}>
-              {['dropStop', 'perLap'].flatMap(key =>
-                view.cards
-                  .filter(c => c.key === key)
-                  .map(card => <RowsCard key={card.key} card={card} />),
-              )}
-            </Pair>
           ) : null}
         </>
       ) : null}

@@ -26,6 +26,7 @@ A user's sync never writes app data. An admin tool never writes user data.
 | Sessions, laps, recordings | user | `sessions`, `laps`, `recordings`, field `ownerId = uid` | | upload API |
 | Traces, slices, bands, field | user | path in the session/lap doc | `traces/{uid}/`, `slices/{uid}/`, `bands/{uid}/`, `field/{uid}/` | upload API (signed URL) |
 | Session `online` | user | `sessions/{id}.online`: LMU `true` online, `false` offline, `null` unknown (also in the list projection) | | upload API; from the capture's game mode (`docs/SESSION_PIPELINE.md`) |
+| Session `fieldMissing` | user | `sessions/{id}.fieldMissing`: why the session has no field, in words for the driver (null with a field; the Field screen shows it as is). Written by every upload from `field.mjs fieldMissingAfter`; a cloud run keeps the stored line | | upload API (`docs/SESSION_PIPELINE.md`) |
 | Raw recordings archive | user | | `archive/{uid}/{sim}/` | upload API |
 | Uploader heartbeats | user | `uploaders/{uid}__{hostId}`: the tray's status, with `problems[]` (what is wrong on the PC now, at most 10, overwritten each beat; no `lastError`) | | upload API |
 | Profile and usage | user | `users/{uid}` | | upload API (usage), sign-in |

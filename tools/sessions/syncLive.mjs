@@ -12,7 +12,9 @@ import {existsSync, mkdirSync, readFileSync} from 'node:fs';
 import {basename, join, resolve} from 'node:path';
 import * as irLiveCapture from './irLiveCapture.mjs';
 import * as lmuCapture from './lmuCapture.mjs';
+import {captureDoubted} from './field.mjs';
 import {liveInputs} from './liveInputs.mjs';
+import {noteNoField} from './noField.mjs';
 import {groupFiles} from './sessionFiles.mjs';
 import {
   liveRecordingDoc,
@@ -60,6 +62,19 @@ export async function syncLive({
   log = () => {},
   makeInputs = liveInputs,
 }) {
+  // A capture the recorder doubted (layoutSuspect) sends nothing: its drive
+  // comes from the game file.
+  let marked = null;
+  try {
+    const meta = JSON.parse(readFileSync(join(captureDir, 'meta.json'), 'utf8'));
+    if (captureDoubted(meta)) marked = meta.layoutSuspect ?? meta.playerSuspect;
+  } catch {
+    // No meta to read: the adapter's own read reports it.
+  }
+  if (marked) {
+    log(`live: ${basename(captureDir)} is marked suspect (${marked}), not sent`);
+    return {sessions: 0};
+  }
   const {stretches} = capture.describeCapture(captureDir);
   const files = stretches
     .filter(s => s.laps.length > 0)
@@ -139,6 +154,7 @@ export async function syncLive({
     };
     log(`live: ${session.id} ${out.session.lapCount} laps`);
     await store.uploadLive(out, {log});
+    noteNoField(work, out.session, Date.now());
     // Only once it is stored: the game-file sync then skips what it covers.
     mkdirSync(resolve(work, 'live'), {recursive: true});
     const index = readLiveIndex(work);

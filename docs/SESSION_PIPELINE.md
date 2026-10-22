@@ -103,6 +103,8 @@ a gap at the end.
 
 - **LMU:** `desktop/src-tauri/src/capture/recorder.rs` reads LMU's shared memory (`LMU_Data`) and writes parquet chunks per minute: `player-NNNN` (telemetry at ~100 Hz, every field of the player's `TelemInfoV01` incl. `mWheel[4]` as `fl_/fr_/rl_/rr_` columns), `field-NNNN` (scoring at 5 Hz, every car), `session-NNNN` (scoring info at 5 Hz), `meta.json` (track, start and end, vehicle models per car id), and `status.json` (state, sessionDir, lastLapAt, gameVersion, layout check).
 - **iRacing:** `capture/ir_recorder.rs`, the same folder shape from the iRacing SDK.
+- The layout check (`capture/sanity.rs`) never drops a drive: every scoring update is one layout look, counted in `meta.json` (`layoutChecks`, `layoutDoubtful`, the first reason `layoutSuspect`; status `layoutOk: false` while the latest look doubts), and the telemetry layout looks are counted the same way (`playerChecks`, `playerDoubtful`, `playerSuspect`), for a layout fix to re-read. Counts reach the disk with each chunk flush. Only a write error (a full disk) is a refusal. The tray skips a capture only when the doubt held for most of the drive (`layoutDoubtful` over half of `layoutChecks`) or the player looks (`playerChecks`, `playerDoubtful`) did the same (`field.mjs captureDoubted`; one bad beat at a session load costs nothing, `goodRows` judges the rows): `listCaptures` and `syncLive` skip it, so its drive comes from the game file, and the session says why (`fieldMissing`, below). A car in the garage reads a negative lap distance as far back as the pit lane is long (Sebring -1079 to -1664 m), so the check counts the cars whose lap distance is garbage (non-finite or beyond 100 km) and doubts a look only when more than a quarter are, as it does for names. At the old per-car -1 km bound the 2026-10-19 Sebring practice was refused 145 times, has no capture and so no field. The field builder applies the same share rule to the rows it reads (`goodRows`).
+- **No session lacks a field silently.** Every upload stamps the session doc `fieldMissing` (null with a field): the Field screen shows it, and the heartbeat lists the sessions of the last 14 days without one as `field-missing` Problems (`noField.mjs`, the row opens the session). A drive the recorder refused stays listed as `capture-missed` for 14 days (`refusals.mjs`).
 - A new capture folder starts on each game session; a reset to the garage splits the stretch inside it.
 - **What the capture holds that the game file does not:** every other car (the field) and the damage series. **What only the game file holds:** the car setup's fill limit (LMU `VM_FUEL_LEVEL`). LMU has no real GPS in either source: its `.duckdb` and the capture both give world position projected onto LMU's fake origin at 60° N, 0° (`src/analysis/geo.ts` LMU_FAKE_ORIGIN; sidepod #5369), and the app georeferences both the same way.
 
@@ -116,7 +118,7 @@ a gap at the end.
    - The server's `liveAnalyze` (an event function on the session doc's `live.updatedAt`) analyses the session from the stored parts, field and extract, and writes the lap docs. A lap is in the app ~5-30 s after the line.
 2. **End of the drive, defined:** the recorder's `status.json` stops saying `recording` for the capture live laps were following (game exit, back to the menus, a new session). Before #619 the watcher waited for `sessionDir` to change, and the recorder keeps the old one on a game exit, so the last lap never went up (L27 on 2026-10-14).
    **When the capture closes:** the recorder stops recording (game exit, back to the menus, a new session) and `trigger.mjs liveClosed` makes the watcher run the live path once more. That sends the last lap and the stretch after the final crossing. It is the same code; there is no second, "final" build.
-3. **Session id:** the live session id stands for the drive. After the game exits, flow B skips the drive's game files (`liveCover`), so they never create a second session.
+3. **Session id:** the live session id stands for the drive. After the game exits, flow B skips the drive's game files (`liveCover`), so they never create a second session. A file is covered by the live stretch of the same layout and session type that it overlaps by at least half of the shorter of the two (the largest overlap if several), not by its start alone: on 2026-10-21 the recorder started 52 s and 66 s after the game files (refused at the session load) and Sebring's practice and race became two sessions each (pit wall thread 98). A game-file session uploaded like that, and covered whole by one live session that still exists, is hidden behind it on the next sync (`heal.mjs coveredCopies`, tombstoned by `supersedeSession`).
 
 ### Flow B: game file only
 
@@ -244,7 +246,13 @@ HTTP from the tray, the same calls in the cloud).
 **What `upload` keeps from the stored doc when its run lacked an input**
 (`store.mjs` 387-499): the field and the class laps, bests and result made
 from it; lap traffic redone from the stored field; the LMU race length; pit
-visits built from damage. Each kept block is named in `analysis.kept`.
+visits built from damage. Each kept block is named in `analysis.kept`. The
+class laps, bests and result each carry the `fieldHash` they were read from
+and are kept only while the session points at that field
+(`field.mjs madeFromField`). A live session's field is new every lap, so they
+follow it; before, they stayed what the first lap gave, and every live race
+read its first lap's place as its finish (pit wall thread 98,
+`liveResult.test.mjs`).
 
 These keep rules are inputs in disguise: they are why a cloud run without a
 field looked fine for every game-file session and silently empty for every

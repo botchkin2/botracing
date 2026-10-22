@@ -116,20 +116,50 @@ test('a race adds its ending lap, stops, formation burn and own use, as raceFact
     result: {finish: {leftEarly: false, lapsDone: 9, classLeaderLapsDone: 9}},
   });
   assert.deepEqual(plan.race, {
-    raceLaps: 8, // the ending lap is the 9th: lap 0 is the formation lap
+    raceLaps: 9, // the ending lap is L9: the first lap holds the formation and L1, as the results file's lapsDone says
     minutes: 40,
     leftEarly: false,
     playerLapsDone: 9,
     classLeaderLapsDone: 9,
     startVePct: 100,
-    formationL: 3.4,
+    // the first lap (3.4 L) less the race's median green lap (2.4 L)
+    formationL: 1,
     // green laps: 2.4 2.5 2.3 2.4 2.5 2.4 2.5 -> median 2.4
     ownUse: {fuelL: 2.4, vePct: null},
-    end: {lapIndex: 9, fuelL: 12.5, vePct: 20},
+    end: {lap: 9, fuelL: 12.5, vePct: 20},
     // the service on the first lap (not pit-in) is not a stop
-    stops: [{lapIndex: 5, fuelL: 31.2, vePct: 55.5, addedL: null, lossS: null, kind: null, detail: null, fillLPerS: null}],
+    stops: [{lap: 5, fuelL: 31.2, vePct: 55.5, addedL: null, lossS: null, kind: null, detail: null, fillLPerS: null}],
   });
   assert.equal(plan.laps.length, 7, 'green laps with fuel used: 2-4 and 6-9');
+});
+
+test('laps are named by the game counter, not the list: a capture that starts in the pits on L2 (Daytona 10-07)', () => {
+  // LMU counter 1 is racing lap 2; the stop there is a real one, and the race
+  // side has no start load or formation (the capture began after both).
+  const laps = [
+    raceLap(2.0, {lapNumber: 1, pitOut: true, pitStop: {atEntry: {fuelL: 40, vePct: null}}, fuel: {usedL: 2.0, endL: 60, veStartPct: 80, green: false}}),
+    raceLap(2.4, {lapNumber: 2}),
+    raceLap(2.4, {lapNumber: 3}),
+    raceLap(2.5, {lapNumber: 4, fuel: {usedL: 2.5, endL: 52, green: true}}),
+  ];
+  const race = planBlock({sessionType: 'Race', fuel, laps}).race;
+  assert.equal(race.raceLaps, 5);
+  assert.deepEqual(race.end, {lap: 5, fuelL: 52, vePct: null});
+  assert.deepEqual(race.stops.map(s => s.lap), [2]);
+  assert.equal(race.startVePct, null);
+  assert.equal(race.formationL, null);
+});
+
+test("iRacing's counter-0 lap is the formation: its own burn, and L1 is counter 1", () => {
+  const laps = [
+    raceLap(0.9, {sim: 'iracing', lapNumber: 0, fuel: {usedL: 0.9, endL: 99.1, green: false}}),
+    raceLap(2.4, {sim: 'iracing', lapNumber: 1}),
+    raceLap(2.4, {sim: 'iracing', lapNumber: 2}),
+    raceLap(2.5, {sim: 'iracing', lapNumber: 3, fuel: {usedL: 2.5, endL: 92, green: true}}),
+  ];
+  const race = planBlock({sessionType: 'Race', fuel, laps}).race;
+  assert.equal(race.formationL, 0.9);
+  assert.equal(race.raceLaps, 3);
 });
 
 test('a race with nothing to end on, or not a race, has no race side', () => {
@@ -140,7 +170,7 @@ test('a race with nothing to end on, or not a race, has no race side', () => {
 
 test('a first-lap stop that ends in the pit lane is a real stop (Road Atlanta, 25 Sep)', () => {
   const laps = [raceLap(2.4, {pitIn: true, pitStop: {atEntry: {fuelL: 50, vePct: null}}}), raceLap(2.4)];
-  assert.deepEqual(planBlock({sessionType: 'Race', fuel, laps}).race.stops, [{lapIndex: 1, fuelL: 50, vePct: null, addedL: null, lossS: null, kind: null, detail: null, fillLPerS: null}]);
+  assert.deepEqual(planBlock({sessionType: 'Race', fuel, laps}).race.stops, [{lap: 1, fuelL: 50, vePct: null, addedL: null, lossS: null, kind: null, detail: null, fillLPerS: null}]);
 });
 
 // A real LMU race (Road Atlanta, 3 Oct 2026) through the real sync: the block

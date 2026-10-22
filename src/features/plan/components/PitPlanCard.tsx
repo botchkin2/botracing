@@ -4,145 +4,82 @@ import {space, useTheme} from '@/src/design';
 import {Button, Text} from '@/src/ui';
 
 import {type PitPlan} from '../pitPlan';
-import {lapName, stintLaps} from '../planCards';
 import {
   finalStintWarning,
   finishLine,
   formationRow,
   stintRow,
-  stopLine,
-  stopWarning,
-  unitOf,
 } from '../pitPlanText';
-
+import {stintLaps} from '../planCards';
+import {type StripCell} from '../stintStrip';
+import {type StopPanel} from '../stopPanels';
 import {type Unit} from '../unit';
-
 import {PlanCard} from './PlanCard';
+import {StintStripView} from './StintStripView';
+import {StopPanelView} from './StopPanelView';
 import {StopSlider} from './StopSlider';
 
 /**
- * The pit-lap slider (pit-wall thread 44 #1812): each stop of the plan over
- * its window, then the stints those stops make. `planned` is each stop's plan
- * lap, drawn as a tick. Everything shown is finished in `pitPlan`.
+ * The Pit plan (thread 99, PLN; the slider from thread 44 #1812): a panel per
+ * stop with its slider and the level to set, the race's stints as a strip, and
+ * on desktop the stint table with the exact numbers. Everything shown is
+ * finished in `pitPlan`, `stopPanels` and `stintStrip`.
  */
 export function PitPlanCard({
   pit,
   planned,
-  unit: unitProp,
+  panels,
+  strip,
+  stripLabel,
+  unit,
   wide = false,
   onStop,
   onReset,
 }: {
   pit: PitPlan;
-  /** Desktop: the stops in two columns. */
-  wide?: boolean;
-  /** VE or fuel, from the page's switch; absent, VE where the plan has it. */
-  unit?: Unit;
+  /** Each stop's plan lap, drawn as a tick on its slider. */
   planned: number[];
+  panels: StopPanel[];
+  strip: StripCell[];
+  stripLabel: string;
+  unit: Unit;
+  /** Desktop: the stops two to a row, and the stint table. */
+  wide?: boolean;
   onStop: (stop: number, lap: number) => void;
   onReset: () => void;
 }) {
-  const {color} = useTheme();
-  const unit = unitProp ?? unitOf(pit);
   const finalWarning = finalStintWarning(pit);
-  const headers = ['Stint', 'Laps', unit === 've' ? 'VE' : 'Fuel', 'Tire laps'];
   return (
     <PlanCard title='Pit plan'>
       <View style={styles.stops}>
-        {pit.stops.map(s => {
-          const warning = stopWarning(s);
-          return (
-            <View key={s.stop} style={[styles.stop, wide && styles.stopHalf]}>
-              <View style={styles.head}>
-                <Text variant='label' tone='textMuted'>
-                  {`Stop ${s.stop}`}
-                </Text>
-                <Text variant='dataStrong'>{`after ${lapName(s.after)}`}</Text>
-              </View>
-              <StopSlider
-                after={s.after}
-                min={s.min}
-                max={s.max}
-                p90Max={s.p90Max}
-                plan={planned[s.stop - 1]}
-                name={`Stop ${s.stop}`}
-                onChange={lap => onStop(s.stop, lap)}
-              />
-              <Text variant='dataSmall' tone='textSecondary'>
-                {stopLine(s, pit.stints[s.stop - 1], unit)}
-              </Text>
-              {warning ? (
-                <Text variant='dataSmall' tone='textSecondary'>
-                  {warning}
-                </Text>
-              ) : null}
-            </View>
-          );
-        })}
+        {pit.stops.map((s, i) =>
+          panels[i] ? (
+            <StopPanelView
+              key={s.stop}
+              panel={panels[i]}
+              half={wide}
+              slider={
+                <StopSlider
+                  after={s.after}
+                  min={s.min}
+                  max={s.max}
+                  p90Max={s.p90Max}
+                  plan={planned[s.stop - 1]}
+                  name={`Stop ${s.stop}`}
+                  onChange={lap => onStop(s.stop, lap)}
+                />
+              }
+            />
+          ) : null,
+        )}
       </View>
-      <View style={[styles.table, {borderColor: color.line}]}>
-        <View style={styles.row}>
-          {headers.map(h => (
-            <Text
-              key={h}
-              variant='tableHeader'
-              tone='textMuted'
-              style={h === 'Stint' ? styles.name : styles.cell}>
-              {h}
-            </Text>
-          ))}
-        </View>
-        {(() => {
-          const f = formationRow(pit, unit);
-          return f ? (
-            <View style={styles.row}>
-              <Text variant='data' style={styles.name}>
-                {f.label}
-              </Text>
-              <Text variant='data' style={styles.cell}>
-                {f.laps}
-              </Text>
-              <Text variant='data' style={styles.cell}>
-                {f.use}
-              </Text>
-              <Text variant='data' style={styles.cell}>
-                {f.tyres}
-              </Text>
-            </View>
-          ) : null;
-        })()}
-        {pit.stints.map((s, i) => {
-          const r = stintRow(
-            s,
-            unit,
-            stintLaps(
-              pit.stints.map(x => x.laps),
-              i,
-            ),
-          );
-          return (
-            <View key={s.n} style={styles.row}>
-              <Text variant='data' style={styles.name}>
-                {r.label}
-              </Text>
-              <Text variant='data' style={styles.cell}>
-                {r.laps}
-              </Text>
-              <Text variant='data' style={styles.cell}>
-                {r.use}
-              </Text>
-              <Text variant='data' style={styles.cell}>
-                {r.tyres}
-              </Text>
-            </View>
-          );
-        })}
-      </View>
+      <StintStripView cells={strip} label={stripLabel} />
+      {wide ? <StintTable pit={pit} unit={unit} /> : null}
       <Text variant='dataSmall' tone='textSecondary'>
         {finishLine(pit)}
       </Text>
       {finalWarning ? (
-        <Text variant='dataSmall' tone='textSecondary'>
+        <Text variant='dataSmall' tone='slower'>
           {finalWarning}
         </Text>
       ) : null}
@@ -155,17 +92,54 @@ export function PitPlanCard({
   );
 }
 
+/** Desktop's exact numbers: the formation, then each stint's laps, use and tyre laps. */
+function StintTable({pit, unit}: {pit: PitPlan; unit: Unit}) {
+  const {color} = useTheme();
+  const headers = ['Stint', 'Laps', unit === 've' ? 'VE' : 'Fuel', 'Tire laps'];
+  const counts = pit.stints.map(x => x.laps);
+  const formation = formationRow(pit, unit);
+  const rows = [
+    ...(formation ? [{key: 'formation', ...formation}] : []),
+    ...pit.stints.map((s, i) => ({
+      key: `stint-${s.n}`,
+      ...stintRow(s, unit, stintLaps(counts, i)),
+    })),
+  ];
+  return (
+    <View style={[styles.table, {borderColor: color.line}]}>
+      <View style={styles.row}>
+        {headers.map(h => (
+          <Text
+            key={h}
+            variant='tableHeader'
+            tone='textMuted'
+            style={h === 'Stint' ? styles.name : styles.cell}>
+            {h}
+          </Text>
+        ))}
+      </View>
+      {rows.map(r => (
+        <View key={r.key} style={styles.row}>
+          <Text variant='data' style={styles.name}>
+            {r.label}
+          </Text>
+          <Text variant='data' style={styles.cell}>
+            {r.laps}
+          </Text>
+          <Text variant='data' style={styles.cell}>
+            {r.use}
+          </Text>
+          <Text variant='data' style={styles.cell}>
+            {r.tyres}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  stops: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    columnGap: space.xxl,
-    rowGap: space.lg,
-  },
-  stop: {gap: space.xxs, width: '100%'},
-  // Two to a row, less half the column gap.
-  stopHalf: {width: '47%', flexGrow: 1},
-  head: {flexDirection: 'row', justifyContent: 'space-between'},
+  stops: {flexDirection: 'row', flexWrap: 'wrap', gap: space.lg},
   table: {gap: space.xs, paddingTop: space.sm, borderTopWidth: 1},
   row: {flexDirection: 'row', gap: space.md},
   name: {flex: 1.2},

@@ -158,7 +158,7 @@ test('problems: a crashed sync, each session on a retry, a stopped recorder, new
       },
     ],
     recorder: mutate(
-      mutate(input.recorder, 'layoutOk', false),
+      mutate(mutate(input.recorder, 'state', 'refused'), 'layoutOk', false),
       'layoutReason',
       'struct size 1234 != 1240',
     ),
@@ -188,6 +188,69 @@ test('problems: a crashed sync, each session on a retry, a stopped recorder, new
       },
     ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)),
   );
+});
+
+test('problems: a refused drive stays after the recorder leaves refused', () => {
+  const problems = problemsOf({
+    sims: [{retries: {}}],
+    recorder: input.recorder,
+    refusals: [
+      {firstAtMs: nowMs - 90 * MIN, lastAtMs: nowMs - 60 * MIN, count: 145, reason: 'car 7 lap distance -1640.78'},
+    ],
+    nowMs,
+  });
+  assert.deepEqual(problems, [
+    {
+      kind: 'capture-missed',
+      at: new Date(nowMs - 60 * MIN).toISOString(),
+      message: 'Drive not recorded',
+      count: 145,
+    },
+  ]);
+});
+
+test('problems: while the recorder shows the refusal itself, the kept one is not a second row', () => {
+  const problems = problemsOf({
+    sims: [{retries: {}}],
+    recorder: mutate(mutate(mutate(input.recorder, 'state', 'refused'), 'layoutOk', false), 'layoutReason', 'x'),
+    refusals: [{firstAtMs: nowMs - MIN, lastAtMs: nowMs, count: 2, reason: 'x'}],
+    nowMs,
+  });
+  assert.deepEqual(problems.map(p => p.kind), ['recorder-layout']);
+});
+
+test('problems: a recorder that records what it doubts is capture-suspect, not stopped', () => {
+  const problems = problemsOf({
+    sims: [{retries: {}}],
+    recorder: mutate(
+      mutate(mutate(input.recorder, 'state', 'recording'), 'layoutOk', false),
+      'layoutReason',
+      '8 of 8 cars: lap distance',
+    ),
+    nowMs,
+  });
+  assert.deepEqual(problems.map(p => [p.kind, p.message]), [
+    ['capture-suspect', '8 of 8 cars: lap distance'],
+  ]);
+});
+
+test('problems: a session without a field is a row that opens the session', () => {
+  const problems = problemsOf({
+    sims: [{retries: {}}],
+    recorder: input.recorder,
+    noField: {
+      '28dcbd413c5cf761': {endMs: nowMs - 60 * MIN, why: 'This drive was not recorded, so there are no other cars'},
+    },
+    nowMs,
+  });
+  assert.deepEqual(problems, [
+    {
+      kind: 'field-missing',
+      at: new Date(nowMs - 60 * MIN).toISOString(),
+      message: 'This drive was not recorded, so there are no other cars',
+      sessionId: '28dcbd413c5cf761',
+    },
+  ]);
 });
 
 test('problems: none when all is well; a finished sync with an old error is not a crash', () => {

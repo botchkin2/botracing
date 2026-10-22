@@ -4,51 +4,46 @@ import {space} from '@/src/design';
 import {Text} from '@/src/ui';
 
 import {type RaceCard} from '../planCards';
+import {FactTile, TileRow} from './FactTile';
 
 /**
- * The Race card (round 5, frame 1): how many laps, how many stops and where,
- * then the arithmetic behind the lap count. The stop laps are the full-tank
- * strategy, in the app's lap names.
+ * The Race card as three tiles (thread 99, PLN): the laps (and the late flag's
+ * count), the stops (and where the full-tank strategy puts them), the start
+ * load. The median lap the count comes from stays as one small line.
  */
 export function RaceCardView({card}: {card: RaceCard}) {
   return (
     <View style={styles.box}>
-      <View style={styles.big}>
-        <View>
-          <Text variant='title'>{card.laps ?? '—'}</Text>
-          <Text variant='dataSmall' tone='textMuted'>
-            {card.laps === 1 ? 'lap' : 'laps'}
-          </Text>
-        </View>
-        <View>
-          <Text variant='title'>{card.stops ?? '—'}</Text>
-          <Text variant='dataSmall' tone='textMuted'>
-            {card.stops === 1 ? 'stop' : 'stops'}
-          </Text>
-        </View>
-        {card.stopAfter.length > 0 ? (
-          <View style={styles.after}>
-            <Text variant='dataStrong'>{`after ${card.stopAfter.join(
-              ', ',
-            )}`}</Text>
-            <Text variant='dataSmall' tone='textMuted'>
-              full-tank strategy
-            </Text>
-          </View>
+      <TileRow>
+        <FactTile
+          label='Laps'
+          value={card.laps == null ? '—' : String(card.laps)}
+          sub={card.oneMore == null ? null : `late flag ${card.oneMore}`}
+        />
+        <FactTile
+          label='Stops'
+          value={card.stops == null ? '—' : String(card.stops)}
+          sub={
+            card.stopAfter.length > 0
+              ? `after ${card.stopAfter.join(', ')}`
+              : null
+          }
+        />
+        {card.startLoad ? (
+          <FactTile
+            label='Start'
+            value={card.startLoad.hero}
+            sub={card.startLoad.covers}
+          />
         ) : null}
-      </View>
-      {card.startLoad ? (
-        <View style={styles.load}>
-          <Text variant='dataStrong'>{`Start load ${card.startLoad.covers}: ${card.startLoad.value}`}</Text>
-        </View>
-      ) : null}
+      </TileRow>
       {card.medianNote ? (
         <Text variant='dataSmall' tone='textSecondary'>
           {card.medianNote}
         </Text>
       ) : null}
       {card.working ? (
-        <Text variant='dataSmall' tone='textSecondary'>
+        <Text variant='dataSmall' tone='textMuted'>
           {card.working}
         </Text>
       ) : null}
@@ -58,7 +53,4 @@ export function RaceCardView({card}: {card: RaceCard}) {
 
 const styles = StyleSheet.create({
   box: {gap: space.md},
-  big: {flexDirection: 'row', alignItems: 'flex-end', gap: space.xxl},
-  after: {flex: 1, alignItems: 'flex-end'},
-  load: {gap: space.xs},
 });

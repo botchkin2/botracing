@@ -22,7 +22,15 @@ export const MAX_ALIGN_M = 20;
 // Recordings start and stop in the pits; keep the field a little either side.
 const PAD_S = 30;
 
-export function listCaptures(root) {
+// The recorder counts its layout looks (recorder.rs note_layout_check): a
+// capture is doubted only when the doubt held for most of the drive, for the
+// scoring or the player looks alike. One bad beat at a session load does not
+// cost the drive; `goodRows` judges the rows.
+export const captureDoubted = meta =>
+  (meta.playerDoubtful ?? 0) * 2 > (meta.playerChecks ?? 0) ||
+  (meta.layoutDoubtful ?? 0) * 2 > (meta.layoutChecks ?? 0);
+
+export function listCaptures(root, {suspect = false} = {}) {
   if (!root || !existsSync(root)) return [];
   const out = [];
   for (const name of readdirSync(root)) {
@@ -33,6 +41,9 @@ export function listCaptures(root) {
       // LMU's captures only: this reads LMU's columns (the iRacing tray
       // recorder shares the folder; irCapture.mjs reads those).
       if (meta.sim && meta.sim !== 'lmu') continue;
+      // Doubted for most of the drive (captureDoubted): kept on disk for a fix
+      // to re-read, used for nothing.
+      if (captureDoubted(meta) !== suspect) continue;
       const files = readdirSync(resolve(root, name))
         .filter(f => /^field-\d+\.parquet$/.test(f))
         .map(f => resolve(root, name, f));
@@ -200,6 +211,25 @@ export function undelta(values) {
   return values.map(d => (d === null ? null : (last += d)));
 }
 
+// A wrong layout garbles every car's lap distance; a car in a long pit lane
+// reads far below zero but is real (Sebring -1664 m). Garbage is non-finite or
+// beyond 100 km, the recorder's own bound (sanity.rs).
+export const LAP_DIST_BOUND_M = 100_000;
+const garbage = d => !(Number.isFinite(d) && Math.abs(d) < LAP_DIST_BOUND_M);
+
+// The rows without a garbage lap distance, or null when over a quarter are
+// garbage (a wrong layout, whatever the mark says).
+export function goodRows(c) {
+  const n = c.et.length;
+  const keep = [];
+  for (let k = 0; k < n; k++) if (!garbage(c.lapDist[k])) keep.push(k);
+  if ((n - keep.length) * 4 > n) return null;
+  if (keep.length === n) return c;
+  return Object.fromEntries(
+    Object.entries(c).map(([key, col]) => [key, keep.map(k => col[k])]),
+  );
+}
+
 // duck.mjs hands a SQL NULL back as an empty string: only a positive number is a lap.
 const bestOf = v => (Number(v) > 0 ? Number(v) : null);
 
@@ -234,25 +264,63 @@ function readRows(files, models, fromEt, toEt) {
   return {c, cars};
 }
 
+// What the session says when it has no field, in words for the person who
+// drove it (the Field screen shows it as is): the analysis reason in, the line
+// out. Every reason has one, so no session without a field is silent.
+export function fieldMissingText(reason) {
+  if (reason === 'capture marked suspect') return 'Other cars: recording doubted';
+  if (reason === 'capture game data not recognised')
+    return 'Other cars: game data unreadable';
+  if (
+    reason === 'capture has no rows in this session' ||
+    reason?.startsWith('clocks disagree') ||
+    reason === 'player car not in both sources'
+  )
+    return "Other cars: recording doesn't match the game file";
+  if (reason === 'no capture' || reason == null)
+    return 'Other cars: not recorded';
+  // Not a verdict on the drive: iRacing's field comes with the game file, a
+  // live lap that could not make one tries again on the next.
+  return null;
+}
+
+// The session doc's `fieldMissing`: null with a field; else why, in words. A
+// run that gave no reason (the cloud analysis has no capture to read) keeps the
+// stored line, and a session never told why says it was not recorded.
+export function fieldMissingAfter(field, reason, stored) {
+  if (field) return null;
+  if (reason == null) return stored ?? fieldMissingText(null);
+  return fieldMissingText(reason) ?? stored ?? null;
+}
+
 // The session's field, or {field: null, reason}.
 // session: {tracks, startMs, endMs}; recs: [{t, lapDist}] from the .duckdb.
 export function fieldFor(root, session, recs) {
   const found = capturesFor(listCaptures(root), session);
-  if (!found.length) return {field: null, reason: 'no capture'};
+  if (!found.length)
+    return {
+      field: null,
+      reason: capturesFor(listCaptures(root, {suspect: true}), session).length
+        ? 'capture marked suspect'
+        : 'no capture',
+    };
   const fromEt = Math.min(...recs.map(r => r.t[0])) - PAD_S;
   const toEt = Math.max(...recs.map(r => r.t[r.t.length - 1])) + PAD_S;
   const models = Object.assign(
     {},
     ...found.map(f => f.meta.vehicleModels || {}),
   );
-  const {c, cars} = readRows(
+  const read = readRows(
     found.flatMap(f => f.files),
     models,
     fromEt,
     toEt,
   );
-  if (!c.et || c.et.length === 0)
+  const {cars} = read;
+  if (!read.c.et || read.c.et.length === 0)
     return {field: null, reason: 'capture has no rows in this session'};
+  const c = goodRows(read.c);
+  if (!c) return {field: null, reason: 'capture game data not recognised'};
   const player = {et: [], lapDist: []};
   for (let k = 0; k < c.et.length; k++) {
     if (c.player[k]) {
@@ -292,4 +360,18 @@ export function fieldAfterSync(fresh, stored) {
   const deletePath =
     stored?.path && stored.path !== fresh.path ? stored.path : null;
   return {field: fresh, upload: true, deletePath};
+}
+
+// A block worked out from the field (result, classLaps, classBests) names the
+// field file it was read from, and a stored one is kept only while the session
+// still points at that file. A live session's field grows every lap under a
+// new name, so a block kept on its version alone stayed what the first lap
+// gave: the 2026-10-21 Sebring race read his grid slot as his finish (pit wall
+// thread 98).
+export function stampField(block, field) {
+  return block ? {...block, fieldHash: field?.hash ?? null} : block;
+}
+
+export function madeFromField(block, field) {
+  return Boolean(block && field?.hash && block.fieldHash === field.hash);
 }

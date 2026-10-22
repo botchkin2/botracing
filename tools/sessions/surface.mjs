@@ -28,6 +28,7 @@ import {surfaceProgressLine} from './surfaceProgress.mjs';
 import {apiAuthHeaders} from './apiAuth.mjs';
 import {
   addSession,
+  edgeLimits,
   emptySurface,
   SURFACE_STEP_M,
 } from '../../src/analysis/trackSurface.ts';
@@ -37,8 +38,10 @@ export const surfacePath = trackId => `surface/${trackId}/v1.json.gz`;
 // Which laps and samples went in. A stored artifact built under other rules is
 // thrown away and rebuilt from every session. 2: grid laps (lap number 0) are
 // left out: a race's lap 0 sits on the grid with LapDistPct 0 for a minute and
-// pulled Sebring's first bin 80 m off the road (pit-wall thread 44, E).
-export const SURFACE_RULES = 2;
+// pulled Sebring's first bin 80 m off the road (pit-wall thread 44, E). 3: an
+// edge reading is kept within 3x its bin's median, not under a fixed 20 m (which
+// clipped real edges at Algarve, Sebring, COTA and Daytona; thread 94 #6596).
+export const SURFACE_RULES = 3;
 
 // A lap the surface may use: a whole, timed, comparable lap with no pit lane
 // (the pit lane's lateral is not the racing surface's: Daytona reads -17..+29 m).
@@ -88,12 +91,20 @@ export function buildSurface(lengthM, sessions) {
   const surface = {...emptySurface(lengthM), rules: SURFACE_RULES};
   let sessionsAdded = 0;
   let lapsAdded = 0;
-  for (const s of sessions) {
-    const laps = s.csvs
+  // Every lap first: an edge is judged by its bin's median over the whole set.
+  const parsed = sessions.map(s => ({
+    id: s.id,
+    laps: s.csvs
       .map(csv => surfaceLapFromCsv(csv, lengthM))
-      .filter(lap => lap != null);
+      .filter(lap => lap != null),
+  }));
+  const limits = edgeLimits(
+    lengthM,
+    parsed.flatMap(s => s.laps),
+  );
+  for (const {id, laps} of parsed) {
     if (laps.length === 0) continue;
-    addSession(surface, s.id, laps);
+    addSession(surface, id, laps, limits);
     sessionsAdded += 1;
     lapsAdded += laps.length;
   }

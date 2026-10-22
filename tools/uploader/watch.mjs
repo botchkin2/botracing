@@ -55,6 +55,8 @@ import {
   readSyncLine,
 } from './syncOutput.mjs';
 import {createHeartbeatSender, httpSend} from './heartbeatSender.mjs';
+import {newRefusal, trackRefusals} from './refusals.mjs';
+import {readNoField} from '../sessions/noField.mjs';
 import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
 import {runWithBeats} from './syncBeats.mjs';
 import {clearStaleSyncing, stateOf} from './watchState.mjs';
@@ -469,6 +471,13 @@ async function main() {
     }
     const recorder = readJson(recorderStatus, null);
     const nowMs = Date.now();
+    const refusals = trackRefusals(watch.refusals ?? [], recorder, nowMs);
+    const opened = newRefusal(watch.refusals ?? [], refusals);
+    if (opened) log(`recorder refused a drive: ${opened.reason}`);
+    if (JSON.stringify(refusals) !== JSON.stringify(watch.refusals ?? [])) {
+      watch.refusals = refusals;
+      save();
+    }
     const doc = heartbeatDoc({
       hostId,
       label,
@@ -501,7 +510,13 @@ async function main() {
       freeBytes,
       recorder,
       retryAtMs: earliestOf(all.map(a => earliestRetryMs(a.st.retries ?? {}))),
-      problems: problemsOf({sims: all.map(a => a.st), recorder, nowMs}),
+      problems: problemsOf({
+        sims: all.map(a => a.st),
+        recorder,
+        refusals: watch.refusals,
+        noField: Object.assign({}, ...SIMS.map(sim => readNoField(workOf(sim)))),
+        nowMs,
+      }),
       // The tray writes this file when an update is downloaded (update.rs).
       updateWaiting: updateWaitingOf(readText(resolve(home, 'update-waiting.json')), ver),
       nowMs,

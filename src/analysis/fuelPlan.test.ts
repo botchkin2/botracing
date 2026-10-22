@@ -2,6 +2,8 @@ import {describe, expect, it} from '@jest/globals';
 
 import {
   type GreenLap,
+  FORMATION_FUEL_ESTIMATE,
+  formationLaps,
   MAX_PIT_PASSES,
   MIN_COMPARE_LAPS,
   paceLaps,
@@ -21,7 +23,19 @@ const rules = (over: Partial<PlanRules> = {}): PlanRules => ({
   vePct: 100,
   formationLap: false,
   mandatoryStops: 0,
+  // The stint arithmetic below is written for a formation of one lap of each;
+  // the estimate the app uses without races is its own test.
+  formationFactor: {fuel: 1, ve: 1},
   ...over,
+});
+
+describe('formationLaps', () => {
+  it('without a measured burn charges the estimate: 0.4 laps of fuel and no VE (VE does not move before the green)', () => {
+    const r = {...rules({formationLap: true}), formationFactor: undefined};
+    expect(formationLaps(r)).toEqual({fuel: FORMATION_FUEL_ESTIMATE, ve: 0});
+    expect(FORMATION_FUEL_ESTIMATE).toBe(0.4);
+    expect(formationLaps(rules())).toEqual({fuel: 0, ve: 0});
+  });
 });
 
 // n green laps of the same use and lap time, from two sessions.

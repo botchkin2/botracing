@@ -26,6 +26,7 @@ const lap = (
   ({
     id: `l${i}`,
     lapIndex: i,
+    lapNo: i,
     stint,
     fuel: green == null ? null : {green},
     tyres: {
