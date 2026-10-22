@@ -20,6 +20,8 @@ export interface ChaseClock {
   atMs: number;
   playing: boolean;
   rate: number;
+  /** The app's time at its last report: a paused app time that differs from it is a seek. */
+  appS: number;
 }
 
 /** Race time now: running at `rate` from the anchor while playing, held while paused. */
@@ -32,7 +34,15 @@ export function followApp(c: ChaseClock, app: {timeS: number; playing: boolean; 
   const ran = clockAt(c, nowMs);
   const changed = app.playing !== c.playing || app.rate !== c.rate;
   const parted = Math.abs(app.timeS - ran) > Math.min(SEEK_MAX_S, SEEK_S * Math.max(1, app.rate));
-  if (!app.playing || parted) return {timeS: app.timeS, atMs: nowMs, playing: app.playing, rate: app.rate};
-  if (changed) return {timeS: ran, atMs: nowMs, playing: app.playing, rate: app.rate};
+  const at = (timeS: number): ChaseClock => ({timeS, atMs: nowMs, playing: app.playing, rate: app.rate, appS: app.timeS});
+  // paused and the app has said nothing new: nothing moves, whatever gap a pause hold left
+  if (!app.playing && !c.playing && app.rate === c.rate && app.timeS === c.appS) return c;
+  if (parted) return at(app.timeS);
+  if (!app.playing) {
+    // pausing holds where the 3D had run to, not the app's last 5 Hz tick (up to 0.2 s of wall time behind: the cars
+    // would step back and the camera with them); a paused app time that then moves is a scrub
+    return c.playing ? at(ran) : at(app.timeS);
+  }
+  if (changed) return at(ran);
   return c;
 }
