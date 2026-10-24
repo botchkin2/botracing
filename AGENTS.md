@@ -25,7 +25,15 @@ For anything visual, run your own live dev server. `.claude/launch.json` has six
 
 The app needs a sign-in. Seats test only as `seat-test`, never with Botkin's account: sign a pane in with a link from `functions/scripts/mintTestToken.mjs` (`docs/TESTING.md`).
 
-The PR preview (its URL is in the github-actions comment) is still what the reviewer and apex check before a merge. Push early (a draft PR is fine).
+## Push when you are confident (`pit-wall/decisions/lap/2026-10-24-push-when-confident.md`)
+
+Work in progress stays local: no draft PRs, no pushing to see what CI says. Before the first push:
+1. The design is agreed on the board.
+2. `npm run check` is green (`tools/ci/check.mjs`: every command of CI's app and functions jobs, plus the capture and desktop jobs when those paths changed, the tray/API parity gate when that line changed). It prints one PASS/FAIL table.
+3. The phone-width proof is taken from your own live slot (above), not from the PR preview.
+4. The PR body passes `npm run check -- --body <file>` (the `## Proof where he uses it` section, a sha of this branch).
+
+Then one push, and open the PR ready, with the check table and the proof in the body. The reviewer does not read a draft or a red PR. The PR preview (its URL is in the github-actions comment) is what the reviewer and apex check before a merge. A red CI run is a miss you report on the board.
 
 `.claude/settings.json` allowlists the everyday commands: git on your own branch, `gh pr create`/`comment`, tests, lint, the board, and the preview tools. Pushing to `main`, force pushes, and `gh pr merge` are denied: apex merges. If something you need still prompts, tell apex rather than working around it.
 
