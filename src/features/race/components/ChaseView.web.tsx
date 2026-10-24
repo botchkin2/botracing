@@ -339,6 +339,14 @@ function ChaseSurface({
         </View>
       ) : null}
       {list.length > 0 ? (
+        // a tap anywhere else closes the list; it takes the touch, so the camera does not move
+        <Pressable
+          accessibilityLabel='Close the car list'
+          onPress={() => setListOpen(false)}
+          style={[styles.scrim, {top: canvasTop}]}
+        />
+      ) : null}
+      {list.length > 0 ? (
         <View style={[styles.list, {top: canvasTop}]}>
           <ChaseTower
             rows={list}
@@ -425,6 +433,7 @@ const styles = StyleSheet.create({
   // A phone: the inputs in the bottom left corner, the numbers in the bottom right, the middle left to the car.
   dockTight: {left: space.sm, maxWidth: '100%', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between'},
   strip: {position: 'absolute', left: space.sm, right: space.sm},
+  scrim: {position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 1},
   list: {position: 'absolute', left: space.sm, right: space.sm, zIndex: 2},
   numbers: {
     flexDirection: 'row',
