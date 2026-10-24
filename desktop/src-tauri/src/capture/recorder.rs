@@ -1132,6 +1132,27 @@ mod tests {
     }
 
     #[test]
+    fn a_refused_chunk_still_held_at_the_end_gets_one_last_try_and_is_written() {
+        // The disk comes back just before the drive ends: close offers the held chunk once more.
+        let (rig, mut rec, folder, blocker) = refused_then_flush("lasttry", true, 63_000);
+        rec.shutdown(70_000);
+        assert!(blocker.is_file(), "the held chunk was written at close, with its own rows");
+        let meta = rig.meta(&folder);
+        assert!(meta.get("lostChunks").is_none() || meta["lostChunks"] == 0, "{meta}");
+        assert!(meta["endUtc"].is_string(), "closed cleanly");
+    }
+
+    #[test]
+    fn a_refused_chunk_the_disk_still_refuses_at_the_end_is_counted_not_forgotten() {
+        let (rig, mut rec, folder, blocker) = refused_then_flush("lostatend", false, 63_000);
+        rec.shutdown(70_000);
+        assert!(blocker.is_dir(), "still blocked");
+        let meta = rig.meta(&folder);
+        assert!(meta["lostChunks"].as_u64().unwrap() >= 1, "{meta}");
+        assert!(meta["lostPlayerRows"].as_u64().unwrap() >= 1, "the rows are counted by kind: {meta}");
+    }
+
+    #[test]
     fn rows_a_capture_still_holds_when_it_is_dropped_reach_the_disk() {
         // The recorder refused it, or panicked and unwound: the last chunk's rows are written, not lost.
         let (rig, mut rec) = Rig::new("dropflush");
