@@ -5,8 +5,9 @@ import {type TowerCar, towerRows} from './towerRows';
 const TRACK = 4000;
 const car = (index: number, place: number, lapDistM: number, over: Partial<TowerCar> = {}): TowerCar => ({
   index,
-  place,
+  classPlace: place,
   classKey: 'gt3',
+  classTag: 'GT3',
   color: '#fff',
   model: `M${index}`,
   lapDistM,
@@ -33,9 +34,17 @@ describe('towerRows', () => {
     expect(towerRows(field, 0, 'order', 5, TRACK).map(r => r.index)).toEqual([0, 1, 2, 3, 4]);
     expect(towerRows(field, 9, 'order', 5, TRACK).map(r => r.index)).toEqual([5, 6, 7, 8, 9]);
   });
-  it('shows no class gap across classes', () => {
-    const mixed = field.map(c => (c.index === 3 ? {...c, classKey: 'hy'} : c));
-    expect(towerRows(mixed, 4, 'order', 3, TRACK).map(r => r.gap)).toEqual(['–', '', '+2.0']);
+  it('keeps Order to the class of the followed car, so its neighbours are its class places', () => {
+    const mixed = field.map(c => (c.index === 3 ? {...c, classKey: 'hy', classTag: 'HY', classPlace: 1} : c));
+    const rows = towerRows(mixed, 4, 'order', 3, TRACK);
+    expect(rows.map(r => r.index)).toEqual([2, 4, 5]);
+    expect(rows.map(r => r.classPlace)).toEqual([3, 5, 6]);
+    expect(rows.every(r => r.classTag === 'GT3')).toBe(true);
+  });
+  it('labels a Near row from another class with its own tag and class place', () => {
+    const mixed = field.map(c => (c.index === 3 ? {...c, classKey: 'hy', classTag: 'HY', classPlace: 1} : c));
+    const rows = towerRows(mixed, 4, 'near', 3, TRACK);
+    expect(rows.map(r => [r.index, r.classTag, r.classPlace, r.gap])).toEqual([[3, 'HY', 1, '+100 m'], [4, 'GT3', 5, ''], [5, 'GT3', 6, '−100 m']]);
   });
   it('orders by road distance in Near, ahead on top, in metres', () => {
     const shuffled = [field[5], field[0], field[3], field[4], field[9]];

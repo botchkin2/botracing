@@ -530,8 +530,9 @@ function RaceView({
     () =>
       cars.map(c => ({
         index: c.index,
-        place: c.place,
+        classPlace: c.classPlace,
         classKey: c.classKey,
+        classTag: classes.of(c.classKey).title,
         color: classColor(color, classes.of(c.classKey).slot),
         model: displayModel(c.vehicle),
         lapDistM: c.lapDistM,

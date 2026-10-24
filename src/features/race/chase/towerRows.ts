@@ -6,9 +6,11 @@ import {roadOffsetM} from '@/src/features/race/model';
 /** What the tower needs of one car, taken from the Race screen's own car (place, class colour, model). */
 export type TowerCar = {
   index: number;
-  /** Overall place from the game's scoring. */
-  place: number;
+  /** Place in its own class, the HUD's basis (the standings' classPlace); 0 when it has none. */
+  classPlace: number;
   classKey: string;
+  /** The class's short title ("GT3"), printed beside the place. */
+  classTag: string;
   /** Class colour from the design tokens. */
   color: string;
   model: string;
@@ -18,12 +20,13 @@ export type TowerCar = {
   inGarage: boolean;
 };
 
-/** Order: the running order by place. Near: the cars by their road distance from the followed car, ahead on top. */
+/** Order: the followed car's class by class place, so its neighbours are the HUD's P11 and P13. Near: the cars by their road distance from the followed car, ahead on top. */
 export type TowerMode = 'order' | 'near';
 
 export type TowerRow = {
   index: number;
-  place: number;
+  classPlace: number;
+  classTag: string;
   color: string;
   model: string;
   /** Order: seconds to the followed car in its class ("−1.2" ahead), "–" across classes. Near: metres along the road ("+35 m"). "" on the followed car. */
@@ -41,11 +44,11 @@ export function towerRows(
 ): TowerRow[] {
   const me = cars.find(c => c.index === followed);
   if (!me) return [];
-  const live = cars.filter(c => !c.inGarage && c.place > 0);
+  const live = cars.filter(c => !c.inGarage && c.classPlace > 0);
   if (!live.includes(me)) return [];
   const ordered =
     mode === 'order'
-      ? [...live].sort((a, b) => a.place - b.place)
+      ? live.filter(c => c.classKey === me.classKey).sort((a, b) => a.classPlace - b.classPlace)
       : live
           .flatMap(c => {
             const d = roadOffsetM(c, me, trackM);
@@ -58,7 +61,8 @@ export function towerRows(
   const first = Math.max(0, Math.min(at - Math.floor(count / 2), ordered.length - count));
   return ordered.slice(first, first + count).map(c => ({
     index: c.index,
-    place: c.place,
+    classPlace: c.classPlace,
+    classTag: c.classTag,
     color: c.color,
     model: c.model,
     gap: c === me ? '' : gapText(c, me, mode, trackM),

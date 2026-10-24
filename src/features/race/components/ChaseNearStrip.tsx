@@ -24,12 +24,12 @@ export function ChaseNearStrip({
       {rows.map(r => (
         <Pressable
           key={r.index}
-          accessibilityLabel={`Follow ${r.model}, place ${r.place}`}
+          accessibilityLabel={`Follow ${r.model}, ${r.classTag} place ${r.classPlace}`}
           onPress={() => onPick(r.index)}
           style={[styles.chip, r.followed && {backgroundColor: color.accentTint}]}>
           <View style={styles.top}>
             <View style={[styles.bar, {backgroundColor: r.color}]} />
-            <Text variant={r.followed ? 'dataStrong' : 'dataSmall'}>{`P${r.place}`}</Text>
+            <Text variant={r.followed ? 'dataStrong' : 'dataSmall'}>{`${r.classTag} P${r.classPlace}`}</Text>
             <Text variant='dataSmall' tone='textMuted' numberOfLines={1}>{r.gap}</Text>
           </View>
           <Text variant='dataSmall' tone='textMuted' numberOfLines={1}>{r.model}</Text>
