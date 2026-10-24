@@ -21,7 +21,8 @@ use std::time::Duration;
 const POLL: Duration = Duration::from_millis(4);
 const NO_SIM: Duration = Duration::from_secs(5);
 const WAITING: Duration = Duration::from_secs(1);
-const CHUNK_MS: u64 = 60_000;
+// Cut at least this often (the LMU recorder's runner::CHUNK_MS: a crash loses at most this much).
+const CHUNK_MS: u64 = 15_000;
 /// The field and the session clock are kept this often.
 const FIELD_EVERY_MS: u64 = 200;
 /// The session text is looked at this often (a header read, cheap).
