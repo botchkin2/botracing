@@ -16,10 +16,11 @@ written on.
 ## Recorder (`desktop/src-tauri/src/capture/sanity.rs`)
 
 Since the never-drop recorder (#705) every row below only **marks** the capture
-`layoutSuspect`; nothing is refused or deleted. A mark makes the tray use none
-of the capture, so the numbers still matter: a false mark costs the drive's
-field. All are layout-wrongness detectors, so each must be far from any real
-value.
+`layoutSuspect`; nothing is refused or deleted. Today a mark held for most of
+the drive still makes the tray use none of the capture (`field.mjs`
+`captureDoubted`, `syncLive.mjs`): that is a drop, and goes (pit-wall thread
+100, L1 audit row 3): the capture is used and its field marked. All are
+layout-wrongness detectors, so each must be far from any real value.
 
 | Limit | Value | Meant to catch | Verdict |
 |---|---|---|---|
@@ -32,7 +33,7 @@ value.
 | Car `place` | `<= max_vehicles` | Wrong layout | Keep |
 | Names | printable; marks above a quarter | Garbled names | Keep |
 | iRacing SDK header | 4 buffers, 4096 vars, 1 MiB frame, 4 MiB session info (`irsdk.rs:18-24`) | A header that is not iRacing's | Keep: sizes of the SDK's own structs |
-| Capture cap | 14 days, 10 GB (`prune_policy.rs`) | Disk use | Keep: deletes uploaded captures only, oldest first |
+| Capture cap | 14 days, 10 GB (`prune_policy.rs`) | Disk use | Keep: the cap takes only captures whose every session was read back from the store and matched (`verifyStored.mjs`), oldest first. An unverified one goes only at 14 days (Botkin: "14 days is acceptable") and shows in Problems with the days left; over the cap it is kept and shown (thread 100, L6) |
 
 ## Uploader and session grouping (`tools/sessions`)
 
@@ -41,7 +42,7 @@ value.
 | `MIN_RECORDING_SEC` (`sessionFiles.mjs:15`) | 30 s | A shorter recording is skipped | A menu, a false start | Keep: no real session is under 30 s; but it must log the file, not skip silently (check) |
 | `SESSION_GAP_H` (`:11`) | 6 h | A longer gap between recordings starts a new session | Separate sessions | **Change**: a 24 h race can hold a 6 h red flag. Use the same event (same track, series and session clock restart rules already in `sessionFiles`) instead of wall time, or scale to the race length |
 | `RESTART_MAX_SEC`, `RESTART_GAP_SEC` (`:12-13`) | 300 s, 120 s | Whether two recordings are one race with a restart | Two races starting on the default clock | Keep: relative to the start clock, not size |
-| `MAX_ALIGN_M` (`field.mjs:21`) | 20 m | The whole field is dropped when the player's lap distance differs from the game file by more | A restart or rejoin reset the clock | **Keep dropping** (gauge #6563: wrong car positions are worse than none), always with the `fieldMissing` line ("Other cars: recording doesn't match the game file", already so since #705). 20 m is a car and a half, a comparison of two measures of the same car, so it holds at any track length |
+| `MAX_ALIGN_M` (`field.mjs:21`) | 20 m | The whole field is dropped when the player's lap distance differs from the game file by more | A restart or rejoin reset the clock | **Change: store with a mark** (gauge #6846 withdrew #6563's "keep dropping"; thread 100, L1 audit row 4): the field is written with `mark {kind: 'misaligned', alignM}` and shown with one line saying how far off it is. 20 m stays as the threshold for the mark |
 | `MAX_TICK_RISE_M` (`gridLap.mjs:24`) | 100 m per sample | The lap is flagged partial (kept, not comparable) | A race lap 0 from the grid (Sebring 0 to 4800 m) | Keep: per sample, not per lap; 100 m in 10 ms is 36000 km/h |
 | `LINE_M`, `LENGTH_TOLERANCE` (`analyze.mjs:944-945`) | 30 m, 2% of the map length | A lap starting past 30 m or off the length gets no corner split (lap kept) | Grid start, reset | `LENGTH_TOLERANCE` is relative to the track: keep. `LINE_M` is the first sample past the line, which does not depend on track length. **Tried the lap's own step (3 x median step, floor 1 m) and the golden sessions moved** (Road Atlanta race: comparable 10 to 11, stdev 0.624 to 1.186, corner medians), so real laps start further past the line than their step: **keep 30 m**, not a size limit, and not changed without a golden update that Botkin sees |
 | `GRID_PARKED_SEC` (`gridLap.mjs:40`) | 10 s | Picks the partial reason | Grid start | Keep (a label) |

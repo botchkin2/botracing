@@ -87,6 +87,9 @@ Botkin uses this app mostly on his phone, straight out of the car after a sessio
 
 ## 9. Errors and loading
 
+- **No check ever drops data** (Botkin, 2026-10-21: "I fucking hate fake checks that only block real data"; pit-wall `decisions/lap/2026-10-21-no-validation-drops-data.md`, thread 100). In the tray, uploader, cloud and app, a value that fails a check is kept as it came, marked (`field.mark`, a meta count, a flag on the doc) and warned about (session line + Problems). Nothing refuses, skips, truncates, merges away or deletes captured data because a check failed. *Storing* and *showing* are separate: a value too wrong to draw is still stored with its mark. A check that would drop data needs Botkin's yes, quoted in that decision file; reviewers block any PR that adds one.
+- **A source is deleted only after what came from it is read back from the store and matches** (`tools/sessions/verifyStored.mjs`, `desktop/src-tauri/src/capture/prune.rs`). "Uploaded" means read back, not sent. A size cap never takes an unverified source. The one exception is Botkin's ("14 days is acceptable", in the decision file): a capture that never verified goes at 14 days, and shows in Problems with the days left until then.
+
 - Every screen handles loading, empty, error and partial data explicitly, with the states the handoff draws (for example "No sessions yet", "3 laps, none comparable"). No spinner-forever, no blank screen.
 - Throw at boundaries for impossible states; do not silently return defaults that hide bad data. Adapters validate what they read and report which field was wrong.
 - No `console.log` in committed code. Use `console.warn` or `console.error` only for things a developer must act on.

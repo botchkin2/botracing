@@ -45,6 +45,7 @@ import {trafficMedians} from '../../src/analysis/traffic.ts';
 import {lapTrafficFrom} from './lapTraffic.mjs';
 import {withNetRetry} from './netRetry.mjs';
 import {mapLimit} from './mapLimit.mjs';
+import {verifyStored} from './verifyStored.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '../..');
@@ -899,6 +900,9 @@ export function createStore(backend) {
       return backend.updateDocs(ops);
     },
     upload: (out, options) => uploadSession(backend, out, options),
+    // The uploaded session read back (verifyStored.mjs): what lets the tray
+    // delete the captures it read.
+    verify: (out, options) => verifyStored(backend, out, options),
     uploadLive: (out, options) => uploadLive(backend, out, options),
     // One archive file put in place of the stored one when their bytes
     // differ; true when it was sent.
@@ -960,6 +964,7 @@ const admin = () => createStore(adminBackend(connect()));
 export const getTrack = trackId => admin().getTrack(trackId);
 export const updateEvents = items => admin().updateEvents(items);
 export const upload = (out, options) => admin().upload(out, options);
+export const verify = (out, options) => admin().verify(out, options);
 export const putCaptureExtract = (ownerId, sessionId, extract) =>
   admin().putCaptureExtract(ownerId, sessionId, extract);
 export const putResultsInput = (ownerId, sessionId, input) =>
