@@ -1,6 +1,9 @@
-// The chase camera of a game: it hangs a fixed distance behind the followed car on a smoothed direction and looks at
-// the car, so the car stays in the middle of the frame at any bend and its size never changes. Only the direction (and
-// the camera's height) are smoothed; the camera is never a lagging position, so the distance to the car cannot pump.
+// The chase camera of a game: it hangs a fixed distance behind the followed car's BODY on a smoothed direction and looks
+// at the car, so the car stays in the middle of the frame at any bend and its size never changes. Only the direction
+// (and the camera's height) are smoothed; the camera is never a lagging position, so the distance to the car cannot
+// pump. It follows the body, never the direction of motion: a car in a slide or a spin moves one way and points
+// another, and a camera that followed the motion sat in front of the car for seconds and swung 180 degrees when the
+// speed dropped (Sebring 2026-10-21, pit-wall thread 94 #6896). The body heading comes already chosen (chaseHeading).
 // Plain TypeScript, imports one file.
 
 import {angDiff, clamp, ease} from './chaseMath.ts';
@@ -20,9 +23,13 @@ export const RATE_DEADBAND = 0.15;
 export const LIFT_TAU_S = 0.25;
 /** A move of the car further than this in one frame (more than the playback rate explains) is a seek or a pit teleport: no smoothing. */
 export const JUMP_M = 40;
-/** Below this speed the direction of travel is noise and the body heading is used; between the two it blends. */
-export const TRAVEL_FROM_MS = 3;
-export const TRAVEL_FULL_MS = 8;
+/** The lead never turns the camera further than this ahead of the body (radians, 20 degrees): a spin must not throw it. */
+export const LEAD_MAX_RAD = 0.35;
+/**
+ * The most the camera may turn in a second of race time (radians per second, 180 degrees), scaled by the playback rate
+ * so a hairpin at 4x is still followed. A car spinning faster out-runs the camera instead of dragging it round.
+ */
+export const AIM_RATE_MAX = Math.PI;
 /** The camera looks this far ahead of the car along its direction, seconds of travel, at most LEAD_MAX_M. */
 export const LEAD_S = 0.1;
 export const LEAD_MAX_M = 4;
@@ -38,6 +45,8 @@ export interface FollowState {
   /** The direction asked for last frame, and its turn rate (radians per wall second, smoothed). */
   dir: number;
   rate: number;
+  /** Where the camera looked last frame (the lagged direction plus the lead, turn-rate limited). */
+  aim: number;
   /** The camera's height. */
   z: number;
   /** Where the car was last frame. */
@@ -46,7 +55,7 @@ export interface FollowState {
   set: boolean;
 }
 
-export const newFollow = (): FollowState => ({yaw: 0, dir: 0, rate: 0, z: 0, x: 0, y: 0, set: false});
+export const newFollow = (): FollowState => ({yaw: 0, dir: 0, rate: 0, aim: 0, z: 0, x: 0, y: 0, set: false});
 
 export interface FollowCar {
   x: number;
@@ -54,8 +63,6 @@ export interface FollowCar {
   z: number;
   /** World angle of the body, 0 along +x. */
   heading: number;
-  /** World angle of the direction of travel, null until known. */
-  travel: number | null;
   /** m/s. */
   v: number;
 }
@@ -68,6 +75,8 @@ export interface FollowView {
   lookY: number;
   lookZ: number;
 }
+
+const maxTurn = (dt: number, slow: number) => (dt > 0 ? AIM_RATE_MAX * slow * dt : 0);
 
 /**
  * One frame. `dt` is wall seconds, `rate` the playback rate (the car covers `rate` times the road per second, so the
@@ -83,8 +92,7 @@ export function followStep(
   hard: boolean,
   free: FreeCam = FREE_NONE,
 ): FollowView {
-  const w = clamp((car.v - TRAVEL_FROM_MS) / (TRAVEL_FULL_MS - TRAVEL_FROM_MS), 0, 1);
-  const dir = car.travel === null ? car.heading : car.heading + angDiff(car.heading, car.travel) * w;
+  const dir = car.heading;
   const jumped = Math.hypot(car.x - st.x, car.y - st.y) > JUMP_M + car.v * dt * Math.max(1, rate) * 2;
   const snap = hard || !st.set || jumped;
   const slow = Math.max(1, rate);
@@ -102,8 +110,11 @@ export function followStep(
   st.x = car.x;
   st.y = car.y;
   st.set = true;
-  const lead = snap ? 0 : Math.sign(st.rate) * Math.max(0, Math.abs(st.rate) - RATE_DEADBAND);
-  const aim = st.yaw + lead * tau;
+  const lead = snap ? 0 : clamp(Math.sign(st.rate) * Math.max(0, Math.abs(st.rate) - RATE_DEADBAND) * tau, -LEAD_MAX_RAD, LEAD_MAX_RAD);
+  const target = st.yaw + lead;
+  if (snap) st.aim = target;
+  else st.aim += clamp(angDiff(st.aim, target), -maxTurn(dt, slow), maxTurn(dt, slow));
+  const aim = st.aim;
   const cx = Math.cos(aim);
   const cy = Math.sin(aim);
   const ahead = Math.min(LEAD_MAX_M, car.v * LEAD_S);
