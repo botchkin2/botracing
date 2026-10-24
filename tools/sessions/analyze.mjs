@@ -40,7 +40,12 @@ import {
   markGreen,
   stintFuel,
 } from './fuelFacts.mjs';
-import {GRID_LAP_VERSION, partialWhy} from './gridLap.mjs';
+import {
+  GRID_LAP_VERSION,
+  LINE_DROP_M,
+  partialWhy,
+  racingSpan,
+} from './gridLap.mjs';
 import {cornerFacts} from './cornerFacts.mjs';
 import {PIT_VISIT_VERSION} from './pitVisit.mjs';
 import {
@@ -457,7 +462,7 @@ function isLoose(event) {
 }
 
 // Start/finish segments of one recording, as tick ranges.
-function segments(rec) {
+export function segments(rec) {
   const {s, events} = rec;
   const t = s.t;
   const tStart = t[0];
@@ -519,28 +524,38 @@ export function splitAtResets(segs, resets) {
   return out;
 }
 
-// Ticks of one lap, trimmed where lap distance resets at the line.
-function lapTicks(rec, seg) {
+// Ticks of one lap, trimmed where lap distance resets at the line: [first, last],
+// and for a grid start the stretch to the formation line as a third item (what
+// partialWhy reads), the first two being its racing lap's ticks (gridLap.mjs).
+export function lapTicks(rec, seg) {
   const {s} = rec;
   let i0 = idxAt(s.t, seg.start);
   let i1 = Math.min(idxAt(s.t, seg.end), s.t.length - 1);
   const d = s.lap_dist_m;
+  let grid = null;
   if (d) {
     // The beacon fires while distance still shows the previous lap's total.
     for (let i = i0 + 1; i <= Math.min(i1, i0 + 500); i++) {
-      if (d[i - 1] - d[i] > 150) {
+      if (d[i - 1] - d[i] > LINE_DROP_M) {
         i0 = i;
         break;
       }
     }
+    const resets = [];
     for (let i = i0 + 1; i <= i1; i++) {
-      if (d[i - 1] - d[i] > 150) {
-        i1 = i - 1;
-        break;
+      if (d[i - 1] - d[i] > LINE_DROP_M) resets.push(i);
+    }
+    if (resets.length > 0) {
+      const racing = racingSpan(d, i0, i1, resets);
+      if (racing) {
+        grid = [i0, resets[0] - 1];
+        [i0, i1] = racing;
+      } else {
+        i1 = resets[0] - 1;
       }
     }
   }
-  return [i0, i1];
+  return [i0, i1, grid];
 }
 
 // Distance along the lap for each tick: lap_dist when the sim gives it,
@@ -643,12 +658,16 @@ export function lapVerdict({covered, trackLimits, pitlane, timeInvalid}) {
 
 function analyzeLap(rec, seg, pits, flags, visitFacts, results = null) {
   const {s, events} = rec;
-  const [i0, i1] = lapTicks(rec, seg);
+  const [i0, i1, grid] = lapTicks(rec, seg);
   const dist = lapDistance(rec, i0, i1);
   const gameLapTime = lapTimeNear(events.lap_time, seg.end);
   const timed = gameLapTime != null;
   // A grid start is the parked car and the roll to the line, not a lap.
-  const why = partialWhy(seg.partial, dist, seg.end - seg.start);
+  const why = partialWhy(
+    seg.partial,
+    grid ? lapDistance(rec, grid[0], grid[1]) : dist,
+    seg.end - seg.start,
+  );
 
   let offTicks = 0;
   let edgeTicks = 0;

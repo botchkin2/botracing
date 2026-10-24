@@ -192,6 +192,8 @@ length, event, kept values.
 
 ## Analysis
 
+**Standing rule (Botkin, 2026-10-24: "do not re-analyze my session"):** the cloud analyses a session only when he opens that session. Nothing analyses from a list, a day or the plan, and nothing backfills: `useSession` (`src/data/sessions/queries.ts`) is the only caller of `analyzeOnce`, and `analysisOnlyOnOpen.test.ts` fails if another one appears. A rules bump (`analysisVersion`, a block key) makes a stored session read stale; it shows as stored until he opens it, and the open analyses it once. The day view (`?set=day`) reads its members' stored laps as they are.
+
 One engine: `tools/sessions/analyzeFromArchive.mjs` turns a session's archive
 plus its inputs into the session doc, lap docs, traces, slices, band and field
 file. It runs in Cloud Run (`functions/src/engine.ts` loads it) and on the PC.
