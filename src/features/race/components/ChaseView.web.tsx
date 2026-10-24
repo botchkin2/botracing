@@ -370,7 +370,7 @@ function ChaseSurface({
           ) : null}
           <View style={[styles.numbers, tight && styles.numbersTight, {backgroundColor: color.surface, borderColor: color.lineStrong}]}>
           {gaps ? (
-            <View style={styles.cell}>
+            <View style={[styles.cell, tight && styles.gapsTight]}>
               <Text variant='dataStrong'>{`${gaps.classTag} P${gaps.classPlace}`}</Text>
               <View style={styles.cell}>
                 <Text variant='dataSmall' tone='textMuted'>{`▲ ${gaps.aheadS === null ? '–' : formatGap(-gaps.aheadS, 1)}`}</Text>
@@ -447,4 +447,6 @@ const styles = StyleSheet.create({
   },
   numbersTight: {marginLeft: 'auto', flexDirection: 'column', alignItems: 'flex-end', gap: space.xs, width: size.chaseNumbersTight, paddingVertical: space.xs},
   cell: {flexDirection: 'row', alignItems: 'baseline', gap: space.xs},
+  // The place on one line, the two gaps under it: the column is 128 pt wide and a gap row of seven characters must not be cut.
+  gapsTight: {flexDirection: 'column', alignItems: 'flex-end', gap: 0},
 });

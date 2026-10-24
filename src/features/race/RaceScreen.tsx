@@ -536,10 +536,11 @@ function RaceView({
         color: classColor(color, classes.of(c.classKey).slot),
         model: displayModel(c.vehicle),
         lapDistM: c.lapDistM,
-        gapS: c.gapS,
+        // a grid has no gap, as in the HUD (gapSeconds)
+        intervalS: shownS < startS ? null : c.intervalS,
         inGarage: c.state === 'garage',
       })),
-    [cars, color, classes],
+    [cars, color, classes, shownS, startS],
   );
   const chase = useMemo<RaceChase | null>(
     () =>

@@ -15,8 +15,8 @@ export type TowerCar = {
   color: string;
   model: string;
   lapDistM: number;
-  /** Seconds behind the class leader; null in the garage. */
-  gapS: number | null;
+  /** Seconds to the car ahead in its class, the HUD's own interval (null on the grid, in the garage, or for a class leader). */
+  intervalS: number | null;
   inGarage: boolean;
 };
 
@@ -29,7 +29,7 @@ export type TowerRow = {
   classTag: string;
   color: string;
   model: string;
-  /** Order: seconds to the followed car in its class ("−1.2" ahead), "–" across classes. Near: metres along the road ("+35 m"). "" on the followed car. */
+  /** Order: seconds to the followed car in its class ("−1.2" ahead), the sum of the standings' intervals between the two, so the next car reads what the HUD's ▲ and ▼ read. Near: metres along the road ("+35 m"). "" on the followed car. */
   gap: string;
   followed: boolean;
 };
@@ -65,16 +65,25 @@ export function towerRows(
     classTag: c.classTag,
     color: c.color,
     model: c.model,
-    gap: c === me ? '' : gapText(c, me, mode, trackM),
+    gap: c === me ? '' : gapText(c, me, mode, trackM, ordered),
     followed: c === me,
   }));
 }
 
-function gapText(c: TowerCar, me: TowerCar, mode: TowerMode, trackM: number): string {
+function gapText(c: TowerCar, me: TowerCar, mode: TowerMode, trackM: number, ordered: readonly TowerCar[]): string {
   if (mode === 'near') {
     const d = roadOffsetM(c, me, trackM);
     return d === null ? '–' : `${formatSignedWhole(d)} m`;
   }
-  if (c.classKey !== me.classKey || c.gapS === null || me.gapS === null) return '–';
-  return formatGap(c.gapS - me.gapS, 1);
+  // Order holds one class by class place: the cars between the two each add their interval to the one ahead of them.
+  const from = ordered.indexOf(c);
+  const to = ordered.indexOf(me);
+  const [first, last] = from < to ? [from + 1, to] : [to + 1, from];
+  let sumS = 0;
+  for (let i = first; i <= last; i++) {
+    const intervalS = ordered[i].intervalS;
+    if (intervalS === null) return '–';
+    sumS += intervalS;
+  }
+  return formatGap(from < to ? -sumS : sumS, 1);
 }

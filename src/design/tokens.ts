@@ -393,7 +393,7 @@ export const size = {
   // app), then the Near strip, then the canvas: nothing floats over the cars.
   chaseControlsH: 48,
   // The numbers column on a phone's bottom right: its width.
-  chaseNumbersTight: 104,
+  chaseNumbersTight: 128,
   // Phone bottom bar (round 4 nav frame, item 8): 52 pt, as drawn.
   bottomBar: 52,
   // The same bar on a phone turned on its side, where 375 pt of height is all there is.

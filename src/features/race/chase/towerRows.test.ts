@@ -11,7 +11,7 @@ const car = (index: number, place: number, lapDistM: number, over: Partial<Tower
   color: '#fff',
   model: `M${index}`,
   lapDistM,
-  gapS: (place - 1) * 2,
+  intervalS: place === 1 ? null : 2,
   inGarage: false,
   ...over,
 });
@@ -29,6 +29,15 @@ describe('towerRows', () => {
     expect(rows.map(r => r.index)).toEqual([2, 3, 4, 5, 6]);
     expect(rows.map(r => r.gap)).toEqual(['−4.0', '−2.0', '', '+2.0', '+4.0']);
     expect(rows.find(r => r.followed)?.index).toBe(4);
+  });
+  it('reads the intervals the HUD reads: the car ahead and the car behind', () => {
+    const rows = towerRows(field.map(c => ({...c, intervalS: 1.5 + c.index * 0.1})), 4, 'order', 3, TRACK);
+    // me = index 4; the car ahead is 1.5 + 0.4 = 1.9 up, the car behind is 1.5 + 0.5 = 2.0 back
+    expect(rows.map(r => r.gap)).toEqual(['−1.9', '', '+2.0']);
+  });
+  it('prints a dash when an interval on the way is unknown (the grid)', () => {
+    const grid = field.map(c => ({...c, intervalS: null}));
+    expect(towerRows(grid, 4, 'order', 3, TRACK).map(r => r.gap)).toEqual(['–', '', '–']);
   });
   it('keeps the full count at the front and the back of the field', () => {
     expect(towerRows(field, 0, 'order', 5, TRACK).map(r => r.index)).toEqual([0, 1, 2, 3, 4]);
