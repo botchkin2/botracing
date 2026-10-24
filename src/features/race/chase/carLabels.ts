@@ -9,6 +9,40 @@ const FADE_M = 100;
 const MIN_OPACITY = 0.45;
 const BOX_ALPHA = 0.88;
 
+/** A label's box in screen pixels, as the element draws it: 11 px mono, 5 px side padding, a border. */
+const CHAR_W = 6.6;
+const PAD_W = 12;
+const BOX_H = 17;
+/** Space kept between two labels that are both shown. */
+const GAP_PX = 2;
+
+export interface LabelCandidate {
+  key: number;
+  /** Where the label's bottom centre sits, screen pixels. */
+  x: number;
+  y: number;
+  text: string;
+  /** Metres from the followed car: the nearer one keeps its label when two overlap. */
+  distM: number;
+}
+
+/**
+ * The labels to show when some would sit on top of each other (a grid, a pack): nearest first, a label is dropped when its
+ * box overlaps one already kept. Pure and deterministic (ties by key), so a car's label does not flicker between frames.
+ */
+export function declutterLabels(items: LabelCandidate[]): Set<number> {
+  const kept: {l: number; r: number; t: number; b: number}[] = [];
+  const shown = new Set<number>();
+  for (const c of [...items].sort((a, b) => a.distM - b.distM || a.key - b.key)) {
+    const w = c.text.length * CHAR_W + PAD_W;
+    const box = {l: c.x - w / 2 - GAP_PX, r: c.x + w / 2 + GAP_PX, t: c.y - BOX_H - GAP_PX, b: c.y + GAP_PX};
+    if (kept.some(k => box.l < k.r && box.r > k.l && box.t < k.b && box.b > k.t)) continue;
+    kept.push(box);
+    shown.add(c.key);
+  }
+  return shown;
+}
+
 export interface CarLabels {
   /** Show car `key`'s label at screen pixel (x, y), or hide it with null. `distM` fades the far ones. */
   place(key: number, text: string, color: string, at: {x: number; y: number} | null, distM: number): void;

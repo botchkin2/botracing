@@ -15,7 +15,7 @@ import {chaseHeading, stepTravel} from '@/src/analysis/chaseHeading';
 import type {ChaseRoad} from '@/src/analysis/chaseRoad';
 import {roadIndex, type RoadIndex} from '@/src/analysis/chaseRoadIndex';
 import type {ChaseCamMode, ChaseCar, ChaseEngine, ChaseRibbon, ChaseTheme, ChaseUpdate} from '@/src/features/race/chase/chaseTypes';
-import {createCarLabels} from './carLabels';
+import {createCarLabels, declutterLabels, type LabelCandidate} from './carLabels';
 import {createCarKit, type CarObject} from './carMeshes';
 import {createCameraRig} from './cameraRig';
 import {setCarRotation} from './carPose';
@@ -214,13 +214,13 @@ export function mountChase(
     roadGroup?.userData.window(me.ld);
     for (const [k, s] of states) {
       let o = objects.get(k);
-      if (o && o.userData.player !== s.car.player) {
+      if (o && (o.userData.player !== s.car.player || o.userData.vehicle !== (s.car.vehicle ?? null))) {
         scene.remove(o);
         kit.release(o);
         o = undefined;
       }
       if (!o) {
-        o = kit.make(s.car.carClass, s.car.color, s.car.player);
+        o = kit.make(s.car.carClass, s.car.color, s.car.player, s.car.vehicle);
         scene.add(o);
         objects.set(k, o);
       }
@@ -279,18 +279,19 @@ export function mountChase(
     );
     const w = container.clientWidth;
     const h = container.clientHeight;
+    const at = new Map<number, {x: number; y: number}>();
+    const candidates: LabelCandidate[] = [];
     for (const [k, s] of states) {
       setWorld(probe, s.x, s.y, s.z + LABEL_LIFT_M).project(camera);
       const inView = probe.z < 1 && probe.z > -1 && Math.abs(probe.x) < 1.05 && Math.abs(probe.y) < 1.05;
-      const show = nearest.has(k) && s.car.label !== '' && inView;
-      labels.place(
-        k,
-        s.car.label,
-        s.car.color,
-        show ? {x: (probe.x * 0.5 + 0.5) * w, y: (-probe.y * 0.5 + 0.5) * h} : null,
-        dist(s),
-      );
+      if (!(nearest.has(k) && s.car.label !== '' && inView)) continue;
+      const pos = {x: (probe.x * 0.5 + 0.5) * w, y: (-probe.y * 0.5 + 0.5) * h};
+      at.set(k, pos);
+      candidates.push({key: k, ...pos, text: s.car.label, distM: dist(s)});
     }
+    // labels that would sit on top of each other: the nearer car keeps its number
+    const shown = declutterLabels(candidates);
+    for (const [k, s] of states) labels.place(k, s.car.label, s.car.color, shown.has(k) ? at.get(k)! : null, dist(s));
   }
 
   let wasFree = false;

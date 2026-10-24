@@ -5,87 +5,8 @@
 
 import * as THREE from 'three';
 
-/** Class footprints (length x width, metres): the class nominal, the data carries no model dimensions. */
-const SIZE: Record<string, [number, number]> = {Hyper: [5.0, 2.0], LMP2: [4.75, 1.9], GT3: [4.65, 1.95]};
-
-/**
- * A body as stations along the car (x forward from the centre, metres): at each, the half-width at the sill and at the
- * top, the shoulder height and the top height. Lofted between stations, flat shaded, it is a low-poly hull that narrows
- * to the nose and carries a cabin. Proportions follow the class shapes of prototype v2 (thread 83), simplified.
- */
-type Station = [x: number, halfW: number, shoulderY: number, topHalfW: number, topY: number];
-
-interface ClassShape {
-  hull: Station[];
-  /** The glasshouse, drawn dark over the hull. */
-  cabin: Station[];
-  /** Rear wing: centre x, top y, chord, span. */
-  wing: [number, number, number, number];
-  /** Prototype shark fin: from x, length, height; null on a GT. */
-  fin: [number, number, number] | null;
-}
-
-const SILL_Y = 0.1;
-
-const SHAPES: Record<string, ClassShape> = {
-  GT3: {
-    hull: [
-      [2.33, 0.62, 0.34, 0.42, 0.44],
-      [1.85, 0.92, 0.52, 0.7, 0.66],
-      [1.0, 0.97, 0.7, 0.72, 0.84],
-      [-0.9, 0.98, 0.78, 0.7, 0.9],
-      [-1.75, 0.99, 0.82, 0.78, 0.94],
-      [-2.1, 0.97, 0.8, 0.74, 0.9],
-      [-2.34, 0.86, 0.6, 0.6, 0.7],
-    ],
-    cabin: [
-      [0.8, 0.68, 0.84, 0.64, 0.86],
-      [0.1, 0.7, 0.86, 0.56, 1.2],
-      [-0.75, 0.68, 0.88, 0.52, 1.16],
-      [-1.2, 0.66, 0.9, 0.6, 0.94],
-    ],
-    wing: [-2.15, 1.22, 0.42, 1.85],
-    fin: null,
-  },
-  Hyper: {
-    hull: [
-      [2.5, 0.7, 0.24, 0.5, 0.32],
-      [1.9, 0.98, 0.42, 0.76, 0.56],
-      [1.0, 0.99, 0.62, 0.66, 0.7],
-      [-0.6, 0.94, 0.66, 0.6, 0.76],
-      [-1.8, 1.0, 0.76, 0.8, 0.86],
-      [-2.25, 0.98, 0.74, 0.76, 0.82],
-      [-2.5, 0.86, 0.52, 0.6, 0.64],
-    ],
-    cabin: [
-      [0.95, 0.56, 0.7, 0.5, 0.72],
-      [0.3, 0.6, 0.74, 0.46, 1.06],
-      [-0.45, 0.56, 0.76, 0.42, 1.04],
-      [-0.95, 0.5, 0.76, 0.42, 0.8],
-    ],
-    wing: [-2.32, 1.02, 0.4, 1.9],
-    fin: [-1.95, 1.4, 0.38],
-  },
-  LMP2: {
-    hull: [
-      [2.36, 0.66, 0.24, 0.48, 0.32],
-      [1.8, 0.93, 0.4, 0.72, 0.52],
-      [0.9, 0.94, 0.58, 0.62, 0.66],
-      [-0.6, 0.88, 0.62, 0.56, 0.72],
-      [-1.7, 0.95, 0.72, 0.76, 0.82],
-      [-2.12, 0.93, 0.7, 0.72, 0.78],
-      [-2.36, 0.82, 0.5, 0.58, 0.62],
-    ],
-    cabin: [
-      [0.82, 0.52, 0.66, 0.46, 0.68],
-      [0.3, 0.56, 0.7, 0.42, 1.0],
-      [-0.4, 0.52, 0.72, 0.4, 0.98],
-      [-0.85, 0.48, 0.72, 0.4, 0.76],
-    ],
-    wing: [-2.2, 1.12, 0.4, 1.8],
-    fin: [-1.8, 1.5, 0.46],
-  },
-};
+import {SHAPES, SILL_Y, SIZE, shapeFor, type ClassShape, type Station} from './carShapes';
+import {stepOfName, tintColor} from './carTint';
 
 const TICK_OF_LENGTH = 0.3;
 /** The ring's diameter is about a car's length (chord, thread 83 #6151). */
@@ -100,10 +21,6 @@ type Local = {x: number; z: number};
 
 function footprint(carClass: string): [number, number] {
   return SIZE[carClass] ?? SIZE.GT3;
-}
-
-function shapeOf(carClass: string): ClassShape {
-  return SHAPES[carClass] ?? SHAPES.GT3;
 }
 
 /** The car's footprint on the ground in its own frame: x forward (the nose at +L/2), z to the right. */
@@ -177,8 +94,7 @@ interface ClassKit {
   tick: THREE.BufferGeometry;
 }
 
-function buildClass(carClass: string): ClassKit {
-  const c = shapeOf(carClass);
+function buildClass(carClass: string, c: ClassShape): ClassKit {
   const [wx, wy, chord, span] = c.wing;
   const tail = c.hull[c.hull.length - 1];
   const parts = [
@@ -226,7 +142,7 @@ function mergeAll(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
 const onTop = {polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2};
 
 export interface CarObject extends THREE.Group {
-  userData: {player: boolean; faded: boolean};
+  userData: {player: boolean; faded: boolean; vehicle: string | null};
 }
 
 /** A car between the camera and the followed car is drawn see-through, so it never hides the one being followed. */
@@ -237,7 +153,8 @@ const FADED_OPACITY = 0.18;
  * frees a removed car's materials, `dispose` the shared geometries, so nothing outlives the engine.
  */
 export interface CarKit {
-  make(carClass: string, color: string, player: boolean): CarObject;
+  /** `vehicle` is the car's model (the field's own string): it picks the body family and the edge tint. */
+  make(carClass: string, color: string, player: boolean, vehicle?: string | null): CarObject;
   release(car: CarObject): void;
   /** Draw the car see-through (between the camera and the followed car) or solid. */
   fade(car: CarObject, faded: boolean): void;
@@ -247,11 +164,11 @@ export interface CarKit {
 export function createCarKit(colors: {bg: string; edge: string; mark: string}): CarKit {
   const classes = new Map<string, ClassKit>();
   let ring: THREE.RingGeometry | null = null;
-  const kitFor = (carClass: string): ClassKit => {
-    const key = SHAPES[carClass] ? carClass : 'GT3';
+  const kitFor = (carClass: string, vehicle: string | null): ClassKit => {
+    const {key, shape} = shapeFor(vehicle, carClass);
     const cached = classes.get(key);
     if (cached) return cached;
-    const made = buildClass(key);
+    const made = buildClass(SHAPES[carClass] ? carClass : 'GT3', shape);
     classes.set(key, made);
     return made;
   };
@@ -263,23 +180,27 @@ export function createCarKit(colors: {bg: string; edge: string; mark: string}): 
     return ring;
   };
   return {
-    make(carClass, color, player) {
-      const k = kitFor(carClass);
+    make(carClass, color, player, vehicle = null) {
+      const k = kitFor(carClass, vehicle);
       const paint = new THREE.Color(color);
+      // the model channel: the body edges lightened by the model's step inside its family (carTint)
+      const known = shapeFor(vehicle, carClass);
+      const step = known.key.includes(':') ? known.tint : stepOfName(vehicle);
+      const modelEdge = new THREE.Color(tintColor(color, step));
       const group = new THREE.Group() as CarObject;
       const edgeColor = player ? new THREE.Color(colors.edge) : paint;
       group.add(
         new THREE.Mesh(k.base, new THREE.MeshBasicMaterial({color: new THREE.Color(colors.bg), ...onTop})),
         new THREE.Mesh(k.body, new THREE.MeshLambertMaterial({color: paint.clone().multiplyScalar(BODY_SHADE), flatShading: true, side: THREE.DoubleSide})),
         new THREE.Mesh(k.cabin, new THREE.MeshLambertMaterial({color: paint.clone().multiplyScalar(CABIN_SHADE), flatShading: true, side: THREE.DoubleSide})),
-        new THREE.LineSegments(k.bodyEdges, new THREE.LineBasicMaterial({color: edgeColor})),
+        new THREE.LineSegments(k.bodyEdges, new THREE.LineBasicMaterial({color: player ? edgeColor : modelEdge})),
         new THREE.LineSegments(k.cabinEdges, new THREE.LineBasicMaterial({color: edgeColor})),
         new THREE.Line(k.tick, new THREE.LineBasicMaterial({color: paint})),
       );
       if (player) {
         group.add(new THREE.Mesh(ringGeometry(), new THREE.MeshBasicMaterial({color: new THREE.Color(colors.mark), ...onTop})));
       }
-      group.userData = {player, faded: false};
+      group.userData = {player, faded: false, vehicle};
       return group;
     },
     fade(car, faded) {
