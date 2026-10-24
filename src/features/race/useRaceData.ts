@@ -255,7 +255,7 @@ export function useRaceData(sessionId: string): RaceData {
     return {
       kind: 'no-field',
       title,
-      why: screenField.why,
+      why: screenField.why ?? null,
     };
   if (gate === 'field-error')
     return {

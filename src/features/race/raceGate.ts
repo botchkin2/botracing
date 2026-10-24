@@ -38,12 +38,12 @@ export function raceScreenField(
       }
     | null
     | undefined,
-): {hash: string | null; why: string | null | undefined} {
+): {hash: string | null; why: string | null} {
   const field = detail?.field;
   const hide = field?.mark?.kind === 'garbage';
   return {
     hash: hide ? null : (field?.hash ?? null),
-    why: field?.note ?? detail?.fieldMissing,
+    why: field?.note ?? detail?.fieldMissing ?? null,
   };
 }
 
