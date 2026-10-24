@@ -239,6 +239,9 @@ export function judge({capture, game, name: pairName}, allow = loadAllow()) {
     if (!other) all.push([`laps.${lap.lapNumber}`, 'present', 'missing']);
     else
       for (const [p, a, b] of differences(lap, other)) {
+        // The store's hash of the compared payload (store.mjs lapHash): it
+        // carries nothing the payload compare does not.
+        if (p === 'payloadHash') continue;
         const path = `laps.${lap.lapNumber}.${p}`;
         lapRole.set(path, role);
         all.push([path, a, b]);
