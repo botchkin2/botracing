@@ -26,10 +26,11 @@ export const JUMP_M = 40;
 /** The lead never turns the camera further than this ahead of the body (radians, 20 degrees): a spin must not throw it. */
 export const LEAD_MAX_RAD = 0.35;
 /**
- * The most the camera may turn in a second of race time (radians per second, 180 degrees), scaled by the playback rate
- * so a hairpin at 4x is still followed. A car spinning faster out-runs the camera instead of dragging it round.
+ * The most the camera may turn in a second of race time (radians per second, 360 degrees), scaled by the playback rate
+ * so a hairpin at 4x is still followed. A car spinning faster out-runs the camera instead of dragging it round. 360 and not 180 because never being in front of the car
+ * outranks turning slowly: at 180 a spin left the camera over 90 degrees off the body on 39 spin frames of 3235 (max 178), at 360 on 20 (max 100) (thread 94 #6906).
  */
-export const AIM_RATE_MAX = Math.PI;
+export const AIM_RATE_MAX = Math.PI * 2;
 /** The camera looks this far ahead of the car along its direction, seconds of travel, at most LEAD_MAX_M. */
 export const LEAD_S = 0.1;
 export const LEAD_MAX_M = 4;

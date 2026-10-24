@@ -156,9 +156,9 @@ describe('followStep', () => {
         if (i > 0) worstRate = Math.max(worstRate, Math.abs(Math.atan2(Math.sin(seen - last), Math.cos(seen - last))) * 60);
         last = seen;
       }
-      // 3 rad/s is under the camera's 180 deg/s: it lags by rate x tau and never reaches the front; faster spins out-run it
+      // 3 rad/s is under the camera's 360 deg/s: it lags by rate x tau and never reaches the front; faster spins out-run it
       if (spin <= 3) expect(worstOff * (180 / Math.PI)).toBeLessThan(90);
-      expect(worstRate * (180 / Math.PI)).toBeLessThan(181);
+      expect(worstRate * (180 / Math.PI)).toBeLessThan(361);
     }
   });
   it('the lead is capped so a spin cannot throw the camera ahead of the body', () => {
