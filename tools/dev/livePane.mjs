@@ -113,6 +113,9 @@ export async function openPane({
     await sleep(waitMs);
   };
   const pane = {
+    // a raw DevTools call and its events, for a gate that needs more than text (throttling, request interception, heap)
+    send,
+    onEvent: handler => ws.addEventListener('message', e => handler(JSON.parse(e.data))),
     goto,
     evaluate,
     text: () => evaluate('document.body.innerText'),
