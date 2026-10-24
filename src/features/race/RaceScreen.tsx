@@ -64,18 +64,15 @@ import {
   type SelectionPatch,
 } from './selectionClock';
 import {followCar, followViewFor} from './followTarget';
+import {phone3dHeight} from './phone3dHeight';
 import {markPitLane} from './pitLaneState';
 import {useRaceClock} from './useRaceClock';
 import {type RaceData, useRaceData} from './useRaceData';
 
 // Handoff R1a: map 358 x 260 on the phone, R1b: 1020 x 520 in a 1060 column.
 const PHONE_MAP_H = 260;
-/** The 3D view on a phone: this share of the screen's height, within these bounds. */
-const PHONE_3D_SHARE = 0.58;
-/** Under the mode and label rows (two 32 pt controls) in the map's top-left corner. */
-const CHIP_UNDER_CONTROLS_M = space.sm + 32 + space.xs + 32 + space.sm;
-const PHONE_3D_MIN_H = 360;
-const PHONE_3D_MAX_H = 560;
+/** In 3D the focus chip shares the mode row's line, at the right: what is left of a phone's width after the mode control. */
+const CHIP_3D_MAX_W = 150;
 // R1a / R1b: the radar inset over the map, top right.
 const RADAR_PHONE = {width: 72, height: 108};
 const RADAR_DESKTOP = {width: 150, height: 226};
@@ -422,7 +419,7 @@ function RaceView({
   const mapH = desktop
     ? mapBox.height
     : phone3d
-    ? Math.round(Math.min(PHONE_3D_MAX_H, Math.max(PHONE_3D_MIN_H, layout.height * PHONE_3D_SHARE)))
+    ? phone3dHeight(layout.height)
     : PHONE_MAP_H;
   // Follow chases the focused car, else you; a file without headings (before
   // v2) or a car off the map has nothing to chase, so the switch is hidden.
@@ -628,8 +625,8 @@ function RaceView({
           onPress={() => setFocus(null)}
           style={[
             styles.chip,
-            // in 3D the bottom edge is the camera chips: the focus sits under the two control rows instead
-            phone3d && {top: CHIP_UNDER_CONTROLS_M, bottom: undefined},
+            // in 3D the bottom edge is the camera chips: the focus sits on the mode row, at the right
+            phone3d && {top: space.sm, left: undefined, right: space.sm, bottom: undefined, maxWidth: CHIP_3D_MAX_W},
             {borderColor: color.accent, backgroundColor: color.surfaceRaised},
           ]}>
           <Text
@@ -789,17 +786,19 @@ function RaceView({
             <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
               {sub}
             </Text>
-            <Pressable
-              accessibilityRole='button'
-              accessibilityState={{expanded: keyOpen}}
-              accessibilityLabel='Key'
-              onPress={() => setKeyOpen(o => !o)}
-              hitSlop={space.md}
-              style={styles.keyToggle}>
-              <Text variant='dataSmall' tone='accentInk'>
-                {keyOpen ? 'Key ▴' : 'Key ▾'}
-              </Text>
-            </Pressable>
+            {phone3d ? null : (
+              <Pressable
+                accessibilityRole='button'
+                accessibilityState={{expanded: keyOpen}}
+                accessibilityLabel='Key'
+                onPress={() => setKeyOpen(o => !o)}
+                hitSlop={space.md}
+                style={styles.keyToggle}>
+                <Text variant='dataSmall' tone='accentInk'>
+                  {keyOpen ? 'Key ▴' : 'Key ▾'}
+                </Text>
+              </Pressable>
+            )}
           </View>
           {roadLine ? (
             <Text variant='dataSmall' tone='textSecondary'>
@@ -807,7 +806,7 @@ function RaceView({
             </Text>
           ) : null}
           {map}
-          {keyOpen ? <RaceLegend classes={rows.classes} /> : null}
+          {keyOpen && !phone3d ? <RaceLegend classes={rows.classes} /> : null}
         </View>
         {boardPaged}
         <View style={styles.phoneLanes}>{lanesBlock}</View>

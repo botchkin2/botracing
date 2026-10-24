@@ -126,6 +126,8 @@ export function ChaseView({width, height, timeS, playing, rate}: {
           javaScriptEnabled
           domStorageEnabled
           setSupportMultipleWindows={false}
+          // Android: a drag that starts in the 3D is the camera's; the page's ScrollView takes none of it.
+          nestedScrollEnabled
           incognito
           style={{backgroundColor: color.bg}}
         />
