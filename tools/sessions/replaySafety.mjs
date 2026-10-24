@@ -5,7 +5,6 @@
 import {
   copyFileSync,
   existsSync,
-  linkSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -25,6 +24,10 @@ export const REPLAY_NEAR_BYTES = 1024 ** 3;
 // writes it (measured on this PC: every file, for the length of the session,
 // and none later than two hours).
 export const SETTLE_MS = 2000;
+// A failed copy is tried this many times, then a Problems line, and not again
+// (steward #7181). A hardlink is not used: an in-place rewrite would change it.
+export const COPY_TRIES = 3;
+export const COPY_FAIL_MESSAGE = 'Could not copy the replay';
 // How long after the capture closes the game may still be writing the replay.
 // The same 30 min as the results file (lmuResults.mjs WRITE_WINDOW_MS).
 export const REPLAY_LOOK_MS = 30 * 60 * 1000;
@@ -86,13 +89,13 @@ export function chooseReplay(files, {fromMs, toMs}) {
 }
 
 /**
- * hardlink only for a finished file on the same volume. A file still moving
- * waits. A temp name is never linked (the game has not published it).
+ * Always a real copy once the file has stopped changing (steward #7181).
+ * A file still moving waits. A temp name is not copied.
  */
-export function linkKind({sameVolume, tempFile, settled}) {
+export function linkKind({tempFile, settled}) {
   if (tempFile) return 'skip';
   if (!settled) return 'wait';
-  return sameVolume ? 'hardlink' : 'copy';
+  return 'copy';
 }
 
 export function fileSettled(before, after) {
@@ -192,19 +195,34 @@ function readCopies(replaysRoot, captureRoot) {
   return out;
 }
 
-function sameVolume(a, b) {
-  try {
-    return statSync(a).dev === statSync(b).dev;
-  } catch {
-    return false;
+function readTries(dir) {
+  const doc = readJson(resolve(dir, 'attempts.json'));
+  return typeof doc?.tries === 'number' ? doc.tries : 0;
+}
+
+function writeTries(dir, tries) {
+  mkdirSync(dir, {recursive: true});
+  writeFileSync(resolve(dir, 'attempts.json'), JSON.stringify({tries}));
+}
+
+/** A capture that already used its tries and never got a copy. The watcher
+ *  clears its hold, so the line has to come from this file on later ticks. */
+function failedCopy(replaysRoot) {
+  if (!existsSync(replaysRoot)) return false;
+  for (const id of readdirSync(replaysRoot)) {
+    const dir = resolve(replaysRoot, id);
+    if (!inside(replaysRoot, dir)) continue;
+    if (existsSync(resolve(dir, 'copy.json'))) continue;
+    if (readTries(dir) >= COPY_TRIES) return true;
   }
+  return false;
 }
 
 /**
  * One watcher tick. Removes copies the plan names, and when `closedDir` had a
- * recorder problem, links or copies that session's replay under
- * `replaysRoot/<capture>/`. Returns the capture still waiting on a file the
- * game is writing, and the cap line (or null).
+ * recorder problem, copies that session's replay under `replaysRoot/<capture>/`.
+ * Returns the capture still waiting on a file the game is writing, and the
+ * Problems line (a failed copy, else the cap), or null.
  */
 export async function maintainReplayCopies({
   captureRoot,
@@ -217,6 +235,7 @@ export async function maintainReplayCopies({
   log = () => {},
   settleMs = SETTLE_MS,
   wait = ms => new Promise(resolveWait => setTimeout(resolveWait, ms)),
+  copyFile = copyFileSync,
   limits,
 } = {}) {
   mkdirSync(replaysRoot, {recursive: true});
@@ -233,7 +252,11 @@ export async function maintainReplayCopies({
   apply(readCopies(replaysRoot, captureRoot));
 
   let hold = null;
+  let failProblem = null;
   const marker = closedDir ? resolve(replaysRoot, closedDir, 'copy.json') : null;
+  const destDir = closedDir ? resolve(replaysRoot, closedDir) : null;
+  const tries = destDir && inside(replaysRoot, destDir) ? readTries(destDir) : 0;
+  if (closedDir && tries >= COPY_TRIES) failProblem = COPY_FAIL_MESSAGE;
   if (closedDir && !existsSync(marker)) {
     const captureDir = resolve(captureRoot, closedDir);
     const meta = readJson(resolve(captureDir, 'meta.json'));
@@ -252,7 +275,7 @@ export async function maintainReplayCopies({
       sinceMs: born,
       untilMs: nowMs,
     });
-    if (logged && Number.isFinite(born)) {
+    if (!failProblem && logged && Number.isFinite(born)) {
       const chosen = chooseReplay(listReplayFiles(replayFolder), {
         fromMs: born,
         toMs: nowMs,
@@ -269,28 +292,18 @@ export async function maintainReplayCopies({
           if (settleMs > 0) await wait(settleMs);
           settled = fileSettled(first, statSync(src));
         }
-        const kind = linkKind({
-          sameVolume: sameVolume(src, captureRoot),
-          tempFile: chosen.temp,
-          settled,
-        });
-        if (kind === 'wait') hold = closedDir;
-        else if (kind !== 'skip') {
-          const destDir = resolve(replaysRoot, closedDir);
+        const kind = linkKind({tempFile: chosen.temp, settled});
+        if (kind === 'wait') {
+          if (nowMs - since >= REPLAY_LOOK_MS) failProblem = COPY_FAIL_MESSAGE;
+          else hold = closedDir;
+        } else if (kind !== 'skip') {
           if (!inside(replaysRoot, destDir))
             log(`replay copy: refused a path outside the copy folder`);
           else {
             mkdirSync(destDir, {recursive: true});
             const dest = resolve(destDir, chosen.name);
             try {
-              if (kind === 'hardlink') {
-                try {
-                  linkSync(src, dest);
-                } catch (error) {
-                  if (error?.code !== 'EXDEV') throw error;
-                  copyFileSync(src, dest);
-                }
-              } else copyFileSync(src, dest);
+              copyFile(src, dest);
               const bytes = statSync(dest).size;
               writeFileSync(
                 resolve(destDir, 'copy.json'),
@@ -302,10 +315,13 @@ export async function maintainReplayCopies({
                   takenMs: nowMs,
                 }),
               );
-              log(`replay copy ${kind}: ${closedDir}`);
+              log(`replay copy: ${closedDir}`);
             } catch (error) {
-              hold = closedDir;
-              log(`replay copy failed: ${error?.message ?? error}`);
+              const n = tries + 1;
+              writeTries(destDir, n);
+              if (n >= COPY_TRIES) failProblem = COPY_FAIL_MESSAGE;
+              else hold = closedDir;
+              log(`replay copy failed (${n}): ${error?.message ?? error}`);
             }
           }
         }
@@ -314,8 +330,9 @@ export async function maintainReplayCopies({
   }
 
   const after = planCopies(readCopies(replaysRoot, captureRoot), nowMs, limits);
+  const message = failProblem || (failedCopy(replaysRoot) ? COPY_FAIL_MESSAGE : null) || after.problem;
   return {
-    hold,
-    problem: after.problem ? {message: after.problem, atMs: nowMs} : null,
+    hold: failProblem ? null : hold,
+    problem: message ? {message, atMs: nowMs} : null,
   };
 }

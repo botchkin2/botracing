@@ -5,6 +5,8 @@ import {join} from 'node:path';
 import test from 'node:test';
 import {
   chooseReplay,
+  COPY_FAIL_MESSAGE,
+  COPY_TRIES,
   fileSettled,
   linkKind,
   logStoppedInWindow,
@@ -66,11 +68,10 @@ test('the replay is the newest finished file written during the capture', () => 
   assert.equal(chooseReplay(files, {fromMs: now + minute, toMs: now + minute}), null);
 });
 
-test('a hardlink is only a settled file on the same volume', () => {
-  assert.equal(linkKind({sameVolume: true, tempFile: false, settled: true}), 'hardlink');
-  assert.equal(linkKind({sameVolume: false, tempFile: false, settled: true}), 'copy');
-  assert.equal(linkKind({sameVolume: true, tempFile: false, settled: false}), 'wait');
-  assert.equal(linkKind({sameVolume: true, tempFile: true, settled: true}), 'skip');
+test('a settled file is always a copy, never a link', () => {
+  assert.equal(linkKind({tempFile: false, settled: true}), 'copy');
+  assert.equal(linkKind({tempFile: false, settled: false}), 'wait');
+  assert.equal(linkKind({tempFile: true, settled: true}), 'skip');
   assert.equal(fileSettled({size: 10, mtimeMs: 1}, {size: 10, mtimeMs: 1}), true);
   assert.equal(fileSettled({size: 10, mtimeMs: 1}, {size: 11, mtimeMs: 2}), false);
 });
@@ -108,7 +109,7 @@ test('verified copies go, old unverified copies go, and the cap never drops an u
   assert.equal(room.problem, null);
 });
 
-test('a closed capture with a gap gets a hardlink, and a quiet one gets nothing', async () => {
+test('a closed capture with a gap gets its own copy, and a quiet one gets nothing', async () => {
   const root = mkdtempSync(join(tmpdir(), 'replay-safety-'));
   try {
     const captureRoot = join(root, 'lap-capture');
@@ -139,8 +140,8 @@ test('a closed capture with a gap gets a hardlink, and a quiet one gets nothing'
     assert.equal(linked, 'replay-bytes');
     const doc = JSON.parse(readFileSync(join(copies, 'cap-1', 'copy.json'), 'utf8'));
     assert.equal(doc.file, 'race.Vcr');
-    assert.equal(statSync(src).nlink, statSync(join(copies, 'cap-1', 'race.Vcr')).nlink);
-    assert.ok(statSync(src).nlink >= 2);
+    assert.equal(statSync(src).nlink, 1);
+    assert.equal(statSync(join(copies, 'cap-1', 'race.Vcr')).nlink, 1);
 
     mkdirSync(join(captureRoot, 'cap-quiet'), {recursive: true});
     writeFileSync(join(captureRoot, 'cap-quiet', 'meta.json'), '{}');
@@ -166,6 +167,56 @@ test('a closed capture with a gap gets a hardlink, and a quiet one gets nothing'
       null,
     );
     // The game file is still there.
+    assert.equal(readFileSync(src, 'utf8'), 'replay-bytes');
+  } finally {
+    rmSync(root, {recursive: true, force: true});
+  }
+});
+
+test('a copy that throws is tried three times, then a Problems line, and not again', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'replay-safety-'));
+  try {
+    const captureRoot = join(root, 'lap-capture');
+    const replays = join(root, 'Replays');
+    const copies = join(captureRoot, 'replays');
+    mkdirSync(join(captureRoot, 'cap-1'), {recursive: true});
+    writeFileSync(join(captureRoot, 'cap-1', 'meta.json'), JSON.stringify({lostChunks: 1}));
+    mkdirSync(replays, {recursive: true});
+    const src = join(replays, 'race.Vcr');
+    writeFileSync(src, 'replay-bytes');
+    let calls = 0;
+    const copyFile = () => {
+      calls += 1;
+      throw new Error('disk full');
+    };
+    const args = {
+      captureRoot,
+      replaysRoot: copies,
+      replayFolder: replays,
+      closedDir: 'cap-1',
+      nowMs: Date.now(),
+      gameRunning: false,
+      settleMs: 0,
+      wait: async () => {},
+      copyFile,
+    };
+    const first = await maintainReplayCopies(args);
+    assert.equal(first.hold, 'cap-1');
+    assert.equal(first.problem, null);
+    const second = await maintainReplayCopies(args);
+    assert.equal(second.hold, 'cap-1');
+    assert.equal(second.problem, null);
+    const third = await maintainReplayCopies(args);
+    assert.equal(third.hold, null);
+    assert.equal(third.problem.message, COPY_FAIL_MESSAGE);
+    assert.equal(calls, COPY_TRIES);
+    const again = await maintainReplayCopies(args);
+    assert.equal(calls, COPY_TRIES);
+    assert.equal(again.hold, null);
+    assert.equal(again.problem.message, COPY_FAIL_MESSAGE);
+    const later = await maintainReplayCopies({...args, closedDir: null});
+    assert.equal(calls, COPY_TRIES);
+    assert.equal(later.problem.message, COPY_FAIL_MESSAGE);
     assert.equal(readFileSync(src, 'utf8'), 'replay-bytes');
   } finally {
     rmSync(root, {recursive: true, force: true});
