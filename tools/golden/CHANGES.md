@@ -122,3 +122,8 @@ Why: CORNER_INPUTS_VERSION 4 adds two facts per corner part, the line (`apexLate
 Changed:
 - laps.#.corners.#.parts.#.apexLateralM: undefined -> value or null (every part of every lap)
 - laps.#.corners.#.parts.#.apexSteerPct: undefined -> value or null (every part of every lap)
+
+## 2026-10-24 lmu-race-daytona-tyres
+Why: GRID_LAP_VERSION 2: a grid start's lap 0 is read over its racing lap (line to line), no longer over the stretch to the formation line, so the lap's off-track seconds are the racing lap's (0.26 s, none before) (pit-wall thread 100, ticket #49). Only lap 0 moved; every other lap and number is unchanged.
+Changed:
+- laps.0.offTrackSec: 0 -> 0.26

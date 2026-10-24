@@ -61,7 +61,7 @@
    "pitIn": true,
    "pitOut": true,
    "offtrack": false,
-   "offTrackSec": 0,
+   "offTrackSec": 0.26,
    "fuel": {
     "usedL": 4.01,
     "addedL": 0,
