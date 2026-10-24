@@ -22,12 +22,16 @@ pub fn args_text(args: &[String]) -> String {
 /// Appends a line; a log that cannot be written is silently skipped (it is a
 /// diagnosis aid, never a reason for a launch to fail).
 pub fn note(data: &Path, step: &str, facts: &str) {
-    let file = data.join("launch.log");
-    trim(&file);
+    note_file(&data.join("launch.log"), step, facts);
+}
+
+/// The same line into any log file (the recorder's own, capture/runner.rs).
+pub fn note_file(file: &Path, step: &str, facts: &str) {
+    trim(file);
     let _ = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open(&file)
+        .open(file)
         .and_then(|mut f| {
             std::io::Write::write_all(&mut f, line(chrono::Utc::now(), step, facts).as_bytes())
         });
