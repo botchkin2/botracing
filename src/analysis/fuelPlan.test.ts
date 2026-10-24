@@ -708,6 +708,13 @@ describe('load to finish', () => {
     expect(more.atMedian.fuelL).toBeCloseTo(24 * 3.5);
   });
 
+  it('the p90 load keeps 1 % VE at the flag on top of the laps, the median load does not', () => {
+    const [own] = planRace(sprint, history).loadToFinish!;
+    const p90 = planRace(sprint, history).perLap.ve!.p90;
+    expect(own.atP90.vePct).toBeCloseTo(23 * p90 + 1);
+    expect(own.atMedian.vePct).toBeCloseTo(23 * 3);
+  });
+
   it('names the meter closer to its cap', () => {
     const [own] = planRace(sprint, history).loadToFinish!;
     // 80.5 L of 100 L is 0.805 of the cap; 69 % VE of 100 % is 0.69.
