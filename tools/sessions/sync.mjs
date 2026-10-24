@@ -62,7 +62,9 @@ import {resultsForSpan} from './lmuResults.mjs';
 import {backlogCandidates, uploadResultsBacklog} from './resultsBacklog.mjs';
 import {
   adoptLiveIds,
+  claimCoveredSessions,
   confirmAdoptions,
+  confirmClaims,
   coveredCopies,
   settleSupersedes,
 } from './heal.mjs';
@@ -526,24 +528,24 @@ async function main() {
   }
   const scanned = scan(state);
   if (!check) saveState(state);
-  // A drive live laps already uploaded (syncLive.mjs) is that session: its
-  // game file adds nothing the capture lacks (STORAGE.md, Live laps).
-  // A broken-wheel capture covers nothing: its game file builds the drive.
+  // A drive live laps already uploaded still archives its game file (audit
+  // row 13). The build takes the live session's id and adds only the
+  // stretches that copy lacks. A broken-wheel capture covers nothing: its
+  // game file rebuilds the drive (adoptLiveIds).
   const liveIndex = usableLiveIndex(readLiveIndex(work), captureRoot);
-  const files = scanned.filter(f => {
-    const cover = liveCover(liveIndex, f.info);
-    if (cover)
-      log(
-        `  ${f.info.source}: live laps have it (${cover.sessionId}), skipped`,
-      );
-    return !cover;
-  });
+  const files = scanned;
   const sessions = group(files);
-  // A drive whose live capture is defective (brokenWheels.mjs) is rebuilt from
-  // its game file under the live session's id (heal.mjs, thread 74 step 1).
-  // Only while the live session still exists in the store, so a deleted live
-  // copy is never made again; without a store (local) nothing is adopted.
+  // A covered game file is built under the live session's id only while that
+  // session is still in the store. A deleted live copy is never made again
+  // (STORAGE.md). Without a store (local) nothing is claimed or adopted.
   if (remoteStore) {
+    for (const s of await confirmClaims(
+      claimCoveredSessions(sessions, liveIndex, liveCover),
+      async id => Boolean(await remoteStore.getSession(id)),
+    ))
+      log(`  ${s.hashId}: game file kept with live session ${s.id}`);
+    // A drive whose live capture is defective (brokenWheels.mjs) is rebuilt from
+    // its game file under the live session's id (heal.mjs, thread 74 step 1).
     const adopted = adoptLiveIds(
       sessions,
       readLiveIndex(work),
@@ -872,6 +874,7 @@ async function processSession(
     lines.push(`  ${out.session.consistency.overview}`);
   }
   out.healDefect = s.healDefect ?? null;
+  out.healLack = s.healLack ?? null;
   if (local) lines.push(`  -> ${writeLocal(out)}`);
   else {
     const sent = await store.upload(out, {log: line => lines.push(line)});

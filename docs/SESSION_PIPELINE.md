@@ -244,7 +244,14 @@ HTTP from the tray, the same calls in the cloud).
   lists (md5), recording docs, the session doc merged. No lap docs, no
   analysis; what the last analysis wrote stays until the next one.
 - **`keepNewerLive`**: a cloud write never moves `live` or `archiveParts`
-  backwards; a lap that landed during the run leaves the session stale.
+  backwards; a lap that landed during the run leaves the session stale. A lap
+  counts as landed only when the stored live stamp moved since the analysis
+  read the session (a tray upload writes stamp and count in one batch); a
+  higher stored count under the same stamp is a counter that drifted from the
+  recordings (the heal replaces them) and is dropped, and the heal's own write
+  never takes it (thread 103). A cloud analysis writes no recording docs: they
+  are stored, unchanged, and a copy read at its start must not overwrite a
+  part or an event the tray wrote meanwhile.
 
 **What `upload` keeps from the stored doc when its run lacked an input**
 (`store.mjs` 387-499): the field and the class laps, bests and result made

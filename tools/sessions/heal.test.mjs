@@ -3,7 +3,14 @@ import {test} from 'node:test';
 
 import {
   adoptLiveIds,
+  claimCoveredSessions,
   confirmAdoptions,
+  confirmClaims,
+  recordingsToAdd,
+  clipSpans,
+  lapHitsClip,
+  lapsToAdd,
+  uncoveredPrefixS,
   coveredCopies,
   healPlan,
   settleSupersedes,
@@ -113,6 +120,86 @@ test('the game-file session takes the live id only for a defective capture, and 
   assert.deepEqual(adoptLiveIds([c, d], full, {}, liveCover), []);
 });
 
+test('a usable live cover claims the game file and adds only the stretch it lacks', () => {
+  const index = {
+    'cap#0': {
+      sessionId: 'LIVE',
+      sim: 'lmu',
+      layout: 'Sil',
+      startMs: T0,
+      endMs: T0 + 600_000,
+    },
+  };
+  const session = {
+    id: 'hash',
+    files: [
+      {
+        info: {
+          sim: 'lmu',
+          layout: 'Sil',
+          recordedAt: at(1),
+          startT: 0,
+          endT: 590,
+        },
+      },
+    ],
+  };
+  assert.deepEqual(claimCoveredSessions([session], index, liveCover), [session]);
+  assert.equal(session.id, 'LIVE');
+  assert.equal(session.healLack, true);
+  const stored = [{id: 'live-rec', recordedAt: at(1)}];
+  const built = [
+    {id: 'game-overlap', recordedAt: at(1)},
+    {id: 'game-extra', recordedAt: at(1000)},
+  ];
+  assert.deepEqual(recordingsToAdd(stored, built).map(r => r.id), ['game-extra']);
+  // The game file starts before the recorder and then covers the same stretch.
+  const early = [{id: 'game-early', recordedAt: at(0), durationSec: 1054, startT: 0}];
+  const live = [{id: 'live-rec', recordedAt: at(244), durationSec: 800, startT: 0}];
+  assert.deepEqual(uncoveredPrefixS(live, early), {id: 'game-early', seconds: 244});
+  const laps = [
+    {id: 'game-early-000', recordingId: 'game-early', startT: 0, endT: 50},
+    {id: 'game-early-001', recordingId: 'game-early', startT: 50, endT: 179},
+    {id: 'game-early-002', recordingId: 'game-early', startT: 179, endT: 400},
+  ];
+  // Two laps finish before the recorder. The one that crosses into it is not added.
+  assert.deepEqual(
+    lapsToAdd(live, early, laps).map(l => l.id),
+    ['game-early-000', 'game-early-001'],
+  );
+  // The recording doc carries that cut. A lap that only meets it at the
+  // recorder's start stays; the one that crosses is the one lapsToAdd drops.
+  const spans = clipSpans(live, early[0]);
+  assert.deepEqual(spans, [{startT: 244, endT: 1044}]);
+  assert.equal(lapHitsClip({startT: 50, endT: 179}, spans), false);
+  assert.equal(lapHitsClip({startT: 179, endT: 244}, spans), false);
+  assert.equal(lapHitsClip({startT: 179, endT: 400}, spans), true);
+  assert.deepEqual(
+    laps.filter(l => !lapHitsClip(l, spans)).map(l => l.id),
+    ['game-early-000', 'game-early-001'],
+  );
+  const apart = {id: 'game-apart', recordedAt: at(5000), durationSec: 100, startT: 0};
+  assert.equal(lapHitsClip({startT: 0, endT: 40}, clipSpans(live, apart)), false);
+  // The lap doc the sync writes has startTime, not the game clock.
+  assert.deepEqual(
+    lapsToAdd(live, early, [
+      {id: 'w0', recordingId: 'game-early', startTime: at(0), durationSec: 50},
+      {id: 'w1', recordingId: 'game-early', startTime: at(50), durationSec: 129},
+      {id: 'w2', recordingId: 'game-early', startTime: at(179), durationSec: 221},
+    ]).map(l => l.id),
+    ['w0', 'w1'],
+  );
+  // 52 s of the out lap, and the lap continues after the recorder starts: nothing new to add.
+  const head = [{id: 'game-head', recordedAt: at(0), durationSec: 582, startT: 0}];
+  const rec = [{id: 'live-rec', recordedAt: at(52), durationSec: 530, startT: 0}];
+  assert.deepEqual(
+    lapsToAdd(rec, head, [
+      {id: 'game-head-000', recordingId: 'game-head', startT: 0, endT: 73},
+    ]),
+    [],
+  );
+});
+
 test('the upload tombstones what it replaces, keeps the lone stretch and its laps, and hides both from the leftover cleanup', async () => {
   const db = memoryStore(
     {
@@ -185,6 +272,240 @@ test('the upload tombstones what it replaces, keeps the lone stretch and its lap
     db.docs.has('laps/l0'),
     'a tombstoned lap survives a later cleanup',
   );
+});
+
+test('a claim whose live session is gone from the store is undone, never re-created', async () => {
+  const index = {
+    'cap#0': {
+      sessionId: 'LIVE',
+      sim: 'lmu',
+      layout: 'Sil',
+      startMs: T0,
+      endMs: T0 + 600_000,
+    },
+  };
+  const mk = () => ({
+    id: 'hash',
+    files: [
+      {
+        info: {
+          sim: 'lmu',
+          layout: 'Sil',
+          recordedAt: at(1),
+          startT: 0,
+          endT: 590,
+        },
+      },
+    ],
+  });
+  const gone = mk();
+  assert.deepEqual(
+    await confirmClaims(claimCoveredSessions([gone], index, liveCover), async () => false),
+    [],
+  );
+  assert.equal(gone.id, 'hash');
+  assert.equal(gone.healLack, undefined);
+  assert.equal(gone.hashId, undefined);
+  const there = mk();
+  const standing = await confirmClaims(
+    claimCoveredSessions([there], index, liveCover),
+    async id => id === 'LIVE',
+  );
+  assert.deepEqual(standing, [there]);
+  assert.equal(there.id, 'LIVE');
+  assert.equal(there.healLack, true);
+});
+
+test('a covered game file that adds no lap leaves the live session doc', async () => {
+  const stored = {
+    id: 'LIVE',
+    ownerId: 'o',
+    recordingIds: ['liveRec'],
+    bestLapId: 'liveRec-001',
+    lapCount: 2,
+    consistency: {n: 2},
+    plan: {stops: 1},
+    traffic: {gapS: 0.4},
+    analysis: {v: 4, blocks: {plan: 3}},
+    field: {path: 'field/o/LIVE/live.json.gz', hash: 'livehash'},
+  };
+  const db = memoryStore(
+    {
+      'sessions/LIVE': structuredClone(stored),
+      'recordings/liveRec': {
+        id: 'liveRec',
+        ownerId: 'o',
+        recordedAt: at(52),
+        durationSec: 530,
+        startT: 0,
+      },
+      'laps/liveRec-001': {
+        id: 'liveRec-001',
+        ownerId: 'o',
+        sessionId: 'LIVE',
+        recordingId: 'liveRec',
+      },
+      'laps/liveRec-002': {
+        id: 'liveRec-002',
+        ownerId: 'o',
+        sessionId: 'LIVE',
+        recordingId: 'liveRec',
+      },
+    },
+    {ownerKey: 'o'},
+  );
+  const deleted = [];
+  await createStore({
+    ...db,
+    deleteFile: async path => {
+      deleted.push(path);
+    },
+    listFiles: async () => [],
+    getFile: async () => null,
+  }).upload({
+    healLack: true,
+    session: {
+      id: 'LIVE',
+      ownerId: 'o',
+      recordingIds: ['gameRec'],
+      bestLapId: 'gameRec-002',
+      lapCount: 3,
+      consistency: {n: 3},
+      plan: {stops: 0},
+      traffic: {gapS: 1},
+      analysis: {v: 9, blocks: {}},
+      field: {
+        path: 'field/o/LIVE/game.json.gz',
+        hash: 'gamehash',
+        cars: 30,
+        durationS: 3700,
+        mark: {kind: 'garbage'},
+      },
+    },
+    recordings: [
+      {
+        id: 'gameRec',
+        ownerId: 'o',
+        recordedAt: at(0),
+        durationSec: 582,
+        startT: 0,
+      },
+    ],
+    laps: [
+      {
+        id: 'gameRec-000',
+        ownerId: 'o',
+        sessionId: 'LIVE',
+        recordingId: 'gameRec',
+        startT: 0,
+        endT: 73,
+      },
+    ],
+    traces: [],
+    files: [],
+    band: null,
+    track: null,
+    boundaries: null,
+    fieldText: '{}',
+  });
+  const doc = db.docs.get('sessions/LIVE');
+  assert.deepEqual(doc.recordingIds, stored.recordingIds);
+  const {recordingIds: _storedIds, ...storedRest} = stored;
+  const {recordingIds: _docIds, ...docRest} = doc;
+  assert.deepEqual(docRest, storedRest);
+  assert.equal(db.docs.has('laps/gameRec-000'), false);
+  assert.equal(db.docs.has('laps/liveRec-001'), true);
+  assert.equal(db.docs.has('laps/liveRec-002'), true);
+  assert.deepEqual(deleted, []);
+});
+
+test('laps a covered game file adds do not replace the live session header', async () => {
+  const stored = {
+    id: 'LIVE',
+    ownerId: 'o',
+    recordingIds: ['liveRec'],
+    bestLapId: 'liveRec-001',
+    lapCount: 2,
+    analysis: {v: 4, blocks: {plan: 3}},
+  };
+  const db = memoryStore(
+    {
+      'sessions/LIVE': structuredClone(stored),
+      'recordings/liveRec': {
+        id: 'liveRec',
+        ownerId: 'o',
+        recordedAt: at(244),
+        durationSec: 800,
+        startT: 0,
+      },
+      'laps/liveRec-001': {
+        id: 'liveRec-001',
+        ownerId: 'o',
+        sessionId: 'LIVE',
+        recordingId: 'liveRec',
+      },
+    },
+    {ownerKey: 'o'},
+  );
+  await createStore({
+    ...db,
+    deleteFile: async () => {},
+    listFiles: async () => [],
+    getFile: async () => null,
+  }).upload({
+    healLack: true,
+    session: {
+      id: 'LIVE',
+      ownerId: 'o',
+      recordingIds: ['gameRec'],
+      bestLapId: 'gameRec-002',
+      lapCount: 5,
+      analysis: {v: 9, blocks: {}},
+    },
+    recordings: [
+      {
+        id: 'gameRec',
+        ownerId: 'o',
+        recordedAt: at(0),
+        durationSec: 1054,
+        startT: 0,
+      },
+    ],
+    laps: [
+      {
+        id: 'gameRec-000',
+        ownerId: 'o',
+        sessionId: 'LIVE',
+        recordingId: 'gameRec',
+        startT: 0,
+        endT: 50,
+      },
+      {
+        id: 'gameRec-001',
+        ownerId: 'o',
+        sessionId: 'LIVE',
+        recordingId: 'gameRec',
+        startT: 50,
+        endT: 179,
+      },
+    ],
+    traces: [],
+    files: [],
+    band: null,
+    track: null,
+    boundaries: null,
+  });
+  const doc = db.docs.get('sessions/LIVE');
+  assert.equal(doc.bestLapId, 'liveRec-001');
+  assert.equal(doc.lapCount, 2);
+  assert.deepEqual(doc.recordingIds, ['liveRec', 'gameRec']);
+  assert.equal(doc.analysis.v, 0);
+  assert.equal(db.docs.has('laps/gameRec-000'), true);
+  assert.equal(db.docs.has('laps/gameRec-001'), true);
+  assert.equal(db.docs.has('laps/liveRec-001'), true);
+  assert.deepEqual(db.docs.get('recordings/gameRec').clipSpans, [
+    {startT: 244, endT: 1044},
+  ]);
 });
 
 test('an adoption whose live session is gone from the store is undone, never re-created', async () => {

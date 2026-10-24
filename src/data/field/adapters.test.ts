@@ -193,7 +193,14 @@ describe('toFieldPointer', () => {
   it('reads the session doc block, null without a hash', () => {
     expect(
       toFieldPointer({hash: 'abc123def456', hz: 5, cars: 62, durationS: 931}),
-    ).toEqual({hash: 'abc123def456', hz: 5, cars: 62, durationS: 931});
+    ).toEqual({
+      hash: 'abc123def456',
+      hz: 5,
+      cars: 62,
+      durationS: 931,
+      mark: null,
+      note: null,
+    });
     expect(toFieldPointer(undefined)).toBeNull();
     expect(toFieldPointer({hz: 5})).toBeNull();
   });

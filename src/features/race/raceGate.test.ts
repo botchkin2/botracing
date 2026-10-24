@@ -1,6 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {raceGate} from './raceGate';
+import {raceGate, raceScreenField} from './raceGate';
 
 const base = {
   sessionPending: false,
@@ -40,5 +40,28 @@ describe('raceGate', () => {
     expect(raceGate({...base, hasField: false})).toBe('no-field');
     expect(raceGate({...base, fieldError: true})).toBe('field-error');
     expect(raceGate({...base, hasDetail: false})).toBe('error');
+  });
+});
+
+describe('raceScreenField, the decision useRaceData draws with', () => {
+  const note = 'Other cars: recording not drawn';
+
+  it('a garbage field is not drawn, and the empty state says its note', () => {
+    const screen = raceScreenField({
+      field: {hash: 'abc', mark: {kind: 'garbage'}, note},
+      fieldMissing: 'should not win',
+    });
+    expect(screen.hash).toBeNull();
+    expect(screen.why).toBe(note);
+    expect(raceGate({...base, hasField: screen.hash !== null})).toBe('no-field');
+  });
+
+  it('an unmarked field with a hash is drawn', () => {
+    const screen = raceScreenField({
+      field: {hash: 'abc', note: null},
+      fieldMissing: null,
+    });
+    expect(screen.hash).toBe('abc');
+    expect(raceGate({...base, hasField: screen.hash !== null})).toBe('ready');
   });
 });

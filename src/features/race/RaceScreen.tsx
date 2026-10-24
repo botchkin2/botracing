@@ -169,6 +169,11 @@ function RaceShell({
         </Text>
       </View>
       {!layout.isDesktop && <SessionNav sessionId={sessionId} />}
+      {data.kind === 'ready' && data.note ? (
+        <Text tone='textMuted' style={{paddingHorizontal: space.md, paddingBottom: space.sm}}>
+          {data.note}
+        </Text>
+      ) : null}
       {data.kind === 'ready' ? (
         <RaceView
           data={data}

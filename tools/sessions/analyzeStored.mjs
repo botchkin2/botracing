@@ -201,13 +201,20 @@ export async function analyzeStored({
   if (analysedParts > 0) {
     out.session.archiveParts = analysedParts;
     out.session.live = session.live ?? null;
+  } else if (session.live) {
+    // The healed drive: its recordings carry no live parts. The stamp read
+    // here is what tells a lap that lands meanwhile from a counter that
+    // drifted (store.mjs keepNewerLive, thread 103).
+    out.session.live = session.live;
   }
   await beforeWrite();
   await store.upload(
     {
       ...out,
-      // Already stored, unchanged: the recordings and their archive.
+      // Already stored, unchanged: the recordings and their archive, so none
+      // is written (store.mjs: recordingsAreStored).
       recordings: recordings.map(r => r.info),
+      recordingsAreStored: true,
       files: [],
       // Curated: never written from here.
       track: null,

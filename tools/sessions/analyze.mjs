@@ -28,6 +28,7 @@ import {sectionTimesOf, slowLapIds} from '../../src/analysis/paceEvents.ts';
 import {TRAFFIC_VERSION} from '../../src/analysis/traffic.ts';
 import {PLAN_VERSION} from './planBlock.mjs';
 import {fileChange} from './fileChange.mjs';
+import {lapHitsClip} from './heal.mjs';
 import {assignSessionLapNumbers} from './splitFileLaps.mjs';
 import {
   fillLapsLeft,
@@ -1142,6 +1143,14 @@ export function analyzeSession(
       laps.push(lap);
     }
   });
+  // A game file kept for a stretch the live copy lacks carries clipSpans
+  // (heal.mjs). The next open reads that archive whole. Drop a lap that hits
+  // a span the live copy owns, after lap.index is assigned, so the kept laps
+  // keep the ids the sync wrote. The crossing lap goes entirely.
+  for (let i = laps.length - 1; i >= 0; i--) {
+    if (lapHitsClip(laps[i], recs[laps[i].rec]?.recording?.clipSpans))
+      laps.splice(i, 1);
+  }
 
   // Why a lap should not be compared with the others. Off-track is not here:
   // it is a tag, because going wide is exactly what consistency should show.
