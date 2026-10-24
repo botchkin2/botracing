@@ -136,7 +136,6 @@ test('a resync without the capture keeps the stored race length and the repair, 
         if (op.op === 'set') docs.set(`${op.coll}/${op.id}`, op.data);
     },
     sessionLapIds: async () => ['l1'],
-    getFile: async () => null,
     fileMd5: async () => null,
     putFile: async () => {},
     deleteFile: async () => {},
@@ -196,7 +195,6 @@ test('an upload API that cannot read lap docs keeps nothing and does not fail th
         if (op.op === 'set') docs.set(`${op.coll}/${op.id}`, op.data);
     },
     sessionLapIds: async () => [],
-    getFile: async () => null,
     fileMd5: async () => null,
     putFile: async () => {},
     deleteFile: async () => {},

@@ -1,45 +1,52 @@
 // Run: node --test tools/sessions/lapWriteSkip.test.mjs
 // A live session is analysed again on every lap (pit wall thread 101, #38):
 // a lap doc that comes out the same is not written again, and one that
-// changed, or whose doc is gone, is.
+// changed, or whose doc is gone, is. The hash sits on the lap doc itself.
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {gunzipSync, gzipSync} from 'node:zlib';
 
 import {createStore, lapHash} from './store.mjs';
 
 // Like adminBackend: a lap with `supersededBy` is not among the session's laps.
-function stubBackend(stored = null, lapIds = []) {
+function stubBackend({withHashes = true} = {}) {
   const docs = new Map();
-  if (stored) docs.set('sessions/s1', stored);
   const lapWrites = [];
-  const present = new Set(lapIds);
-  const files = new Map();
-  return {
+  const backend = {
     docs,
     lapWrites,
-    present,
-    files,
+    failLapWrites: false,
     getDoc: async (coll, id) => docs.get(`${coll}/${id}`) ?? null,
     writeDocs: async ops => {
       for (const op of ops) {
-        if (op.op !== 'set') continue;
         const key = `${op.coll}/${op.id}`;
-        docs.set(key, op.merge ? {...docs.get(key), ...op.data} : op.data);
-        if (op.coll === 'laps' && !op.merge) {
-          lapWrites.push(op.id);
-          present.add(op.id);
+        if (op.op === 'delete') {
+          docs.delete(key);
+          continue;
         }
+        if (op.coll === 'laps' && !op.merge) {
+          if (backend.failLapWrites) throw new Error('crash');
+          lapWrites.push(op.id);
+        }
+        docs.set(key, op.merge ? {...docs.get(key), ...op.data} : op.data);
       }
     },
-    getFile: async dest => files.get(dest) ?? null,
-    sessionLapIds: async () =>
-      [...present].filter(id => !docs.get(`laps/${id}`)?.supersededBy),
+    getFile: async () => null,
+    sessionLapIds: async () => lapDocs().map(([id]) => id),
     fileMd5: async () => null,
-    putFile: async (dest, {body}) => files.set(dest, gzipSync(body)),
+    putFile: async () => {},
     deleteFile: async () => {},
     listFiles: async () => [],
   };
+  const lapDocs = () =>
+    [...docs]
+      .filter(([k, v]) => k.startsWith('laps/') && !v.supersededBy)
+      .map(([k, v]) => [k.slice(5), v]);
+  if (withHashes)
+    backend.sessionLapHashes = async () =>
+      Object.fromEntries(
+        lapDocs().map(([id, v]) => [id, v.payloadHash ?? null]),
+      );
+  return backend;
 }
 
 const run = laps => ({
@@ -95,11 +102,19 @@ test('a lap whose payload changed is written again, and only that one', async ()
   assert.deepEqual(backend.lapWrites, ['s1-1']);
 });
 
-test('a lap doc that is gone is written again though its hash matches', async () => {
+test('the hash is stored on the lap doc, in the same write as the payload', async () => {
+  const backend = stubBackend();
+  await createStore(backend).upload(run([lap(1)]));
+  const doc = backend.docs.get('laps/s1-1');
+  assert.equal(doc.payloadHash, lapHash(lap(1)));
+  assert.equal(doc.lapTime, 101);
+});
+
+test('a lap doc that is gone is written again', async () => {
   const backend = stubBackend();
   const store = createStore(backend);
   await store.upload(run([lap(1), lap(2)]));
-  backend.present.delete('s1-2');
+  backend.docs.delete('laps/s1-2');
   backend.lapWrites.length = 0;
   await store.upload(run([lap(1), lap(2)]));
   assert.deepEqual(backend.lapWrites, ['s1-2']);
@@ -123,19 +138,37 @@ test('a lap another writer tombstoned (heal, supersede) is written again', async
   assert.deepEqual(backend.lapWrites, ['s1-2']);
 });
 
-test('the hashes sit in a file beside the session, never on the session doc', async () => {
+test('a lap doc from before hashes existed is written once', async () => {
   const backend = stubBackend();
-  await createStore(backend).upload(run([lap(1), lap(2)]));
-  assert.equal(backend.docs.get('sessions/s1').lapHashes, undefined);
-  const gz = backend.files.get('inputs/o/s1/lapHashes.json.gz');
-  assert.deepEqual(JSON.parse(gunzipSync(gz).toString('utf8')), {
-    's1-1': lapHash(lap(1)),
-    's1-2': lapHash(lap(2)),
-  });
+  backend.docs.set('laps/s1-1', lap(1));
+  await createStore(backend).upload(run([lap(1)]));
+  assert.deepEqual(backend.lapWrites, ['s1-1']);
 });
 
-test('a session stored before hashes existed writes every lap once', async () => {
-  const backend = stubBackend({id: 's1', ownerId: 'o'}, ['s1-1', 's1-2']);
-  await createStore(backend).upload(run([lap(1), lap(2)]));
+test('a crash before a lap write leaves that lap with its old hash and payload (A, B, crash, A)', async () => {
+  const backend = stubBackend();
+  const store = createStore(backend);
+  await store.upload(run([lap(1)]));
+  backend.failLapWrites = true;
+  await assert.rejects(
+    store.upload(run([lap(1, {comparable: false})])),
+    /crash/,
+  );
+  backend.failLapWrites = false;
+  backend.lapWrites.length = 0;
+  // Doc and hash are one write: the stored hash still names the stored
+  // payload (A), so A again is a correct skip.
+  await store.upload(run([lap(1)]));
+  assert.deepEqual(backend.lapWrites, []);
+  assert.equal(backend.docs.get('laps/s1-1').lapTime, 101);
+  assert.equal(backend.docs.get('laps/s1-1').comparable, undefined);
+});
+
+test('a backend that cannot read the hashes (the tray HTTP one) writes every lap', async () => {
+  const backend = stubBackend({withHashes: false});
+  const store = createStore(backend);
+  await store.upload(run([lap(1), lap(2)]));
+  backend.lapWrites.length = 0;
+  await store.upload(run([lap(1), lap(2)]));
   assert.deepEqual(backend.lapWrites, ['s1-1', 's1-2']);
 });
