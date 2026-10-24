@@ -3,7 +3,6 @@
 // never deleted. Our copy goes once the capture is verified with its field,
 // or at 30 days. A size cap never deletes an unverified copy.
 import {
-  copyFileSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -12,6 +11,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
+import {copyFile as copyFileAsync} from 'node:fs/promises';
 import {isAbsolute, relative, resolve} from 'node:path';
 
 // Apex #6847: a cap, named there as 20 GB, and 30 days.
@@ -33,6 +33,13 @@ export const COPY_FAIL_MESSAGE = 'Could not copy the replay';
 export const REPLAY_LOOK_MS = 30 * 60 * 1000;
 export const DEFAULT_REPLAY_FOLDER =
   'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Le Mans Ultimate\\UserData\\Replays';
+
+/** Safety copies live under the uploader home, not the capture root.
+ *  prune.rs scan treats every top-level folder there as a capture, and one
+ *  with no meta.json is deleted 14 days after it last changed (steward #7189). */
+export function replayCopiesRoot(uploaderHome) {
+  return resolve(uploaderHome, 'replays');
+}
 
 const LOSS_KEYS = [
   'writeFailures',
@@ -235,7 +242,7 @@ export async function maintainReplayCopies({
   log = () => {},
   settleMs = SETTLE_MS,
   wait = ms => new Promise(resolveWait => setTimeout(resolveWait, ms)),
-  copyFile = copyFileSync,
+  copyFile = copyFileAsync,
   limits,
 } = {}) {
   mkdirSync(replaysRoot, {recursive: true});
@@ -303,7 +310,7 @@ export async function maintainReplayCopies({
             mkdirSync(destDir, {recursive: true});
             const dest = resolve(destDir, chosen.name);
             try {
-              copyFile(src, dest);
+              await copyFile(src, dest);
               const bytes = statSync(dest).size;
               writeFileSync(
                 resolve(destDir, 'copy.json'),

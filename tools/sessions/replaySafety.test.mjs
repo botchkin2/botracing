@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {mkdtempSync, writeFileSync, mkdirSync, readFileSync, statSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {join} from 'node:path';
+import {isAbsolute, join, relative, resolve} from 'node:path';
 import test from 'node:test';
 import {
   chooseReplay,
@@ -13,11 +13,21 @@ import {
   maintainReplayCopies,
   planCopies,
   recorderLoggedProblem,
+  replayCopiesRoot,
   REPLAY_KEEP_MS,
 } from './replaySafety.mjs';
 
 const now = Date.parse('2026-10-24T03:00:00Z');
 const minute = 60 * 1000;
+
+test('replay copies sit under the uploader home, outside the capture root', () => {
+  const local = resolve('C:/Users/seat/AppData/Local');
+  const copies = replayCopiesRoot(resolve(local, 'lap-uploader'));
+  const capture = resolve(local, 'lap-capture');
+  assert.equal(copies, resolve(local, 'lap-uploader', 'replays'));
+  const rel = relative(capture, copies);
+  assert.equal(rel.startsWith('..') || isAbsolute(rel), true);
+});
 
 test('a loss in the capture meta is a recorder problem; a quiet capture is not', () => {
   assert.equal(recorderLoggedProblem({meta: {}}), false);

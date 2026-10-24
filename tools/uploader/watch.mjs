@@ -76,6 +76,7 @@ import {QUIET_MIN_DEFAULT} from '../sessions/sessionFiles.mjs';
 import {
   DEFAULT_REPLAY_FOLDER,
   maintainReplayCopies,
+  replayCopiesRoot,
 } from '../sessions/replaySafety.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -582,7 +583,7 @@ async function main() {
             watch.replayHoldSince = Date.now();
           const outcome = await maintainReplayCopies({
             captureRoot,
-            replaysRoot: resolve(captureRoot, 'replays'),
+            replaysRoot: replayCopiesRoot(home),
             replayFolder: process.env.LAP_LMU_REPLAYS || DEFAULT_REPLAY_FOLDER,
             closedDir: closing || watch.replayHold || null,
             holdSinceMs: watch.replayHoldSince ?? Date.now(),
