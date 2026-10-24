@@ -83,4 +83,48 @@ describe('ruleSetsOf', () => {
   it('leaves a session with no VE out of every set', () => {
     expect(ruleSetsOf([s('x', '2026-10-01T00:00:00Z', 'R', {ratio: null})])).toEqual([]);
   });
+
+  it('a chain of small steps cannot drift into one set: 0.700, 0.715, 0.730 are two (steward #7115)', () => {
+    const at = (id: string, ratio: number, day: number) =>
+      s(id, `2026-10-${String(day).padStart(2, '0')}T00:00:00Z`, 'R', {ratio});
+    const sets = ruleSetsOf([at('c', 0.7, 3), at('b', 0.715, 2), at('a', 0.73, 1)]);
+    expect(sets.map(x => x.sessionIds)).toEqual([['c', 'b'], ['a']]);
+  });
+
+  it('takes the load from the source session: an old event at the same ratio with 100 L does not change it', () => {
+    const [only] = ruleSetsOf([
+      s('new', '2026-10-22T16:00:00Z', 'R', {ratio: 0.625, fillLimitL: 73, startL: 73}),
+      s('old', '2026-06-01T16:00:00Z', 'R', {ratio: 0.628, fillLimitL: 100, startL: 100}),
+    ]);
+    expect(only.sessionIds).toEqual(['new', 'old']);
+    expect(only.mostRunL).toBe(73);
+  });
+
+  it('with no fill limit on the source takes the newest in the set, then the newest race start', () => {
+    const [a] = ruleSetsOf([
+      s('r', '2026-10-22T16:00:00Z', 'R', {ratio: 0.8, startL: 85}),
+      s('q', '2026-10-22T15:00:00Z', 'Q', {ratio: 0.8, fillLimitL: 85, startL: 20}),
+    ]);
+    expect(a.mostRunL).toBe(85);
+    const [b] = ruleSetsOf([
+      s('r', '2026-10-22T16:00:00Z', 'R', {ratio: 0.8, startL: 84}),
+      s('q', '2026-10-22T15:00:00Z', 'Q', {ratio: 0.8, startL: 20}),
+    ]);
+    expect(b.mostRunL).toBe(84);
+  });
+
+  it('takes the stop ratio of the source first, then the newest race, qualifying, practice (a practice 0.935 is not the race setup)', () => {
+    const [tue] = ruleSetsOf([
+      s('p', '2026-10-21T23:00:00Z', 'P', {ratio: 0.839, stopRatio: 0.935}),
+      s('r', '2026-10-21T01:00:00Z', 'R', {ratio: 0.835, stopRatio: 0.823}),
+      s('q', '2026-10-21T00:00:00Z', 'Q', {ratio: 0.837, stopRatio: 0.857}),
+    ]);
+    expect(tue.stopRatio).toBe(0.823);
+    const [noSource] = ruleSetsOf([
+      s('p', '2026-10-21T23:00:00Z', 'P', {ratio: 0.839, stopRatio: 0.935}),
+      s('r', '2026-10-21T01:00:00Z', 'R', {ratio: 0.835}),
+      s('q', '2026-10-21T00:00:00Z', 'Q', {ratio: 0.837, stopRatio: 0.857}),
+    ]);
+    expect(noSource.stopRatio).toBe(0.857);
+  });
 });
