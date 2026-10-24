@@ -112,6 +112,10 @@ export function problemText(p: UploaderProblem): string {
       ? ['Sync crashed', p.message.replace(/^sync crashed: /, ''), retry]
       : p.kind === 'recorder-layout'
       ? ['Recorder stopped', p.message]
+      : p.kind === 'disk-low'
+      ? ['Low disk space', p.message]
+      : p.kind === 'disk-full'
+      ? ['A recording chunk could not be written', p.message]
       : p.kind === 'field-missing'
       ? [`Session ${(p.sessionId ?? '').slice(0, 8)}`, p.message]
       : p.kind === 'capture-suspect'

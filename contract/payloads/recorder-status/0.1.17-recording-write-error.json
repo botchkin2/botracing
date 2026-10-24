@@ -1,0 +1,14 @@
+{
+  "captureBytes": 0,
+  "droppedPct": 0.0,
+  "gameVersion": 0,
+  "lastChunkAt": null,
+  "lastLapAt": null,
+  "layoutOk": true,
+  "layoutReason": "",
+  "pid": 26468,
+  "sessionDir": "1970-01-01T00-00-01Z_road-atlanta_10",
+  "state": "recording",
+  "updatedAt": "1970-01-01T00:01:02.001Z",
+  "writeError": "can't write the capture: Access is denied. (os error 5)"
+}

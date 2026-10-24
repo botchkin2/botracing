@@ -50,6 +50,8 @@ export const PROBLEM_KINDS = [
   'capture-missed',
   'capture-suspect',
   'field-missing',
+  'disk-low',
+  'disk-full',
   'uploader-stopped',
   'file-unreadable',
 ];

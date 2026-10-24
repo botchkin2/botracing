@@ -263,6 +263,21 @@ impl Capture {
         write_json(&self.dir.join("meta.json"), &Value::Object(self.meta.clone()))
     }
 
+    /// A chunk could not be written (a full disk): its rows are gone, earlier chunks stay, and the capture
+    /// goes on. Counted in meta.json, which is rewritten with the next chunk that does reach the disk.
+    pub fn note_write_failure(&mut self, why: &str) {
+        self.count("writeFailures", 1);
+        self.meta.insert("lastWriteError".into(), json!(why));
+    }
+
+    /// The recorder was not polled for this long (the PC slept, or the process was suspended): the
+    /// frames in between do not exist, and a reader can see why from the counter.
+    pub fn note_gap(&mut self, gap_ms: u64) {
+        self.count("gaps", 1);
+        let longest = self.meta.get("longestGapMs").and_then(Value::as_u64).unwrap_or(0);
+        self.meta.insert("longestGapMs".into(), json!(longest.max(gap_ms)));
+    }
+
     /// One look of the scoring layout check: counted, never decisive. meta.json
     /// keeps how many looks doubted (`layoutDoubtful` of `layoutChecks`) and the
     /// first reason (`layoutSuspect`); the tray's analysis decides from the data
@@ -386,9 +401,13 @@ impl Capture {
 }
 
 impl Drop for Capture {
-    /// A capture dropped without close (the recorder refused it) still lets
-    /// its writer finish what it was given.
+    /// A capture dropped without close (the recorder refused it, or panicked and unwound) hands what it
+    /// still holds to the writer, then lets the writer finish: the rows of the last chunk are not lost
+    /// with it (pit wall thread 100, gauge #6918).
     fn drop(&mut self) {
+        if !self.rows.is_empty() {
+            let _ = self.flush(self.chunk_started_ms);
+        }
         let _ = self.writer.finish();
     }
 }
