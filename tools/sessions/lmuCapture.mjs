@@ -122,6 +122,21 @@ const inEpoch = src =>
  * `lapTimeS` is the player's mLastLapTime just after the lap's closing
  * crossing, null when the game gave none and on partial parts.
  */
+/** Wall span of the laps: first realtime row to the last. Not meta start/end, which keeps the garage. */
+export function onTrackSpanOf(stretches) {
+  let startMs = Infinity;
+  let endMs = -Infinity;
+  for (const st of stretches ?? []) {
+    if (Number.isFinite(st.startMs)) startMs = Math.min(startMs, st.startMs);
+    if (Number.isFinite(st.endMs)) endMs = Math.max(endMs, st.endMs);
+  }
+  if (!Number.isFinite(startMs) || !(endMs > startMs)) return null;
+  return {
+    start: new Date(startMs).toISOString(),
+    end: new Date(endMs).toISOString(),
+  };
+}
+
 export function describeCapture(captureDir) {
   const files = chunks(captureDir);
   const meta = JSON.parse(readFileSync(join(captureDir, 'meta.json'), 'utf8'));

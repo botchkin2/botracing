@@ -239,6 +239,26 @@ test('an absent id stays when nothing else on the marker verified', () => {
   );
 });
 
+test('a missing own session stays when the verified part is 70% of the on-track span', () => {
+  const span = {start: '2026-10-02T00:00:00.000Z', end: '2026-10-02T01:00:00.000Z'};
+  assert.deepEqual(
+    foreignMissing(
+      [
+        {
+          id: 'own',
+          ok: true,
+          missing: false,
+          start: span.start,
+          end: '2026-10-02T00:42:00.000Z',
+        },
+        {id: 'other-own', ok: false, missing: true},
+      ],
+      span,
+    ),
+    [],
+  );
+});
+
 test('a missing id stays when the verified sessions cover under 90% of the capture', () => {
   const span = {start: '2026-10-02T00:00:00.000Z', end: '2026-10-02T01:00:00.000Z'};
   const half = foreignMissing(

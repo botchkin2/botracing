@@ -48,7 +48,6 @@ import {versionKey} from './versionKey.mjs';
 import {slugId} from './analyzeFromArchive.mjs';
 import {analysisVersion, blockVersions, trackMapVersion} from './analyze.mjs';
 import {
-  captureSpan,
   dropSessionIds,
   foreignMissing,
   liveMarks,
@@ -56,6 +55,7 @@ import {
   markVerified,
   unverifiedMarks,
 } from './captureMarker.mjs';
+import {describeCapture, onTrackSpanOf} from './lmuCapture.mjs';
 import {noteNoField} from './noField.mjs';
 import {describeCheck} from './irCapture.mjs';
 import {captureExtractFor, liveExtractSessions} from './captureExtractFor.mjs';
@@ -329,7 +329,14 @@ async function verifyMarked(store) {
           readBack,
         });
       }
-      const span = captureSpan(captureRoot, name);
+      let span = null;
+      try {
+        span = onTrackSpanOf(
+          describeCapture(resolve(captureRoot, name)).stretches,
+        );
+      } catch {
+        span = null;
+      }
       for (const check of checks) {
         if (!check.ok || typeof store.getSession !== 'function') continue;
         const id = check.readBack?.sessionId || check.id;

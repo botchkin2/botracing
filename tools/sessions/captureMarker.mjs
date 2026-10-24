@@ -123,22 +123,10 @@ export function liveMarks(root, liveIndex) {
 /** How much of the capture the verified sessions must cover before an absent id is dropped (thread 100 #6982). */
 export const MARKER_COVER_SHARE = 0.9;
 
-/** The capture's wall span from meta.json, or null when it has no start and end. */
-export function captureSpan(root, name) {
-  try {
-    const meta = JSON.parse(
-      readFileSync(resolve(root, name, 'meta.json'), 'utf8'),
-    );
-    if (!meta.startUtc || !meta.endUtc) return null;
-    return {start: meta.startUtc, end: meta.endUtc};
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Whether `pieces` ({start, end} ISO) together cover at least `share` of
- * `span`. Overlap is counted once. A missing time does not cover.
+ * `span`. The span is the capture's on-track time, not the garage (thread 100
+ * #6990). Overlap is counted once. A missing time does not cover.
  */
 export function spanCovered(span, pieces, share = MARKER_COVER_SHARE) {
   const start = Date.parse(span?.start);
