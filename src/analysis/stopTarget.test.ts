@@ -2,53 +2,77 @@ import {describe, expect, it} from '@jest/globals';
 
 import {stopTargets, type StopTargetInput} from './stopTarget';
 
-// A Hypercar at 5.02 % VE and 3.9 L a lap at p90, a 100 L fill limit.
+// A car at 5 % VE and 4.0 L a lap at p90 (0.8 L a %), a stop that adds 0.8 L a %, a 80 L load.
 const base: StopTargetInput = {
   sim: 'lmu',
   meter: 've',
   stintLaps: [19, 19, 12],
   lateFlag: false,
-  p90: {fuelL: 3.9, vePct: 5.02},
-  fillLimitL: 100,
+  p90: {fuelL: 4.0, vePct: 5.0},
+  loadL: 80,
   fullVePct: 100,
+  stopRatio: 0.8,
   arrive: [4, 3],
+  arriveFuelL: [3.2, 2.4],
 };
 
 describe('stopTargets: the level he sets at each stop', () => {
   it('a middle stop that a full load cannot cover is full; the last is the laps to the flag, rounded up', () => {
     const [mid, last] = stopTargets(base);
-    // 19 x 5.02 = 95.4 -> 96 %; 12 x 5.02 = 60.24 -> 61 %.
-    expect(mid).toMatchObject({meter: 've', verb: 'set', value: 96, added: 92});
-    expect(last).toMatchObject({value: 61, arrive: 3, added: 58});
+    // 19 x 5 = 95 %; 12 x 5 = 60 %. The litres are the % added at the stop ratio.
+    expect(mid).toMatchObject({meter: 've', verb: 'set', value: 95, added: 91});
+    expect(mid.addedL).toBeCloseTo(72.8);
+    expect(last).toMatchObject({value: 60, arrive: 3, added: 57, unmeasured: false});
     expect(last.fuelLimited).toBe(false);
     expect(stopTargets({...base, stintLaps: [19, 21, 12]})[0].value).toBe(100);
   });
 
-  it('does not depend on what the car arrives with', () => {
-    const a = stopTargets(base).map(t => t.value);
-    const b = stopTargets({...base, arrive: [20, 30]}).map(t => t.value);
-    expect(b).toEqual(a);
+  it('the litres a stop adds are the % added times what a % adds at his stops, not the load over 100', () => {
+    // 0.609 L a % at the stops against a 73 L load: 73.6 % is 44.8 L, not 53.7 L.
+    const [t] = stopTargets({
+      ...base,
+      stintLaps: [17, 13],
+      p90: {fuelL: 3.57, vePct: 5.7},
+      loadL: 73,
+      stopRatio: 0.609,
+      arrive: [4.4],
+      arriveFuelL: [2.75],
+    });
+    // 13 laps: VE wants 74.1 %, the litres want 4.4 + (46.4 - 2.75) / 0.609 = 76.1 %
+    expect(t.value).toBe(77);
+    expect(t.fuelLimited).toBe(true);
+    expect(t.addedL).toBeCloseTo((77 - 4.4) * 0.609);
   });
 
   it('a timed race covers the lap a late flag can add, on the last stop only', () => {
     const [mid, last] = stopTargets({...base, lateFlag: true});
-    expect(mid.value).toBe(96);
-    // 13 x 5.02 = 65.26 -> 66 %.
-    expect(last.value).toBe(66);
+    expect(mid.value).toBe(95);
+    expect(last.value).toBe(65);
   });
 
   it('is sized from fuel when fuel runs out first, and says so', () => {
-    // 12 laps at 6.2 L is 74.4 L: 75 % of the 100 L limit, over the 61 % of VE.
-    const [, last] = stopTargets({...base, p90: {fuelL: 6.2, vePct: 5.02}});
+    // 12 laps at 5.0 L over the 2.4 L left, at 0.8 L a %: from 3 % up to 75 %, over the 60 % of VE.
+    const [, last] = stopTargets({...base, p90: {fuelL: 5.0, vePct: 5.0}});
     expect(last).toMatchObject({value: 75, fuelLimited: true});
   });
 
-  it('a car that arrives above the level gets no fill', () => {
-    const [, last] = stopTargets({...base, arrive: [4, 70]});
-    expect(last).toMatchObject({value: 61, added: 0, noFill: true});
+  it('two ratios a hair apart are not a limiter: the level takes the higher, the stop is not called fuel-limited', () => {
+    const [, last] = stopTargets({...base, stopRatio: 0.79});
+    // fuel wants 60.7 %, VE 60 %: under one step of the pit menu
+    expect(last).toMatchObject({value: 61, fuelLimited: false});
   });
 
-  it('a fuel-only car (LMP2) sets litres the same way, within the fill limit', () => {
+  it('with no stop measured the level is VE only and the litres are not known, never fill / 100', () => {
+    const [, last] = stopTargets({...base, stopRatio: null});
+    expect(last).toMatchObject({value: 60, unmeasured: true, addedL: null, fuelLimited: false});
+  });
+
+  it('a car that arrives above the level gets no fill', () => {
+    const [, last] = stopTargets({...base, arrive: [4, 70], arriveFuelL: [3.2, 56]});
+    expect(last).toMatchObject({value: 60, added: 0, noFill: true});
+  });
+
+  it('a fuel-only car (LMP2) sets litres the same way, within the load', () => {
     const t = stopTargets({
       ...base,
       meter: 'fuel',
@@ -61,6 +85,7 @@ describe('stopTargets: the level he sets at each stop', () => {
       ['set', 47],
     ]);
     expect(t[1].added).toBeCloseTo(45.2);
+    expect(t[1].addedL).toBeCloseTo(45.2);
   });
 
   it('iRacing adds an amount: what the laps need less what is left', () => {

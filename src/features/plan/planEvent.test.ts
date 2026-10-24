@@ -2,7 +2,8 @@ import {describe, expect, it} from '@jest/globals';
 
 import type {SessionSummary} from '@/src/data/sessions';
 
-import {eventLabel, eventsOf, seriesWeek} from './planEvent';
+import {eventLabel, eventsOf, rulesSource, seriesWeek} from './planEvent';
+import {ruleSetsOf} from './ruleSet';
 
 // Local times, so the test holds in any time zone.
 const at = (m: number, d: number, h: number, min = 0) =>
@@ -41,14 +42,16 @@ describe('eventsOf', () => {
     ]);
     expect(events).toEqual([
       {
-        week: '2026-09-29',
+        key: '2026-09-29',
         sessionIds: ['race', 'quali'],
         series: 'One Stint Sprint',
+        rules: null,
       },
       {
-        week: '2026-09-22',
+        key: '2026-09-22',
         sessionIds: ['old', 'old2'],
         series: 'ELMS Super 60',
+        rules: null,
       },
     ]);
   });
@@ -56,9 +59,28 @@ describe('eventsOf', () => {
 
 describe('eventLabel', () => {
   it('names the series only when known', () => {
-    const e = {week: '2026-09-29', sessionIds: [], series: 'One Stint Sprint'};
+    const e = {key: '2026-09-29', sessionIds: [], series: 'One Stint Sprint', rules: null};
     expect(eventLabel(e, 100)).toBe('100 L · One Stint Sprint · week of 09-29');
     expect(eventLabel({...e, series: null}, 75)).toBe('75 L · week of 09-29');
     expect(eventLabel({...e, series: null}, null)).toBe('week of 09-29');
+  });
+});
+
+describe('events by rule set', () => {
+  const sess = (id: string, startedAt: string, series: string | null = null) =>
+    ({id, startedAt, series} as SessionSummary);
+  const rs = ruleSetsOf([
+    {id: 'wedR', startedAt: '2026-10-22T16:39:00Z', sessionType: 'R', ratio: 0.625, stopRatio: 0.609, fillLimitL: 73, startL: 73},
+    {id: 'tueR', startedAt: '2026-10-21T16:40:00Z', sessionType: 'R', ratio: 0.835, stopRatio: null, fillLimitL: 85, startL: 85},
+  ]);
+
+  it('lists the rule sets newest first, the series name from any session, and says where the rules come from', () => {
+    const events = eventsOf([sess('wedR', '2026-10-22T16:39:00Z', 'ELMS Super 60'), sess('tueR', '2026-10-21T16:40:00Z')], rs);
+    expect(events.map(e => [e.key, e.sessionIds, e.series])).toEqual([
+      ['wedR', ['wedR'], 'ELMS Super 60'],
+      ['tueR', ['tueR'], null],
+    ]);
+    expect(eventLabel(events[0], 73)).toBe('73 L · ELMS Super 60 · rules from Race, Oct 22');
+    expect(rulesSource(rs[1])).toBe('rules from Race, Oct 21');
   });
 });

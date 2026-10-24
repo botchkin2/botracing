@@ -20,6 +20,7 @@ import {planComboKey} from '@/src/nav/routes';
 import {type FuelPreset, type RaceLength} from '@/src/state/fuelPresets';
 
 import {type FormationBurn, formationText} from './formation';
+import {type RuleSet} from './ruleSet';
 import {effectiveUnit, type Unit} from './unit';
 
 // The pre-race planner screen's model (pit wall thread 35): which track+car
@@ -187,45 +188,30 @@ export function eventLoad(
 export type VeRatio = {
   /** Litres of fuel per 1 % VE. */
   perPctL: number;
-  /** Where it came from: the preset, or a session that ran that load. */
+  /** Where it came from: the preset, or the session of the rule set it was measured in. */
   source: {kind: 'preset'} | {kind: 'session'; startedAt: string};
 };
 
 /**
- * The ratio to plan with: the preset's if it sets one; with a preset max fuel,
- * the newest session that ran that load; else the newest session of the
- * planned event, else none. `sessions` is newest first, as `historySessions`
- * gives, and `inEvent` marks the planned event's sessions (unset counts as in).
+ * The ratio to plan with: the preset's if it sets one, else the planned rule
+ * set's (the newest race or qualifying in it, ruleSet.ts), else none. A
+ * preset's fuel no longer picks the ratio: a load that matched none of his
+ * sessions used to drop VE and plan on litres (thread 104, 75 L at Sebring).
  *
- * The ratio belongs to the event: 0.67 to 0.99 L per % across events of one
- * car, and the load does not predict it (parc's 9-month audit, thread 44
- * #1980), so nothing is estimated from the load and another event's ratio is
- * never taken. Within one event practice, qualifying and race agree to 0.005,
- * so one lap of that event gives it.
+ * The ratio belongs to the rules, not the load (0.67 to 0.99 L per % across
+ * rules of one car, parc's 9-month audit, thread 44 #1980); nothing is
+ * estimated from the load and another rule set's ratio is never taken.
  */
 export function veRatioFor(
   preset: FuelPreset | null,
-  sessions: {
-    startedAt: string;
-    ratio: number | null;
-    fillLimitL: number | null;
-    inEvent?: boolean;
-  }[],
+  rules: RuleSet | null,
 ): VeRatio | null {
   if (preset?.veRatio != null)
     return {perPctL: preset.veRatio, source: {kind: 'preset'}};
-  const wanted = preset?.fuelL ?? null;
-  const last = sessions.find(
-    s =>
-      s.ratio != null &&
-      (wanted != null
-        ? s.fillLimitL != null && Math.abs(s.fillLimitL - wanted) <= 0.5
-        : s.inEvent !== false),
-  );
-  return last
+  return rules
     ? {
-        perPctL: last.ratio as number,
-        source: {kind: 'session', startedAt: last.startedAt},
+        perPctL: rules.ratio.perPctL,
+        source: {kind: 'session', startedAt: rules.ratio.from.startedAt},
       }
     : null;
 }

@@ -1,3 +1,4 @@
+import {type RuleSet} from './ruleSet';
 import {describe, expect, it} from '@jest/globals';
 
 import {planRace, type GreenLap} from '@/src/analysis/fuelPlan';
@@ -120,89 +121,35 @@ describe('greenLapsOf', () => {
 });
 
 describe('veRatioFor', () => {
-  const sessions = [
-    {startedAt: '2026-09-29T10:00:00Z', ratio: null, fillLimitL: 100},
-    {startedAt: '2026-09-20T10:00:00Z', ratio: 0.81, fillLimitL: 84},
-    {startedAt: '2026-09-10T10:00:00Z', ratio: 0.68, fillLimitL: 75},
-  ];
+  const rules: RuleSet = {
+    key: 'wedR',
+    sessionIds: ['wedR'],
+    newestAt: '2026-10-22T16:39:00Z',
+    ratio: {perPctL: 0.625, from: {startedAt: '2026-10-22T16:39:00Z', sessionType: 'R'}},
+    fromPracticeOnly: false,
+    stopRatio: 0.609,
+    mostRunL: 73,
+  };
 
-  it('takes the newest session that has one, with its date', () => {
-    expect(veRatioFor(null, sessions)).toEqual({
-      perPctL: 0.81,
-      source: {kind: 'session', startedAt: '2026-09-20T10:00:00Z'},
+  it('takes the ratio of the planned rule set, with the date it was measured', () => {
+    expect(veRatioFor(null, rules)).toEqual({
+      perPctL: 0.625,
+      source: {kind: 'session', startedAt: '2026-10-22T16:39:00Z'},
     });
   });
 
-  it('with a preset max fuel, takes the newest session that ran that load', () => {
+  it('is not picked by the preset fuel: a 75 L preset still has the VE of the rules (T6)', () => {
     const p75 = newPreset('X', {fuelL: 75}, 'p1', '2026-09-26T00:00:00Z');
-    // The newer 84 L session is skipped: its ratio is for another event.
-    expect(veRatioFor(p75, sessions)).toEqual({
-      perPctL: 0.68,
-      source: {kind: 'session', startedAt: '2026-09-10T10:00:00Z'},
-    });
-    const p84 = newPreset('X', {fuelL: 84.3}, 'p2', '2026-09-26T00:00:00Z');
-    expect(veRatioFor(p84, sessions)!.perPctL).toBe(0.81);
-  });
-
-  it('has no ratio when no session ran the preset load: nothing is estimated from the load', () => {
-    const p60 = newPreset('X', {fuelL: 60}, 'p3', '2026-09-26T00:00:00Z');
-    expect(veRatioFor(p60, sessions)).toBeNull();
-    // A session with no recorded fill limit cannot be matched either.
-    expect(
-      veRatioFor(p60, [
-        {startedAt: '2026-09-20T10:00:00Z', ratio: 0.81, fillLimitL: null},
-      ]),
-    ).toBeNull();
-  });
-
-  it('takes the ratio of the planned event only, never another event with a ratio', () => {
-    const events = [
-      {
-        startedAt: '2026-10-02T00:12:00Z',
-        ratio: null,
-        fillLimitL: 100,
-        inEvent: true,
-      },
-      {
-        startedAt: '2026-09-26T00:38:00Z',
-        ratio: 0.675,
-        fillLimitL: 75,
-        inEvent: false,
-      },
-    ];
-    expect(veRatioFor(null, events)).toBeNull();
-    expect(
-      veRatioFor(null, [{...events[0], ratio: 0.968}, ...events.slice(1)])!
-        .perPctL,
-    ).toBe(0.968);
-  });
-
-  it('the newest ratio of the event wins, practice or race alike', () => {
-    expect(veRatioFor(null, sessions)!.perPctL).toBe(0.81);
-  });
-
-  it('with no preset max fuel, the newest ratio is right (rules start from that session)', () => {
-    const noFuel = newPreset('X', {}, 'p4', '2026-09-26T00:00:00Z');
-    expect(veRatioFor(noFuel, sessions)!.perPctL).toBe(0.81);
+    expect(veRatioFor(p75, rules)!.perPctL).toBe(0.625);
   });
 
   it('prefers the preset ratio', () => {
-    const preset = newPreset(
-      'X',
-      {veRatio: 0.68},
-      'p1',
-      '2026-09-26T00:00:00Z',
-    );
-    expect(veRatioFor(preset, sessions)).toEqual({
-      perPctL: 0.68,
-      source: {kind: 'preset'},
-    });
+    const preset = newPreset('X', {veRatio: 0.68}, 'p1', '2026-09-26T00:00:00Z');
+    expect(veRatioFor(preset, rules)).toEqual({perPctL: 0.68, source: {kind: 'preset'}});
   });
 
   it('is null with neither', () => {
-    expect(
-      veRatioFor(null, [{startedAt: 'x', ratio: null, fillLimitL: null}]),
-    ).toBeNull();
+    expect(veRatioFor(null, null)).toBeNull();
   });
 });
 
@@ -663,38 +610,14 @@ describe('planning an event with litres pooled from other events', () => {
   };
 
   it("with the planned event's own ratio, VE per lap follows the event", () => {
-    const ratio = veRatioFor(null, [
-      {
-        startedAt: '2026-10-02T00:12:00Z',
-        ratio: 0.968,
-        fillLimitL: 100,
-        inEvent: true,
-      },
-      {
-        startedAt: '2026-09-26T00:38:00Z',
-        ratio: 0.675,
-        fillLimitL: 75,
-        inEvent: false,
-      },
-    ])!;
-    expect(ratio.perPctL).toBe(0.968);
+    const ratio = {perPctL: 0.968};
     const plan = planRace(rules, greenLapsOf('s', history, ratio.perPctL));
     expect(plan.perLap.ve!.median).toBeCloseTo(2.4 / 0.968, 6);
     expect(plan.raceLaps!.estimate).toBe(30);
     expect(plan.atMedian.stops).toBe(0);
   });
 
-  it('with only another event on record there is no VE yet, and the fuel plan still needs no stop', () => {
-    expect(
-      veRatioFor(null, [
-        {
-          startedAt: '2026-09-26T00:38:00Z',
-          ratio: 0.675,
-          fillLimitL: 75,
-          inEvent: false,
-        },
-      ]),
-    ).toBeNull();
+  it('with no rule set there is no VE yet, and the fuel plan still needs no stop', () => {
     const plan = planRace(rules, greenLapsOf('s', history, null));
     expect(plan.perLap.ve).toBeNull();
     expect(plan.perLap.fuel!.median).toBeCloseTo(2.4, 6);

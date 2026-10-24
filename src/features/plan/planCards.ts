@@ -99,7 +99,7 @@ export type TankCard = {
   /** The one meter in the unit shown; empty under 3 green laps. */
   meters: TankMeter[];
   /** "Fuel runs out first: 10.5 laps (84 L ÷ 7.61 L/lap)": the other meter, only when it is the shorter. */
-  otherFirst: string | null;
+  limit: string | null;
 };
 
 /** A stint's row of the Stops table. */
@@ -307,23 +307,30 @@ function tankCard(
       lapsP90: rules.vePct / ve.p90,
       formula: `${pct(rules.vePct)} ÷ ${ve.median.toFixed(2)} %/lap`,
     });
-  // One unit at a time (thread 44 #1826); the other meter is named only when
-  // it would run out first, as a fact under the bar.
+  // One unit at a time (thread 44 #1826); the meter that runs out first is
+  // named in words under the bar whichever is shown (thread 104: the plan said
+  // L20 and VE ran out on L17), or both when their whole laps are equal.
   const shown = effectiveUnit(
     unit,
     meters.some(m => m.key === 've'),
   );
   const mine = meters.find(m => m.key === shown);
   const other = meters.find(m => m.key !== shown);
-  const otherFirst =
-    mine && other && other.lapsMedian < mine.lapsMedian
-      ? `${
-          other.key === 've' ? 'VE' : 'Fuel'
-        } runs out first: ${other.lapsMedian.toFixed(1)} laps (${
-          other.formula
-        }).`
-      : null;
-  return {meters: mine ? [mine] : [], otherFirst};
+  const word = (m: TankMeter) => (m.key === 've' ? 'VE' : 'Fuel');
+  let limit: string | null = null;
+  if (mine && other) {
+    if (Math.floor(mine.lapsMedian) === Math.floor(other.lapsMedian))
+      limit = `VE and fuel run out together: ${Math.floor(
+        mine.lapsMedian,
+      )} laps.`;
+    else {
+      const first = other.lapsMedian < mine.lapsMedian ? other : mine;
+      limit = `${word(first)} runs out first: ${first.lapsMedian.toFixed(
+        1,
+      )} laps (${first.formula}).`;
+    }
+  }
+  return {meters: mine ? [mine] : [], limit};
 }
 
 /**

@@ -24,15 +24,15 @@ export function usePlanData(
   unit: Unit = 've',
   /** What the car starts with when less than a full load, typed for this race. */
   start: {fuelL?: number | null; vePct?: number | null} = {},
-  /** The series week of the event being planned; null is the newest event at this track and car. */
-  eventWeek: string | null = null,
+  /** The key of the event being planned (its rule set); null is the newest event at this track and car. */
+  eventKey: string | null = null,
 ) {
   const presets = useFuelPresets(s => s.presets);
   const activeId = useFuelPresets(s => s.activeId);
   const length = useFuelPresets(s => s.length);
   const preset = presets.find(p => p.id === activeId) ?? null;
 
-  const limits = usePlanLimits(combo, eventWeek);
+  const limits = usePlanLimits(combo, eventKey);
   const baseRules = rulesFor(preset, length, limits.lastFuel, start);
   const wantedL = baseRules?.rules.fuelL ?? null;
   const hist = usePlanHistory(
@@ -41,6 +41,7 @@ export function usePlanData(
     wantedL,
     preset,
     limits.event?.sessionIds ?? null,
+    limits.event?.rules ?? null,
   );
   const eventText = limits.event
     ? eventLabel(

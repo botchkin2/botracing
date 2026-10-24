@@ -31,6 +31,7 @@ export function PitPlanCard({
   panels,
   strip,
   stripLabel,
+  limit = null,
   unit,
   wide = false,
   onStop,
@@ -42,6 +43,8 @@ export function PitPlanCard({
   panels: StopPanel[];
   strip: StripCell[];
   stripLabel: string;
+  /** Which meter runs out first, in words (planCards `tank.limit`); null with one meter. */
+  limit?: string | null;
   unit: Unit;
   /** Desktop: the stops two to a row, and the stint table. */
   wide?: boolean;
@@ -73,6 +76,11 @@ export function PitPlanCard({
           ) : null,
         )}
       </View>
+      {limit ? (
+        <Text variant='dataSmall' tone='textSecondary'>
+          {limit}
+        </Text>
+      ) : null}
       <StintStripView cells={strip} label={stripLabel} />
       {wide ? <StintTable pit={pit} unit={unit} /> : null}
       <Text variant='dataSmall' tone='textSecondary'>

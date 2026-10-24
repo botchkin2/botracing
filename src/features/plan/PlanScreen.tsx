@@ -98,11 +98,11 @@ export function PlanScreen() {
   // one until another is picked (thread 44 #1983).
   const [eventPick, setEventPick] = useState<{
     key: string;
-    week: string;
+    event: string;
   } | null>(null);
-  const eventWeek =
-    eventPick && eventPick.key === combo?.key ? eventPick.week : null;
-  const data = usePlanData(combo, unit, start, eventWeek);
+  const eventKey =
+    eventPick && eventPick.key === combo?.key ? eventPick.event : null;
+  const data = usePlanData(combo, unit, start, eventKey);
   const slider = usePitSlider(data, combo?.key ?? '', combo?.sim ?? 'lmu');
   const chosen = useMemo(
     () =>
@@ -196,14 +196,14 @@ export function PlanScreen() {
     lastFillLimitL: lastFuel?.fillLimitL ?? null,
     lastVeRatio: measured.find(m => m.ratio != null)?.ratio ?? null,
     events: limits.events.map(e => ({
-      week: e.week,
+      key: e.key,
       label: eventLabel(e, eventLoadL(e)),
-      selected: preset == null && e.week === limits.event?.week,
+      selected: preset == null && e.key === limits.event?.key,
     })),
-    onEvent: (week: string) => {
+    onEvent: (event: string) => {
       select(null);
       setDraft(null);
-      if (combo) setEventPick({key: combo.key, week});
+      if (combo) setEventPick({key: combo.key, event});
     },
     onSelect: (id: string | null) => {
       select(id);
@@ -393,6 +393,7 @@ export function PlanScreen() {
               panels={slider.panels}
               strip={slider.strip}
               stripLabel={slider.stripLabel}
+              limit={data.cards.tank.limit}
               unit={effectiveUnit(unit, hasVe)}
               wide={wide}
               onStop={slider.setStop}
