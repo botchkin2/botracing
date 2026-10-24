@@ -122,4 +122,17 @@ describe('followStep', () => {
     expect(fast.camX).toBeCloseTo(0, 9);
     expect(fast.camY).toBeCloseTo(-7, 9);
   });
+  it('a dragged camera keeps its angle round the car through every turn (the drag follows, it does not freeze)', () => {
+    const st = newFollow();
+    const free = {yaw: 1.2, pitch: 0, zoom: 1, resetting: false};
+    // a full circle at 60 fps; the angle from the car's heading to the camera's view of it
+    for (let i = 0; i < 400; i++) {
+      const a = i * 0.02;
+      const car: FollowCar = {x: 100 * Math.sin(a), y: 100 * (1 - Math.cos(a)), z: 0, heading: a, travel: a, v: 30};
+      const v = followStep(st, car, 1 / 60, 1, 7, 2.2, i === 0, free);
+      if (i < 30) continue;
+      const seen = Math.atan2(car.y - v.camY, car.x - v.camX);
+      expect(Math.atan2(Math.sin(seen - a), Math.cos(seen - a))).toBeCloseTo(1.2, 1);
+    }
+  });
 });
