@@ -418,17 +418,40 @@ impl Capture {
             self.held.push(failed);
         }
         for (n, cut_ms, rows) in std::mem::take(&mut self.held) {
+            let counts = rows.row_count();
             if ms.saturating_sub(cut_ms) > RETAIN_MS {
-                let (p, s, f) = rows.row_count();
-                self.count("lostChunks", 1);
-                self.count("lostPlayerRows", p);
-                self.count("lostSessionRows", s);
-                self.count("lostFieldRows", f);
+                self.lose(counts);
             } else if self.submit(n, cut_ms, rows).is_err() {
-                // the writer is gone: nothing to hand it to (its rows went with the failed send)
-                self.count("lostChunks", 1);
+                // the writer is gone: nothing to hand the rows to, so they are counted, not forgotten
+                self.lose(counts);
             }
         }
+    }
+
+    /// Rows that will never reach the disk, counted by kind in meta.json.
+    fn lose(&mut self, (player, session, field): (u64, u64, u64)) {
+        self.count("lostChunks", 1);
+        self.count("lostPlayerRows", player);
+        self.count("lostSessionRows", session);
+        self.count("lostFieldRows", field);
+    }
+
+    /// The last of a capture: what the writer has is settled, what the disk refused is offered once more,
+    /// and whatever it still refuses is counted as lost (never silently dropped). The first error is returned.
+    fn settle_for_good(&mut self, ms: u64) -> Result<u64, String> {
+        let mut bytes = 0;
+        let mut failure = None;
+        for round in 0..2 {
+            match self.writer.settle() {
+                Ok(b) => bytes += b,
+                Err(e) => failure = failure.or(Some(e)),
+            }
+            // the first round retries what came back; the second counts what came back again
+            self.retry_held(if round == 0 { ms } else { ms.saturating_add(RETAIN_MS + 1) });
+        }
+        let _ = self.writer.finish();
+        self.bytes += bytes;
+        failure.map_or(Ok(bytes), Err)
     }
 
     /// Bytes of the chunks the writer finished since the last call, or its
@@ -443,16 +466,11 @@ impl Capture {
     /// Flushes, waits for the writer, and marks the capture finished; returns
     /// the bytes written since the last flush.
     pub fn close(&mut self, ms: u64) -> Result<u64, String> {
-        let before = self.flush(ms)?;
-        let rest = self.writer.finish()?;
-        // A last offer to the disk for what it refused, then what it still refuses is counted as lost.
-        self.retry_held(ms);
-        let rest = rest + self.writer.finish().unwrap_or(0);
-        self.retry_held(ms.saturating_add(RETAIN_MS + 1));
-        self.bytes += rest;
+        let before = self.flush(ms);
+        let rest = self.settle_for_good(ms);
         self.meta.insert("endUtc".into(), json!(iso(ms)));
         self.write_meta()?;
-        Ok(before + rest)
+        Ok(before? + rest?)
     }
 }
 
@@ -464,9 +482,8 @@ impl Drop for Capture {
         if !self.rows.is_empty() {
             let _ = self.flush(self.chunk_started_ms);
         }
-        let _ = self.writer.finish();
-        self.retry_held(self.chunk_started_ms);
-        let _ = self.writer.finish();
+        let _ = self.settle_for_good(self.chunk_started_ms);
+        let _ = self.write_meta();
     }
 }
 
