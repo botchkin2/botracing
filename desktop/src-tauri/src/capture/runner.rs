@@ -22,7 +22,10 @@ const DEFAULT_STEAM_ROOT: &str = r"C:\Program Files (x86)\Steam";
 /// How often a recorder that could not start (no header, another recorder
 /// running) tries again.
 const RETRY: Duration = Duration::from_secs(10);
-const CHUNK_MS: u64 = 60_000;
+/// A chunk is cut at least this often, so a crash, a GPU hang or a killed tray loses at most this much
+/// of a drive (it was 60 s). 4x the chunk files for the same bytes, plus a parquet footer each
+/// (pit wall thread 100, gauge #6859).
+pub const CHUNK_MS: u64 = 15_000;
 
 /// What the menu shows about the recorder: Recording, Waiting for LMU, or the
 /// reason it is not recording.
@@ -236,9 +239,84 @@ pub fn start(root: PathBuf, header_dir: PathBuf) -> Handle {
     Handle { stop, join, line }
 }
 
+/// How a recorder that stopped by itself is started again.
+pub struct Backoff {
+    /// The wait after the first failure; doubled after each one in a row.
+    pub first: Duration,
+    pub max: Duration,
+    /// An attempt that ran this long counts as healthy: the next failure starts again at `first`.
+    pub healthy: Duration,
+}
+
+pub const BACKOFF: Backoff = Backoff {
+    first: Duration::from_secs(5),
+    max: Duration::from_secs(60),
+    healthy: Duration::from_secs(120),
+};
+
+/// Runs `attempt` until `stop`: a recorder that fails to start (the game's header changed under it), returns an
+/// error or panics is started again after a growing wait, and each of those is logged (`log`) and shown on the
+/// tray's line (`say`), never as an alert. `attempt` returns Ok when it ended because `stop` was set.
+pub fn supervise(
+    stop: &AtomicBool,
+    backoff: &Backoff,
+    log: &dyn Fn(&str),
+    say: &dyn Fn(Line),
+    mut attempt: impl FnMut() -> Result<(), String>,
+) {
+    let mut wait = backoff.first;
+    while !stop.load(Ordering::SeqCst) {
+        let began = std::time::Instant::now();
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(&mut attempt));
+        let why = match outcome {
+            Ok(Ok(())) => return,
+            Ok(Err(why)) => why,
+            Err(panic) => {
+                let text = panic
+                    .downcast_ref::<&str>()
+                    .map(|s| s.to_string())
+                    .or_else(|| panic.downcast_ref::<String>().cloned())
+                    .unwrap_or_else(|| "unknown".into());
+                format!("panicked: {text}")
+            }
+        };
+        if stop.load(Ordering::SeqCst) {
+            return;
+        }
+        if began.elapsed() >= backoff.healthy {
+            wait = backoff.first;
+        }
+        log(&format!("recorder stopped ({why}); starting again in {} s", wait.as_secs_f32()));
+        say(Line::Failed(why));
+        let end = std::time::Instant::now() + wait;
+        while !stop.load(Ordering::SeqCst) && std::time::Instant::now() < end {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        wait = (wait * 2).min(backoff.max);
+    }
+}
+
+/// The recorder's own log: `<capture root>/recorder.log` (the same line format as launch.log).
+fn recorder_log(root: &Path, text: &str) {
+    crate::launch_log::note_file(&root.join("recorder.log"), "recorder", text);
+}
+
 #[cfg(windows)]
 fn run(stop: &AtomicBool, line: &Mutex<Line>, root: PathBuf, header_dir: PathBuf) {
+    let log_root = root.clone();
+    supervise(
+        stop,
+        &BACKOFF,
+        &|t| recorder_log(&log_root, t),
+        &|l| *line.lock().unwrap() = l,
+        || run_once(stop, line, &root, &header_dir),
+    );
+}
+
+#[cfg(windows)]
+fn run_once(stop: &AtomicBool, line: &Mutex<Line>, root: &Path, header_dir: &Path) -> Result<(), String> {
     use crate::capture::win::{RecorderLock, Shm};
+    let (root, header_dir) = (root.to_path_buf(), header_dir.to_path_buf());
     let say = |l: Line| *line.lock().unwrap() = l;
     // Waits out the reasons it cannot start; any of them can clear by itself
     // (the other recorder exits, the game updates its header).
@@ -250,7 +328,7 @@ fn run(stop: &AtomicBool, line: &Mutex<Line>, root: PathBuf, header_dir: PathBuf
     };
     let (_lock, layout) = loop {
         if stop.load(Ordering::SeqCst) {
-            return;
+            return Ok(());
         }
         let Some(lock) = RecorderLock::acquire() else {
             say(Line::Another);
@@ -269,12 +347,10 @@ fn run(stop: &AtomicBool, line: &Mutex<Line>, root: PathBuf, header_dir: PathBuf
     let size = layout.size;
     let mut rec = match Recorder::new(layout, root, Shm { size }, CHUNK_MS) {
         Ok(rec) => rec,
-        Err(why) => {
-            say(Line::Failed(format!("the game's header: {why}")));
-            return;
-        }
+        Err(why) => return Err(format!("the game's header: {why}")),
     };
     drive(&mut rec, stop, line);
+    Ok(())
 }
 
 /// iRacing's recorder on its own thread, into the same capture folder. It needs
@@ -291,12 +367,27 @@ pub fn start_iracing(root: PathBuf) -> Handle {
         .name("recorder-iracing".into())
         .spawn(move || {
             crate::capture::win::lower_priority();
-            let mut rec = IrRecorder::new(IrShm::new(), root);
-            crate::capture::ir_recorder::drive(&mut rec, &stop_t, |rec| {
-                *line_t.lock().unwrap() = Line::Text(ir_line(&rec.status));
-            });
-            rec.shutdown(now_ms());
-            *line_t.lock().unwrap() = Line::Text(ir_line(&rec.status));
+            let log_root = root.clone();
+            supervise(
+                &stop_t,
+                &BACKOFF,
+                &|t| recorder_log(&log_root, &format!("iracing: {t}")),
+                &|l| {
+                    *line_t.lock().unwrap() = match l {
+                        Line::Failed(why) => Line::Text(format!("iRacing recorder: {why}")),
+                        other => other,
+                    }
+                },
+                || {
+                    let mut rec = IrRecorder::new(IrShm::new(), root.clone());
+                    crate::capture::ir_recorder::drive(&mut rec, &stop_t, |rec| {
+                        *line_t.lock().unwrap() = Line::Text(ir_line(&rec.status));
+                    });
+                    rec.shutdown(now_ms());
+                    *line_t.lock().unwrap() = Line::Text(ir_line(&rec.status));
+                    Ok(())
+                },
+            );
         })
         .ok();
     Handle { stop, join, line }
@@ -333,6 +424,89 @@ pub fn drive<S: Source>(rec: &mut Recorder<S>, stop: &AtomicBool, line: &Mutex<L
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::AtomicUsize;
+
+    const FAST: Backoff = Backoff {
+        first: Duration::from_millis(5),
+        max: Duration::from_millis(20),
+        healthy: Duration::from_millis(300),
+    };
+
+    #[test]
+    fn a_recorder_that_fails_to_start_is_started_again_with_a_growing_wait_and_logged() {
+        let stop = AtomicBool::new(false);
+        let tries = AtomicUsize::new(0);
+        let logs = Mutex::new(Vec::<String>::new());
+        let lines = Mutex::new(Vec::<String>::new());
+        supervise(
+            &stop,
+            &FAST,
+            &|t| logs.lock().unwrap().push(t.to_string()),
+            &|l| lines.lock().unwrap().push(line(&l)),
+            || {
+                if tries.fetch_add(1, Ordering::SeqCst) < 3 {
+                    Err("the game's header: moved".into())
+                } else {
+                    Ok(())
+                }
+            },
+        );
+        assert_eq!(tries.load(Ordering::SeqCst), 4, "three failures, then a start that ended on its own");
+        let logs = logs.lock().unwrap();
+        assert_eq!(logs.len(), 3);
+        assert!(logs[0].contains("the game's header: moved") && logs[0].contains("0.005 s"), "{logs:?}");
+        assert!(logs[1].contains("0.01 s") && logs[2].contains("0.02 s"), "doubling to the cap: {logs:?}");
+        assert!(lines.lock().unwrap()[0].starts_with("Recorder: the game's header"), "the tray line says why");
+    }
+
+    #[test]
+    fn a_panic_restarts_the_recorder_instead_of_ending_its_thread() {
+        let stop = AtomicBool::new(false);
+        let tries = AtomicUsize::new(0);
+        let logs = Mutex::new(Vec::<String>::new());
+        supervise(&stop, &FAST, &|t| logs.lock().unwrap().push(t.to_string()), &|_| {}, || {
+            if tries.fetch_add(1, Ordering::SeqCst) == 0 {
+                panic!("a bad frame");
+            }
+            Ok(())
+        });
+        assert_eq!(tries.load(Ordering::SeqCst), 2);
+        assert!(logs.lock().unwrap()[0].contains("panicked: a bad frame"), "{:?}", logs.lock().unwrap());
+    }
+
+    #[test]
+    fn a_stop_during_the_wait_ends_it_at_once() {
+        let stop = Arc::new(AtomicBool::new(false));
+        let slow = Backoff { first: Duration::from_secs(30), max: Duration::from_secs(60), healthy: Duration::from_secs(120) };
+        let s2 = stop.clone();
+        let t = std::time::Instant::now();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(100));
+            s2.store(true, Ordering::SeqCst);
+        });
+        supervise(&stop, &slow, &|_| {}, &|_| {}, || Err("down".into()));
+        assert!(t.elapsed() < Duration::from_secs(2), "{:?}", t.elapsed());
+    }
+
+    #[test]
+    fn an_attempt_that_ran_healthily_starts_the_wait_again_from_the_first() {
+        let stop = AtomicBool::new(false);
+        let tries = AtomicUsize::new(0);
+        let logs = Mutex::new(Vec::<String>::new());
+        supervise(&stop, &FAST, &|t| logs.lock().unwrap().push(t.to_string()), &|_| {}, || {
+            match tries.fetch_add(1, Ordering::SeqCst) {
+                0 | 1 => Err("early".into()),
+                2 => {
+                    std::thread::sleep(Duration::from_millis(350));
+                    Err("after a long run".into())
+                }
+                _ => Ok(()),
+            }
+        });
+        let logs = logs.lock().unwrap();
+        assert!(logs[1].contains("0.01 s"), "{logs:?}");
+        assert!(logs[2].contains("0.005 s"), "a long run resets the wait: {logs:?}");
+    }
 
     #[test]
     fn a_stop_ends_a_long_sleep_within_one_slice() {
