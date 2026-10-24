@@ -41,6 +41,7 @@ import {
 import {effectiveUnit, type Unit} from './unit';
 import {
   carChoices,
+  columnWidth,
   comboCar,
   comboTrack,
   defaultCombo,
@@ -51,7 +52,6 @@ import {
   trackChoices,
 } from './model';
 import {perLapStrip} from './perLapStrip';
-import {columnWidth} from './model';
 import {savingFor} from './saving';
 import {useClassTiming} from './useClassTiming';
 import {usePitSlider} from './usePitSlider';

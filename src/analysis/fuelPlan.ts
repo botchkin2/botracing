@@ -18,6 +18,7 @@
 // Plain TypeScript with erasable syntax only, no imports: Node can run it.
 
 import {quantile} from './setStats.ts';
+import {FLAG_RESERVE_VE} from './stopTarget.ts';
 
 /** One clean lap of the driver's history at this track and car. */
 export interface GreenLap {
@@ -555,12 +556,15 @@ function loadFor(
   laps: number,
   fuelPerLap: number | null,
   vePerLap: number | null,
+  /** VE the car keeps at the flag on top of the laps, % (the 1 % floor at the p90 use). */
+  reserveVePct = 0,
 ): Load {
   // The formation lap burns its share of both before the race starts.
   const formation = formationLaps(rules);
   const fuelL =
     fuelPerLap == null ? null : (laps + formation.fuel) * fuelPerLap;
-  const vePct = vePerLap == null ? null : (laps + formation.ve) * vePerLap;
+  const vePct =
+    vePerLap == null ? null : (laps + formation.ve) * vePerLap + reserveVePct;
   // One load is the one the car starts with.
   const start = startLoad(rules);
   const fuelShare =
@@ -599,6 +603,7 @@ function loadToFinishFor(
     laps,
     fuel ? fuel.p90 : null,
     ve ? ve.p90 : null,
+    ve ? FLAG_RESERVE_VE : 0,
   );
   const left = (p90: number | null, median: number | null) =>
     p90 == null || median == null ? null : p90 - median;

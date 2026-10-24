@@ -442,9 +442,9 @@ describe('the start load', () => {
 
   it('a race that fits one load reads the load to the flag in VE, litres beside, and one lap more', () => {
     expect(fits.race.startLoad).toEqual({
-      // 20 min is 12 laps, 13 at the late flag: 13 x 3.5 = 45.5 -> 46 %.
-      value: '46 % VE (46 L)',
-      hero: '46 % VE',
+      // 20 min is 12 laps, 13 at the late flag: 13 x 3.5 = 45.5, + the 1 % floor at the flag = 46.5 -> 47 %.
+      value: '47 % VE (47 L)',
+      hero: '47 % VE',
       covers: 'to finish',
     });
   });
@@ -457,8 +457,8 @@ describe('the start load', () => {
       false,
       RATIO,
     );
-    // The VE is the rounded 46 % of 86 L; 100 L would read 46 L.
-    expect(cards.race.startLoad?.value).toBe('46 % VE (39 L)');
+    // The VE is the rounded 47 % of 86 L; 100 L would read 47 L.
+    expect(cards.race.startLoad?.value).toBe('47 % VE (40 L)');
   });
 
   it('asking for fuel shows litres only', () => {
