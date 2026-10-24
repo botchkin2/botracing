@@ -183,17 +183,17 @@ export function buildRoadScene(road: ChaseRoad, ix: RoadIndex, T: ChaseTheme): T
   const datum = lowest - DATUM_BELOW_M;
   group.add(datumGrid(road, datum, T.grid));
   group.add(ground(road, datum, T.fill));
-  // the start line, flat on the road
+  // the start line, on the road's own surface: a quad at the centre's height sank under the high side of a banked line
+  // (Road Atlanta rolls -1.3 degrees there), hiding half of it
   group.add(
     ribbon(
       2,
       2,
       (r, k, out) => {
-        const lam = k ? road.hr[0] : -road.hl[0];
+        rowPoint(0, k ? road.hr[0] : -road.hl[0], 0.03, out);
         const along = r ? START_LINE_DEPTH_M : 0;
-        out.x = road.cx[0] + ix.normalX[0] * lam + Math.cos(ix.heading[0]) * along;
-        out.y = road.cy[0] + ix.normalY[0] * lam + Math.sin(ix.heading[0]) * along;
-        out.z = ix.height[0] + 0.03;
+        out.x += Math.cos(ix.heading[0]) * along;
+        out.y += Math.sin(ix.heading[0]) * along;
       },
       flat(T.text),
       1,

@@ -74,4 +74,23 @@ describe('road scene', () => {
     disposeGroup(plain);
     disposeGroup(withUse);
   });
+  it('lays the start line on a cambered road surface, both sides above it (Road Atlanta rolls -1.3 degrees at the line)', () => {
+    const centre = Array.from({length: 40}, (_, i) => ({x: i * 10, y: 0}));
+    const road = fixtureRoad(centre, 400, {bankDeg: centre.map(() => -1.31)});
+    const group = buildRoadScene(road, roadIndex(road), theme);
+    const fill = group.children[0] as THREE.Mesh;
+    // the theme's text colour is only the start line's; the ground is also one 4-point quad, in the fill colour
+    const line = group.children.find(
+      c => (c as THREE.Mesh).isMesh && ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).color?.getHexString() === 'ffffff',
+    ) as THREE.Mesh;
+    const surface = fill.geometry.getAttribute('position');
+    const quad = line.geometry.getAttribute('position');
+    // row 0 of both: the left edge (column 0) and the right edge (column 1); three.js y is up
+    for (const column of [0, 1]) {
+      const above = quad.getY(column) - surface.getY(column);
+      expect(above).toBeGreaterThan(0);
+      expect(above).toBeLessThan(0.1);
+    }
+    disposeGroup(group);
+  });
 });
