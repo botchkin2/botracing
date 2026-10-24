@@ -301,16 +301,34 @@ function bringsNewRecordings(before, session) {
 // part count and leave the session stale, so the new lap is analysed too.
 // The window left is one read to one write; a lap landing in it is still
 // picked up by the next lap's run, or by an open. ISO times compare as text.
-export function keepNewerLive(session, stored, log = () => {}) {
+//
+// The same live stamp as this analysis read, with a higher stored count, is no
+// lap that arrived: every live upload sets the stamp in the same write as the
+// part count. It is a counter that drifted from the recordings (the heal
+// replaced them, thread 103), and keeping it would hold the session stale for
+// good. `healed`: this write is the heal's own, whose recordings the stored
+// count never described.
+export function keepNewerLive(
+  session,
+  stored,
+  log = () => {},
+  {healed = false} = {},
+) {
   // The cloud's analysis writes the whole session doc: the heal's note stays.
   if (stored?.rebuilt && !session.rebuilt) session.rebuilt = stored.rebuilt;
   const storedLive = stored?.live?.updatedAt;
+  const sameStamp =
+    typeof storedLive === 'string' && storedLive === session.live?.updatedAt;
   if (
     typeof storedLive === 'string' &&
     storedLive > (session.live?.updatedAt ?? '')
   )
     session.live = stored.live;
-  if ((stored?.archiveParts ?? 0) > (session.archiveParts ?? 0)) {
+  if (
+    !healed &&
+    !sameStamp &&
+    (stored?.archiveParts ?? 0) > (session.archiveParts ?? 0)
+  ) {
     session.archiveParts = stored.archiveParts;
     session.analysis = {...session.analysis, v: 0};
     log('  a lap arrived during this analysis: left stale');
@@ -677,8 +695,12 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   );
 
   const ops = [];
-  for (const rec of out.recordings)
-    ops.push({op: 'set', coll: 'recordings', id: rec.id, data: rec});
+  // The cloud's analysis writes no recording: they are stored, unchanged, and
+  // the copy it read can be older than a part or an event the tray wrote
+  // meanwhile (thread 103, 0dddbcb7).
+  if (!out.recordingsAreStored)
+    for (const rec of out.recordings)
+      ops.push({op: 'set', coll: 'recordings', id: rec.id, data: rec});
   // A live session is analysed again on every lap and almost every lap doc
   // comes out the same (pit wall thread 101): a lap whose payload hashes as
   // the stored doc's `payloadHash` is not written again. A backend that cannot
@@ -744,7 +766,9 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   // leaves the old stamp, and the session is analysed again.
   const writer = {stamp: session.analysis ?? null};
   await backend.writeDocs(ops, writer);
-  keepNewerLive(session, await backend.getDoc('sessions', session.id), log);
+  keepNewerLive(session, await backend.getDoc('sessions', session.id), log, {
+    healed: healed !== null,
+  });
   await backend.writeDocs(
     [{op: 'set', coll: 'sessions', id: session.id, data: session}],
     writer,
