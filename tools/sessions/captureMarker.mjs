@@ -1,31 +1,50 @@
 // "What this capture gave is in the store". After a sync uploads a session,
 // every capture folder that session read (field, damage, race length, the
 // player stream) gets <capture>/uploaded.json: {sessionId, sessionIds,
-// uploadedUtc}, with every session that used it. The tray's prune (desktop/src-tauri) deletes a capture that has the marker once
-// it is old or over the size cap (pit-wall thread 1, apex #3003, #3007). One
-// without it is one no uploaded session ever read (a menu or a replay that
-// slipped through), which the prune may also delete once it is old.
-import {existsSync, readFileSync, renameSync, writeFileSync} from 'node:fs';
+// uploadedUtc, verified}, with every session that used it. `verified` holds
+// the sessions read back from the store and matching (verifyStored.mjs), by
+// id. The tray's prune (desktop/src-tauri prune.rs) counts a capture as stored
+// only when every session in sessionIds is verified; any other goes only at 14
+// days, shown in Problems until then (pit-wall thread 100, L6, and Botkin's
+// exception in decisions/lap/2026-10-21-no-validation-drops-data.md).
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs';
 import {resolve} from 'node:path';
 import {capturesFor, listCaptures} from './field.mjs';
 import {iracingCapturesFor, listIracingCaptures} from './irCapture.mjs';
 
 export const MARKER = 'uploaded.json';
 
-function previousIds(file) {
+function previous(file) {
   try {
     const old = JSON.parse(readFileSync(file, 'utf8'));
-    return Array.isArray(old.sessionIds) ? old.sessionIds : [old.sessionId];
+    return {
+      ids: Array.isArray(old.sessionIds) ? old.sessionIds : [old.sessionId],
+      verified: old.verified ?? {},
+    };
   } catch {
-    return [];
+    return {ids: [], verified: {}};
   }
 }
 
 /**
- * Marks the named captures under `root` as uploaded for `sessionId`. Returns
- * the names marked; a folder that is gone (pruned, moved) is skipped.
+ * Marks the named captures under `root` as uploaded for `sessionId`, with the
+ * read-back `check` (verifyStored's result): a passed one is recorded under
+ * verified, a failed or missing one removes that session's entry, so the
+ * capture is kept. Returns the names marked; a folder that is gone (pruned,
+ * moved) is skipped.
  */
-export function markUploaded(root, names, sessionId, now = new Date()) {
+export function markUploaded(
+  root,
+  names,
+  sessionId,
+  {check = null, now = new Date()} = {},
+) {
   const marked = [];
   for (const name of names ?? []) {
     const dir = resolve(root, name);
@@ -34,15 +53,69 @@ export function markUploaded(root, names, sessionId, now = new Date()) {
     const tmp = `${file}.tmp`;
     // A capture can feed several sessions: every one that uploaded is listed
     // (sessionIds), the latest also as sessionId.
-    const sessionIds = [...new Set([...previousIds(file), sessionId])];
+    const old = previous(file);
+    const sessionIds = [...new Set([...old.ids, sessionId])];
+    const verified = {...old.verified};
+    if (check?.ok)
+      verified[sessionId] = {
+        laps: check.laps,
+        fieldHash: check.fieldHash,
+        utc: now.toISOString(),
+      };
+    else delete verified[sessionId];
     writeFileSync(
       tmp,
-      JSON.stringify({sessionId, sessionIds, uploadedUtc: now.toISOString()}),
+      JSON.stringify({
+        sessionId,
+        sessionIds,
+        uploadedUtc: now.toISOString(),
+        verified,
+      }),
     );
     renameSync(tmp, file);
     marked.push(name);
   }
   return marked;
+}
+
+/**
+ * The captures under `root` whose marker lists a session not yet verified,
+ * as {name, sessionIds} (the unverified ones): a marker written before the
+ * read-back existed, or one whose read-back failed.
+ */
+export function unverifiedMarks(root) {
+  if (!root || !existsSync(root)) return [];
+  const out = [];
+  for (const name of readdirSync(root)) {
+    const file = resolve(root, name, MARKER);
+    if (!existsSync(file)) continue;
+    const {ids, verified} = previous(file);
+    const missing = ids.filter(id => id && !verified[id]);
+    if (missing.length) out.push({name, sessionIds: missing});
+  }
+  return out;
+}
+
+/**
+ * Records a read-back for one session already in a capture's marker, leaving
+ * its sessionId and uploadedUtc as they were. Returns whether it wrote.
+ */
+export function markVerified(root, name, sessionId, check, now = new Date()) {
+  const file = resolve(root, name, MARKER);
+  if (!check?.ok || !existsSync(file)) return false;
+  const marker = JSON.parse(readFileSync(file, 'utf8'));
+  marker.verified = {
+    ...marker.verified,
+    [sessionId]: {
+      laps: check.laps,
+      fieldHash: check.fieldHash,
+      utc: now.toISOString(),
+    },
+  };
+  const tmp = `${file}.tmp`;
+  writeFileSync(tmp, JSON.stringify(marker));
+  renameSync(tmp, file);
+  return true;
 }
 
 /**

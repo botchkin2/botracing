@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::prune::{self, SimState};
@@ -14,6 +15,39 @@ use super::runner;
 
 /// How often the tray looks at the uploader's state for a finished run.
 const POLL: Duration = Duration::from_secs(60);
+
+/// The last cleanup's problems (`problem_lines`): the menu reads them (main.rs).
+static PROBLEMS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// What the last cleanup found wrong: recordings not stored yet, and what is
+/// kept over the cap.
+pub fn problems() -> Vec<String> {
+    PROBLEMS.lock().map_or_else(|_| Vec::new(), |p| p.clone())
+}
+
+/// The Problems lines of one plan. A recording the uploader ran past without
+/// verifying it says when it goes (thread 100, gauge #6862), so a 14-day
+/// deletion is never silent.
+pub fn problem_lines(plan: &prune::Plan) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Some((_, left)) = plan.waiting.first() {
+        let days = left.as_secs().div_ceil(86_400);
+        let when = match days {
+            0 => "today".to_string(),
+            1 => "in 1 day".to_string(),
+            n => format!("in {n} days"),
+        };
+        out.push(match plan.waiting.len() {
+            1 => format!("Recording not stored yet · deleted {when}"),
+            n => format!("{n} recordings not stored yet · first deleted {when}"),
+        });
+    }
+    if plan.held_bytes > 0 {
+        let gb = plan.held_bytes as f64 / 1e9;
+        out.push(format!("{gb:.1} GB kept over the cap: not stored yet"));
+    }
+    out
+}
 
 /// The files one cleanup run reads and writes.
 #[derive(Clone)]
@@ -44,16 +78,45 @@ pub fn run_once(paths: &Paths, now: SystemTime, dry: bool) -> String {
     let note = waiting_note(&prune::blocked_sims(&policy, &states));
     if dry {
         return match prune::dry_run(&paths.captures, now, &policy, &states) {
-            Ok((n, bytes)) => {
-                format!("dry run: would delete {n} captures, {bytes} bytes; nothing deleted{note}")
-            }
+            Ok((p, bytes)) => format!(
+                "dry run: would delete {} captures, {bytes} bytes; nothing deleted{note}{}",
+                p.doomed.len(),
+                plan_note(&p)
+            ),
             Err(e) => missing_or(e, "dry run failed"),
         };
     }
     match prune::prune(&paths.captures, now, &policy, &states) {
-        Ok(removed) => format!("deleted {} captures{note}", removed.len()),
+        Ok(p) => {
+            if let Ok(mut slot) = PROBLEMS.lock() {
+                *slot = problem_lines(&p);
+            }
+            format!("deleted {} captures{note}{}", p.doomed.len(), plan_note(&p))
+        }
         Err(e) => missing_or(e, "cleanup failed"),
     }
+}
+
+/// What the log adds: the never-verified captures deleted (by name), and the
+/// problems.
+fn plan_note(p: &prune::Plan) -> String {
+    let mut out = String::new();
+    if !p.doomed_unverified.is_empty() {
+        let names: Vec<String> = p
+            .doomed_unverified
+            .iter()
+            .filter_map(|d| d.file_name().map(|n| n.to_string_lossy().into_owned()))
+            .collect();
+        out.push_str(&format!(
+            "; {} never verified stored, deleted at 14 days: {}",
+            names.len(),
+            names.join(", ")
+        ));
+    }
+    for line in problem_lines(p) {
+        out.push_str(&format!("; {line}"));
+    }
+    out
 }
 
 /// No capture folder yet is not a failure: the recorder has not run.
@@ -115,7 +178,7 @@ mod tests {
 
     const DAY: D = D::from_secs(86_400);
 
-    /// A folder with one finished, uploaded capture 30 days old, the uploader
+    /// A folder with one finished, verified capture 30 days old, the uploader
     /// state (a run yesterday), and the fixed policy.
     fn setup(name: &str, retry: bool) -> Paths {
         let base =
@@ -132,7 +195,11 @@ mod tests {
         )
         .unwrap();
         let marker = dir.join(prune::UPLOADED_MARKER);
-        fs::write(&marker, b"{}").unwrap();
+        fs::write(
+            &marker,
+            r#"{"sessionId":"s1","sessionIds":["s1"],"verified":{"s1":{"laps":3}}}"#,
+        )
+        .unwrap();
         fs::File::options()
             .write(true)
             .open(&marker)
@@ -175,6 +242,33 @@ mod tests {
         );
         assert!(line.ends_with("; nothing deleted"), "{line}");
         assert!(paths.captures.join("old").exists());
+    }
+
+    #[test]
+    fn a_recording_not_stored_says_when_it_goes() {
+        let plan = |waiting: Vec<(PathBuf, D)>, held_bytes| prune::Plan {
+            waiting,
+            held_bytes,
+            ..Default::default()
+        };
+        assert!(problem_lines(&plan(vec![], 0)).is_empty());
+        let a = PathBuf::from("a");
+        assert_eq!(
+            problem_lines(&plan(vec![(a.clone(), DAY * 3)], 0)),
+            ["Recording not stored yet · deleted in 3 days"]
+        );
+        // Part of a day left counts as a day; none left is today.
+        assert_eq!(
+            problem_lines(&plan(vec![(a.clone(), D::from_secs(3600)), (a.clone(), DAY * 9)], 0)),
+            ["2 recordings not stored yet · first deleted in 1 day"]
+        );
+        assert_eq!(
+            problem_lines(&plan(vec![(a, D::ZERO)], 12_400_000_000)),
+            [
+                "Recording not stored yet · deleted today",
+                "12.4 GB kept over the cap: not stored yet"
+            ]
+        );
     }
 
     #[test]
