@@ -107,3 +107,59 @@ describe('car kit', () => {
     expect(geoDisposed.length).toBe(7);
   });
 });
+
+describe('car families in the kit', () => {
+  const colors = {bg: '#000000', edge: '#ffffff', mark: '#fea92f'};
+  const geometries = (car: THREE.Object3D) => {
+    const out = new Set<THREE.BufferGeometry>();
+    car.traverse(o => {
+      const m = o as THREE.Mesh;
+      if (m.geometry) out.add(m.geometry);
+    });
+    return out;
+  };
+  const bodyEdgeColor = (car: THREE.Object3D) => {
+    const lines: THREE.LineSegments[] = [];
+    car.traverse(o => {
+      if ((o as THREE.LineSegments).isLineSegments) lines.push(o as THREE.LineSegments);
+    });
+    return (lines[0].material as THREE.LineBasicMaterial).color.getHexString();
+  };
+
+  it('two cars of one family share their shape, and a different family has its own', () => {
+    const kit = createCarKit(colors);
+    const a = kit.make('GT3', '#ff8800', false, 'BMW M4 LMGT3');
+    const b = kit.make('GT3', '#ff8800', false, 'Mercedes-AMG LMGT3'); // the same family (front engine)
+    const c = kit.make('GT3', '#ff8800', false, 'McLaren 720S LMGT3 Evo');
+    const bodyOf = (car: THREE.Object3D) => (car.children[1] as THREE.Mesh).geometry;
+    expect(bodyOf(a)).toBe(bodyOf(b));
+    expect(bodyOf(a)).not.toBe(bodyOf(c));
+    expect(geometries(a).size).toBe(6); // footprint, body, cabin, two edge sets, tick (the ring is the followed car's)
+    kit.dispose();
+  });
+  it('a model with no family draws the class hull, the same as no model at all', () => {
+    const kit = createCarKit(colors);
+    const none = kit.make('GT3', '#ff8800', false);
+    const unknown = kit.make('GT3', '#ff8800', false, 'Some New Car');
+    expect((none.children[1] as THREE.Mesh).geometry).toBe((unknown.children[1] as THREE.Mesh).geometry);
+    kit.dispose();
+  });
+  it('the body edges carry the model step, the fill the class colour, and the followed car keeps its light edges', () => {
+    const kit = createCarKit(colors);
+    const first = kit.make('Hyper', '#3366ff', false, 'Ferrari 499P'); // step 0 of lmh
+    const second = kit.make('Hyper', '#3366ff', false, 'Peugeot 9x8'); // step 1 of lmh
+    expect(bodyEdgeColor(first)).toBe('3366ff');
+    expect(bodyEdgeColor(second)).not.toBe(bodyEdgeColor(first));
+    const mine = kit.make('Hyper', '#3366ff', true, 'Peugeot 9x8');
+    expect(bodyEdgeColor(mine)).toBe('ffffff');
+    const fill = (car: THREE.Object3D) => ((car.children[1] as THREE.Mesh).material as THREE.MeshLambertMaterial).color.getHexString();
+    expect(fill(first)).toBe(fill(second)); // the fill is the class colour on both
+    kit.dispose();
+  });
+  it('remembers the model on the car, so the engine can tell a changed model', () => {
+    const kit = createCarKit(colors);
+    expect(kit.make('GT3', '#ff8800', false, 'Ford Mustang LMGT3').userData.vehicle).toBe('Ford Mustang LMGT3');
+    expect(kit.make('GT3', '#ff8800', false).userData.vehicle).toBeNull();
+    kit.dispose();
+  });
+});

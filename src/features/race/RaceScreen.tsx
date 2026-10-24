@@ -513,6 +513,7 @@ function RaceView({
         headingRad: c.headingRad,
         speedKmh: Number.isFinite(c.speedKmh) ? c.speedKmh : 0,
         carClass: c.carClass,
+        vehicle: c.vehicle,
         color: classColor(color, classes.of(c.classKey).slot),
         player: c.player,
         lapDistM: c.lapDistM,

@@ -56,6 +56,8 @@ export type ChaseCar = {
   headingRad: number | null;
   speedKmh: number;
   carClass: string;
+  /** The car's model as the field carries it (`Ferrari 499P`), null when it names none: picks the body family and tint. */
+  vehicle: string | null;
   /** Class colour from the design tokens, for the windscreen band. */
   color: string;
   player: boolean;

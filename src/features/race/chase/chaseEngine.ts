@@ -214,13 +214,13 @@ export function mountChase(
     roadGroup?.userData.window(me.ld);
     for (const [k, s] of states) {
       let o = objects.get(k);
-      if (o && o.userData.player !== s.car.player) {
+      if (o && (o.userData.player !== s.car.player || o.userData.vehicle !== (s.car.vehicle ?? null))) {
         scene.remove(o);
         kit.release(o);
         o = undefined;
       }
       if (!o) {
-        o = kit.make(s.car.carClass, s.car.color, s.car.player);
+        o = kit.make(s.car.carClass, s.car.color, s.car.player, s.car.vehicle);
         scene.add(o);
         objects.set(k, o);
       }
