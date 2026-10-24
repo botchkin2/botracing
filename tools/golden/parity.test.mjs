@@ -332,3 +332,11 @@ test('the results fixtures are the pinned ones, and carry no name but the placeh
     );
   }
 });
+
+test('payloadHash is not compared: it is a function of the payload that is', () => {
+  const capture = {laps: [lap({payloadHash: 'aaa'})], session: session()};
+  const game = {laps: [lap({payloadHash: 'bbb'})], session: session()};
+  assert.deepEqual(judge({capture, game, name: 'x'}, []).failures, []);
+  game.laps[0].lapTime = 99;
+  assert.equal(judge({capture, game, name: 'x'}, []).failures.length, 1);
+});
