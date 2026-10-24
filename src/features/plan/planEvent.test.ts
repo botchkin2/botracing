@@ -80,7 +80,7 @@ describe('events by rule set', () => {
       ['wedR', ['wedR'], 'ELMS Super 60'],
       ['tueR', ['tueR'], null],
     ]);
-    expect(eventLabel(events[0], 73)).toBe('73 L · ELMS Super 60 · rules from Race, Oct 22');
+    expect(eventLabel(events[0], 73)).toBe('73 L · 0.63 L/% · ELMS Super 60 · rules from Race, Oct 22');
     expect(rulesSource(rs[1])).toBe('rules from Race, Oct 21');
   });
 });

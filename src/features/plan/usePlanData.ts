@@ -4,7 +4,7 @@ import {planComboKey} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
 
 import {formationBurnOf} from './formation';
-import {lastRaceOf} from './lastRace';
+import {lastRaceOf, lastRaceSessionOf} from './lastRace';
 import {pitLaneBase, pitModelOf, refuelRateFor} from './pitBase';
 import {type Combo, fuelOnly, planView, rulesFor, sessionLimitL} from './model';
 import {eventLabel} from './planEvent';
@@ -88,6 +88,7 @@ export function usePlanData(
                 : null,
             lastFillLimitL: limits.lastFuel?.fillLimitL ?? null,
             eventText,
+            ruleSet: limits.event?.rules != null,
             ratio: hist.ratio,
             lastRatio: hist.measured.find(m => m.ratio != null)?.ratio ?? null,
             drift: hist.chosen.drift,
@@ -142,12 +143,7 @@ export function useLastRaceHere(
   event: {sessionIds: string[]} | null = null,
 ) {
   const rows = usePlanRows(combo);
-  const newest =
-    combo?.sessions.find(
-      s =>
-        s.sessionType === 'R' &&
-        (event == null || event.sessionIds.includes(s.id)),
-    ) ?? null;
+  const newest = combo ? lastRaceSessionOf(combo.sessions, event) : null;
   const row = newest ? rows.byId.get(newest.id) : undefined;
   if (!combo || !newest || !row) return null;
   const key = planComboKey(combo.trackId, combo.car, combo.sim);

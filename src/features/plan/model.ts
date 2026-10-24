@@ -185,6 +185,35 @@ export function eventLoad(
   return tank != null ? {kind: 'tank', litres: tank} : null;
 }
 
+/**
+ * The newest session's fuel with the planned event's load put in its place:
+ * what `rulesFor` reads as the last session. Under a rule set the load is its
+ * own (`load`: its most-run litres, or none) and the start and the tank are
+ * never the load: a practice's start is not the event's, and a live capture
+ * reports the car's own 117 L tank, not the event's cap (pit-wall thread 104).
+ */
+export function lastFuelOf(
+  newestFuel: SessionFuel | null,
+  load: {kind: 'fill limit' | 'start fuel' | 'tank'; litres: number} | null,
+  underRuleSet: boolean,
+): SessionFuel | null {
+  if (!newestFuel || (!load && !underRuleSet)) return newestFuel;
+  return {
+    ...newestFuel,
+    fillLimitL: load?.kind === 'fill limit' ? load.litres : null,
+    startL: underRuleSet
+      ? null
+      : load?.kind === 'start fuel'
+      ? load.litres
+      : newestFuel.startL,
+    tankL: underRuleSet
+      ? null
+      : load?.kind === 'tank'
+      ? load.litres
+      : newestFuel.tankL,
+  };
+}
+
 export type VeRatio = {
   /** Litres of fuel per 1 % VE. */
   perPctL: number;
@@ -550,8 +579,10 @@ export function planView(
     lastRatio: number | null;
     /** The fill limits of the history sessions that have a ratio, for the note. */
     ratioLoadsL: number[];
-    /** The event the plan is for ("100 L · One Stint Sprint · week of 09-29"); null for a rule set or no event. */
+    /** The event the plan is for ("100 L · 0.97 L/% · One Stint Sprint · rules from Race, Oct 21"); null for a preset or no event. */
     eventText?: string | null;
+    /** The event is a rule set: its load is its own, so the car's tank (117 L from a live capture) is not printed beside it. */
+    ruleSet?: boolean;
     /** Set when the newest session's use has moved away from the older ones. */
     drift: HistoryDrift | null;
   },
@@ -569,7 +600,9 @@ export function planView(
           ? 'tank'
           : 'start fuel'
       }${
-        rules.fuelSource !== 'tank' && rules.last?.tankL != null
+        rules.fuelSource !== 'tank' &&
+        rules.last?.tankL != null &&
+        !history.ruleSet
           ? `, ${rules.last.tankL} L tank`
           : ''
       })`;

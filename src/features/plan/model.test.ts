@@ -23,6 +23,7 @@ import {
   eventLoad,
   HISTORY_SESSIONS,
   historySessions,
+  lastFuelOf,
   limitsOfPlan,
   planCombos,
   parseNumber,
@@ -690,5 +691,40 @@ describe('undrivenPlanKey', () => {
         session('c', '2026-10-10T10:00:00Z', {sim: 'iracing'}),
       ]),
     ).toBeNull();
+  });
+});
+
+describe('under a rule set the tank is never the load (thread 104)', () => {
+  // A live online practice: the capture reports the car's own 117 L tank, no fill limit, a start of 78.9 L.
+  const livePractice = {startL: 78.9, fillLimitL: null, tankL: 117, litresPerVePct: 0.839, litresPerVePctStop: null};
+  const length = {kind: 'min' as const, value: 60};
+  const laps: GreenLap[] = Array.from({length: 10}, () => ({fuelL: 3.6, vePct: 4.3, lapTimeS: 123, sessionId: 's'}));
+
+  it('a rule set made of one live practice has no load: not 117 L, not the practice start', () => {
+    const last = lastFuelOf(livePractice, null, true)!;
+    expect(last).toMatchObject({fillLimitL: null, startL: null, tankL: null});
+    expect(rulesFor(null, length, last)).toBeNull();
+  });
+
+  it('a rule set with a most-run load plans on it, and the line does not print the 117 L tank', () => {
+    const last = lastFuelOf(livePractice, {kind: 'fill limit', litres: 85}, true)!;
+    const rules = rulesFor(null, length, last)!;
+    expect(rules.rules.fuelL).toBe(85);
+    const view = planView(null, rules, planRace(rules.rules, laps), {
+      since: null,
+      lastFillLimitL: 85,
+      eventText: '85 L · 0.84 L/% · rules from Race, Oct 21',
+      ruleSet: true,
+      ratio: null,
+      lastRatio: null,
+      ratioLoadsL: [],
+      drift: null,
+    });
+    expect(view.rulesLine).toBe('Rules: 85 L · 0.84 L/% · rules from Race, Oct 21 (85 L fill limit)');
+  });
+
+  it('a series week of a car with no VE keeps its old reading of the load', () => {
+    const last = lastFuelOf(livePractice, {kind: 'start fuel', litres: 80}, false)!;
+    expect(last).toMatchObject({fillLimitL: null, startL: 80, tankL: 117});
   });
 });

@@ -72,13 +72,16 @@ export function rulesSource(rules: RuleSet): string {
 }
 
 /**
- * "100 L · One Stint Sprint · week of 09-29"; the load and the series only
- * when known. The load leads: on a phone the Rules chip cuts its label with an
+ * "100 L · 0.97 L/% · One Stint Sprint · rules from Race, Oct 21", or for a
+ * car with no VE "100 L · One Stint Sprint · week of 09-29"; the load and the
+ * series only when known. The load leads: on a phone the Rules chip cuts its label with an
  * ellipsis from the end, and the fuel figure is the part that must stay.
  */
 export function eventLabel(e: PlanEvent, loadL: number | null): string {
   return [
     loadL != null ? `${Math.round(loadL * 10) / 10} L` : null,
+    // two rule sets can share a load and a series; the litres per 1 % VE tell them apart
+    e.rules ? `${e.rules.ratio.perPctL.toFixed(2)} L/%` : null,
     e.series,
     e.rules ? rulesSource(e.rules) : `week of ${e.key.slice(5)}`,
   ]
