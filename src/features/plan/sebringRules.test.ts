@@ -98,7 +98,7 @@ describe('the Wed rules with no load known (a practice only, thread 104)', () =>
       pitModel: null,
     });
     expect(plan.perLap.fuel).toBeNull();
-    expect(panel.value).toBe('Set VE 82 %');
+    expect(panel.value).toBe('Set VE 83 %');
     expect(panel.tags).toEqual([]);
   });
 
@@ -187,19 +187,26 @@ describe('the plan for his two real races at one track', () => {
 
   it('the Wed stop: the level from the VE need, the litres at 0.609 L a % (not the load over 100)', () => {
     const p = panelOf(wed, 73, 0.609);
-    const level = Math.ceil((13 + 1) * wed.plan.perLap.ve!.p90);
+    // 13 laps after the stop and the late-flag lap at the p90 use, and the 1 % floor at the flag
+    const level = Math.ceil((13 + 1) * wed.plan.perLap.ve!.p90 + 1);
     expect(p.value).toBe(`Set VE ${level} %`);
-    expect(level).toBe(82);
-    // arrives on 3.1 % VE and 11.1 L: the litres are (82 - 3.1) x 0.609 = 48 L
+    expect(level).toBe(83);
+    // arrives on 3.1 % VE and 11.1 L: the litres are (83 - 3.1) x 0.609 = 48.7 L
     const arrive = wed.pit.stints[0].left;
     expect(arrive.fuelL).toBeCloseTo(11.12, 1);
-    expect(p.line).toBe('arrive 3 % · +79 % · 48 s');
+    expect(p.line).toBe('arrive 3 % · +80 % · 49 s');
     // the old reading, the % of the load, would have put in 79 % x 73 L = 57.6 L
     expect(Math.round(((level - arrive.vePct!) * 73) / 100)).toBe(58);
     expect(p.tags).toEqual([]);
   });
 
-  it('the fuel-limited flag on the Wed stop: fuel needs 68 % against VE 82 %, so it is not set', () => {
+  it('the Wed stop leaves at least 1 % VE at the flag at the p90 use (the floor, apex #7174)', () => {
+    const level = Math.ceil((13 + 1) * wed.plan.perLap.ve!.p90 + 1);
+    // arrives at the flag having burnt 14 laps at the p90 use from the level
+    expect(level - 14 * wed.plan.perLap.ve!.p90).toBeGreaterThanOrEqual(1);
+  });
+
+  it('the fuel-limited flag on the Wed stop: fuel needs 68 % against VE 83 %, so it is not set', () => {
     const arrive = wed.pit.stints[0].left;
     const fuelNeed =
       arrive.vePct! + (14 * wed.plan.perLap.fuel!.p90 - arrive.fuelL!) / 0.609;
@@ -212,7 +219,7 @@ describe('the plan for his two real races at one track', () => {
     const p = panelOf(tue, 85, 0.823);
     expect(p.tags).toEqual([]);
     // 8 laps after the stop plus the late flag, at the p90 4.4 % VE
-    expect(p.value).toBe(`Set VE ${Math.ceil(9 * tue.plan.perLap.ve!.p90)} %`);
+    expect(p.value).toBe(`Set VE ${Math.ceil(9 * tue.plan.perLap.ve!.p90 + 1)} %`);
   });
 
   it('a 75 L preset on the Wed rules keeps its VE and its stop near L17', () => {
@@ -225,6 +232,6 @@ describe('the plan for his two real races at one track', () => {
   it('with no stop measured the panel says so and shows no litres', () => {
     const p = panelOf(wed, 73, null);
     expect(p.tags).toEqual(['no stop measured']);
-    expect(p.line).toBe('arrive 3 % · +79 %');
+    expect(p.line).toBe('arrive 3 % · +80 %');
   });
 });

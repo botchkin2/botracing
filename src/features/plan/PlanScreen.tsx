@@ -51,6 +51,7 @@ import {
   trackChoices,
 } from './model';
 import {perLapStrip} from './perLapStrip';
+import {columnWidth} from './model';
 import {savingFor} from './saving';
 import {useClassTiming} from './useClassTiming';
 import {usePitSlider} from './usePitSlider';
@@ -447,7 +448,7 @@ export function PlanScreen() {
         styles.page,
         {paddingTop: insets.top, paddingBottom: insets.bottom + space.xxl},
       ]}>
-      <View style={[styles.column, {width}]}>
+      <View style={[styles.column, {width: columnWidth(width, size.gutter)}]}>
         <View style={styles.head}>
           <Text variant='display'>Plan</Text>
         </View>

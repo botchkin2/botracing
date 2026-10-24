@@ -11,7 +11,6 @@ import {parseNumber} from './model';
 type Draft = {
   name: string;
   fuel: string;
-  ve: string;
   ratio: string;
   stops: string;
   formationLap: boolean;
@@ -21,7 +20,6 @@ function draftOf(preset: FuelPreset | null): Draft {
   return {
     name: preset?.name ?? '',
     fuel: preset?.fuelL != null ? String(preset.fuelL) : '',
-    ve: String(preset?.vePct ?? 100),
     ratio: preset?.veRatio != null ? String(preset.veRatio) : '',
     stops: String(preset?.mandatoryStops ?? 0),
     formationLap: preset?.formationLap ?? true,
@@ -29,8 +27,10 @@ function draftOf(preset: FuelPreset | null): Draft {
 }
 
 /**
- * The rules of one event: a name, max fuel, VE at the start, mandatory stops
- * and the formation lap. The race length sits on the screen above, because it
+ * The rules of one event: a name, max fuel, mandatory stops and the formation
+ * lap, and a typed litres-per-VE-% where he knows it. There is no VE field:
+ * the plan takes VE from his sessions of the rules, and no series percentage
+ * is applied (thread 104). The race length sits on the screen above, because it
  * is what he changes race to race. Blank max fuel means "the fill limit of my
  * last session there".
  */
@@ -49,7 +49,7 @@ export function RulesEditor({
   onSave: (
     fields: Pick<
       FuelPreset,
-      'name' | 'fuelL' | 'vePct' | 'veRatio' | 'mandatoryStops' | 'formationLap'
+      'name' | 'fuelL' | 'veRatio' | 'mandatoryStops' | 'formationLap'
     >,
   ) => void;
   onCancel: () => void;
@@ -57,14 +57,11 @@ export function RulesEditor({
   const {color} = useTheme();
   const [draft, setDraft] = useState(() => draftOf(preset));
   const fuel = draft.fuel.trim() === '' ? null : parseNumber(draft.fuel);
-  const ve = parseNumber(draft.ve);
   const ratio = draft.ratio.trim() === '' ? null : parseNumber(draft.ratio);
   const stops = draft.stops.trim() === '' ? 0 : Number(draft.stops);
   const valid =
     draft.name.trim() !== '' &&
     (draft.fuel.trim() === '' || fuel != null) &&
-    ve != null &&
-    ve <= 100 &&
     (draft.ratio.trim() === '' || ratio != null) &&
     Number.isInteger(stops) &&
     stops >= 0;
@@ -107,15 +104,6 @@ export function RulesEditor({
           onChange={fuelText => setDraft(d => ({...d, fuel: fuelText}))}
         />
         <NumberField
-          label='VE at start'
-          unit='%'
-          decimal
-          value={draft.ve}
-          onChange={veText => setDraft(d => ({...d, ve: veText}))}
-        />
-      </View>
-      <View style={styles.row}>
-        <NumberField
           label='L per 1 % VE'
           unit='L'
           decimal
@@ -125,7 +113,6 @@ export function RulesEditor({
           }
           onChange={ratioText => setDraft(d => ({...d, ratio: ratioText}))}
         />
-        <View style={styles.field} />
       </View>
       <View style={styles.row}>
         <NumberField
@@ -160,7 +147,6 @@ export function RulesEditor({
             onSave({
               name: draft.name.trim(),
               fuelL: fuel,
-              vePct: ve ?? 100,
               veRatio: ratio,
               mandatoryStops: stops,
               formationLap: draft.formationLap,

@@ -27,6 +27,16 @@ import {effectiveUnit, type Unit} from './unit';
 // combinations he has history for, the laps that count, the rules in force,
 // and the finished lines each card prints. Pure; the screen only lays it out.
 
+/**
+ * The Plan column's own width: its content plus the padding on both sides. A
+ * box's `width` includes its padding, so a column given only the content
+ * width left the cards two gutters narrower than the charts drawn for them,
+ * and the race timeline ran out of its card at 375 pt (thread 104).
+ */
+export function columnWidth(contentW: number, gutter: number): number {
+  return contentW + 2 * gutter;
+}
+
 /** Sessions of one track and car model that the history is drawn from. */
 export const HISTORY_SESSIONS = 8;
 
@@ -462,7 +472,8 @@ export function rulesFor(
       lengthLaps: length.kind === 'laps' ? length.value : null,
       lengthMin: length.kind === 'min' ? length.value : null,
       fuelL,
-      vePct: preset ? preset.vePct : 100,
+      // a stored preset vePct is kept in its doc but not read: no series VE % is applied (thread 104)
+      vePct: 100,
       formationLap: preset ? preset.formationLap : true,
       mandatoryStops: preset ? preset.mandatoryStops : 0,
       startFuelL: start.fuelL ?? null,

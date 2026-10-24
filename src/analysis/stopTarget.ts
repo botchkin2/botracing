@@ -14,6 +14,15 @@
 // whole %: LMU's pit menu steps VE by 1 % (Botkin, thread 99 #6705), and by
 // whole litres for a fuel-only car. Pure.
 
+/**
+ * A fixed floor of VE the last stop leaves at the flag, in the "Set VE"
+ * number itself: running out of VE is a 100 s stop-and-go (LMU's results
+ * files: "Exceeded energy allowance limit", thread 104), and a percent is
+ * under a litre of fuel. It stacks on the p90 use and the late-flag lap the
+ * level is already sized for, and the level still caps at a full load.
+ */
+export const FLAG_RESERVE_VE = 1;
+
 export type StopTarget = {
   /** What the number is in: VE % for a VE car, litres otherwise. */
   meter: 've' | 'fuel';
@@ -71,7 +80,7 @@ export function stopTargets(input: StopTargetInput): StopTarget[] {
     let fuelLimited = false;
     if (meter === 've') {
       if (p90.vePct == null) return [];
-      const veNeed = lapsAfter * p90.vePct;
+      const veNeed = lapsAfter * p90.vePct + (last ? FLAG_RESERVE_VE : 0);
       // The level that puts in the litres the laps burn over what is left:
       // the arrival plus the shortfall over the litres one % adds here.
       const fuelNeed =

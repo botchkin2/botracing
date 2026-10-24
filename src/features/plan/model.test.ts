@@ -15,6 +15,7 @@ import {
   carChoices,
   type Combo,
   comboCar,
+  columnWidth,
   comboTrack,
   defaultCombo,
   driftRowOf,
@@ -694,6 +695,17 @@ describe('undrivenPlanKey', () => {
   });
 });
 
+describe('a stored preset VE % is kept but not applied (thread 104)', () => {
+  it('rulesFor plans on a full VE load whatever the preset holds', () => {
+    const old = newPreset('Old', {vePct: 80}, 'p1', '2026-09-26T00:00:00Z');
+    expect(old.vePct).toBe(80);
+    const rules = rulesFor({...old, fuelL: 75}, {kind: 'min', value: 60}, null)!;
+    expect(rules.rules.vePct).toBe(100);
+    // the stored preset is untouched
+    expect(old.vePct).toBe(80);
+  });
+});
+
 describe('under a rule set the tank is never the load (thread 104)', () => {
   // A live online practice: the capture reports the car's own 117 L tank, no fill limit, a start of 78.9 L.
   const livePractice = {startL: 78.9, fillLimitL: null, tankL: 117, litresPerVePct: 0.839, litresPerVePctStop: null};
@@ -754,5 +766,12 @@ describe('under a rule set the tank is never the load (thread 104)', () => {
   it('a series week of a car with no VE keeps its old reading of the load', () => {
     const last = lastFuelOf(livePractice, {kind: 'start fuel', litres: 80}, false)!;
     expect(last).toMatchObject({fillLimitL: null, startL: 80, tankL: 117});
+  });
+});
+
+describe('columnWidth', () => {
+  it('is the content plus both paddings: a 375 pt phone gives its cards 343 pt, so charts drawn to 343 fit', () => {
+    expect(columnWidth(343, 16)).toBe(375);
+    expect(columnWidth(1100, 16)).toBe(1132);
   });
 });
