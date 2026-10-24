@@ -97,6 +97,30 @@ export function unverifiedMarks(root) {
 }
 
 /**
+ * The captures live laps uploaded (the live index, liveSession.mjs: keys are
+ * "<capture>#<stretch>") whose marker does not yet hold their sessions as
+ * verified, as {name, sessionIds}. The live path writes no marker of its own,
+ * so a drive uploaded live is read back here.
+ */
+export function liveMarks(root, liveIndex) {
+  const byCapture = new Map();
+  for (const [key, entry] of Object.entries(liveIndex ?? {})) {
+    const name = key.split('#')[0];
+    if (!entry?.sessionId || !existsSync(resolve(root, name, 'meta.json')))
+      continue;
+    if (!byCapture.has(name)) byCapture.set(name, new Set());
+    byCapture.get(name).add(entry.sessionId);
+  }
+  const out = [];
+  for (const [name, ids] of byCapture) {
+    const {verified} = previous(resolve(root, name, MARKER));
+    const missing = [...ids].filter(id => !verified[id]);
+    if (missing.length) out.push({name, sessionIds: missing});
+  }
+  return out;
+}
+
+/**
  * Records a read-back for one session already in a capture's marker, leaving
  * its sessionId and uploadedUtc as they were. Returns whether it wrote.
  */

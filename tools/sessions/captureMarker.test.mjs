@@ -13,6 +13,7 @@ import {test} from 'node:test';
 import {
   MARKER,
   capturesRead,
+  liveMarks,
   markUploaded,
   markVerified,
   unverifiedMarks,
@@ -150,5 +151,27 @@ test('a marker from before the read-back is listed, then verified in place', () 
     fieldHash: 'f',
     utc: '2026-10-22T05:00:00.000Z',
   });
+  rmSync(root, {recursive: true, force: true});
+});
+
+test('a capture live laps uploaded is listed until its sessions are verified', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'marker-'));
+  capture(root, 'race');
+  const index = {
+    'race#0': {sessionId: 'L1'},
+    'race#1': {sessionId: 'L1'},
+    'race#2': {sessionId: 'L2'},
+    'gone#0': {sessionId: 'L3'},
+  };
+  assert.deepEqual(liveMarks(root, index), [
+    {name: 'race', sessionIds: ['L1', 'L2']},
+  ]);
+  markUploaded(root, ['race'], 'L1', {
+    check: {ok: true, laps: 31, fieldHash: 'f'},
+  });
+  assert.deepEqual(liveMarks(root, index), [
+    {name: 'race', sessionIds: ['L2']},
+  ]);
+  assert.deepEqual(liveMarks(root, undefined), []);
   rmSync(root, {recursive: true, force: true});
 });
