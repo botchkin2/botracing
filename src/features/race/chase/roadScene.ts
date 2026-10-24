@@ -15,6 +15,8 @@ type At = (row: number, col: number, out: Point) => void;
 
 const EDGE_WIDTH_M = 0.38;
 const START_LINE_DEPTH_M = 1.2;
+/** The start line floats this far over the road surface, so no part of it sinks into the downhill slope or the bank. */
+const START_LINE_LIFT_M = 0.1;
 const RUNG_EVERY_M = 10;
 const GRID_M = 50;
 const GRID_MARGIN_M = 400;
@@ -190,7 +192,7 @@ export function buildRoadScene(road: ChaseRoad, ix: RoadIndex, T: ChaseTheme): T
       2,
       2,
       (r, k, out) => {
-        rowPoint(0, k ? road.hr[0] : -road.hl[0], 0.03, out);
+        rowPoint(0, k ? road.hr[0] : -road.hl[0], START_LINE_LIFT_M, out);
         const along = r ? START_LINE_DEPTH_M : 0;
         out.x += Math.cos(ix.heading[0]) * along;
         out.y += Math.sin(ix.heading[0]) * along;

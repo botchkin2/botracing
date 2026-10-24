@@ -90,7 +90,7 @@ describe('road scene', () => {
     for (const column of [0, 1]) {
       const above = quad.getY(column) - surface.getY(column);
       expect(above).toBeGreaterThan(0);
-      expect(above).toBeLessThan(0.1);
+      expect(above).toBeLessThan(0.2);
     }
     disposeGroup(group);
   });
