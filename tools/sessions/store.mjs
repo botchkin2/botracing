@@ -27,6 +27,7 @@ import {
 import {finishCurrent, finishDoc} from '../../src/analysis/raceResult.ts';
 import {
   fieldAfterSync,
+  fieldFeedsDerived,
   fieldMissingAfter,
   madeFromField,
   stampField,
@@ -585,6 +586,14 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
         lap.traffic = traffic[k];
       });
     }
+  } else if (kept.field && !fieldFeedsDerived(kept.field)) {
+    // The file stays. A later sync must not refill traffic, class laps,
+    // bests or the finish from a marked field (thread 100).
+    session.classLaps = null;
+    session.classBests = null;
+    session.result = null;
+    for (const lap of out.laps) lap.traffic = null;
+    log('  field: marked, kept, not used');
   } else if (kept.field) {
     log('  field: kept the stored one');
     // Everything computed from the field is kept or worked out again from

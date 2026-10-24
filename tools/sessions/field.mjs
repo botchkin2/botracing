@@ -312,6 +312,17 @@ export function pickMark(marks) {
   );
 }
 
+// These marks are kept on the session and shown. They do not feed traffic,
+// class laps, bests, or the finish (thread 100). `smaller` is not in the
+// set: it names a file held aside, and the field the session points at is
+// still the one those blocks are read from.
+const UNUSED_MARKS = new Set(['garbage', 'misaligned', 'track', 'doubted']);
+
+/** False when this field must not feed anything derived from it. */
+export function fieldFeedsDerived(field) {
+  return !UNUSED_MARKS.has(field?.mark?.kind);
+}
+
 /** One line for a marked field (gauge #6846). Null when there is no mark. */
 export function fieldMarkText(mark) {
   if (!mark) return null;

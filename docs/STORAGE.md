@@ -48,6 +48,8 @@ The recording doc then carries `clipSpans`: `{startT, endT}[]`, each stored reco
 
 A check that used to drop a field stores it and sets `field.mark` (`field.mjs`). The strongest mark is the one stored: `garbage`, then `misaligned`, `track`, `doubted`, `smaller`. The session doc's `field.note` is the one line the race screen shows. A `garbage` field is not drawn.
 
+A marked field is kept, not used. `garbage`, `misaligned`, `doubted` and `track` do not feed lap traffic, class laps, class bests, or the finish (`fieldFeedsDerived`). `doubted` and `track` follow the same rule as `garbage` and `misaligned`: the field is stored and the one line is shown, and those blocks stay empty. A later sync does not refill them from the marked file. `smaller` is the exception: it names a file held aside, and the field the session points at is still the one those blocks are read from.
+
 - `doubted`: the capture's layout or player doubt held for most of the drive. The field is uploaded.
 - `misaligned`: the player car's lap distance disagrees by more than 20 m, or cannot be compared. `mark.alignM` is the metres, or null. The field is uploaded.
 - `garbage`: more than a quarter of the lap-distance rows are non-finite or past 100 km. The rows are stored. The screen does not draw them.

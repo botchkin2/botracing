@@ -27,7 +27,7 @@ import {useLapTraceLoad} from '@/src/data/traces';
 import {shortTrackName} from '@/src/design';
 
 import {type ChaseWorld, chaseWorldSteps, SLICE_BUDGET_MS, yieldToLoop} from './chaseWorld';
-import {raceGate} from './raceGate';
+import {raceGate, raceScreenField} from './raceGate';
 
 const SESSION_TITLE = {R: 'Race', Q: 'Qualifying', P: 'Practice'} as const;
 // Same 5 m grid as Compare, so the line and the laps agree.
@@ -94,8 +94,8 @@ export function useRaceData(sessionId: string): RaceData {
   const map = useTrackMap(session.data?.trackId);
   const surface = useTrackSurface(session.data?.trackId);
   const detail = session.data;
-  const hideField = detail?.field?.mark?.kind === 'garbage';
-  const hash = hideField ? null : (detail?.field?.hash ?? null);
+  const screenField = raceScreenField(detail);
+  const hash = screenField.hash;
   const field = useField(sessionId, hash);
   const band = useSessionBand(sessionId);
   // A track with no map of its own (iRacing's) still has the lap's length.
@@ -255,7 +255,7 @@ export function useRaceData(sessionId: string): RaceData {
     return {
       kind: 'no-field',
       title,
-      why: detail.field?.note ?? detail.fieldMissing,
+      why: screenField.why,
     };
   if (gate === 'field-error')
     return {
