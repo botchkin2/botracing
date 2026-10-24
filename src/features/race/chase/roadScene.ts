@@ -195,7 +195,8 @@ export function buildRoadScene(road: ChaseRoad, ix: RoadIndex, T: ChaseTheme): T
         out.x += Math.cos(ix.heading[0]) * along;
         out.y += Math.sin(ix.heading[0]) * along;
       },
-      flat(T.text),
+      // pulled toward the camera in depth too: 3 cm over the road is under the depth buffer's step at tens of metres
+      flat(T.text, {polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2}),
       1,
     ),
   );

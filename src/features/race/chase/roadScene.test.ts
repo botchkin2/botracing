@@ -85,6 +85,7 @@ describe('road scene', () => {
     ) as THREE.Mesh;
     const surface = fill.geometry.getAttribute('position');
     const quad = line.geometry.getAttribute('position');
+    expect((line.material as THREE.MeshBasicMaterial).polygonOffset).toBe(true);
     // row 0 of both: the left edge (column 0) and the right edge (column 1); three.js y is up
     for (const column of [0, 1]) {
       const above = quad.getY(column) - surface.getY(column);
