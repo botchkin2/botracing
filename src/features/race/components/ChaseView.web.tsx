@@ -8,11 +8,11 @@ import {radius, size, space, useTheme} from '@/src/design';
 import {formatGap} from '@/src/design/format';
 import {Pressable, Segment, Text} from '@/src/ui';
 
+import {ChaseNearStrip} from '@/src/features/race/components/ChaseNearStrip';
 import {ChaseTower} from '@/src/features/race/components/ChaseTower';
 import {postReady} from '@/src/features/race/useEmbedClock';
 import {DriverInputs} from '@/src/features/race/components/DriverInputs';
-import {type TowerMode, type TowerRow, towerRows} from '@/src/features/race/chase/towerRows';
-import type {TowerCar} from '@/src/features/race/chase/towerRows';
+import {type TowerCar, type TowerMode, type TowerRow, towerRows} from '@/src/features/race/chase/towerRows';
 import type {ChaseCamMode, ChaseCar, ChaseEngine, ChaseGaps, ChaseInputs, ChaseSampler} from '@/src/features/race/chase/chaseTypes';
 
 // The 3D chase view, drawn as an instrument. Web only: the engine and three.js load on first use (a lazy import), so
@@ -32,9 +32,10 @@ type CamValue = '1' | '2' | '3' | '4';
 
 /** Narrower than this is a phone: the layout stacks and the targets grow. */
 const PHONE_MAX_W = 520;
-/** Rows in the tower, on a desktop and on a phone (44 pt rows). */
+/** Rows in the tower on a desktop; on a phone, the strip's cars (the followed car and its neighbours) and the open list's. */
 const TOWER_ROWS = 9;
-const TOWER_ROWS_TIGHT = 3;
+const STRIP_ROWS = 3;
+const LIST_ROWS = 5;
 
 type ChaseProps = {
   width: number;
@@ -221,14 +222,33 @@ function ChaseSurface({
   const shownW = full ? (typeof window === 'undefined' ? width : window.innerWidth) : width;
   // A phone: the tools are 44 pt targets and the numbers strip sits above them, across the width.
   const tight = shownW < PHONE_MAX_W;
-  const [towerShown, setTowerShown] = useState<boolean | null>(null);
+  const [towerShown, setTowerShown] = useState(true);
+  const [listOpen, setListOpen] = useState(false);
   const [towerMode, setTowerMode] = useState<TowerMode>('order');
-  // Open on a desktop, folded on a phone until asked for.
-  const towerOpen = towerShown ?? !tight;
+  const followed = focus ?? me?.index ?? null;
+  // A desktop: the tower floats over the corner, folded by its button. A phone: a strip above the canvas, always there,
+  // and a list that opens under it on a tap.
   const tower = useMemo<TowerRow[]>(
-    () => (towerOpen ? towerRows(towerCars, focus ?? me?.index ?? null, towerMode, tight ? TOWER_ROWS_TIGHT : TOWER_ROWS, trackM) : []),
-    [towerOpen, towerCars, focus, me, towerMode, tight, trackM],
+    () => (!tight && towerShown ? towerRows(towerCars, followed, towerMode, TOWER_ROWS, trackM) : []),
+    [tight, towerShown, towerCars, followed, towerMode, trackM],
   );
+  const strip = useMemo<TowerRow[]>(
+    () => (tight ? towerRows(towerCars, followed, towerMode, STRIP_ROWS, trackM) : []),
+    [tight, towerCars, followed, towerMode, trackM],
+  );
+  const list = useMemo<TowerRow[]>(
+    () => (tight && listOpen ? towerRows(towerCars, followed, towerMode, LIST_ROWS, trackM) : []),
+    [tight, listOpen, towerCars, followed, towerMode, trackM],
+  );
+  const pick = (i: number) => {
+    if (i !== me?.index) onPressCar(i);
+  };
+  // A phone's 3D view top to bottom: the app's mode row (drawn over this page by the app, except in a full screen that
+  // covers it), the strip, the canvas, the camera chips. Nothing else sits over the canvas but the HUD in its corners.
+  const topInset = tight && (!full || embedded) ? size.chaseControlsH : 0;
+  const canvasTop = tight ? topInset + size.hit + space.xs : 0;
+  const bottomInset = space.sm + (full && !embedded ? 2 : 1) * (size.hit + space.xs);
+  const canvasBottom = tight ? bottomInset : 0;
   const toolStyle = [styles.tool, tight && styles.toolTight, {borderColor: color.lineStrong, backgroundColor: color.surface}];
 
   return (
@@ -240,7 +260,7 @@ function ChaseSurface({
       }>
       {createElement('div', {
         ref: slot,
-        style: {position: 'absolute', left: 0, top: 0, width: '100%', height: '100%'},
+        style: {position: 'absolute', left: 0, right: 0, top: canvasTop, bottom: canvasBottom},
       })}
       {failed !== null ? (
         <View style={styles.center}>
@@ -290,13 +310,15 @@ function ChaseSurface({
             </Pressable>
           </>
         ) : null}
-        <Pressable
-          accessibilityLabel={towerOpen ? 'Hide the tower' : 'Show the tower'}
-          accessibilityState={{selected: towerOpen}}
-          onPress={() => setTowerShown(!towerOpen)}
-          style={toolStyle}>
-          <Text variant='dataStrong'>☰</Text>
-        </Pressable>
+        {tight ? null : (
+          <Pressable
+            accessibilityLabel={towerShown ? 'Hide the tower' : 'Show the tower'}
+            accessibilityState={{selected: towerShown}}
+            onPress={() => setTowerShown(!towerShown)}
+            style={toolStyle}>
+            <Text variant='dataStrong'>☰</Text>
+          </Pressable>
+        )}
         {embedded ? null : (
           <Pressable
             accessibilityLabel={full ? 'Close full screen' : 'Full screen'}
@@ -307,31 +329,53 @@ function ChaseSurface({
         )}
       </View>
       {tower.length > 0 ? (
-        <View style={[styles.tower, tight && {top: size.chaseTowerTopTight}]}>
+        <View style={styles.tower}>
+          <ChaseTower rows={tower} mode={towerMode} onMode={setTowerMode} onPick={pick} tight={false} />
+        </View>
+      ) : null}
+      {strip.length > 0 ? (
+        <View style={[styles.strip, {top: topInset}]}>
+          <ChaseNearStrip rows={strip} open={listOpen} onToggle={() => setListOpen(o => !o)} onPick={pick} />
+        </View>
+      ) : null}
+      {list.length > 0 ? (
+        // a tap anywhere else closes the list; it takes the touch, so the camera does not move
+        <Pressable
+          accessibilityLabel='Close the car list'
+          onPress={() => setListOpen(false)}
+          style={[styles.scrim, {top: canvasTop}]}
+        />
+      ) : null}
+      {list.length > 0 ? (
+        <View style={[styles.list, {top: canvasTop}]}>
           <ChaseTower
-            rows={tower}
+            rows={list}
             mode={towerMode}
             onMode={setTowerMode}
             onPick={i => {
-              if (i !== me?.index) onPressCar(i);
+              setListOpen(false);
+              pick(i);
             }}
-            tight={tight}
+            tight
+            fill
           />
         </View>
       ) : null}
       {me ? (
         <View
           pointerEvents='none'
-          style={[styles.dock, tight && styles.dockTight, tight && {bottom: space.sm + (full && !embedded ? 2 : 1) * (size.hit + space.xs)}]}>
+          style={[styles.dock, tight && styles.dockTight, tight && {bottom: bottomInset + space.xs}]}>
           {now ? (
             <DriverInputs brakePct={now.brakePct} throttlePct={now.throttlePct} steeringPct={now.steeringPct} tight={tight} />
           ) : null}
-          <View style={[styles.strip, tight && styles.stripTight, {backgroundColor: color.surface, borderColor: color.lineStrong}]}>
+          <View style={[styles.numbers, tight && styles.numbersTight, {backgroundColor: color.surface, borderColor: color.lineStrong}]}>
           {gaps ? (
             <View style={styles.cell}>
               <Text variant='dataStrong'>{`${gaps.classTag} P${gaps.classPlace}`}</Text>
-              <Text variant='dataSmall' tone='textMuted'>{`▲ ${gaps.aheadS === null ? '–' : formatGap(-gaps.aheadS, 1)}`}</Text>
-              <Text variant='dataSmall' tone='textMuted'>{`▼ ${gaps.behindS === null ? '–' : formatGap(gaps.behindS, 1)}`}</Text>
+              <View style={styles.cell}>
+                <Text variant='dataSmall' tone='textMuted'>{`▲ ${gaps.aheadS === null ? '–' : formatGap(-gaps.aheadS, 1)}`}</Text>
+                <Text variant='dataSmall' tone='textMuted'>{`▼ ${gaps.behindS === null ? '–' : formatGap(gaps.behindS, 1)}`}</Text>
+              </View>
             </View>
           ) : null}
           {now ? (
@@ -345,7 +389,7 @@ function ChaseSurface({
               km/h
             </Text>
           </View>
-          {hasHeight && grade !== null ? (
+          {!tight && hasHeight && grade !== null ? (
             <View style={styles.cell}>
               <Text variant='dataSmall' tone='textMuted'>
                 {gradeLabel(grade)}
@@ -386,8 +430,12 @@ const styles = StyleSheet.create({
   // One flat strip on the bottom edge: numerals in mono, nothing in the middle of the view.
   tower: {position: 'absolute', right: space.sm, top: space.sm},
   dock: {position: 'absolute', right: space.sm, bottom: space.sm, alignItems: 'flex-end', gap: space.xs, maxWidth: '62%'},
-  dockTight: {left: space.sm, maxWidth: '100%'},
-  strip: {
+  // A phone: the inputs in the bottom left corner, the numbers in the bottom right, the middle left to the car.
+  dockTight: {left: space.sm, maxWidth: '100%', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between'},
+  strip: {position: 'absolute', left: space.sm, right: space.sm},
+  scrim: {position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 1},
+  list: {position: 'absolute', left: space.sm, right: space.sm, zIndex: 2},
+  numbers: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
@@ -397,6 +445,6 @@ const styles = StyleSheet.create({
     minHeight: 32,
     justifyContent: 'space-between',
   },
-  stripTight: {gap: space.sm, alignSelf: 'stretch'},
+  numbersTight: {marginLeft: 'auto', flexDirection: 'column', alignItems: 'flex-end', gap: space.xs, width: size.chaseNumbersTight, paddingVertical: space.xs},
   cell: {flexDirection: 'row', alignItems: 'baseline', gap: space.xs},
 });

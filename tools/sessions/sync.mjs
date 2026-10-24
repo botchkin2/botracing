@@ -47,7 +47,7 @@ import {replaceFile} from './replaceFile.mjs';
 import {versionKey} from './versionKey.mjs';
 import {slugId} from './analyzeFromArchive.mjs';
 import {analysisVersion, blockVersions, trackMapVersion} from './analyze.mjs';
-import {markUploaded} from './captureMarker.mjs';
+import {markUploaded, markVerified, unverifiedMarks} from './captureMarker.mjs';
 import {noteNoField} from './noField.mjs';
 import {describeCheck} from './irCapture.mjs';
 import {captureExtractFor, liveExtractSessions} from './captureExtractFor.mjs';
@@ -298,6 +298,26 @@ function keepBoundaries(trackId, state) {
 // still on the PC: their extract goes up once, by itself, with no analysis
 // (pit-wall thread 1 #4611, #4613). Recorded in state.extracts so a session
 // is sent once.
+// Captures marked before the read-back existed, or whose read-back failed:
+// each listed session is read back again, so a capture that is stored stops
+// counting down to its 14-day deletion (prune.rs) and leaves Problems.
+async function verifyMarked(store) {
+  let verified = 0;
+  let failed = 0;
+  for (const {name, sessionIds} of unverifiedMarks(captureRoot)) {
+    for (const id of sessionIds) {
+      const readBack = await store.verify(null, {sessionId: id});
+      if (markVerified(captureRoot, name, id, readBack)) verified++;
+      else {
+        failed++;
+        log(`  ${name}: ${id} not verified: ${readBack.reason}`);
+      }
+    }
+  }
+  if (verified || failed)
+    log(`read back marked captures: ${verified} verified, ${failed} not`);
+}
+
 async function uploadCaptureBacklog(sessions, state, store, liveIndex) {
   state.extracts ??= {};
   let sent = 0;
@@ -572,6 +592,7 @@ async function main() {
     await uploadCaptureBacklog(sessions, state, store, liveIndex);
   if (!local && !check) await keepResults(sessions, state, store, liveIndex);
   if (!local && !check) await repairIracingArchives(sessions, state, store);
+  if (!local && !check) await verifyMarked(store);
   // The watcher reads this line for the heartbeat's done/total.
   log(`to do ${todo.length}`);
   // A sync never writes a track. Boundaries and the surface are rebuilt by
@@ -804,10 +825,19 @@ async function processSession(
   out.healDefect = s.healDefect ?? null;
   if (local) lines.push(`  -> ${writeLocal(out)}`);
   else {
-    await store.upload(out, {log: line => lines.push(line)});
+    const sent = await store.upload(out, {log: line => lines.push(line)});
     noteNoField(work, out.session, Date.now());
-    // What the captures gave is in the store now: the tray may prune them.
-    markUploaded(captureRoot, out.capturesUsed, s.id);
+    // Read back before the tray may delete what the captures gave: an
+    // unverified session keeps them (verifyStored.mjs).
+    const readBack = await store.verify(out, {
+      skipped: sent?.skipped ?? null,
+    });
+    lines.push(
+      readBack.ok
+        ? `  read back: ${readBack.laps} laps, field ${readBack.fieldHash}`
+        : `  read back failed, captures kept: ${readBack.reason}`,
+    );
+    markUploaded(captureRoot, out.capturesUsed, s.id, {check: readBack});
   }
   return {
     track: out.track,

@@ -10,7 +10,13 @@ import {
 import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 import {test} from 'node:test';
-import {MARKER, capturesRead, markUploaded} from './captureMarker.mjs';
+import {
+  MARKER,
+  capturesRead,
+  markUploaded,
+  markVerified,
+  unverifiedMarks,
+} from './captureMarker.mjs';
 
 const capture = (root, name) => {
   mkdirSync(resolve(root, name), {recursive: true});
@@ -21,12 +27,9 @@ test('marks the captures a session used, and only those', () => {
   const root = mkdtempSync(resolve(tmpdir(), 'marker-'));
   capture(root, 'a');
   capture(root, 'b');
-  const marked = markUploaded(
-    root,
-    ['a'],
-    's1',
-    new Date('2026-10-09T15:00:00Z'),
-  );
+  const marked = markUploaded(root, ['a'], 's1', {
+    now: new Date('2026-10-09T15:00:00Z'),
+  });
   assert.deepEqual(marked, ['a']);
   assert.deepEqual(
     JSON.parse(readFileSync(resolve(root, 'a', MARKER), 'utf8')),
@@ -34,6 +37,7 @@ test('marks the captures a session used, and only those', () => {
       sessionId: 's1',
       sessionIds: ['s1'],
       uploadedUtc: '2026-10-09T15:00:00.000Z',
+      verified: {},
     },
   );
   assert.ok(!readdirSync(resolve(root, 'b')).includes(MARKER));
@@ -52,8 +56,8 @@ test('a capture that is gone, and no captures at all, are skipped quietly', () =
 test('a second session using the same capture is added to the marker', () => {
   const root = mkdtempSync(resolve(tmpdir(), 'marker-'));
   capture(root, 'a');
-  markUploaded(root, ['a'], 's1', new Date('2026-10-09T15:00:00Z'));
-  markUploaded(root, ['a'], 's2', new Date('2026-10-09T16:00:00Z'));
+  markUploaded(root, ['a'], 's1', {now: new Date('2026-10-09T15:00:00Z')});
+  markUploaded(root, ['a'], 's2', {now: new Date('2026-10-09T16:00:00Z')});
   const marker = JSON.parse(readFileSync(resolve(root, 'a', MARKER), 'utf8'));
   assert.equal(marker.sessionId, 's2');
   // Every session that used the capture, so "all uploaded" can be checked.
@@ -92,5 +96,59 @@ test('a session reads the captures of its own sim, track and time', () => {
   };
   assert.deepEqual(capturesRead(root, 'iracing', span), ['ir-sebring']);
   assert.deepEqual(capturesRead(root, 'lmu', span), ['lmu-sebring']);
+  rmSync(root, {recursive: true, force: true});
+});
+
+test('a read-back that passed is recorded; one that failed later removes it, so the capture is kept', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'marker-'));
+  capture(root, 'a');
+  const read = () =>
+    JSON.parse(readFileSync(resolve(root, 'a', MARKER), 'utf8')).verified;
+  const now = new Date('2026-10-22T04:00:00Z');
+  markUploaded(root, ['a'], 's1', {
+    check: {ok: true, sessionId: 's1', laps: 31, fieldHash: 'abc123'},
+    now,
+  });
+  assert.deepEqual(read(), {
+    s1: {laps: 31, fieldHash: 'abc123', utc: '2026-10-22T04:00:00.000Z'},
+  });
+  // A second session on the same capture, not verified: s1 stays, s2 absent.
+  markUploaded(root, ['a'], 's2', {check: {ok: false, reason: 'no field'}});
+  assert.deepEqual(Object.keys(read()), ['s1']);
+  // s1 re-uploaded and its read-back failed: it is no longer verified.
+  markUploaded(root, ['a'], 's1', {check: {ok: false, reason: 'laps'}});
+  assert.deepEqual(read(), {});
+  rmSync(root, {recursive: true, force: true});
+});
+
+test('a marker from before the read-back is listed, then verified in place', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'marker-'));
+  capture(root, 'old');
+  capture(root, 'none');
+  writeFileSync(
+    resolve(root, 'old', MARKER),
+    JSON.stringify({
+      sessionId: 's2',
+      sessionIds: ['s1', 's2'],
+      uploadedUtc: '2026-10-01T00:00:00.000Z',
+    }),
+  );
+  assert.deepEqual(unverifiedMarks(root), [
+    {name: 'old', sessionIds: ['s1', 's2']},
+  ]);
+  const now = new Date('2026-10-22T05:00:00Z');
+  assert.equal(markVerified(root, 'old', 's1', {ok: false}, now), false);
+  assert.equal(
+    markVerified(root, 'old', 's1', {ok: true, laps: 4, fieldHash: 'f'}, now),
+    true,
+  );
+  assert.deepEqual(unverifiedMarks(root), [{name: 'old', sessionIds: ['s2']}]);
+  const marker = JSON.parse(readFileSync(resolve(root, 'old', MARKER), 'utf8'));
+  assert.equal(marker.uploadedUtc, '2026-10-01T00:00:00.000Z');
+  assert.deepEqual(marker.verified.s1, {
+    laps: 4,
+    fieldHash: 'f',
+    utc: '2026-10-22T05:00:00.000Z',
+  });
   rmSync(root, {recursive: true, force: true});
 });
