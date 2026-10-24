@@ -146,7 +146,7 @@ export function savingFor(
   const full = meter === 've' ? rules.vePct : rules.fuelL;
   const formation = formationLaps(rules)[meter];
   const i = pit?.stints.findIndex(s => s.dryAtP90) ?? -1;
-  if (pit && i >= 0 && full > 0) {
+  if (pit && i >= 0 && full != null && full > 0) {
     const laps = pit.stints[i].laps + (i === 0 ? formation : 0);
     return laps > 0 ? savingOf(meter, full / laps, history) : null;
   }

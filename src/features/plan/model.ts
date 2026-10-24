@@ -20,6 +20,7 @@ import {planComboKey} from '@/src/nav/routes';
 import {type FuelPreset, type RaceLength} from '@/src/state/fuelPresets';
 
 import {type FormationBurn, formationText} from './formation';
+import {type RuleSet} from './ruleSet';
 import {effectiveUnit, type Unit} from './unit';
 
 // The pre-race planner screen's model (pit wall thread 35): which track+car
@@ -184,48 +185,62 @@ export function eventLoad(
   return tank != null ? {kind: 'tank', litres: tank} : null;
 }
 
+/**
+ * The newest session's fuel with the planned event's load put in its place:
+ * what `rulesFor` reads as the last session. Under a rule set the load is its
+ * own (`load`: its most-run litres, or none) and the start and the tank are
+ * never the load: a practice's start is not the event's, and a live capture
+ * reports the car's own 117 L tank, not the event's cap (pit-wall thread 104).
+ */
+export function lastFuelOf(
+  newestFuel: SessionFuel | null,
+  load: {kind: 'fill limit' | 'start fuel' | 'tank'; litres: number} | null,
+  underRuleSet: boolean,
+): SessionFuel | null {
+  if (!newestFuel || (!load && !underRuleSet)) return newestFuel;
+  return {
+    ...newestFuel,
+    fillLimitL: load?.kind === 'fill limit' ? load.litres : null,
+    startL: underRuleSet
+      ? null
+      : load?.kind === 'start fuel'
+      ? load.litres
+      : newestFuel.startL,
+    tankL: underRuleSet
+      ? null
+      : load?.kind === 'tank'
+      ? load.litres
+      : newestFuel.tankL,
+  };
+}
+
 export type VeRatio = {
   /** Litres of fuel per 1 % VE. */
   perPctL: number;
-  /** Where it came from: the preset, or a session that ran that load. */
+  /** Where it came from: the preset, or the session of the rule set it was measured in. */
   source: {kind: 'preset'} | {kind: 'session'; startedAt: string};
 };
 
 /**
- * The ratio to plan with: the preset's if it sets one; with a preset max fuel,
- * the newest session that ran that load; else the newest session of the
- * planned event, else none. `sessions` is newest first, as `historySessions`
- * gives, and `inEvent` marks the planned event's sessions (unset counts as in).
+ * The ratio to plan with: the preset's if it sets one, else the planned rule
+ * set's (the newest race or qualifying in it, ruleSet.ts), else none. A
+ * preset's fuel no longer picks the ratio: a load that matched none of his
+ * sessions used to drop VE and plan on litres (thread 104, 75 L at Sebring).
  *
- * The ratio belongs to the event: 0.67 to 0.99 L per % across events of one
- * car, and the load does not predict it (parc's 9-month audit, thread 44
- * #1980), so nothing is estimated from the load and another event's ratio is
- * never taken. Within one event practice, qualifying and race agree to 0.005,
- * so one lap of that event gives it.
+ * The ratio belongs to the rules, not the load (0.67 to 0.99 L per % across
+ * rules of one car, parc's 9-month audit, thread 44 #1980); nothing is
+ * estimated from the load and another rule set's ratio is never taken.
  */
 export function veRatioFor(
   preset: FuelPreset | null,
-  sessions: {
-    startedAt: string;
-    ratio: number | null;
-    fillLimitL: number | null;
-    inEvent?: boolean;
-  }[],
+  rules: RuleSet | null,
 ): VeRatio | null {
   if (preset?.veRatio != null)
     return {perPctL: preset.veRatio, source: {kind: 'preset'}};
-  const wanted = preset?.fuelL ?? null;
-  const last = sessions.find(
-    s =>
-      s.ratio != null &&
-      (wanted != null
-        ? s.fillLimitL != null && Math.abs(s.fillLimitL - wanted) <= 0.5
-        : s.inEvent !== false),
-  );
-  return last
+  return rules
     ? {
-        perPctL: last.ratio as number,
-        source: {kind: 'session', startedAt: last.startedAt},
+        perPctL: rules.ratio.perPctL,
+        source: {kind: 'session', startedAt: rules.ratio.from.startedAt},
       }
     : null;
 }
@@ -325,13 +340,13 @@ export type StartChip = {label: string; text: string};
  */
 export function startChips(
   last: {fuelL: number | null; vePct: number | null} | null,
-  caps: {fuelL: number; vePct: number},
+  caps: {fuelL: number | null; vePct: number},
   hasVe: boolean,
 ): {ve: StartChip | null; fuel: StartChip | null} {
   const under = (v: number | null, cap: number) =>
     v != null && v > 0 && v < cap - 0.5 ? v : null;
   const ve = hasVe ? under(last?.vePct ?? null, caps.vePct) : null;
-  const fuel = under(last?.fuelL ?? null, caps.fuelL);
+  const fuel = caps.fuelL == null ? null : under(last?.fuelL ?? null, caps.fuelL);
   return {
     ve:
       ve == null
@@ -364,7 +379,10 @@ export function rulesCells(
 ): RulesCell[] {
   if (!rules) return [];
   return [
-    {label: 'Max fuel', value: `${rules.fuelL} L`},
+    // no load known (VE alone): no Max fuel cell
+    ...(rules.fuelL != null
+      ? [{label: 'Max fuel', value: `${rules.fuelL} L`}]
+      : []),
     ...(hasVe ? [{label: 'Max VE', value: `${rules.vePct} %`}] : []),
     ...(hasVe && ratioPerPctL != null
       ? [{label: '1 % VE', value: `${ratioPerPctL.toFixed(2)} L`}]
@@ -393,7 +411,7 @@ export function parseNumber(text: string): number | null {
 }
 
 /** Where the fuel to plan with came from. */
-export type FuelSource = 'preset' | 'fill limit' | 'tank' | 'start fuel';
+export type FuelSource = 'preset' | 'fill limit' | 'tank' | 'start fuel' | 'unknown';
 
 export type Rules = {
   rules: PlanRules;
@@ -414,6 +432,11 @@ export function rulesFor(
   last: SessionFuel | null,
   /** What the car starts with, when it is less than the full load (typed for this race); null or unset is full. */
   start: {fuelL?: number | null; vePct?: number | null} = {},
+  /**
+   * A VE car in a rule set whose load is not known (a practice only, thread
+   * 104) plans on VE alone: no load, no fuel meter, nothing in litres.
+   */
+  planOnVeAlone = false,
 ): Rules | null {
   let fuelL: number | null = null;
   let fuelSource: FuelSource = 'preset';
@@ -429,7 +452,8 @@ export function rulesFor(
     fuelL = last.tankL;
     fuelSource = 'tank';
   }
-  if (fuelL == null) return null;
+  if (fuelL == null && planOnVeAlone) fuelSource = 'unknown';
+  else if (fuelL == null) return null;
   return {
     fuelSource,
     last,
@@ -475,7 +499,7 @@ const pct2 = (v: number) => `${v.toFixed(2)} %`;
 
 function ratioNote(
   ratio: VeRatio | null,
-  fuelL: number,
+  fuelL: number | null,
   loadsL: number[],
   eventText: string | null = null,
 ): string {
@@ -564,8 +588,10 @@ export function planView(
     lastRatio: number | null;
     /** The fill limits of the history sessions that have a ratio, for the note. */
     ratioLoadsL: number[];
-    /** The event the plan is for ("100 L · One Stint Sprint · week of 09-29"); null for a rule set or no event. */
+    /** The event the plan is for ("100 L · 0.97 L/% · One Stint Sprint · rules from Race, Oct 21"); null for a preset or no event. */
     eventText?: string | null;
+    /** The event is a rule set: its load is its own, so the car's tank (117 L from a live capture) is not printed beside it. */
+    ruleSet?: boolean;
     /** Set when the newest session's use has moved away from the older ones. */
     drift: HistoryDrift | null;
   },
@@ -576,6 +602,8 @@ export function planView(
   const eventText = preset ? null : history.eventText ?? null;
   const rulesLine = preset
     ? `Rules: ${preset.name}  ·  set ${formatDate(preset.savedAt)}`
+    : rules.fuelSource === 'unknown'
+    ? `Rules: ${eventText ?? 'last race here'} (fuel load not known: planned on VE)`
     : `Rules: ${eventText ?? 'last race here'} (${r.fuelL} L ${
         rules.fuelSource === 'fill limit'
           ? 'fill limit'
@@ -583,12 +611,16 @@ export function planView(
           ? 'tank'
           : 'start fuel'
       }${
-        rules.fuelSource !== 'tank' && rules.last?.tankL != null
+        rules.fuelSource !== 'tank' &&
+        rules.last?.tankL != null &&
+        !history.ruleSet
           ? `, ${rules.last.tankL} L tank`
           : ''
       })`;
   const mismatch = preset
-    ? presetMismatch(r.fuelL, history.lastFillLimitL)
+    ? r.fuelL == null
+      ? null
+      : presetMismatch(r.fuelL, history.lastFillLimitL)
     : null;
   const fuelStale = mismatch
     ? `max fuel: preset ${mismatch.presetL} L  ·  last session there ${mismatch.lastL} L`

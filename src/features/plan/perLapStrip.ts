@@ -23,7 +23,7 @@ export function perLapStrip(
   const unit = meter === 've' ? '%' : 'L';
   const full = meter === 've' ? rules.vePct : rules.fuelL;
   const parts = [`p90 ${use.p90.toFixed(2)}`];
-  if (full > 0) parts.push(`${(full / use.median).toFixed(1)} laps a tank`);
+  if (full != null && full > 0) parts.push(`${(full / use.median).toFixed(1)} laps a tank`);
   if (meter === 've' && ratioPerPctL != null)
     parts.push(`${ratioPerPctL.toFixed(2)} L/%`);
   return {

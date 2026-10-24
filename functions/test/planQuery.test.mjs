@@ -35,8 +35,21 @@ test('laps sets how many of the newest sessions keep their lap rows; anything od
     assert.equal(q(bad).lapSessions, PLAN_LAP_SESSIONS, String(bad));
 });
 
-test('the query reads only the plan block, the opening set, the times and the session type', () => {
-  assert.deepEqual([...PLAN_FIELDS], ['startedAt', 'endedAt', 'sessionType', 'plan', 'paceSet']);
+test('the query reads only the plan block, the opening set, the times, the session type and the stop ratio', () => {
+  assert.deepEqual([...PLAN_FIELDS], ['startedAt', 'endedAt', 'sessionType', 'plan', 'paceSet', 'fuel.litresPerVePctStop']);
+});
+
+test("a session's stop ratio comes through from its own fuel into the plan's fuel; none is null", () => {
+  const plan = {v: 3, fuel: {fillLimitL: 73, startL: 73, tankL: 105, litresPerVePct: 0.625}, laps: null, race: null};
+  const rows = planRows([
+    doc('a', {startedAt: '2026-10-22T00:39:00Z', sessionType: 'Race', plan, fuel: {litresPerVePctStop: 0.609}}),
+    doc('b', {startedAt: '2026-10-21T23:58:00Z', sessionType: 'Practice', plan, fuel: {litresPerVePctStop: null}}),
+    doc('c', {startedAt: '2026-10-21T23:00:00Z', sessionType: 'Practice', plan}),
+  ], 0);
+  assert.equal(rows[0].plan.fuel.litresPerVePctStop, 0.609);
+  assert.equal(rows[0].plan.fuel.litresPerVePct, 0.625, 'the own fuel of the block stays');
+  assert.equal(rows[1].plan.fuel.litresPerVePctStop, null);
+  assert.equal(rows[2].plan.fuel.litresPerVePctStop, null);
 });
 
 test('a session carries its end and its opening set; one analysed before the set reads null', () => {
@@ -68,7 +81,7 @@ test('only the newest sessions keep their laps; a session with no block reads nu
   assert.deepEqual(rows.map(r => r.id), ['a', 'b', 'c']);
   assert.equal(rows[0].plan.laps.length, 30);
   assert.equal(rows[1].plan.laps, null, 'past the newest 1');
-  assert.deepEqual(rows[1].plan.fuel, block(1).fuel, 'its fuel limits are still there');
+  assert.deepEqual(rows[1].plan.fuel, {...block(1).fuel, litresPerVePctStop: null}, 'its fuel limits are still there');
   assert.equal(rows[2].plan, null);
   assert.equal(rows[2].sessionType, 'Practice');
 });
