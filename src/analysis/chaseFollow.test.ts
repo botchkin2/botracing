@@ -5,7 +5,7 @@ import {followStep, newFollow, type FollowCar} from './chaseFollow';
 // a car doing 50 m/s round a 100 m radius circle, body along its travel
 const lap = (t: number): FollowCar => {
   const a = (50 / 100) * t;
-  return {x: 100 * Math.cos(a), y: 100 * Math.sin(a), z: 0, heading: a + Math.PI / 2, travel: a + Math.PI / 2, v: 50};
+  return {x: 100 * Math.cos(a), y: 100 * Math.sin(a), z: 0, heading: a + Math.PI / 2, v: 50};
 };
 
 function run(fps: number, rate = 1, seconds = 6) {
@@ -42,10 +42,10 @@ describe('followStep', () => {
       const a = Math.min(Math.max((s - 60) / R, 0), Math.PI);
       const arc = s > 60 && s < 60 + Math.PI * R;
       const car: FollowCar = s <= 60
-        ? {x: s, y: 0, z: 0, heading: 0, travel: 0, v}
+        ? {x: s, y: 0, z: 0, heading: 0, v}
         : arc
-          ? {x: 60 + R * Math.sin(a), y: R * (1 - Math.cos(a)), z: 0, heading: a, travel: a, v}
-          : {x: 60 - (s - 60 - Math.PI * R), y: 2 * R, z: 0, heading: Math.PI, travel: Math.PI, v};
+          ? {x: 60 + R * Math.sin(a), y: R * (1 - Math.cos(a)), z: 0, heading: a, v}
+          : {x: 60 - (s - 60 - Math.PI * R), y: 2 * R, z: 0, heading: Math.PI, v};
       const view = followStep(st, car, 1 / 60 / 1, rate, 7, 2.2, false);
       const seen = Math.atan2(car.y - view.camY, car.x - view.camX);
       if (t > 1) errs.push(Math.abs(Math.atan2(Math.sin(seen - car.heading), Math.cos(seen - car.heading))) * (180 / Math.PI));
@@ -62,7 +62,7 @@ describe('followStep', () => {
       const out: number[] = [];
       for (let i = 0; i < 600; i++) {
         const h = noiseRad * rnd();
-        const v = followStep(st, {x: i * 0.4, y: 0, z: 0, heading: h, travel: h, v: 25}, 1 / 60, 1, 7, 2.2, false);
+        const v = followStep(st, {x: i * 0.4, y: 0, z: 0, heading: h, v: 25}, 1 / 60, 1, 7, 2.2, false);
         out.push(Math.atan2(-v.camY, -(v.camX - i * 0.4)));
       }
       const mean = out.reduce((a, b) => a + b, 0) / out.length;
@@ -83,7 +83,7 @@ describe('followStep', () => {
   });
   it('a free turn puts the camera round the car at the same distance, and zoom scales that distance', () => {
     const st = newFollow();
-    const car: FollowCar = {x: 0, y: 0, z: 0, heading: 0, travel: 0, v: 20};
+    const car: FollowCar = {x: 0, y: 0, z: 0, heading: 0, v: 20};
     followStep(st, car, 1 / 60, 1, 7, 2.2, true);
     const side = followStep(st, car, 0, 1, 7, 2.2, false, {yaw: Math.PI / 2, pitch: 0, zoom: 1, resetting: false});
     expect(side.camX).toBeCloseTo(0, 6);
@@ -108,19 +108,12 @@ describe('followStep', () => {
   it('snaps at once for a seek or a pit teleport, and when told', () => {
     const st = newFollow();
     followStep(st, lap(0), 1 / 60, 1, 7, 2.2, false);
-    const far = {...lap(0), x: 900, y: 900, heading: 0, travel: 0};
+    const far = {...lap(0), x: 900, y: 900, heading: 0};
     const v = followStep(st, far, 1 / 60, 1, 7, 2.2, false);
     expect(v.camX).toBeCloseTo(893, 6);
     expect(v.camY).toBeCloseTo(900, 6);
-    const hard = followStep(st, {...far, heading: Math.PI, travel: Math.PI}, 1 / 60, 1, 7, 2.2, true);
+    const hard = followStep(st, {...far, heading: Math.PI}, 1 / 60, 1, 7, 2.2, true);
     expect(hard.camX).toBeCloseTo(907, 6);
-  });
-  it('turns to the body at a standstill and to the travel at speed', () => {
-    const still = followStep(newFollow(), {x: 0, y: 0, z: 0, heading: 0, travel: Math.PI / 2, v: 0}, 1 / 60, 1, 7, 2.2, true);
-    expect(still.camY).toBeCloseTo(0, 9);
-    const fast = followStep(newFollow(), {x: 0, y: 0, z: 0, heading: 0, travel: Math.PI / 2, v: 20}, 1 / 60, 1, 7, 2.2, true);
-    expect(fast.camX).toBeCloseTo(0, 9);
-    expect(fast.camY).toBeCloseTo(-7, 9);
   });
   it('a dragged camera keeps its angle round the car through every turn (the drag follows, it does not freeze)', () => {
     const st = newFollow();
@@ -128,11 +121,58 @@ describe('followStep', () => {
     // a full circle at 60 fps; the angle from the car's heading to the camera's view of it
     for (let i = 0; i < 400; i++) {
       const a = i * 0.02;
-      const car: FollowCar = {x: 100 * Math.sin(a), y: 100 * (1 - Math.cos(a)), z: 0, heading: a, travel: a, v: 30};
+      const car: FollowCar = {x: 100 * Math.sin(a), y: 100 * (1 - Math.cos(a)), z: 0, heading: a, v: 30};
       const v = followStep(st, car, 1 / 60, 1, 7, 2.2, i === 0, free);
       if (i < 30) continue;
       const seen = Math.atan2(car.y - v.camY, car.x - v.camX);
       expect(Math.atan2(Math.sin(seen - a), Math.cos(seen - a))).toBeCloseTo(1.2, 1);
     }
+  });
+  it('follows the body, not the motion: a car sliding backwards keeps the camera behind its body, never in front', () => {
+    const st = newFollow();
+    // the 2026-10-21 Sebring slide: body pointing +x, the car going -x at 32 m/s slowing to a stop over 7 s
+    let worst = 0;
+    for (let i = 0; i < 7 * 60; i++) {
+      const v = 32 * (1 - i / (7 * 60));
+      const car: FollowCar = {x: -v * (i / 60) / 2, y: 0, z: 0, heading: 0, v};
+      const view = followStep(st, car, 1 / 60, 1, 7, 2.2, i === 0);
+      const seen = Math.atan2(car.y - view.camY, car.x - view.camX);
+      worst = Math.max(worst, Math.abs(Math.atan2(Math.sin(seen), Math.cos(seen))));
+    }
+    expect(worst * (180 / Math.PI)).toBeLessThan(1);
+  });
+  it('a spin is followed by the body at a limited rate, never snapping (a spin under the limit stays within 90 degrees of the body)', () => {
+    for (const spin of [3, 6, 12]) {
+      const st = newFollow();
+      let worstOff = 0;
+      let worstRate = 0;
+      let last = NaN;
+      for (let i = 0; i < 3 * 60; i++) {
+        const h = spin * (i / 60);
+        const car: FollowCar = {x: 0, y: 0, z: 0, heading: h, v: 30};
+        const view = followStep(st, car, 1 / 60, 1, 7, 2.2, i === 0);
+        const seen = Math.atan2(car.y - view.camY, car.x - view.camX);
+        worstOff = Math.max(worstOff, Math.abs(Math.atan2(Math.sin(seen - h), Math.cos(seen - h))));
+        if (i > 0) worstRate = Math.max(worstRate, Math.abs(Math.atan2(Math.sin(seen - last), Math.cos(seen - last))) * 60);
+        last = seen;
+      }
+      // 3 rad/s is under the camera's 360 deg/s: it lags by rate x tau and never reaches the front; faster spins out-run it
+      if (spin <= 3) expect(worstOff * (180 / Math.PI)).toBeLessThan(90);
+      expect(worstRate * (180 / Math.PI)).toBeLessThan(361);
+    }
+  });
+  it('the lead is capped: in a 4 rad/s spin the camera trails the body by the lag less at most 0.35 rad of lead, never ahead of it', () => {
+    const st = newFollow();
+    let off = 0;
+    for (let i = 0; i < 180; i++) {
+      const h = 4 * (i / 60);
+      const car: FollowCar = {x: 0, y: 0, z: 0, heading: h, v: 30};
+      const v = followStep(st, car, 1 / 60, 1, 7, 2.2, i === 0);
+      const seen = Math.atan2(car.y - v.camY, car.x - v.camX);
+      off = Math.atan2(Math.sin(seen - h), Math.cos(seen - h));
+    }
+    // lag = rate x tau = 0.8 rad; an uncapped lead (3.85 rad/s x 0.2 = 0.77) would cancel it, the cap leaves 0.8 - 0.35
+    expect(off).toBeLessThan(-0.3);
+    expect(off).toBeGreaterThan(-0.9);
   });
 });

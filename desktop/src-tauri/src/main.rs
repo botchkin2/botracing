@@ -814,6 +814,7 @@ fn menu_state(
         lmu: &lmu,
         iracing: &iracing,
         cleanup_blocked,
+        cleanup_problems: &capture::prune_schedule::problems(),
     });
     let uploads_on = signed_in && !paused;
     menu::MenuState {
