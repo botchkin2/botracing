@@ -72,6 +72,7 @@ const fresh = () => ({
   ...initialSync,
 });
 
+
 class Device {
   snap: ReturnType<typeof fresh> = fresh();
   constructor(private server: Server) {}
@@ -87,7 +88,9 @@ class Device {
       removed: s.removed,
       version: s.version,
       pending: s.pending,
+      synced: s.synced,
       owner: s.owner,
+      byOwner: s.byOwner,
     };
   }
   act(fn: (store: ReturnType<typeof useFuelPresets.getState>) => void) {
@@ -95,10 +98,10 @@ class Device {
     fn(useFuelPresets.getState());
     this.leave();
   }
-  async sync() {
+  async sync(server: Server = this.server) {
     this.enter();
     try {
-      await syncPresets(depsFor(this.server));
+      await syncPresets(depsFor(server));
     } finally {
       this.leave();
     }
@@ -279,8 +282,74 @@ describe('offline', () => {
   });
 });
 
+describe('an edit on one device is not a conflict on the others', () => {
+  const sprint = (over: Partial<FuelPreset> = {}) =>
+    make('a', {name: 'Sprint', savedAt: at(20), ...over});
+
+  it('A edits and syncs, B (which only holds the old copy) syncs: B gets the edit and no copy appears anywhere', async () => {
+    phone.act(s => s.save(sprint()));
+    await phone.sync();
+    await pc.sync();
+    phone.act(s => s.save(sprint({mandatoryStops: 1, savedAt: at(22)})));
+    await phone.sync();
+    await pc.sync();
+    expect(pc.snap.presets).toHaveLength(1);
+    expect(pc.snap.presets[0]).toMatchObject({id: 'a', mandatoryStops: 1});
+    expect(pc.snap.pending).toBe(false);
+    await phone.sync();
+    expect(server.doc?.presets).toHaveLength(1);
+    expect(phone.snap.presets).toHaveLength(1);
+  });
+
+  it('B edits while the account did not: B keeps its edit, and A gets it without a copy', async () => {
+    phone.act(s => s.save(sprint()));
+    await phone.sync();
+    await pc.sync();
+    pc.act(s => s.save(sprint({name: 'Sprint 2', savedAt: at(22)})));
+    await pc.sync();
+    await phone.sync();
+    expect(phone.snap.presets).toHaveLength(1);
+    expect(phone.snap.presets[0].name).toBe('Sprint 2');
+    expect(server.doc?.presets).toHaveLength(1);
+  });
+
+  it('both edit it before either syncs: a real conflict, both kept, the newer under the id', async () => {
+    phone.act(s => s.save(sprint()));
+    await phone.sync();
+    await pc.sync();
+    phone.act(s => s.save(sprint({name: 'Phone edit', savedAt: at(22)})));
+    pc.act(s => s.save(sprint({name: 'PC edit', savedAt: at(21)})));
+    await phone.sync();
+    await pc.sync();
+    await phone.sync();
+    expect(pc.snap.presets).toHaveLength(2);
+    expect(pc.snap.presets.find(p => p.id === 'a')?.name).toBe('Phone edit');
+    expect(pc.snap.presets.find(p => p.id !== 'a')?.name).toBe('PC edit (copy)');
+    expect(phone.ids).toEqual(pc.ids);
+    expect(server.doc?.presets).toHaveLength(2);
+  });
+
+  it('several edits in a row on one device never plant a copy on the other', async () => {
+    phone.act(s => s.save(sprint()));
+    await phone.sync();
+    await pc.sync();
+    for (const [day, stops] of [
+      [21, 1],
+      [22, 2],
+      [23, 3],
+    ] as const) {
+      phone.act(s => s.save(sprint({mandatoryStops: stops, savedAt: at(day)})));
+      await phone.sync();
+      await pc.sync();
+    }
+    expect(pc.snap.presets).toHaveLength(1);
+    expect(pc.snap.presets[0].mandatoryStops).toBe(3);
+    expect(server.doc?.presets).toHaveLength(1);
+  });
+});
+
 describe('who the list belongs to', () => {
-  it('the first sign-in adopts the list; another person signing in on the device does not inherit it', () => {
+  it('the first sign-in adopts the list', () => {
     phone.act(s => {
       s.save(make('mine'));
       s.adoptOwner('uid-a');
@@ -289,7 +358,41 @@ describe('who the list belongs to', () => {
     expect(phone.ids).toEqual(['mine']);
     phone.act(s => s.adoptOwner('uid-a'));
     expect(phone.ids).toEqual(['mine']);
+  });
+
+  it('another person signing in starts empty and syncs on their own; the first person keeps their unsent presets for when they come back', async () => {
+    const serverB = new Server();
+    phone.act(s => {
+      s.save(make('mine'));
+      s.adoptOwner('uid-a');
+    });
+    expect(phone.snap.pending).toBe(true);
+    // B signs in on this device before A's list was ever sent
     phone.act(s => s.adoptOwner('uid-b'));
     expect(phone.snap).toMatchObject({presets: [], owner: 'uid-b', version: 0, pending: false});
+    await phone.sync(serverB);
+    expect(serverB.doc).toBeNull();
+    expect(server.doc).toBeNull();
+    // A comes back: the list and its pending flag are there, and it syncs to A's account
+    phone.act(s => s.adoptOwner('uid-a'));
+    expect(phone.ids).toEqual(['mine']);
+    expect(phone.snap.pending).toBe(true);
+    expect(Object.keys(phone.snap.byOwner)).toEqual(['uid-b']);
+    await phone.sync();
+    expect(server.doc?.presets.map(p => p.id)).toEqual(['mine']);
+    expect(phone.snap.pending).toBe(false);
+  });
+
+  it("what B saved on this device is B's alone", async () => {
+    const serverB = new Server();
+    phone.act(s => s.adoptOwner('uid-a'));
+    phone.act(s => s.adoptOwner('uid-b'));
+    phone.act(s => s.save(make('b-only')));
+    await phone.sync(serverB);
+    phone.act(s => s.adoptOwner('uid-a'));
+    expect(phone.ids).toEqual([]);
+    phone.act(s => s.adoptOwner('uid-b'));
+    expect(phone.ids).toEqual(['b-only']);
+    expect(serverB.doc?.presets.map(p => p.id)).toEqual(['b-only']);
   });
 });

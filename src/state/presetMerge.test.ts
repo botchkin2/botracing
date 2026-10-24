@@ -2,6 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type FuelPreset, newPreset} from './fuelPresets';
 import {
+  baseOf,
   mergePresets,
   type PresetList,
   removeFrom,
@@ -102,6 +103,50 @@ describe('mergePresets: a removal sticks', () => {
   it('the later of two tombstones for one id is kept', () => {
     const merged = mergePresets(list([], {a: at(22)}), list([], {a: at(23)}), NOW);
     expect(merged.removed).toEqual({a: at(23)});
+  });
+});
+
+describe('mergePresets: an edit is not a conflict (three-way, against what the device last saw)', () => {
+  const old = p('a', {name: 'Sprint', savedAt: at(20)});
+  const edited = p('a', {name: 'Sprint', mandatoryStops: 1, savedAt: at(22)});
+  const base = {a: at(20)};
+
+  it("the device holds the old copy the account edited: the account's edit, no copy", () => {
+    const merged = mergePresets(list([old]), list([edited]), NOW, base);
+    expect(merged.presets).toEqual([edited]);
+  });
+
+  it("the device edited and the account did not move: the device's edit, no copy", () => {
+    const merged = mergePresets(list([edited]), list([old]), NOW, base);
+    expect(merged.presets).toEqual([edited]);
+  });
+
+  it('both moved since the base: a real conflict, both kept', () => {
+    const theirs = p('a', {name: 'Theirs', savedAt: at(21)});
+    const merged = mergePresets(list([edited]), list([theirs]), NOW, base);
+    expect(merged.presets).toHaveLength(2);
+    expect(merged.presets.find(x => x.id === 'a')).toEqual(edited);
+  });
+
+  it('with no base (the first sync) a difference is a conflict and both are kept', () => {
+    expect(mergePresets(list([old]), list([edited]), NOW, {}).presets).toHaveLength(2);
+  });
+
+  it("baseOf is the account list's ids and save times", () => {
+    expect(baseOf([old, p('b', {savedAt: at(21)})])).toEqual({a: at(20), b: at(21)});
+  });
+});
+
+describe('mergePresets: times are compared as times, not as text', () => {
+  it('a tombstone in another time zone is not mis-ordered against a savedAt', () => {
+    // 10:00+02:00 is 08:00Z, before 09:00Z, though the text sorts after it
+    const saved = p('a', {savedAt: '2026-10-23T09:00:00Z'});
+    const kept = mergePresets(list([saved]), list([], {a: '2026-10-23T10:00:00+02:00'}), NOW);
+    expect(ids(kept)).toEqual(['a']);
+    expect(kept.removed).toEqual({});
+    // removed after it was saved stays removed
+    const gone = mergePresets(list([saved]), list([], {a: '2026-10-23T10:30:00Z'}), NOW);
+    expect(ids(gone)).toEqual([]);
   });
 });
 
