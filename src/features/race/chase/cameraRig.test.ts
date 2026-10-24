@@ -90,3 +90,39 @@ describe('camera rig', () => {
     for (let i = 0; i < 4; i++) expect(pose()[i]).toBeCloseTo(chase[i], 3);
   });
 });
+
+describe('camera rig: finite everywhere', () => {
+  // Every output is checked with Number.isFinite, not toEqual (which says NaN equals NaN): a frame of any length, in
+  // any mode, playing, paused or seeking, hands the camera a finite pose, field of view and orientation.
+  const DTS = [0, 1e-9, 1 / 240, 1 / 60, 0.05, 5, -0.01, NaN];
+  it.each([1, 2, 3, 4] as const)('mode %i: play, pause, seek, resume, at every dt', mode => {
+    for (const rate of [1, 4, 16]) {
+      const {camera, rig} = setup();
+      rig.mode = mode;
+      let x = 0;
+      for (const dt of DTS) {
+        for (const step of ['play', 'pause', 'pause', 'seek', 'pause', 'resume'] as const) {
+          if (step === 'seek') x += 1500;
+          if (step === 'play' || step === 'resume') x += 0.5 * rate;
+          rig.update(dt, car(x, 0), step === 'play' || step === 'resume', rate);
+          const p = camera.position;
+          for (const n of [p.x, p.y, p.z, camera.fov, camera.quaternion.x, camera.quaternion.w]) {
+            if (!Number.isFinite(n)) throw new Error(`mode ${mode} rate ${rate} dt ${dt} step ${step}: ${n}`);
+          }
+        }
+      }
+    }
+  });
+  it('a paused frame after a free drag, and the Reset ease with dt 0, stay finite', () => {
+    const {camera, rig} = setup();
+    for (let i = 0; i < 10; i++) rig.update(1 / 60, car(i, 0), true, 1);
+    rig.free.yaw = 2;
+    rig.free.pitch = 5;
+    rig.free.zoom = 40;
+    rig.free.resetting = true;
+    for (const dt of [0, 0, 1 / 60, 0, 5]) {
+      rig.update(dt, car(10, 0), false, 1);
+      for (const n of [camera.position.x, camera.position.y, camera.position.z, camera.fov]) expect(Number.isFinite(n)).toBe(true);
+    }
+  });
+});
