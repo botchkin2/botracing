@@ -29,7 +29,6 @@
 import {
   existsSync,
   mkdirSync,
-  readdirSync,
   readFileSync,
   writeFileSync,
 } from 'node:fs';
@@ -47,7 +46,15 @@ import {replaceFile} from './replaceFile.mjs';
 import {versionKey} from './versionKey.mjs';
 import {slugId} from './analyzeFromArchive.mjs';
 import {analysisVersion, blockVersions, trackMapVersion} from './analyze.mjs';
-import {markUploaded, markVerified, unverifiedMarks} from './captureMarker.mjs';
+import {
+  dropSessionIds,
+  foreignMissing,
+  liveMarks,
+  markUploaded,
+  markVerified,
+  unverifiedMarks,
+} from './captureMarker.mjs';
+import {describeCapture, onTrackSpanOf} from './lmuCapture.mjs';
 import {noteNoField} from './noField.mjs';
 import {describeCheck} from './irCapture.mjs';
 import {captureExtractFor, liveExtractSessions} from './captureExtractFor.mjs';
@@ -294,30 +301,72 @@ function keepBoundaries(trackId, state) {
   writeFileSync(boundariesPath(trackId), JSON.stringify(packState(state)));
 }
 
-// Sessions uploaded before the tray kept capture extracts, whose capture is
-// still on the PC: their extract goes up once, by itself, with no analysis
-// (pit-wall thread 1 #4611, #4613). Recorded in state.extracts so a session
-// is sent once.
-// Captures marked before the read-back existed, or whose read-back failed:
-// each listed session is read back again, so a capture that is stored stops
-// counting down to its 14-day deletion (prune.rs) and leaves Problems.
+// Captures marked before the read-back existed or whose read-back failed,
+// and captures live laps uploaded (which the live path never marks): each
+// session is read back, so a capture that is stored stops counting down to
+// its 14-day deletion (prune.rs) and leaves Problems.
 async function verifyMarked(store) {
   let verified = 0;
   let failed = 0;
-  for (const {name, sessionIds} of unverifiedMarks(captureRoot)) {
-    for (const id of sessionIds) {
-      const readBack = await store.verify(null, {sessionId: id});
-      if (markVerified(captureRoot, name, id, readBack)) verified++;
-      else {
-        failed++;
-        log(`  ${name}: ${id} not verified: ${readBack.reason}`);
+  const live = (root, name, id, readBack) =>
+    Boolean(readBack?.ok) &&
+    markUploaded(root, [name], id, {check: readBack}).length > 0;
+  for (const [marks, record] of [
+    [unverifiedMarks(captureRoot), markVerified],
+    [liveMarks(captureRoot, readLiveIndex(work)), live],
+  ]) {
+    for (const {name, sessionIds} of marks) {
+      const checks = [];
+      for (const id of sessionIds) {
+        const readBack = await store.verify(null, {sessionId: id});
+        checks.push({
+          id,
+          ok: Boolean(readBack?.ok),
+          missing:
+            !readBack?.ok &&
+            String(readBack?.reason ?? '').includes('is not in the store'),
+          readBack,
+        });
+      }
+      let span = null;
+      try {
+        span = onTrackSpanOf(
+          describeCapture(resolve(captureRoot, name)).stretches,
+        );
+      } catch {
+        span = null;
+      }
+      for (const row of checks) {
+        if (!row.ok || typeof store.getSession !== 'function') continue;
+        const id = row.readBack?.sessionId || row.id;
+        const doc = await store.getSession(id);
+        row.start = doc?.startedAt ?? null;
+        row.end = doc?.endedAt ?? null;
+      }
+      const drop = foreignMissing(checks, span);
+      const dropped = new Set(
+        dropSessionIds(captureRoot, name, drop) ? drop : [],
+      );
+      if (dropped.size)
+        log(`  ${name}: dropped ${drop.join(', ')} (not this owner)`);
+      for (const row of checks) {
+        if (dropped.has(row.id)) continue;
+        if (record(captureRoot, name, row.id, row.readBack)) verified++;
+        else {
+          failed++;
+          log(`  ${name}: ${row.id} not verified: ${row.readBack.reason}`);
+        }
       }
     }
   }
   if (verified || failed)
-    log(`read back marked captures: ${verified} verified, ${failed} not`);
+    log(`read back captures: ${verified} verified, ${failed} not`);
 }
 
+// Sessions uploaded before the tray kept capture extracts, whose capture is
+// still on the PC: their extract goes up once, by itself, with no analysis
+// (pit-wall thread 1 #4611, #4613). Recorded in state.extracts so a session
+// is sent once.
 async function uploadCaptureBacklog(sessions, state, store, liveIndex) {
   state.extracts ??= {};
   let sent = 0;
