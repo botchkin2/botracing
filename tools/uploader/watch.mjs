@@ -515,6 +515,7 @@ async function main() {
         recorder,
         refusals: watch.refusals,
         noField: Object.assign({}, ...SIMS.map(sim => readNoField(workOf(sim)))),
+        freeBytes,
         nowMs,
       }),
       // The tray writes this file when an update is downloaded (update.rs).

@@ -103,7 +103,19 @@ impl Rows {
     fn is_empty(&self) -> bool {
         self.player_ms.is_empty() && self.session_ms.is_empty()
     }
+
+    /// Player, session and field rows: what a lost chunk is counted in.
+    fn row_count(&self) -> (u64, u64, u64) {
+        (self.player_ms.len() as u64, self.session_ms.len() as u64, self.field_ms.len() as u64)
+    }
 }
+
+/// A chunk the disk refused is kept in memory and offered to the disk again with each later chunk for this
+/// long (the cut time of the chunk, in the recorder's clock); after that its rows are counted as lost.
+pub const RETAIN_MS: u64 = 60_000;
+
+/// A chunk whose write failed, handed back by the writer thread to try again.
+type Failed = (u64, u64, Rows);
 
 /// One chunk's write: its files, then meta.json; returns the bytes written.
 pub type Job = Box<dyn FnOnce() -> Result<u64, String> + Send>;
@@ -201,6 +213,10 @@ pub struct Capture {
     updates: i64,
     layout: Arc<Layout>,
     writer: ChunkWriter,
+    /// Where the writer thread returns a chunk it could not write, and the chunks waiting to be tried again.
+    retry_tx: Sender<Failed>,
+    retry_rx: Receiver<Failed>,
+    held: Vec<Failed>,
 }
 
 impl Capture {
@@ -244,6 +260,7 @@ impl Capture {
         all.insert("vehicleModels".into(), json!({}));
         all.extend(meta);
         let writer = ChunkWriter::start(delay_ms)?;
+        let (retry_tx, retry_rx) = channel();
         let cap = Capture {
             dir,
             meta: all,
@@ -254,6 +271,9 @@ impl Capture {
             updates: 0,
             layout: layout.clone(),
             writer,
+            retry_tx,
+            retry_rx,
+            held: Vec::new(),
         };
         cap.write_meta()?;
         Ok(cap)
@@ -261,6 +281,21 @@ impl Capture {
 
     fn write_meta(&self) -> Result<(), String> {
         write_json(&self.dir.join("meta.json"), &Value::Object(self.meta.clone()))
+    }
+
+    /// A chunk could not be written (a full disk): its rows are gone, earlier chunks stay, and the capture
+    /// goes on. Counted in meta.json, which is rewritten with the next chunk that does reach the disk.
+    pub fn note_write_failure(&mut self, why: &str) {
+        self.count("writeFailures", 1);
+        self.meta.insert("lastWriteError".into(), json!(why));
+    }
+
+    /// The recorder was not polled for this long (the PC slept, or the process was suspended): the
+    /// frames in between do not exist, and a reader can see why from the counter.
+    pub fn note_gap(&mut self, gap_ms: u64) {
+        self.count("gaps", 1);
+        let longest = self.meta.get("longestGapMs").and_then(Value::as_u64).unwrap_or(0);
+        self.meta.insert("longestGapMs".into(), json!(longest.max(gap_ms)));
     }
 
     /// One look of the scoring layout check: counted, never decisive. meta.json
@@ -344,24 +379,56 @@ impl Capture {
     /// gone, earlier chunks stay).
     pub fn flush(&mut self, ms: u64) -> Result<u64, String> {
         let finished = self.writer.finished();
+        self.retry_held(ms);
         if !self.rows.is_empty() {
             let n = self.chunks;
             self.chunks += 1;
             self.meta.insert("chunks".into(), json!(self.chunks));
             let rows = std::mem::take(&mut self.rows);
             self.updates = 0;
-            let (dir, layout, meta) = (self.dir.clone(), self.layout.clone(), self.meta.clone());
-            self.writer.send(Box::new(move || {
-                let bytes = write_chunk(&dir, &layout, n, &rows)?;
-                // Rewritten per chunk, so a capture cut short still has its car models.
-                write_json(&dir.join("meta.json"), &Value::Object(meta))?;
-                Ok(bytes)
-            }))?;
+            self.submit(n, ms, rows)?;
         }
         self.chunk_started_ms = ms;
         let written = finished?;
         self.bytes += written;
         Ok(written)
+    }
+
+    /// Hands one chunk to the writer. A chunk the disk refuses comes back (retry_rx) with its rows, to be
+    /// offered again at the next flush; only the successful job rewrites meta.json.
+    fn submit(&mut self, n: u64, cut_ms: u64, rows: Rows) -> Result<(), String> {
+        let (dir, layout, meta, back) = (self.dir.clone(), self.layout.clone(), self.meta.clone(), self.retry_tx.clone());
+        self.writer.send(Box::new(move || {
+            let outcome = write_chunk(&dir, &layout, n, &rows).and_then(|bytes| {
+                // Rewritten per chunk, so a capture cut short still has its car models.
+                write_json(&dir.join("meta.json"), &Value::Object(meta))?;
+                Ok(bytes)
+            });
+            if outcome.is_err() {
+                let _ = back.send((n, cut_ms, rows));
+            }
+            outcome
+        }))
+    }
+
+    /// The chunks the disk refused come back: those still inside RETAIN_MS are offered to it again, in their
+    /// own chunk numbers; older ones are given up and their rows counted as lost.
+    fn retry_held(&mut self, ms: u64) {
+        while let Ok(failed) = self.retry_rx.try_recv() {
+            self.held.push(failed);
+        }
+        for (n, cut_ms, rows) in std::mem::take(&mut self.held) {
+            if ms.saturating_sub(cut_ms) > RETAIN_MS {
+                let (p, s, f) = rows.row_count();
+                self.count("lostChunks", 1);
+                self.count("lostPlayerRows", p);
+                self.count("lostSessionRows", s);
+                self.count("lostFieldRows", f);
+            } else if self.submit(n, cut_ms, rows).is_err() {
+                // the writer is gone: nothing to hand it to (its rows went with the failed send)
+                self.count("lostChunks", 1);
+            }
+        }
     }
 
     /// Bytes of the chunks the writer finished since the last call, or its
@@ -378,6 +445,10 @@ impl Capture {
     pub fn close(&mut self, ms: u64) -> Result<u64, String> {
         let before = self.flush(ms)?;
         let rest = self.writer.finish()?;
+        // A last offer to the disk for what it refused, then what it still refuses is counted as lost.
+        self.retry_held(ms);
+        let rest = rest + self.writer.finish().unwrap_or(0);
+        self.retry_held(ms.saturating_add(RETAIN_MS + 1));
         self.bytes += rest;
         self.meta.insert("endUtc".into(), json!(iso(ms)));
         self.write_meta()?;
@@ -386,9 +457,15 @@ impl Capture {
 }
 
 impl Drop for Capture {
-    /// A capture dropped without close (the recorder refused it) still lets
-    /// its writer finish what it was given.
+    /// A capture dropped without close (the recorder refused it, or panicked and unwound) hands what it
+    /// still holds to the writer, then lets the writer finish: the rows of the last chunk are not lost
+    /// with it (pit wall thread 100, gauge #6918).
     fn drop(&mut self) {
+        if !self.rows.is_empty() {
+            let _ = self.flush(self.chunk_started_ms);
+        }
+        let _ = self.writer.finish();
+        self.retry_held(self.chunk_started_ms);
         let _ = self.writer.finish();
     }
 }

@@ -28,6 +28,8 @@ const PLAYER_LOOK_S: f64 = 0.2;
 /// A refused session is checked again after this, so a glitch while the game
 /// loads the field recovers instead of losing the whole session.
 const REFUSE_RETRY_MS: u64 = 10_000;
+/// Two polls further apart than this mean the PC slept or the process stalled (an idle poll waits 5 s).
+const GAP_MS: u64 = 15_000;
 const STATUS_MS: u64 = 30_000;
 /// Recount disk use while idle: the uploader prunes old captures.
 const RECOUNT_MS: u64 = 5 * 60_000;
@@ -58,6 +60,8 @@ pub struct Status {
     pub capture_bytes: u64,
     /// Share of the open capture's player frames missed, in percent.
     pub dropped_pct: f64,
+    /// The last chunk that could not be written (a full disk); None once one is on disk again.
+    pub write_error: Option<String>,
 }
 
 impl Status {
@@ -72,6 +76,7 @@ impl Status {
             session_dir: None,
             capture_bytes: 0,
             dropped_pct: 0.0,
+            write_error: None,
         }
     }
 
@@ -86,6 +91,7 @@ impl Status {
             "sessionDir": self.session_dir,
             "captureBytes": self.capture_bytes,
             "droppedPct": self.dropped_pct,
+            "writeError": self.write_error,
             "pid": std::process::id(),
             "updatedAt": iso(now),
         })
@@ -122,6 +128,7 @@ pub struct Recorder<S: Source> {
     /// The player's clock at the last layout look (PLAYER_LOOK_S apart).
     last_player_look: Option<f64>,
     last_game_check: Option<u64>,
+    last_tick_ms: Option<u64>,
     last_field: Option<(Vec<u8>, Vec<u8>, usize)>,
     /// (elapsed time, speed, position) of the last player frame.
     prev_motion: Option<(f64, f64, [f64; 3])>,
@@ -164,6 +171,7 @@ impl<S: Source> Recorder<S> {
             scoring_doubt: None,
             player_doubt: None,
             last_game_check: None,
+            last_tick_ms: None,
             last_field: None,
             prev_motion: None,
             frames: (0, 0),
@@ -240,7 +248,10 @@ impl<S: Source> Recorder<S> {
                     self.status.capture_bytes += bytes;
                     self.set(now, |s| s.last_chunk_at = Some(iso(now)));
                 }
-                Err(why) => self.refuse(now, self.key.clone(), &write_reason(&why)),
+                Err(why) => {
+                    let reason = write_reason(&why);
+                    self.set(now, |s| s.write_error = Some(reason));
+                }
             }
         }
         self.key = None;
@@ -276,6 +287,12 @@ impl<S: Source> Recorder<S> {
 
     /// One poll. Returns how long to sleep before the next.
     pub fn tick(&mut self, now: u64) -> Duration {
+        // A long gap between two polls: the PC slept or the process stalled. Counted in the capture.
+        if let (Some(last), Some(capture)) = (self.last_tick_ms.replace(now), self.capture.as_mut()) {
+            if now.saturating_sub(last) > GAP_MS {
+                capture.note_gap(now - last);
+            }
+        }
         if self.last_game_check.map_or(true, |at| now.saturating_sub(at) >= GAME_CHECK_MS) {
             self.last_game_check = Some(now);
             if !self.source.game_running() {
@@ -557,6 +574,7 @@ impl<S: Source> Recorder<S> {
             // lastChunkAt: when a chunk is on disk, not when it was cut.
             Ok(bytes) if bytes > 0 => {
                 self.status.capture_bytes += bytes;
+                self.status.write_error = None;
                 // The writer finishes chunks in order: a lap-end chunk handed
                 // over before this poll is on disk once anything is.
                 let lap = std::mem::take(&mut self.laps_pending) > 0;
@@ -568,9 +586,14 @@ impl<S: Source> Recorder<S> {
                 });
             }
             Ok(_) => self.set(now, |_| {}),
+            // A chunk that cannot be written costs that chunk, not the drive: the capture keeps recording,
+            // counts the loss, and the next chunk tries the disk again.
             Err(why) => {
-                let key = self.key.clone();
-                self.refuse(now, key, &write_reason(&why));
+                let reason = write_reason(&why);
+                if let Some(capture) = self.capture.as_mut() {
+                    capture.note_write_failure(&reason);
+                }
+                self.set(now, |s| s.write_error = Some(reason));
             }
         }
     }
@@ -996,7 +1019,7 @@ mod tests {
     }
 
     #[test]
-    fn a_disk_that_cannot_be_written_keeps_the_earlier_chunks_and_refuses() {
+    fn a_chunk_the_disk_refuses_costs_that_chunk_not_the_drive() {
         let (rig, mut rec) = Rig::new("diskfull");
         rig.field("Road Atlanta", 10, 5.0);
         rig.player("Road Atlanta", 5.0);
@@ -1004,22 +1027,139 @@ mod tests {
         // The first chunk is due at 61 s. Its player file name is taken by a
         // folder, so the write fails the way a full disk does.
         let folder = rig.folders().remove(0);
-        std::fs::create_dir_all(rig.root.join(&folder).join("player-0000.parquet")).unwrap();
+        let blocker = rig.root.join(&folder).join("player-0000.parquet");
+        std::fs::create_dir_all(&blocker).unwrap();
         rig.field("Road Atlanta", 10, 6.0);
         rig.player("Road Atlanta", 5.01);
         rec.tick(62_000);
         // The chunk is written on the writer thread: its failure reaches the
         // recorder on a later poll, not a rotation later.
         for i in 0..2_000 {
-            if rec.status.state == "refused" {
+            if rec.status.write_error.is_some() {
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(10));
             rec.tick(62_001 + i);
         }
-        assert_eq!(rec.status.state, "refused");
-        assert!(rec.status.layout_reason.contains("can't write"), "{}", rec.status.layout_reason);
-        assert_eq!(rig.meta(&folder)["endUtc"], Value::Null);
+        // The drive goes on: still recording, the loss is stated, not a refusal.
+        assert_eq!(rec.status.state, "recording");
+        assert!(rec.status.write_error.as_ref().unwrap().contains("can't write"), "{:?}", rec.status.write_error);
+        assert_eq!(rec.status.layout_ok, Some(true), "a full disk is not a layout fault");
+        let _ = std::fs::copy(rig.root.join("status.json"), rig.root.join("status-at-write-failure.json"));
+        // The disk comes back: the next chunk is written, the status clears, meta counts what was lost.
+        std::fs::remove_dir_all(&blocker).unwrap();
+        rig.field("Road Atlanta", 10, 7.0);
+        rig.player("Road Atlanta", 5.02);
+        rec.tick(130_000);
+        let mut meta = rig.meta(&folder);
+        for i in 0..2_000 {
+            if rec.status.write_error.is_none() && meta["chunks"].as_u64().unwrap_or(0) >= 2 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            rec.tick(130_001 + i);
+            meta = rig.meta(&folder);
+        }
+        assert_eq!(rec.status.write_error, None, "cleared once a chunk is on disk");
+        assert!(rig.root.join(&folder).join("player-0001.parquet").exists(), "the next chunk reached the disk");
+        assert_eq!(meta["writeFailures"], 1);
+        assert!(meta["lastWriteError"].as_str().unwrap().contains("can't write"));
+    }
+
+    /// The disk refuses chunk 0 (a folder holds its file name), then the next flush comes `next_ms` later.
+    fn refused_then_flush(tag: &str, remove_blocker: bool, next_ms: u64) -> (Rig, Recorder<Fake>, String, std::path::PathBuf) {
+        let (rig, mut rec) = Rig::new(tag);
+        rig.field("Road Atlanta", 10, 5.0);
+        rig.player("Road Atlanta", 5.0);
+        rec.tick(1_000);
+        let folder = rig.folders().remove(0);
+        let blocker = rig.root.join(&folder).join("player-0000.parquet");
+        std::fs::create_dir_all(&blocker).unwrap();
+        rig.field("Road Atlanta", 10, 6.0);
+        rig.player("Road Atlanta", 5.01);
+        rec.tick(62_000);
+        for i in 0..2_000 {
+            if rec.status.write_error.is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            rec.tick(62_001 + i);
+        }
+        assert!(rec.status.write_error.is_some(), "the refusal reached the recorder");
+        if remove_blocker {
+            std::fs::remove_dir_all(&blocker).unwrap();
+        }
+        rig.field("Road Atlanta", 10, 7.0);
+        rig.player("Road Atlanta", 5.02);
+        rec.tick(next_ms);
+        (rig, rec, folder, blocker)
+    }
+
+    #[test]
+    fn a_chunk_the_disk_refused_is_kept_and_written_when_the_disk_returns_within_the_minute() {
+        let (rig, mut rec, folder, blocker) = refused_then_flush("keepok", true, 122_000);
+        let mut meta = rig.meta(&folder);
+        for i in 0..2_000 {
+            if blocker.is_file() && rec.status.write_error.is_none() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            rec.tick(122_001 + i);
+            meta = rig.meta(&folder);
+        }
+        assert!(blocker.is_file(), "chunk 0 was written after all, with the rows it held");
+        assert_eq!(rec.status.write_error, None);
+        assert!(meta.get("lostChunks").is_none() || meta["lostChunks"] == 0, "nothing lost: {meta}");
+        assert_eq!(meta["writeFailures"], 1);
+    }
+
+    #[test]
+    fn a_chunk_the_disk_keeps_refusing_past_the_minute_is_counted_as_lost() {
+        let (rig, mut rec, folder, blocker) = refused_then_flush("keepbound", false, 190_000);
+        let mut meta = rig.meta(&folder);
+        for i in 0..2_000 {
+            if meta.get("lostChunks").is_some() && meta["lostChunks"] != 0 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            rec.tick(190_001 + i);
+            meta = rig.meta(&folder);
+        }
+        assert!(blocker.is_dir(), "still blocked: chunk 0 never reached the disk");
+        assert_eq!(rec.status.state, "recording", "the drive goes on");
+        assert!(meta["lostChunks"].as_u64().unwrap() >= 1, "{meta}");
+        assert!(meta["lostPlayerRows"].as_u64().unwrap() >= 1, "the rows truly lost are counted: {meta}");
+    }
+
+    #[test]
+    fn rows_a_capture_still_holds_when_it_is_dropped_reach_the_disk() {
+        // The recorder refused it, or panicked and unwound: the last chunk's rows are written, not lost.
+        let (rig, mut rec) = Rig::new("dropflush");
+        rig.field("Road Atlanta", 10, 5.0);
+        rig.player("Road Atlanta", 5.0);
+        rec.tick(1_000);
+        let folder = rig.folders().remove(0);
+        assert!(!rig.root.join(&folder).join("player-0000.parquet").exists(), "nothing is due yet");
+        drop(rec);
+        assert!(rig.root.join(&folder).join("player-0000.parquet").exists(), "the held rows were handed to the writer on drop");
+    }
+
+    #[test]
+    fn a_long_gap_between_polls_is_counted_in_the_capture() {
+        let (rig, mut rec) = Rig::new("gap");
+        rig.field("Road Atlanta", 10, 5.0);
+        rig.player("Road Atlanta", 5.0);
+        rec.tick(1_000);
+        rig.field("Road Atlanta", 10, 5.2);
+        rig.player("Road Atlanta", 5.2);
+        rec.tick(1_200); // a normal poll
+        rig.field("Road Atlanta", 10, 600.0);
+        rig.player("Road Atlanta", 600.0);
+        rec.tick(601_000); // ten minutes later: the PC slept
+        rec.shutdown(602_000);
+        let meta = rig.meta(&rig.folders()[0]);
+        assert_eq!(meta["gaps"], 1);
+        assert!(meta["longestGapMs"].as_u64().unwrap() >= 599_000, "{}", meta["longestGapMs"]);
     }
 
     #[test]

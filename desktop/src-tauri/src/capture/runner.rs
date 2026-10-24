@@ -49,6 +49,7 @@ pub fn line(l: &Line) -> String {
             "recording" if s.dropped_pct > 1.0 => {
                 format!("Recording ({:.0}% dropped)", s.dropped_pct)
             }
+            "recording" if s.write_error.is_some() => "Recording (a chunk could not be written)".into(),
             "recording" => "Recording".into(),
             "refused" => format!("Recorder: {}", s.layout_reason),
             "stopped" => "Recorder: stopped".into(),
