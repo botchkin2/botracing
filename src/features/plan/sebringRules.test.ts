@@ -102,6 +102,49 @@ describe('the Wed rules with no load known (a practice only, thread 104)', () =>
     expect(panel.tags).toEqual([]);
   });
 
+  it('counts the pit time of the stops with no load, from VE and his stop ratio: the same laps as with the 73 L load (chief #7166)', () => {
+    const laps = lapsOf(WED_RACE);
+    const base = (fuelL: number | null, stopRatioL: number | null): PlanRules => ({
+      name: 'rules',
+      lengthLaps: null,
+      lengthMin: 60,
+      fuelL,
+      vePct: 100,
+      formationLap: true,
+      mandatoryStops: 0,
+      stopRatioL,
+      formationFactor: {fuel: 1.19 / median(laps.map(l => l.fuelL)), ve: 0},
+    });
+    const pitModel = {baseS: 25, refuelLPerS: 3.39};
+    const withLoad = planRace(base(73, 0.609), laps, pitModel, 0.625);
+    const noLoad = planRace(base(null, 0.609), laps, pitModel, 0.625);
+    expect(withLoad.raceLaps?.pit).not.toBeNull();
+    expect(noLoad.raceLaps?.pit).not.toBeNull();
+    expect(noLoad.raceLaps?.estimate).toBe(withLoad.raceLaps?.estimate);
+    // the pit time is really counted: it takes a lap off the 30 of a plan with no pit model
+    expect(planRace(base(null, 0.609), laps, null, 0.625).raceLaps?.estimate).toBe(30);
+    expect(noLoad.raceLaps?.estimate).toBe(29);
+    // without a stop ratio no litres are known, so the stop counts its lane time only
+    const noRatio = planRace(base(null, null), laps, pitModel, 0.625);
+    expect(noRatio.raceLaps?.pit).toBeNull();
+    // the Set VE level is the same with and without the load
+    const levelOf = (plan: typeof noLoad, rules: PlanRules, loadL: number | null) => {
+      const cards = buildPlanCards(plan, rules, false, 0.625, 've', null);
+      const pit = pitPlan({plan, rules, fuelOnly: false, ratioPerPctL: 0.625, pitModel, windows: cards.stops.windows}, null)!;
+      return stopPanels(pit, {
+        sim: 'lmu',
+        meter: 've',
+        p90: {fuelL: plan.perLap.fuel?.p90 ?? null, vePct: plan.perLap.ve!.p90},
+        loadL,
+        fullVePct: 100,
+        stopRatio: 0.609,
+        lateFlag: plan.raceLaps?.oneMore != null,
+        pitModel,
+      })[0].value;
+    };
+    expect(levelOf(noLoad, base(null, 0.609), null)).toBe(levelOf(withLoad, base(73, 0.609), 73));
+  });
+
   it('nothing in litres is made up: no Max fuel cell, no fuel saving target, and the VE target stays (steward #7157, chief #7158)', () => {
     const laps = lapsOf(WED_RACE);
     const rules: PlanRules = {

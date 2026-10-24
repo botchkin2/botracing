@@ -43,11 +43,12 @@ export function usePlanData(
     start,
     ruleSet != null,
   );
-  const wantedL = baseRules?.rules.fuelL ?? null;
+  // the litres a % of VE adds at his stops: a stop's litres when no load is known
+  if (baseRules) baseRules.rules.stopRatioL = ruleSet?.stopRatio ?? null;
   const hist = usePlanHistory(
     combo,
     limits.limitsL,
-    wantedL,
+    baseRules != null,
     preset,
     limits.event?.sessionIds ?? null,
     limits.event?.rules ?? null,

@@ -144,7 +144,8 @@ export function sessionsWithLaps<S extends {id: string}>(
 export function usePlanHistory(
   combo: Combo | null,
   limitsL: (number | null | undefined)[],
-  wantedL: number | null,
+  /** The rules are known (a load, or VE alone): the history is read. */
+  rulesKnown: boolean,
   preset: FuelPreset | null,
   /** The sessions of the planned event, whose ratio the plan takes; unset, every session counts as in it. */
   eventIds: string[] | null = null,
@@ -153,7 +154,7 @@ export function usePlanHistory(
 ) {
   const rows = usePlanRows(combo);
   const history =
-    combo && wantedL != null
+    combo && rulesKnown
       ? historySessions(combo, limitsL, eventIds ?? [])
       : [];
   const planOf = (id: string) => rows.byId.get(id)?.plan ?? null;

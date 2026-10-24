@@ -41,7 +41,7 @@ export function PitPlanHalf({card, facts}: {card: PitCard; facts: RaceFacts}) {
   const hist = usePlanHistory(
     prior,
     limits.limitsL,
-    facts.limitL,
+    facts.limitL != null,
     null,
     limits.event?.sessionIds ?? null,
     limits.event?.rules ?? null,
