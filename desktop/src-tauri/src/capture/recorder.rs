@@ -1066,6 +1066,71 @@ mod tests {
         assert!(meta["lastWriteError"].as_str().unwrap().contains("can't write"));
     }
 
+    /// The disk refuses chunk 0 (a folder holds its file name), then the next flush comes `next_ms` later.
+    fn refused_then_flush(tag: &str, remove_blocker: bool, next_ms: u64) -> (Rig, Recorder<Fake>, String, std::path::PathBuf) {
+        let (rig, mut rec) = Rig::new(tag);
+        rig.field("Road Atlanta", 10, 5.0);
+        rig.player("Road Atlanta", 5.0);
+        rec.tick(1_000);
+        let folder = rig.folders().remove(0);
+        let blocker = rig.root.join(&folder).join("player-0000.parquet");
+        std::fs::create_dir_all(&blocker).unwrap();
+        rig.field("Road Atlanta", 10, 6.0);
+        rig.player("Road Atlanta", 5.01);
+        rec.tick(62_000);
+        for i in 0..2_000 {
+            if rec.status.write_error.is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            rec.tick(62_001 + i);
+        }
+        assert!(rec.status.write_error.is_some(), "the refusal reached the recorder");
+        if remove_blocker {
+            std::fs::remove_dir_all(&blocker).unwrap();
+        }
+        rig.field("Road Atlanta", 10, 7.0);
+        rig.player("Road Atlanta", 5.02);
+        rec.tick(next_ms);
+        (rig, rec, folder, blocker)
+    }
+
+    #[test]
+    fn a_chunk_the_disk_refused_is_kept_and_written_when_the_disk_returns_within_the_minute() {
+        let (rig, mut rec, folder, blocker) = refused_then_flush("keepok", true, 122_000);
+        let mut meta = rig.meta(&folder);
+        for i in 0..2_000 {
+            if blocker.is_file() && rec.status.write_error.is_none() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            rec.tick(122_001 + i);
+            meta = rig.meta(&folder);
+        }
+        assert!(blocker.is_file(), "chunk 0 was written after all, with the rows it held");
+        assert_eq!(rec.status.write_error, None);
+        assert!(meta.get("lostChunks").is_none() || meta["lostChunks"] == 0, "nothing lost: {meta}");
+        assert_eq!(meta["writeFailures"], 1);
+    }
+
+    #[test]
+    fn a_chunk_the_disk_keeps_refusing_past_the_minute_is_counted_as_lost() {
+        let (rig, mut rec, folder, blocker) = refused_then_flush("keepbound", false, 190_000);
+        let mut meta = rig.meta(&folder);
+        for i in 0..2_000 {
+            if meta.get("lostChunks").is_some() && meta["lostChunks"] != 0 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            rec.tick(190_001 + i);
+            meta = rig.meta(&folder);
+        }
+        assert!(blocker.is_dir(), "still blocked: chunk 0 never reached the disk");
+        assert_eq!(rec.status.state, "recording", "the drive goes on");
+        assert!(meta["lostChunks"].as_u64().unwrap() >= 1, "{meta}");
+        assert!(meta["lostPlayerRows"].as_u64().unwrap() >= 1, "the rows truly lost are counted: {meta}");
+    }
+
     #[test]
     fn rows_a_capture_still_holds_when_it_is_dropped_reach_the_disk() {
         // The recorder refused it, or panicked and unwound: the last chunk's rows are written, not lost.
