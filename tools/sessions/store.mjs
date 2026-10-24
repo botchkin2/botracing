@@ -392,6 +392,11 @@ async function supersedeSession(backend, oldId, byId, nowIso) {
   return {recordings: recordingIds.length, laps: lapIds.length};
 }
 
+/** The content hash of a lap doc's exact payload, before the write. */
+export function lapHash(lap) {
+  return createHash('sha1').update(JSON.stringify(lap)).digest('hex');
+}
+
 async function uploadSession(backend, out, {log = () => {}} = {}) {
   const {session} = out;
 
@@ -655,8 +660,26 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   const ops = [];
   for (const rec of out.recordings)
     ops.push({op: 'set', coll: 'recordings', id: rec.id, data: rec});
-  for (const lap of out.laps)
+  // A live session is analysed again on every lap and almost every lap doc
+  // comes out the same (pit wall thread 101): a lap whose payload hashes as
+  // the stored one, and whose doc is still there, is not written again.
+  const storedLapIds = new Set(await backend.sessionLapIds(session.id));
+  const lapHashes = {};
+  let lapsSkipped = 0;
+  for (const lap of out.laps) {
+    const hash = lapHash(lap);
+    lapHashes[lap.id] = hash;
+    if (
+      !out.healDefect &&
+      before?.lapHashes?.[lap.id] === hash &&
+      storedLapIds.has(lap.id)
+    ) {
+      lapsSkipped++;
+      continue;
+    }
     ops.push({op: 'set', coll: 'laps', id: lap.id, data: lap});
+  }
+  session.lapHashes = lapHashes;
   // A game-file build that replaces a live copy of the same drive in place
   // (heal.mjs): the stored recordings it covers, and their laps, are
   // tombstoned in the same batch; a stretch it lacks stays.
@@ -685,7 +708,7 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   // tombstoned by the ops above and must not also be deleted as leftovers.
   for (const id of healed?.protectedLapIds ?? []) keep.add(id);
   let dropped = 0;
-  for (const id of await backend.sessionLapIds(session.id)) {
+  for (const id of storedLapIds) {
     if (!keep.has(id)) {
       ops.push({op: 'delete', coll: 'laps', id});
       dropped++;
@@ -716,7 +739,9 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   log(
     `  firestore 1 session, ${out.recordings.length} recordings, ${
       out.laps.length
-    } laps${dropped ? `, dropped ${dropped}` : ''}`,
+    } laps${lapsSkipped ? ` (${lapsSkipped} unchanged)` : ''}${
+      dropped ? `, dropped ${dropped}` : ''
+    }`,
   );
 }
 
