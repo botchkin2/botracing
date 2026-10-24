@@ -249,6 +249,7 @@ function ChaseSurface({
   const canvasTop = tight ? topInset + size.hit + space.xs : 0;
   const bottomInset = space.sm + (full && !embedded ? 2 : 1) * (size.hit + space.xs);
   const canvasBottom = tight ? bottomInset : 0;
+  const turned = free && (cam === '1' || cam === '2');
   const toolStyle = [styles.tool, tight && styles.toolTight, {borderColor: color.lineStrong, backgroundColor: color.surface}];
 
   return (
@@ -275,11 +276,6 @@ function ChaseSurface({
       ) : null}
       <View style={[styles.cams, tight && styles.camsTight]}>
         <Segment options={CAMS} value={cam} onChange={setCam} />
-        {free && (cam === '1' || cam === '2') ? (
-          <Pressable accessibilityLabel='Reset the camera to chase' onPress={onReset} style={toolStyle}>
-            <Text variant='dataSmall'>Reset</Text>
-          </Pressable>
-        ) : null}
         {full && !embedded ? (
           <Pressable
             accessibilityLabel={playing ? 'Pause' : 'Play'}
@@ -333,6 +329,15 @@ function ChaseSurface({
           <ChaseTower rows={tower} mode={towerMode} onMode={setTowerMode} onPick={pick} tight={false} />
         </View>
       ) : null}
+      {turned && !listOpen ? (
+        // a drag keeps its angle until Reset, so a turned camera says so, in the accent colour, where the HUD does not reach
+        <Pressable
+          accessibilityLabel='Reset the camera to chase'
+          onPress={onReset}
+          style={[styles.turned, tight ? {top: canvasTop + space.xs, right: space.sm} : {left: space.sm, bottom: space.sm + size.hit + space.xs}, {borderColor: color.accent, backgroundColor: color.surface}]}>
+          <Text variant='dataSmall' tone='accentInk'>Camera turned · Reset</Text>
+        </Pressable>
+      ) : null}
       {strip.length > 0 ? (
         <View style={[styles.strip, {top: topInset}]}>
           <ChaseNearStrip rows={strip} open={listOpen} onToggle={() => setListOpen(o => !o)} onPick={pick} />
@@ -370,7 +375,7 @@ function ChaseSurface({
           ) : null}
           <View style={[styles.numbers, tight && styles.numbersTight, {backgroundColor: color.surface, borderColor: color.lineStrong}]}>
           {gaps ? (
-            <View style={styles.cell}>
+            <View style={[styles.cell, tight && styles.gapsTight]}>
               <Text variant='dataStrong'>{`${gaps.classTag} P${gaps.classPlace}`}</Text>
               <View style={styles.cell}>
                 <Text variant='dataSmall' tone='textMuted'>{`▲ ${gaps.aheadS === null ? '–' : formatGap(-gaps.aheadS, 1)}`}</Text>
@@ -433,6 +438,15 @@ const styles = StyleSheet.create({
   // A phone: the inputs in the bottom left corner, the numbers in the bottom right, the middle left to the car.
   dockTight: {left: space.sm, maxWidth: '100%', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between'},
   strip: {position: 'absolute', left: space.sm, right: space.sm},
+  turned: {
+    position: 'absolute',
+    zIndex: 3,
+    borderWidth: 1,
+    borderRadius: radius.sm,
+    paddingHorizontal: space.sm,
+    minHeight: size.hit,
+    justifyContent: 'center',
+  },
   scrim: {position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 1},
   list: {position: 'absolute', left: space.sm, right: space.sm, zIndex: 2},
   numbers: {
@@ -447,4 +461,6 @@ const styles = StyleSheet.create({
   },
   numbersTight: {marginLeft: 'auto', flexDirection: 'column', alignItems: 'flex-end', gap: space.xs, width: size.chaseNumbersTight, paddingVertical: space.xs},
   cell: {flexDirection: 'row', alignItems: 'baseline', gap: space.xs},
+  // The place on one line, the two gaps under it: the column is 128 pt wide and a gap row of seven characters must not be cut.
+  gapsTight: {flexDirection: 'column', alignItems: 'flex-end', gap: 0},
 });

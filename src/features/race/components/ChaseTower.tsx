@@ -35,11 +35,12 @@ export function ChaseTower({
       {rows.map(r => (
         <Pressable
           key={r.index}
-          accessibilityLabel={`Follow ${r.model}, place ${r.place}`}
+          accessibilityLabel={`Follow ${r.model}, ${r.classTag} place ${r.classPlace}`}
           onPress={() => onPick(r.index)}
           style={[styles.row, {height: rowH}, r.followed && {backgroundColor: color.accentTint}]}>
           <View style={[styles.bar, {backgroundColor: r.color}]} />
-          <Text variant='dataSmall' style={styles.place}>{String(r.place)}</Text>
+          <Text variant='dataSmall' tone='textMuted'>{r.classTag}</Text>
+          <Text variant='dataSmall' style={styles.place}>{String(r.classPlace)}</Text>
           <Text variant={r.followed ? 'dataStrong' : 'dataSmall'} numberOfLines={1} style={styles.model}>
             {r.model}
           </Text>
