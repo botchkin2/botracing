@@ -111,17 +111,6 @@ const epochSql = s =>
 const inEpoch = src =>
   `(SELECT x.*, coalesce(ep.e, 0) e FROM ${src} x ASOF LEFT JOIN ep ON x.wall_ms >= ep.w0)`;
 
-/**
- * The capture's recordings: one per stretch of mInRealtime on, in order.
- * Each has `key` (<folder>#<k>, stable as the capture grows), `info` (lmu.mjs
- * describe()'s shape), and `laps`: half-open [t0, t1) parts, the first from the
- * stretch start to the first crossing (partial), then crossing to crossing; a
- * stretch that has `ended` also lists its trailing part (partial). A lap still
- * being driven is not listed. `startMs`/`endMs`: the wall clock (epoch ms) of
- * the stretch's first and last row.
- * `lapTimeS` is the player's mLastLapTime just after the lap's closing
- * crossing, null when the game gave none and on partial parts.
- */
 /** Wall span of the laps: first realtime row to the last. Not meta start/end, which keeps the garage. */
 export function onTrackSpanOf(stretches) {
   let startMs = Infinity;
@@ -137,6 +126,17 @@ export function onTrackSpanOf(stretches) {
   };
 }
 
+/**
+ * The capture's recordings: one per stretch of mInRealtime on, in order.
+ * Each has `key` (<folder>#<k>, stable as the capture grows), `info` (lmu.mjs
+ * describe()'s shape), and `laps`: half-open [t0, t1) parts, the first from the
+ * stretch start to the first crossing (partial), then crossing to crossing; a
+ * stretch that has `ended` also lists its trailing part (partial). A lap still
+ * being driven is not listed. `startMs`/`endMs`: the wall clock (epoch ms) of
+ * the stretch's first and last row.
+ * `lapTimeS` is the player's mLastLapTime just after the lap's closing
+ * crossing, null when the game gave none and on partial parts.
+ */
 export function describeCapture(captureDir) {
   const files = chunks(captureDir);
   const meta = JSON.parse(readFileSync(join(captureDir, 'meta.json'), 'utf8'));

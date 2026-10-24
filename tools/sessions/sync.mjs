@@ -29,7 +29,6 @@
 import {
   existsSync,
   mkdirSync,
-  readdirSync,
   readFileSync,
   writeFileSync,
 } from 'node:fs';
@@ -337,12 +336,12 @@ async function verifyMarked(store) {
       } catch {
         span = null;
       }
-      for (const check of checks) {
-        if (!check.ok || typeof store.getSession !== 'function') continue;
-        const id = check.readBack?.sessionId || check.id;
+      for (const row of checks) {
+        if (!row.ok || typeof store.getSession !== 'function') continue;
+        const id = row.readBack?.sessionId || row.id;
         const doc = await store.getSession(id);
-        check.start = doc?.startedAt ?? null;
-        check.end = doc?.endedAt ?? null;
+        row.start = doc?.startedAt ?? null;
+        row.end = doc?.endedAt ?? null;
       }
       const drop = foreignMissing(checks, span);
       const dropped = new Set(
@@ -350,12 +349,12 @@ async function verifyMarked(store) {
       );
       if (dropped.size)
         log(`  ${name}: dropped ${drop.join(', ')} (not this owner)`);
-      for (const check of checks) {
-        if (dropped.has(check.id)) continue;
-        if (record(captureRoot, name, check.id, check.readBack)) verified++;
+      for (const row of checks) {
+        if (dropped.has(row.id)) continue;
+        if (record(captureRoot, name, row.id, row.readBack)) verified++;
         else {
           failed++;
-          log(`  ${name}: ${check.id} not verified: ${check.readBack.reason}`);
+          log(`  ${name}: ${row.id} not verified: ${row.readBack.reason}`);
         }
       }
     }
