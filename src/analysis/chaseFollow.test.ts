@@ -161,13 +161,18 @@ describe('followStep', () => {
       expect(worstRate * (180 / Math.PI)).toBeLessThan(361);
     }
   });
-  it('the lead is capped so a spin cannot throw the camera ahead of the body', () => {
+  it('the lead is capped: in a 4 rad/s spin the camera trails the body by the lag less at most 0.35 rad of lead, never ahead of it', () => {
     const st = newFollow();
-    for (let i = 0; i < 120; i++) followStep(st, {x: 0, y: 0, z: 0, heading: 12 * (i / 60), v: 30}, 1 / 60, 1, 7, 2.2, i === 0);
-    const car: FollowCar = {x: 0, y: 0, z: 0, heading: 12 * 2, v: 30};
-    const v = followStep(st, car, 1 / 60, 1, 7, 2.2, false);
-    const seen = Math.atan2(car.y - v.camY, car.x - v.camX);
-    const ahead = Math.atan2(Math.sin(seen - car.heading), Math.cos(seen - car.heading));
-    expect(ahead).toBeLessThan(0.36 + 1e-9); // lead cap 0.35 rad; the camera never gets further ahead than that
+    let off = 0;
+    for (let i = 0; i < 180; i++) {
+      const h = 4 * (i / 60);
+      const car: FollowCar = {x: 0, y: 0, z: 0, heading: h, v: 30};
+      const v = followStep(st, car, 1 / 60, 1, 7, 2.2, i === 0);
+      const seen = Math.atan2(car.y - v.camY, car.x - v.camX);
+      off = Math.atan2(Math.sin(seen - h), Math.cos(seen - h));
+    }
+    // lag = rate x tau = 0.8 rad; an uncapped lead (3.85 rad/s x 0.2 = 0.77) would cancel it, the cap leaves 0.8 - 0.35
+    expect(off).toBeLessThan(-0.3);
+    expect(off).toBeGreaterThan(-0.9);
   });
 });
