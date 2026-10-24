@@ -14,6 +14,8 @@ import {
   MARKER,
   capturesRead,
   liveMarks,
+  dropSessionIds,
+  foreignMissing,
   markUploaded,
   markVerified,
   unverifiedMarks,
@@ -174,4 +176,48 @@ test('a capture live laps uploaded is listed until its sessions are verified', (
   ]);
   assert.deepEqual(liveMarks(root, undefined), []);
   rmSync(root, {recursive: true, force: true});
+});
+
+test('a foreign id is dropped once another id on the marker verifies', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'marker-'));
+  capture(root, 'a');
+  markUploaded(root, ['a'], 'own');
+  markUploaded(root, ['a'], 'foreign');
+  const drop = foreignMissing([
+    {id: 'own', ok: true, missing: false},
+    {id: 'foreign', ok: false, missing: true},
+  ]);
+  assert.deepEqual(drop, ['foreign']);
+  assert.equal(dropSessionIds(root, 'a', drop), true);
+  assert.equal(
+    markVerified(root, 'a', 'own', {ok: true, laps: 22, fieldHash: 'abc'}),
+    true,
+  );
+  const marker = JSON.parse(readFileSync(resolve(root, 'a', MARKER), 'utf8'));
+  assert.deepEqual(marker.sessionIds, ['own']);
+  assert.equal(marker.sessionId, 'own');
+  assert.deepEqual(Object.keys(marker.verified), ['own']);
+  assert.equal(marker.verified.own.laps, 22);
+  rmSync(root, {recursive: true, force: true});
+});
+
+test('an absent id stays when nothing else on the marker verified', () => {
+  assert.deepEqual(
+    foreignMissing([{id: 'foreign', ok: false, missing: true}]),
+    [],
+  );
+  assert.deepEqual(
+    foreignMissing([
+      {id: 'own', ok: false, missing: false},
+      {id: 'foreign', ok: false, missing: true},
+    ]),
+    [],
+  );
+  assert.deepEqual(
+    foreignMissing([
+      {id: 'own', ok: true, missing: false},
+      {id: 'foreign', ok: false, missing: false},
+    ]),
+    [],
+  );
 });

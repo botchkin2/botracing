@@ -48,6 +48,8 @@ import {versionKey} from './versionKey.mjs';
 import {slugId} from './analyzeFromArchive.mjs';
 import {analysisVersion, blockVersions, trackMapVersion} from './analyze.mjs';
 import {
+  dropSessionIds,
+  foreignMissing,
   liveMarks,
   markUploaded,
   markVerified,
@@ -314,12 +316,30 @@ async function verifyMarked(store) {
     [liveMarks(captureRoot, readLiveIndex(work)), live],
   ]) {
     for (const {name, sessionIds} of marks) {
+      const checks = [];
       for (const id of sessionIds) {
         const readBack = await store.verify(null, {sessionId: id});
-        if (record(captureRoot, name, id, readBack)) verified++;
+        checks.push({
+          id,
+          ok: Boolean(readBack?.ok),
+          missing:
+            !readBack?.ok &&
+            String(readBack?.reason ?? '').includes('is not in the store'),
+          readBack,
+        });
+      }
+      const drop = foreignMissing(checks);
+      const dropped = new Set(
+        dropSessionIds(captureRoot, name, drop) ? drop : [],
+      );
+      if (dropped.size)
+        log(`  ${name}: dropped ${drop.join(', ')} (not this owner)`);
+      for (const check of checks) {
+        if (dropped.has(check.id)) continue;
+        if (record(captureRoot, name, check.id, check.readBack)) verified++;
         else {
           failed++;
-          log(`  ${name}: ${id} not verified: ${readBack.reason}`);
+          log(`  ${name}: ${check.id} not verified: ${check.readBack.reason}`);
         }
       }
     }

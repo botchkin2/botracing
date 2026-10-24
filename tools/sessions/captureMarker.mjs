@@ -124,6 +124,50 @@ export function liveMarks(root, liveIndex) {
  * Records a read-back for one session already in a capture's marker, leaving
  * its sessionId and uploadedUtc as they were. Returns whether it wrote.
  */
+/**
+ * Ids a read-back could not see because they are not in this owner's store.
+ * Dropped only when another id on the same marker verified, so a marker that
+ * also names another account (thread 100, a seat-test sync) can still count
+ * as stored. A failure that is not "absent" stays: that id may be his.
+ * `checks` are {id, ok, missing}.
+ */
+export function foreignMissing(checks) {
+  if (!checks?.some(c => c.ok)) return [];
+  return checks.filter(c => !c.ok && c.missing).map(c => c.id);
+}
+
+/**
+ * Removes `ids` from one capture's marker. Leaves the file in place, and
+ * leaves it unchanged when that would remove every session. uploadedUtc stays,
+ * so the marker's clock does not move.
+ */
+export function dropSessionIds(root, name, ids) {
+  const drop = new Set((ids ?? []).filter(Boolean));
+  if (drop.size === 0) return false;
+  const file = resolve(root, name, MARKER);
+  if (!existsSync(file)) return false;
+  const marker = JSON.parse(readFileSync(file, 'utf8'));
+  const had = Array.isArray(marker.sessionIds)
+    ? marker.sessionIds
+    : marker.sessionId
+      ? [marker.sessionId]
+      : [];
+  const sessionIds = had.filter(id => id && !drop.has(id));
+  if (sessionIds.length === 0 || sessionIds.length === had.length) return false;
+  const verified = {...(marker.verified ?? {})};
+  for (const id of drop) delete verified[id];
+  const sessionId = sessionIds.includes(marker.sessionId)
+    ? marker.sessionId
+    : sessionIds[sessionIds.length - 1];
+  const tmp = `${file}.tmp`;
+  writeFileSync(
+    tmp,
+    JSON.stringify({...marker, sessionId, sessionIds, verified}),
+  );
+  renameSync(tmp, file);
+  return true;
+}
+
 export function markVerified(root, name, sessionId, check, now = new Date()) {
   const file = resolve(root, name, MARKER);
   if (!check?.ok || !existsSync(file)) return false;
