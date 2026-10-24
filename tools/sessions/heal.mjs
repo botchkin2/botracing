@@ -142,12 +142,9 @@ function overlaps(a, b) {
 }
 
 /**
- * Built recordings the stored session has no pair for. A pair is the same id,
- * a start within PAIR_WITHIN_S, or any wall-clock overlap: the shared laps
- * stay the stored ones. The seconds a built recording runs before that overlap
- * are `uncoveredPrefixS` (the 10-21 Sebring files start 52 s and 66 s before
- * the recorder). Those seconds sit inside the first lap, so they are not a
- * recording of their own and are not uploaded here.
+ * Built recordings whose start is not already a stored recording (same id, or
+ * within PAIR_WITHIN_S). Overlap is not enough: a file can start minutes
+ * earlier and still overlap, and the laps in that head are new (lapsToAdd).
  */
 export function recordingsToAdd(stored, built) {
   return built.filter(b => {
@@ -155,9 +152,30 @@ export function recordingsToAdd(stored, built) {
     const span = spanMs(b);
     return !stored.some(s => {
       const other = spanMs(s);
-      if (Math.abs(other.at - span.at) <= PAIR_WITHIN_S * 1000) return true;
-      return overlaps(span, other);
+      return Math.abs(other.at - span.at) <= PAIR_WITHIN_S * 1000;
     });
+  });
+}
+
+/**
+ * Built laps the stored recordings do not already cover. A lap that ends
+ * before the stored stretch starts is kept. A lap that overlaps it is not
+ * added, and the stored laps stay. Wall time is the recording's `recordedAt`
+ * plus the lap clock minus the recording's `startT`.
+ */
+export function lapsToAdd(stored, built, laps) {
+  const spans = stored.map(spanMs).filter(s => Number.isFinite(s.at) && s.end > s.at);
+  const byId = new Map(built.map(b => [b.id, b]));
+  return laps.filter(lap => {
+    const rec = byId.get(lap.recordingId);
+    if (!rec) return false;
+    const base = Date.parse(rec.recordedAt);
+    const origin = Number(rec.startT ?? 0);
+    const start = base + (Number(lap.startT) - origin) * 1000;
+    const end = base + (Number(lap.endT) - origin) * 1000;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start)
+      return false;
+    return !spans.some(s => start < s.end && end > s.at);
   });
 }
 

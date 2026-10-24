@@ -38,7 +38,7 @@ import {stampNewer, withKept} from './versionKey.mjs';
 import {captureExtractPath} from './captureExtract.mjs';
 import {resultsInputPath} from './resultsInput.mjs';
 import {guardedWriter} from './docShape.mjs';
-import {healPlan, recordingsToAdd} from './heal.mjs';
+import {healPlan, lapsToAdd, uncoveredPrefixS} from './heal.mjs';
 import {LIVE_STAMP} from './liveSession.mjs';
 import {packState} from './layoutBoundaries.mjs';
 import {trafficMedians} from '../../src/analysis/traffic.ts';
@@ -662,17 +662,17 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
         ids.map(async id => ({id, ...(await backend.getDoc('recordings', id))})),
       )
     ).filter(r => r.recordedAt);
-    const extra = new Set(
-      recordingsToAdd(storedRecs, out.recordings).map(r => r.id),
-    );
+    const prefix = uncoveredPrefixS(storedRecs, out.recordings);
+    out.laps = lapsToAdd(storedRecs, out.recordings, out.laps);
+    const extra = new Set(out.laps.map(l => l.recordingId));
     out.recordings = out.recordings.filter(r => extra.has(r.id));
-    out.laps = out.laps.filter(l => extra.has(l.recordingId));
     session.recordingIds = [
       ...new Set([...ids, ...out.recordings.map(r => r.id)]),
     ];
     out.keepStoredLaps = true;
     log(
-      `  heal lack: ${out.recordings.length} stretch(es) the live copy did not have`,
+      `  heal lack: ${out.laps.length} lap(s) the live copy did not have` +
+        (prefix ? `, ${prefix.seconds}s before the recorder` : ''),
     );
   }
 

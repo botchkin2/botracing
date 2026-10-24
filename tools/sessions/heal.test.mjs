@@ -6,6 +6,7 @@ import {
   claimCoveredSessions,
   confirmAdoptions,
   recordingsToAdd,
+  lapsToAdd,
   uncoveredPrefixS,
   coveredCopies,
   healPlan,
@@ -150,17 +151,28 @@ test('a usable live cover claims the game file and adds only the stretch it lack
   ];
   assert.deepEqual(recordingsToAdd(stored, built).map(r => r.id), ['game-extra']);
   // The game file starts before the recorder and then covers the same stretch.
-  // The shared laps stay the stored ones. The head start is reported, not
-  // uploaded: on the 10-21 Sebring files it is the first part of lap 0.
-  const early = [
-    {id: 'game-early', recordedAt: at(0), durationSec: 582},
+  const early = [{id: 'game-early', recordedAt: at(0), durationSec: 1054, startT: 0}];
+  const live = [{id: 'live-rec', recordedAt: at(244), durationSec: 800, startT: 0}];
+  assert.deepEqual(uncoveredPrefixS(live, early), {id: 'game-early', seconds: 244});
+  const laps = [
+    {id: 'game-early-000', recordingId: 'game-early', startT: 0, endT: 50},
+    {id: 'game-early-001', recordingId: 'game-early', startT: 50, endT: 179},
+    {id: 'game-early-002', recordingId: 'game-early', startT: 179, endT: 400},
   ];
-  const live = [{id: 'live-rec', recordedAt: at(52), durationSec: 530}];
-  assert.deepEqual(recordingsToAdd(live, early), []);
-  assert.deepEqual(uncoveredPrefixS(live, early), {
-    id: 'game-early',
-    seconds: 52,
-  });
+  // Two laps finish before the recorder. The one that crosses into it is not added.
+  assert.deepEqual(
+    lapsToAdd(live, early, laps).map(l => l.id),
+    ['game-early-000', 'game-early-001'],
+  );
+  // 52 s of the out lap, and the lap continues after the recorder starts: nothing new to add.
+  const head = [{id: 'game-head', recordedAt: at(0), durationSec: 582, startT: 0}];
+  const rec = [{id: 'live-rec', recordedAt: at(52), durationSec: 530, startT: 0}];
+  assert.deepEqual(
+    lapsToAdd(rec, head, [
+      {id: 'game-head-000', recordingId: 'game-head', startT: 0, endT: 73},
+    ]),
+    [],
+  );
 });
 
 test('the upload tombstones what it replaces, keeps the lone stretch and its laps, and hides both from the leftover cleanup', async () => {
