@@ -206,6 +206,40 @@ describe('the plan for his two real races at one track', () => {
     expect(level - 14 * wed.plan.perLap.ve!.p90).toBeGreaterThanOrEqual(1);
   });
 
+  it('with his pit model (25 s + 3.39 L/s) the Wed plan is 29 laps and the stop reads Set VE 77 %, at least 1 % left at the flag', () => {
+    const laps = lapsOf(WED_RACE);
+    const rules: PlanRules = {
+      name: 'rules',
+      lengthLaps: null,
+      lengthMin: 60,
+      fuelL: 73,
+      vePct: 100,
+      formationLap: true,
+      mandatoryStops: 0,
+      stopRatioL: 0.609,
+      formationFactor: {fuel: 1.19 / median(laps.map(l => l.fuelL)), ve: 0},
+    };
+    const pitModel = {baseS: 25, refuelLPerS: 3.39};
+    const plan = planRace(rules, laps, pitModel, 0.625);
+    expect(plan.raceLaps?.estimate).toBe(29);
+    const cards = buildPlanCards(plan, rules, false, 0.625, 've', null);
+    const pit = pitPlan({plan, rules, fuelOnly: false, ratioPerPctL: 0.625, pitModel, windows: cards.stops.windows}, null)!;
+    const [panel] = stopPanels(pit, {
+      sim: 'lmu',
+      meter: 've',
+      p90: {fuelL: plan.perLap.fuel!.p90, vePct: plan.perLap.ve!.p90},
+      loadL: 73,
+      fullVePct: 100,
+      stopRatio: 0.609,
+      lateFlag: plan.raceLaps?.oneMore != null,
+      pitModel,
+    });
+    // 29 laps, the stop after L17: 12 laps after it plus the late-flag lap = 13 x 5.8 + 1 floor = 76.4 -> 77
+    expect(pit.stops[0].after).toBe(17);
+    expect(panel.value).toBe('Set VE 77 %');
+    expect(77 - 13 * plan.perLap.ve!.p90).toBeGreaterThanOrEqual(1);
+  });
+
   it('the fuel-limited flag on the Wed stop: fuel needs 68 % against VE 83 %, so it is not set', () => {
     const arrive = wed.pit.stints[0].left;
     const fuelNeed =
