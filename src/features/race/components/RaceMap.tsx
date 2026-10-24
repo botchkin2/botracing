@@ -307,7 +307,7 @@ export function RaceMap({
             onChange={onMode}
           />
         ) : null}
-        {onLabels ? (
+        {onLabels && !chasing ? (
           <Segment options={LABEL_OPTIONS} value={labels} onChange={onLabels} />
         ) : null}
       </View>
