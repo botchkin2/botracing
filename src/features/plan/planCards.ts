@@ -228,10 +228,12 @@ function loadText(
   fuelL: number | null,
   vePct: number | null,
   shown: Unit,
-  fullLoadL: number,
+  /** The full load in litres; null when it is not known (VE alone: no litres are shown). */
+  fullLoadL: number | null,
 ): string | null {
   if (shown === 'fuel') return fuelL == null ? null : `${Math.round(fuelL)} L`;
   if (vePct == null) return null;
+  if (fullLoadL == null) return `${Math.round(vePct)} % VE`;
   return `${Math.round(vePct)} % VE (${Math.round(
     (vePct * fullLoadL) / 100,
   )} L)`;
@@ -269,9 +271,10 @@ function startLoadOf(
   if (first == null || plan.atP90.stops == null || plan.atP90.stops < 1)
     return null;
   const formation = formationLaps(rules);
-  const fuelL = fuel
-    ? Math.min(rules.fuelL, (first + formation.fuel) * fuel.p90)
-    : null;
+  const fuelL =
+    fuel && rules.fuelL != null
+      ? Math.min(rules.fuelL, (first + formation.fuel) * fuel.p90)
+      : null;
   const vePct =
     ve && !fuelOnly
       ? Math.min(rules.vePct, (first + formation.ve) * ve.p90)
@@ -290,11 +293,12 @@ function tankCard(
   rules: PlanRules,
   fuelOnly: boolean,
   unit: Unit,
-  loadKnown = true,
 ): TankCard {
   const {fuel, ve} = plan.perLap;
   const meters: TankMeter[] = [];
-  if (fuel && loadKnown)
+  // no load known (a practice only): VE alone limits the stint, no fuel is compared (thread 104)
+  const loadKnown = rules.fuelL != null;
+  if (fuel && rules.fuelL != null)
     meters.push({
       key: 'fuel',
       lapsMedian: rules.fuelL / fuel.median,
@@ -359,7 +363,7 @@ export function stopRow(
 ): StopRow {
   const formation = formationLaps(rules);
   const fuelOf = (i: number) =>
-    fuelPerLap == null
+    fuelPerLap == null || rules.fuelL == null
       ? null
       : Math.min(
           rules.fuelL,
@@ -438,6 +442,8 @@ function lateFlagNote(
     ? late.atP90.vePct == null
       ? null
       : `${(rules.vePct / (safeLaps + formation.ve)).toFixed(2)} % a lap`
+    : rules.fuelL == null
+    ? null
     : `${(rules.fuelL / (safeLaps + formation.fuel)).toFixed(2)} L a lap`;
   return atMost == null ? `${base}.` : `${base}, or at most ${atMost}.`;
 }
@@ -652,12 +658,10 @@ export function buildPlanCards(
   unit: Unit = 've',
   /** The refuel rate (pitBase.ts refuelRateFor); null shows litres, not seconds. */
   rate: RefuelRate | null = null,
-  /** False when the load is not known (a practice only): VE alone limits the stint, no fuel is compared (thread 104). */
-  loadKnown = true,
 ): PlanCards {
   return {
     race: raceCard(plan, rules, unit, fuelOnly),
-    tank: tankCard(plan, rules, fuelOnly, unit, loadKnown),
+    tank: tankCard(plan, rules, fuelOnly, unit),
     stops: stopsCard(plan, rules, fuelOnly, ratioPerPctL, unit, rate),
   };
 }

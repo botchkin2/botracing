@@ -19,6 +19,8 @@ const rules: PlanRules = {
   formationLap: true,
   mandatoryStops: 0,
 };
+// The load of these rules, known: the planner reads it as a number or null (unknown).
+const LOAD_L = 100;
 const lap = (fuelL: number, vePct: number | null): GreenLap => ({
   fuelL,
   vePct,
@@ -357,8 +359,8 @@ describe('buildPlanCards', () => {
     // What the tank holds on arrival and what the remaining laps need, at p90.
     const fuelLeft = Math.max(
       0,
-      rules.fuelL -
-        Math.min(rules.fuelL, (full.stintLaps[i] + form) * fuel!.p90),
+      LOAD_L -
+        Math.min(LOAD_L, (full.stintLaps[i] + form) * fuel!.p90),
     );
     const veLeft = Math.max(
       0,
@@ -375,7 +377,7 @@ describe('buildPlanCards', () => {
     // Sized at the median use it would have been smaller (the bug parc found).
     const medianNeed = Math.max(
       remaining * fuel!.median -
-        Math.max(0, rules.fuelL - (full.stintLaps[i] + form) * fuel!.median),
+        Math.max(0, LOAD_L - (full.stintLaps[i] + form) * fuel!.median),
       (remaining * ve!.median -
         Math.max(0, rules.vePct - (full.stintLaps[i] + form) * ve!.median)) *
         RATIO,

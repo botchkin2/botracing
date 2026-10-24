@@ -44,8 +44,8 @@ export type StopTargetInput = {
   lateFlag: boolean;
   /** Use per lap at p90; the meter's own must be there. */
   p90: {fuelL: number | null; vePct: number | null};
-  /** The most fuel he has run in the rule set: the cap of a litre setting. */
-  loadL: number;
+  /** The most fuel he has run in the rule set: the cap of a litre setting. Null when the load is not known: VE alone sizes the level and no fuel is checked. */
+  loadL: number | null;
   /** A full VE load, % (100 unless the event caps it). */
   fullVePct: number;
   /** Litres one 1 % VE adds at a stop (his own stops); null when no stop was measured. */
@@ -54,8 +54,6 @@ export type StopTargetInput = {
   arrive: readonly (number | null)[];
   /** What the car arrives with at each stop in litres; null where not known. */
   arriveFuelL: readonly (number | null)[];
-  /** False when the load is not known: VE alone sizes the level and no fuel is checked. */
-  fuelCheck?: boolean;
 };
 
 /** One target per stop, in stop order; none without the meter's p90 use. */
@@ -77,7 +75,7 @@ export function stopTargets(input: StopTargetInput): StopTarget[] {
       // The level that puts in the litres the laps burn over what is left:
       // the arrival plus the shortfall over the litres one % adds here.
       const fuelNeed =
-        input.fuelCheck === false ||
+        loadL == null ||
         p90.fuelL == null ||
         stopRatio == null ||
         !(stopRatio > 0) ||
@@ -91,7 +89,7 @@ export function stopTargets(input: StopTargetInput): StopTarget[] {
       need = Math.max(veNeed, fuelNeed);
       cap = fullVePct;
     } else {
-      if (p90.fuelL == null) return [];
+      if (p90.fuelL == null || loadL == null) return [];
       need = lapsAfter * p90.fuelL;
       cap = loadL;
     }

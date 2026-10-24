@@ -5,6 +5,8 @@ import {type GreenLap, planRace, type PlanRules} from '@/src/analysis/fuelPlan';
 import {pitPlan} from './pitPlan';
 import {buildPlanCards} from './planCards';
 import {TUE_RACE, WED_RACE} from './sebringRaces.fixture';
+import {dropTarget, savingFor} from './saving';
+import {rulesCells} from './model';
 import {stopPanels} from './stopPanels';
 
 // His two real 60 min GT3 races at one track, a series week apart, numbers
@@ -67,19 +69,19 @@ const panelOf = (
 describe('the Wed rules with no load known (a practice only, thread 104)', () => {
   it('VE alone: the stop is still after L17, the limit reads VE limits, never together, and no fuel flag', () => {
     const laps = lapsOf(WED_RACE);
-    // a load twice what VE allows never limits the stint
+    // no load known: no fuel meter at all
     const rules: PlanRules = {
       name: 'rules',
       lengthLaps: null,
       lengthMin: 60,
-      fuelL: 2 * 100 * 0.625,
+      fuelL: null,
       vePct: 100,
       formationLap: true,
       mandatoryStops: 0,
       formationFactor: {fuel: 1.19 / median(laps.map(l => l.fuelL)), ve: 0},
     };
     const plan = planRace(rules, laps, null, 0.625);
-    const cards = buildPlanCards(plan, rules, false, 0.625, 've', null, false);
+    const cards = buildPlanCards(plan, rules, false, 0.625, 've', null);
     expect(cards.race.stopAfter).toEqual(['L17']);
     expect(cards.tank.limit).toMatch(/^VE limits: 17\.5 laps/);
     expect(cards.tank.meters.map(m => m.key)).toEqual(['ve']);
@@ -87,16 +89,44 @@ describe('the Wed rules with no load known (a practice only, thread 104)', () =>
     const [panel] = stopPanels(pit, {
       sim: 'lmu',
       meter: 've',
-      p90: {fuelL: plan.perLap.fuel!.p90, vePct: plan.perLap.ve!.p90},
-      loadL: rules.fuelL,
+      // no load: no fuel meter, so no fuel use either
+      p90: {fuelL: plan.perLap.fuel?.p90 ?? null, vePct: plan.perLap.ve!.p90},
+      loadL: null,
       fullVePct: 100,
       stopRatio: 0.609,
-      fuelCheck: false,
       lateFlag: plan.raceLaps?.oneMore != null,
       pitModel: null,
     });
+    expect(plan.perLap.fuel).toBeNull();
     expect(panel.value).toBe('Set VE 82 %');
     expect(panel.tags).toEqual([]);
+  });
+
+  it('nothing in litres is made up: no Max fuel cell, no fuel saving target, and the VE target stays (steward #7157, chief #7158)', () => {
+    const laps = lapsOf(WED_RACE);
+    const rules: PlanRules = {
+      name: 'rules',
+      lengthLaps: null,
+      lengthMin: 60,
+      fuelL: null,
+      vePct: 100,
+      formationLap: true,
+      mandatoryStops: 0,
+      formationFactor: {fuel: 1.19 / median(laps.map(l => l.fuelL)), ve: 0},
+    };
+    const plan = planRace(rules, laps, null, 0.625);
+    const cells = rulesCells(rules, true, 0.625);
+    expect(cells.map(c => c.label)).not.toContain('Max fuel');
+    expect(JSON.stringify(cells)).not.toMatch(/125|Infinity|NaN/);
+    // one stop fewer would need under 100 / 30 = 3.3 % a lap against his 5.7
+    expect(dropTarget(plan.dropStop, 'fuel')).toBeNull();
+    expect(dropTarget(plan.dropStop, 've')).toBeCloseTo(3.3, 1);
+    const cards = buildPlanCards(plan, rules, false, 0.625, 've', null);
+    const pit = pitPlan({plan, rules, fuelOnly: false, ratioPerPctL: 0.625, pitModel: null, windows: cards.stops.windows}, null)!;
+    expect(savingFor(pit, plan.dropStop, 'fuel', rules, laps)).toBeNull();
+    // none of his laps used under 3.3 % VE, so there is no VE saving to show either
+    expect(savingFor(pit, plan.dropStop, 've', rules, laps)).toBeNull();
+    expect(JSON.stringify([cards, plan.dropStop])).not.toMatch(/Infinity|NaN/);
   });
 });
 

@@ -340,13 +340,13 @@ export type StartChip = {label: string; text: string};
  */
 export function startChips(
   last: {fuelL: number | null; vePct: number | null} | null,
-  caps: {fuelL: number; vePct: number},
+  caps: {fuelL: number | null; vePct: number},
   hasVe: boolean,
 ): {ve: StartChip | null; fuel: StartChip | null} {
   const under = (v: number | null, cap: number) =>
     v != null && v > 0 && v < cap - 0.5 ? v : null;
   const ve = hasVe ? under(last?.vePct ?? null, caps.vePct) : null;
-  const fuel = under(last?.fuelL ?? null, caps.fuelL);
+  const fuel = caps.fuelL == null ? null : under(last?.fuelL ?? null, caps.fuelL);
   return {
     ve:
       ve == null
@@ -379,7 +379,10 @@ export function rulesCells(
 ): RulesCell[] {
   if (!rules) return [];
   return [
-    {label: 'Max fuel', value: `${rules.fuelL} L`},
+    // no load known (VE alone): no Max fuel cell
+    ...(rules.fuelL != null
+      ? [{label: 'Max fuel', value: `${rules.fuelL} L`}]
+      : []),
     ...(hasVe ? [{label: 'Max VE', value: `${rules.vePct} %`}] : []),
     ...(hasVe && ratioPerPctL != null
       ? [{label: '1 % VE', value: `${ratioPerPctL.toFixed(2)} L`}]
@@ -430,11 +433,10 @@ export function rulesFor(
   /** What the car starts with, when it is less than the full load (typed for this race); null or unset is full. */
   start: {fuelL?: number | null; vePct?: number | null} = {},
   /**
-   * The litres 100 % VE allows in the planned rule set (100 x its ratio), for
-   * a VE car whose load is not known (a practice only, thread 104): its stops
-   * come from VE alone, so the plan runs with a load that never limits.
+   * A VE car in a rule set whose load is not known (a practice only, thread
+   * 104) plans on VE alone: no load, no fuel meter, nothing in litres.
    */
-  veAllowsL: number | null = null,
+  planOnVeAlone = false,
 ): Rules | null {
   let fuelL: number | null = null;
   let fuelSource: FuelSource = 'preset';
@@ -450,12 +452,8 @@ export function rulesFor(
     fuelL = last.tankL;
     fuelSource = 'tank';
   }
-  if (fuelL == null && veAllowsL != null && veAllowsL > 0) {
-    // VE alone decides the stint: a load twice what VE allows never limits it
-    fuelL = veAllowsL * 2;
-    fuelSource = 'unknown';
-  }
-  if (fuelL == null) return null;
+  if (fuelL == null && planOnVeAlone) fuelSource = 'unknown';
+  else if (fuelL == null) return null;
   return {
     fuelSource,
     last,
@@ -501,7 +499,7 @@ const pct2 = (v: number) => `${v.toFixed(2)} %`;
 
 function ratioNote(
   ratio: VeRatio | null,
-  fuelL: number,
+  fuelL: number | null,
   loadsL: number[],
   eventText: string | null = null,
 ): string {
@@ -620,7 +618,9 @@ export function planView(
           : ''
       })`;
   const mismatch = preset
-    ? presetMismatch(r.fuelL, history.lastFillLimitL)
+    ? r.fuelL == null
+      ? null
+      : presetMismatch(r.fuelL, history.lastFillLimitL)
     : null;
   const fuelStale = mismatch
     ? `max fuel: preset ${mismatch.presetL} L  ·  last session there ${mismatch.lastL} L`

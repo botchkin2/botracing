@@ -41,7 +41,7 @@ export function usePlanData(
     length,
     limits.lastFuel,
     start,
-    ruleSet ? 100 * ruleSet.ratio.perPctL : null,
+    ruleSet != null,
   );
   const wantedL = baseRules?.rules.fuelL ?? null;
   const hist = usePlanHistory(
@@ -121,7 +121,6 @@ export function usePlanData(
           hist.ratio?.perPctL ?? null,
           unit,
           refuelRate,
-          rules.fuelSource !== 'unknown',
         )
       : null;
   return {

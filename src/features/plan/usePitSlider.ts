@@ -61,7 +61,6 @@ export function usePitSlider(
             },
             loadL: input.rules.fuelL,
             stopRatio,
-            fuelCheck: rules?.fuelSource !== 'unknown',
             fullVePct: input.rules.vePct,
             lateFlag: input.plan.raceLaps?.oneMore != null,
             pitModel: input.pitModel,

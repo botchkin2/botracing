@@ -29,13 +29,11 @@ export type StopPanelInput = {
   /** VE for a car with Virtual Energy, litres otherwise. */
   meter: 've' | 'fuel';
   p90: {fuelL: number | null; vePct: number | null};
-  /** The most fuel he has run in the rule set: the cap of a litre setting. */
-  loadL: number;
+  /** The most fuel he has run in the rule set: the cap of a litre setting; null when the load is not known (VE alone, no fuel check). */
+  loadL: number | null;
   fullVePct: number;
   /** Litres one 1 % VE adds at a stop, from his own stops; null when none was measured. */
   stopRatio: number | null;
-  /** False when the load is not known: the level is VE alone, no fuel check. */
-  fuelCheck?: boolean;
   /** A timed race: the last stop covers the lap a late flag can add. */
   lateFlag: boolean;
   pitModel: PitModel | null;
@@ -58,11 +56,10 @@ export function stopPanels(pit: PitPlan, input: StopPanelInput): StopPanel[] {
     loadL,
     fullVePct,
     stopRatio: input.stopRatio,
-    fuelCheck: input.fuelCheck,
     arrive,
     arriveFuelL,
   });
-  const full = meter === 've' ? fullVePct : loadL;
+  const full = meter === 've' ? fullVePct : loadL ?? 0;
   const unit = meter === 've' ? '%' : 'L';
   return targets.map((t, k) => {
     const stop = pit.stops[k];
