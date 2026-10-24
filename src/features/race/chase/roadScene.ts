@@ -15,6 +15,8 @@ type At = (row: number, col: number, out: Point) => void;
 
 const EDGE_WIDTH_M = 0.38;
 const START_LINE_DEPTH_M = 1.2;
+/** The start line floats this far over the road surface, so no part of it sinks into the downhill slope or the bank. */
+const START_LINE_LIFT_M = 0.1;
 const RUNG_EVERY_M = 10;
 const GRID_M = 50;
 const GRID_MARGIN_M = 400;
@@ -183,19 +185,20 @@ export function buildRoadScene(road: ChaseRoad, ix: RoadIndex, T: ChaseTheme): T
   const datum = lowest - DATUM_BELOW_M;
   group.add(datumGrid(road, datum, T.grid));
   group.add(ground(road, datum, T.fill));
-  // the start line, flat on the road
+  // the start line, on the road's own surface: a quad at the centre's height sank under the high side of a banked line
+  // (Road Atlanta rolls -1.3 degrees there), hiding half of it
   group.add(
     ribbon(
       2,
       2,
       (r, k, out) => {
-        const lam = k ? road.hr[0] : -road.hl[0];
+        rowPoint(0, k ? road.hr[0] : -road.hl[0], START_LINE_LIFT_M, out);
         const along = r ? START_LINE_DEPTH_M : 0;
-        out.x = road.cx[0] + ix.normalX[0] * lam + Math.cos(ix.heading[0]) * along;
-        out.y = road.cy[0] + ix.normalY[0] * lam + Math.sin(ix.heading[0]) * along;
-        out.z = ix.height[0] + 0.03;
+        out.x += Math.cos(ix.heading[0]) * along;
+        out.y += Math.sin(ix.heading[0]) * along;
       },
-      flat(T.text),
+      // pulled toward the camera in depth too: 3 cm over the road is under the depth buffer's step at tens of metres
+      flat(T.text, {polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2}),
       1,
     ),
   );
