@@ -13,6 +13,9 @@ import {test} from 'node:test';
 import {
   MARKER,
   capturesRead,
+  liveMarks,
+  dropSessionIds,
+  foreignMissing,
   markUploaded,
   markVerified,
   unverifiedMarks,
@@ -151,4 +154,176 @@ test('a marker from before the read-back is listed, then verified in place', () 
     utc: '2026-10-22T05:00:00.000Z',
   });
   rmSync(root, {recursive: true, force: true});
+});
+
+test('a capture live laps uploaded is listed until its sessions are verified', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'marker-'));
+  capture(root, 'race');
+  const index = {
+    'race#0': {sessionId: 'L1'},
+    'race#1': {sessionId: 'L1'},
+    'race#2': {sessionId: 'L2'},
+    'gone#0': {sessionId: 'L3'},
+  };
+  assert.deepEqual(liveMarks(root, index), [
+    {name: 'race', sessionIds: ['L1', 'L2']},
+  ]);
+  markUploaded(root, ['race'], 'L1', {
+    check: {ok: true, laps: 31, fieldHash: 'f'},
+  });
+  assert.deepEqual(liveMarks(root, index), [
+    {name: 'race', sessionIds: ['L2']},
+  ]);
+  assert.deepEqual(liveMarks(root, undefined), []);
+  rmSync(root, {recursive: true, force: true});
+});
+
+test('a foreign id is dropped once another id on the marker verifies', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'marker-'));
+  capture(root, 'a');
+  markUploaded(root, ['a'], 'own');
+  markUploaded(root, ['a'], 'foreign');
+  const span = {start: '2026-10-02T00:00:00.000Z', end: '2026-10-02T01:00:00.000Z'};
+  const drop = foreignMissing(
+    [
+      {
+        id: 'own',
+        ok: true,
+        missing: false,
+        start: span.start,
+        end: span.end,
+      },
+      {id: 'foreign', ok: false, missing: true},
+    ],
+    span,
+  );
+  assert.deepEqual(drop, ['foreign']);
+  assert.equal(dropSessionIds(root, 'a', drop), true);
+  assert.equal(
+    markVerified(root, 'a', 'own', {ok: true, laps: 22, fieldHash: 'abc'}),
+    true,
+  );
+  const marker = JSON.parse(readFileSync(resolve(root, 'a', MARKER), 'utf8'));
+  assert.deepEqual(marker.sessionIds, ['own']);
+  assert.equal(marker.sessionId, 'own');
+  assert.deepEqual(Object.keys(marker.verified), ['own']);
+  assert.equal(marker.verified.own.laps, 22);
+  rmSync(root, {recursive: true, force: true});
+});
+
+test('an absent id stays when nothing else on the marker verified', () => {
+  const span = {start: '2026-10-02T00:00:00.000Z', end: '2026-10-02T01:00:00.000Z'};
+  assert.deepEqual(
+    foreignMissing([{id: 'foreign', ok: false, missing: true}], span),
+    [],
+  );
+  assert.deepEqual(
+    foreignMissing(
+      [
+        {id: 'own', ok: false, missing: false},
+        {id: 'foreign', ok: false, missing: true},
+      ],
+      span,
+    ),
+    [],
+  );
+  assert.deepEqual(
+    foreignMissing(
+      [
+        {id: 'own', ok: true, missing: false, start: span.start, end: span.end},
+        {id: 'foreign', ok: false, missing: false},
+      ],
+      span,
+    ),
+    [],
+  );
+});
+
+test('a missing own session stays when the verified part is 70% of the on-track span', () => {
+  const span = {start: '2026-10-02T00:00:00.000Z', end: '2026-10-02T01:00:00.000Z'};
+  assert.deepEqual(
+    foreignMissing(
+      [
+        {
+          id: 'own',
+          ok: true,
+          missing: false,
+          start: span.start,
+          end: '2026-10-02T00:42:00.000Z',
+        },
+        {id: 'other-own', ok: false, missing: true},
+      ],
+      span,
+    ),
+    [],
+  );
+});
+
+test('a missing id stays when the verified sessions cover under 90% of the capture', () => {
+  const span = {start: '2026-10-02T00:00:00.000Z', end: '2026-10-02T01:00:00.000Z'};
+  const half = foreignMissing(
+    [
+      {
+        id: 'own',
+        ok: true,
+        missing: false,
+        start: span.start,
+        end: '2026-10-02T00:30:00.000Z',
+      },
+      {id: 'other', ok: false, missing: true},
+    ],
+    span,
+  );
+  assert.deepEqual(half, []);
+  const edge = foreignMissing(
+    [
+      {
+        id: 'own',
+        ok: true,
+        missing: false,
+        start: span.start,
+        end: '2026-10-02T00:54:00.000Z',
+      },
+      {id: 'other', ok: false, missing: true},
+    ],
+    span,
+  );
+  assert.deepEqual(edge, ['other']);
+  const two = foreignMissing(
+    [
+      {
+        id: 'a',
+        ok: true,
+        missing: false,
+        start: span.start,
+        end: '2026-10-02T00:30:00.000Z',
+      },
+      {
+        id: 'b',
+        ok: true,
+        missing: false,
+        start: '2026-10-02T00:20:00.000Z',
+        end: '2026-10-02T00:55:00.000Z',
+      },
+      {id: 'other', ok: false, missing: true},
+    ],
+    span,
+  );
+  assert.deepEqual(two, ['other']);
+  assert.deepEqual(
+    foreignMissing(
+      [
+        {
+          id: 'own',
+          ok: true,
+          missing: false,
+          start: span.start,
+          end: span.end,
+        },
+        {id: 'other', ok: false, missing: true},
+      ],
+      null,
+    ),
+    [],
+  );
 });

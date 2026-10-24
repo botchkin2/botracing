@@ -241,7 +241,7 @@ fn soak_the_recorder_against_a_fake_game() {
             } else {
                 Layout::parse(include_str!("../../../../tools/capture/tests/fixture.hpp")).unwrap()
             };
-            let mut rec = Recorder::new(layout, root, Fake(mem), 60_000).unwrap();
+            let mut rec = Recorder::new(layout, root, Fake(mem), std::env::var("SOAK_CHUNK_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(crate::capture::runner::CHUNK_MS)).unwrap();
             let (cpu0, t0) = (thread_cpu_s(), Instant::now());
             drive(&mut rec, &stop, &line);
             *cpu.lock().unwrap() = (thread_cpu_s() - cpu0, t0.elapsed().as_secs_f64());

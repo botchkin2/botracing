@@ -21,7 +21,8 @@ use std::time::Duration;
 const POLL: Duration = Duration::from_millis(4);
 const NO_SIM: Duration = Duration::from_secs(5);
 const WAITING: Duration = Duration::from_secs(1);
-const CHUNK_MS: u64 = 60_000;
+// Cut at least this often (the LMU recorder's runner::CHUNK_MS: a crash loses at most this much).
+const CHUNK_MS: u64 = 15_000;
 /// The field and the session clock are kept this often.
 const FIELD_EVERY_MS: u64 = 200;
 /// The session text is looked at this often (a header read, cheap).
@@ -422,34 +423,40 @@ impl<S: IrSource> IrRecorder<S> {
             }
         }
         self.last_tick = Some(frame.tick);
-        // Menus and replays are not recorded. The session stays open, so a
-        // pause never starts a new session folder.
-        if !on_track(&frame, &open.gate) {
-            return (false, None);
+        // Off the track (the garage, a tow, a menu, a replay, spectating) the player's own telemetry is not
+        // recorded, but the field and the session rows go on: the other cars are racing whatever he is doing,
+        // and a drive's field must not have a hole where he stood in the pits (audit row 7). The session stays
+        // open, so a pause never starts a new session folder.
+        let on = on_track(&frame, &open.gate);
+        if !on {
+            cap.count("offTrackTicks", 1);
         }
         // The player's Lap changed: the lap that ended is cut into a chunk
         // LAP_CUT_AFTER_S later, so it is on disk within a write instead of up
         // to a minute later. The frame at the due time opens the next chunk.
         let time = open.time.as_ref().and_then(|v| frame.f64(v, 0));
-        if let (Some(lap), Some(t)) = (open.lap.as_ref().and_then(|v| frame.i32(v, 0)), time) {
+        // (the lap counter is the player's: read only while he is on the track)
+        if let (true, Some(lap), Some(t)) = (on, open.lap.as_ref().and_then(|v| frame.i32(v, 0)), time) {
             if self.last_lap.is_some_and(|prev| prev != lap) {
                 self.cut_due = Some(t + LAP_CUT_AFTER_S);
             }
             self.last_lap = Some(lap);
         }
         let cut = match (self.cut_due, time) {
-            (Some(due), Some(t)) if t >= due => {
+            (Some(due), Some(t)) if on && t >= due => {
                 self.cut_due = None;
                 Some(cap.flush(ms))
             }
             _ => None,
         };
-        let player: Vec<&Var> = open.player.iter().collect();
-        let mut row = cells(&frame, &player, 0);
-        row.push(("wall_ms".into(), Cell::I64(ms as i64)));
-        row.push(("tick".into(), Cell::I64(frame.tick as i64)));
-        cap.player.push(row);
-        cap.count("playerRows", 1);
+        if on {
+            let player: Vec<&Var> = open.player.iter().collect();
+            let mut row = cells(&frame, &player, 0);
+            row.push(("wall_ms".into(), Cell::I64(ms as i64)));
+            row.push(("tick".into(), Cell::I64(frame.tick as i64)));
+            cap.player.push(row);
+            cap.count("playerRows", 1);
+        }
         if ms.saturating_sub(self.last_field_ms) >= FIELD_EVERY_MS {
             self.last_field_ms = ms;
             let meta = &self.meta;
@@ -461,14 +468,16 @@ impl<S: IrSource> IrRecorder<S> {
             let field: Vec<&Var> = open.field.iter().collect();
             let slots = open.field.first().map_or(0, |v| v.count);
             for idx in 0..slots {
-                // Not in the world (the pace car's slot, an empty one) and the
-                // cars that are not racing are left out.
-                let at = open.field.iter().find(|v| v.name == "CarIdxLapDistPct");
-                if at.and_then(|v| frame.f32(v, idx)).map_or(true, |p| p < 0.0) {
-                    continue;
-                }
+                // The cars that are not racing (the pace car's slot, an empty one, a spectator) are left
+                // out. A racing car that reads "not in the world" (-1: in the garage, towed) is recorded
+                // with that value, and a sim that stopped giving CarIdxLapDistPct at all (a rename) does not
+                // empty the field: the rows are recorded without it and counted (audit row 8). The reader
+                // (irField.mjs) takes only rows from 0 up.
                 if !meta.racing(idx as i64) {
                     continue;
+                }
+                if open.field.iter().all(|v| v.name != "CarIdxLapDistPct") {
+                    cap.count("fieldRowsWithoutLapDist", 1);
                 }
                 let mut car = cells(&frame, &field, idx);
                 car.push(("CarIdx".into(), Cell::I64(idx as i64)));
@@ -811,6 +820,53 @@ mod tests {
         assert_eq!(dirs.len(), 1, "a pause never splits the session folder");
         let (n, _) = rows(&dirs[0].join("player-0000.parquet"));
         assert_eq!(n, 20, "only the on-track ticks are written");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn off_the_track_the_field_and_the_session_are_still_recorded_but_not_the_player() {
+        let (mut rec, sim, root) = setup("offtrack", TEXT);
+        let mut ms = 1_700_000_000_000u64;
+        // 10 ticks on track, then 50 ticks in the garage 100 ms apart (about 5 s of the other cars racing on).
+        for t in 1..=10 {
+            frame(&mut sim.borrow_mut().mem, t, [0.1, 0.2, -1.0, 0.4]);
+            rec.tick(ms);
+            ms += 17;
+        }
+        for t in 11..=60 {
+            frame_with(&mut sim.borrow_mut().mem, t, [0.1, 0.2, -1.0, 0.4], false, false);
+            rec.tick(ms);
+            ms += 100;
+        }
+        sim.borrow_mut().running = false;
+        rec.tick(ms);
+        let dirs = captures(&root);
+        let (players, _) = rows(&dirs[0].join("player-0000.parquet"));
+        assert_eq!(players, 10, "his own telemetry only while he is on the track");
+        let (field, _) = rows(&dirs[0].join("field-0000.parquet"));
+        assert!(field >= 3 * 20, "the other cars go on being recorded: {field} field rows");
+        let meta = std::fs::read_to_string(dirs[0].join("meta.json")).unwrap();
+        assert!(meta.contains("\"offTrackTicks\": 50"), "{meta}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_racing_car_the_sim_calls_not_in_the_world_is_recorded_not_dropped() {
+        let (mut rec, sim, root) = setup("notinworld", TEXT);
+        let mut ms = 1_700_000_000_000u64;
+        // Car 1 races but reads -1 (in the garage); slot 2 is the pace car, which stays out.
+        for t in 1..=40 {
+            frame(&mut sim.borrow_mut().mem, t, [0.10, -1.0, -1.0, 0.40]);
+            rec.tick(ms);
+            ms += 17;
+        }
+        sim.borrow_mut().running = false;
+        rec.tick(ms);
+        let dirs = captures(&root);
+        let (field, _) = rows(&dirs[0].join("field-0000.parquet"));
+        let (updates, _) = rows(&dirs[0].join("session-0000.parquet"));
+        assert!(updates >= 1);
+        assert_eq!(field, 3 * updates, "cars 0, 1 and 3 on every update (car 1 at -1), not two");
         let _ = std::fs::remove_dir_all(&root);
     }
 

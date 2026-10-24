@@ -111,6 +111,21 @@ const epochSql = s =>
 const inEpoch = src =>
   `(SELECT x.*, coalesce(ep.e, 0) e FROM ${src} x ASOF LEFT JOIN ep ON x.wall_ms >= ep.w0)`;
 
+/** Wall span of the laps: first realtime row to the last. Not meta start/end, which keeps the garage. */
+export function onTrackSpanOf(stretches) {
+  let startMs = Infinity;
+  let endMs = -Infinity;
+  for (const st of stretches ?? []) {
+    if (Number.isFinite(st.startMs)) startMs = Math.min(startMs, st.startMs);
+    if (Number.isFinite(st.endMs)) endMs = Math.max(endMs, st.endMs);
+  }
+  if (!Number.isFinite(startMs) || !(endMs > startMs)) return null;
+  return {
+    start: new Date(startMs).toISOString(),
+    end: new Date(endMs).toISOString(),
+  };
+}
+
 /**
  * The capture's recordings: one per stretch of mInRealtime on, in order.
  * Each has `key` (<folder>#<k>, stable as the capture grows), `info` (lmu.mjs

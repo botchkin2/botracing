@@ -193,6 +193,11 @@ describe('problems', () => {
     ).toBe('Session 4dda01bc · This drive was not recorded, so there are no other cars');
     expect(
       problemText(
+        problem({kind: 'disk-low', message: '12 GB free; a 24 h race records about 13 GB', sessionId: null}),
+      ),
+    ).toBe('Low disk space · 12 GB free; a 24 h race records about 13 GB');
+    expect(
+      problemText(
         problem({
           kind: 'not-seen',
           at: Date.parse('2026-10-01T12:00:00Z'),
