@@ -408,7 +408,7 @@ export function parseNumber(text: string): number | null {
 }
 
 /** Where the fuel to plan with came from. */
-export type FuelSource = 'preset' | 'fill limit' | 'tank' | 'start fuel';
+export type FuelSource = 'preset' | 'fill limit' | 'tank' | 'start fuel' | 'unknown';
 
 export type Rules = {
   rules: PlanRules;
@@ -429,6 +429,12 @@ export function rulesFor(
   last: SessionFuel | null,
   /** What the car starts with, when it is less than the full load (typed for this race); null or unset is full. */
   start: {fuelL?: number | null; vePct?: number | null} = {},
+  /**
+   * The litres 100 % VE allows in the planned rule set (100 x its ratio), for
+   * a VE car whose load is not known (a practice only, thread 104): its stops
+   * come from VE alone, so the plan runs with a load that never limits.
+   */
+  veAllowsL: number | null = null,
 ): Rules | null {
   let fuelL: number | null = null;
   let fuelSource: FuelSource = 'preset';
@@ -443,6 +449,11 @@ export function rulesFor(
   } else if (last?.tankL != null) {
     fuelL = last.tankL;
     fuelSource = 'tank';
+  }
+  if (fuelL == null && veAllowsL != null && veAllowsL > 0) {
+    // VE alone decides the stint: a load twice what VE allows never limits it
+    fuelL = veAllowsL * 2;
+    fuelSource = 'unknown';
   }
   if (fuelL == null) return null;
   return {
@@ -593,6 +604,8 @@ export function planView(
   const eventText = preset ? null : history.eventText ?? null;
   const rulesLine = preset
     ? `Rules: ${preset.name}  ·  set ${formatDate(preset.savedAt)}`
+    : rules.fuelSource === 'unknown'
+    ? `Rules: ${eventText ?? 'last race here'} (fuel load not known: planned on VE)`
     : `Rules: ${eventText ?? 'last race here'} (${r.fuelL} L ${
         rules.fuelSource === 'fill limit'
           ? 'fill limit'

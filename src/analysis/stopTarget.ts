@@ -54,6 +54,8 @@ export type StopTargetInput = {
   arrive: readonly (number | null)[];
   /** What the car arrives with at each stop in litres; null where not known. */
   arriveFuelL: readonly (number | null)[];
+  /** False when the load is not known: VE alone sizes the level and no fuel is checked. */
+  fuelCheck?: boolean;
 };
 
 /** One target per stop, in stop order; none without the meter's p90 use. */
@@ -75,6 +77,7 @@ export function stopTargets(input: StopTargetInput): StopTarget[] {
       // The level that puts in the litres the laps burn over what is left:
       // the arrival plus the shortfall over the litres one % adds here.
       const fuelNeed =
+        input.fuelCheck === false ||
         p90.fuelL == null ||
         stopRatio == null ||
         !(stopRatio > 0) ||

@@ -290,10 +290,11 @@ function tankCard(
   rules: PlanRules,
   fuelOnly: boolean,
   unit: Unit,
+  loadKnown = true,
 ): TankCard {
   const {fuel, ve} = plan.perLap;
   const meters: TankMeter[] = [];
-  if (fuel)
+  if (fuel && loadKnown)
     meters.push({
       key: 'fuel',
       lapsMedian: rules.fuelL / fuel.median,
@@ -318,7 +319,9 @@ function tankCard(
   const other = meters.find(m => m.key !== shown);
   const word = (m: TankMeter) => (m.key === 've' ? 'VE' : 'Fuel');
   let limit: string | null = null;
-  if (mine && other) {
+  if (!loadKnown && mine) {
+    limit = `VE limits: ${mine.lapsMedian.toFixed(1)} laps (${mine.formula}).`;
+  } else if (mine && other) {
     if (Math.floor(mine.lapsMedian) === Math.floor(other.lapsMedian))
       limit = `VE and fuel run out together: ${Math.floor(
         mine.lapsMedian,
@@ -649,10 +652,12 @@ export function buildPlanCards(
   unit: Unit = 've',
   /** The refuel rate (pitBase.ts refuelRateFor); null shows litres, not seconds. */
   rate: RefuelRate | null = null,
+  /** False when the load is not known (a practice only): VE alone limits the stint, no fuel is compared (thread 104). */
+  loadKnown = true,
 ): PlanCards {
   return {
     race: raceCard(plan, rules, unit, fuelOnly),
-    tank: tankCard(plan, rules, fuelOnly, unit),
+    tank: tankCard(plan, rules, fuelOnly, unit, loadKnown),
     stops: stopsCard(plan, rules, fuelOnly, ratioPerPctL, unit, rate),
   };
 }

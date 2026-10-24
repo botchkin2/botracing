@@ -706,6 +706,31 @@ describe('under a rule set the tank is never the load (thread 104)', () => {
     expect(rulesFor(null, length, last)).toBeNull();
   });
 
+  it('a VE car with no load known plans on VE alone, labelled, with no litres shown (thread 104)', () => {
+    const last = lastFuelOf(livePractice, null, true)!;
+    // 100 x its ratio is what VE allows; the plan uses a load that never limits
+    const rules = rulesFor(null, length, last, {}, 100 * 0.839)!;
+    expect(rules.fuelSource).toBe('unknown');
+    const plan = planRace(rules.rules, laps);
+    const view = planView(null, rules, plan, {
+      since: null,
+      lastFillLimitL: null,
+      eventText: '0.84 L/% · rules from Practice, Oct 21',
+      ruleSet: true,
+      ratio: null,
+      lastRatio: null,
+      ratioLoadsL: [],
+      drift: null,
+    });
+    expect(view.rulesLine).toBe('Rules: 0.84 L/% · rules from Practice, Oct 21 (fuel load not known: planned on VE)');
+    expect(view.rulesLine).not.toMatch(/117|83\.9|167/);
+  });
+
+  it('a fuel-only car (no ratio, so no VE allowance) with no load still needs fuel', () => {
+    const last = lastFuelOf({...livePractice, litresPerVePct: null}, null, false)!;
+    expect(rulesFor(null, length, {...last, startL: null, tankL: null}, {}, null)).toBeNull();
+  });
+
   it('a rule set with a most-run load plans on it, and the line does not print the 117 L tank', () => {
     const last = lastFuelOf(livePractice, {kind: 'fill limit', litres: 85}, true)!;
     const rules = rulesFor(null, length, last)!;

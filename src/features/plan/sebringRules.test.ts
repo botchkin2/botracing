@@ -64,6 +64,42 @@ const panelOf = (
     pitModel: {baseS: 0, refuelLPerS: 1},
   })[0];
 
+describe('the Wed rules with no load known (a practice only, thread 104)', () => {
+  it('VE alone: the stop is still after L17, the limit reads VE limits, never together, and no fuel flag', () => {
+    const laps = lapsOf(WED_RACE);
+    // a load twice what VE allows never limits the stint
+    const rules: PlanRules = {
+      name: 'rules',
+      lengthLaps: null,
+      lengthMin: 60,
+      fuelL: 2 * 100 * 0.625,
+      vePct: 100,
+      formationLap: true,
+      mandatoryStops: 0,
+      formationFactor: {fuel: 1.19 / median(laps.map(l => l.fuelL)), ve: 0},
+    };
+    const plan = planRace(rules, laps, null, 0.625);
+    const cards = buildPlanCards(plan, rules, false, 0.625, 've', null, false);
+    expect(cards.race.stopAfter).toEqual(['L17']);
+    expect(cards.tank.limit).toMatch(/^VE limits: 17\.5 laps/);
+    expect(cards.tank.meters.map(m => m.key)).toEqual(['ve']);
+    const pit = pitPlan({plan, rules, fuelOnly: false, ratioPerPctL: 0.625, pitModel: null, windows: cards.stops.windows}, null)!;
+    const [panel] = stopPanels(pit, {
+      sim: 'lmu',
+      meter: 've',
+      p90: {fuelL: plan.perLap.fuel!.p90, vePct: plan.perLap.ve!.p90},
+      loadL: rules.fuelL,
+      fullVePct: 100,
+      stopRatio: 0.609,
+      fuelCheck: false,
+      lateFlag: plan.raceLaps?.oneMore != null,
+      pitModel: null,
+    });
+    expect(panel.value).toBe('Set VE 82 %');
+    expect(panel.tags).toEqual([]);
+  });
+});
+
 describe('the plan for his two real races at one track', () => {
   const wed = planFor(WED_RACE, 73, 0.625, 1.19);
   const tue = planFor(TUE_RACE, 85, 0.835, 1.0);

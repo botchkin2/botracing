@@ -33,7 +33,16 @@ export function usePlanData(
   const preset = presets.find(p => p.id === activeId) ?? null;
 
   const limits = usePlanLimits(combo, eventKey);
-  const baseRules = rulesFor(preset, length, limits.lastFuel, start);
+  // The litres 100 % VE allows in the planned rule set: with no load known the
+  // plan runs on VE alone (a practice-only week, thread 104).
+  const ruleSet = limits.event?.rules ?? null;
+  const baseRules = rulesFor(
+    preset,
+    length,
+    limits.lastFuel,
+    start,
+    ruleSet ? 100 * ruleSet.ratio.perPctL : null,
+  );
   const wantedL = baseRules?.rules.fuelL ?? null;
   const hist = usePlanHistory(
     combo,
@@ -88,7 +97,7 @@ export function usePlanData(
                 : null,
             lastFillLimitL: limits.lastFuel?.fillLimitL ?? null,
             eventText,
-            ruleSet: limits.event?.rules != null,
+            ruleSet: ruleSet != null,
             ratio: hist.ratio,
             lastRatio: hist.measured.find(m => m.ratio != null)?.ratio ?? null,
             drift: hist.chosen.drift,
@@ -112,6 +121,7 @@ export function usePlanData(
           hist.ratio?.perPctL ?? null,
           unit,
           refuelRate,
+          rules.fuelSource !== 'unknown',
         )
       : null;
   return {
