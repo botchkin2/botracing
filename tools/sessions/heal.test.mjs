@@ -5,6 +5,7 @@ import {
   adoptLiveIds,
   claimCoveredSessions,
   confirmAdoptions,
+  confirmClaims,
   recordingsToAdd,
   lapsToAdd,
   uncoveredPrefixS,
@@ -247,6 +248,237 @@ test('the upload tombstones what it replaces, keeps the lone stretch and its lap
     db.docs.has('laps/l0'),
     'a tombstoned lap survives a later cleanup',
   );
+});
+
+test('a claim whose live session is gone from the store is undone, never re-created', async () => {
+  const index = {
+    'cap#0': {
+      sessionId: 'LIVE',
+      sim: 'lmu',
+      layout: 'Sil',
+      startMs: T0,
+      endMs: T0 + 600_000,
+    },
+  };
+  const mk = () => ({
+    id: 'hash',
+    files: [
+      {
+        info: {
+          sim: 'lmu',
+          layout: 'Sil',
+          recordedAt: at(1),
+          startT: 0,
+          endT: 590,
+        },
+      },
+    ],
+  });
+  const gone = mk();
+  assert.deepEqual(
+    await confirmClaims(claimCoveredSessions([gone], index, liveCover), async () => false),
+    [],
+  );
+  assert.equal(gone.id, 'hash');
+  assert.equal(gone.healLack, undefined);
+  assert.equal(gone.hashId, undefined);
+  const there = mk();
+  const standing = await confirmClaims(
+    claimCoveredSessions([there], index, liveCover),
+    async id => id === 'LIVE',
+  );
+  assert.deepEqual(standing, [there]);
+  assert.equal(there.id, 'LIVE');
+  assert.equal(there.healLack, true);
+});
+
+test('a covered game file that adds no lap leaves the live session doc', async () => {
+  const stored = {
+    id: 'LIVE',
+    ownerId: 'o',
+    recordingIds: ['liveRec'],
+    bestLapId: 'liveRec-001',
+    lapCount: 2,
+    consistency: {n: 2},
+    plan: {stops: 1},
+    traffic: {gapS: 0.4},
+    analysis: {v: 4, blocks: {plan: 3}},
+    field: {path: 'field/o/LIVE/live.json.gz', hash: 'livehash'},
+  };
+  const db = memoryStore(
+    {
+      'sessions/LIVE': structuredClone(stored),
+      'recordings/liveRec': {
+        id: 'liveRec',
+        ownerId: 'o',
+        recordedAt: at(52),
+        durationSec: 530,
+        startT: 0,
+      },
+      'laps/liveRec-001': {
+        id: 'liveRec-001',
+        ownerId: 'o',
+        sessionId: 'LIVE',
+        recordingId: 'liveRec',
+      },
+      'laps/liveRec-002': {
+        id: 'liveRec-002',
+        ownerId: 'o',
+        sessionId: 'LIVE',
+        recordingId: 'liveRec',
+      },
+    },
+    {ownerKey: 'o'},
+  );
+  const deleted = [];
+  await createStore({
+    ...db,
+    deleteFile: async path => {
+      deleted.push(path);
+    },
+    listFiles: async () => [],
+    getFile: async () => null,
+  }).upload({
+    healLack: true,
+    session: {
+      id: 'LIVE',
+      ownerId: 'o',
+      recordingIds: ['gameRec'],
+      bestLapId: 'gameRec-002',
+      lapCount: 3,
+      consistency: {n: 3},
+      plan: {stops: 0},
+      traffic: {gapS: 1},
+      analysis: {v: 9, blocks: {}},
+      field: {
+        path: 'field/o/LIVE/game.json.gz',
+        hash: 'gamehash',
+        cars: 30,
+        durationS: 3700,
+        mark: {kind: 'garbage'},
+      },
+    },
+    recordings: [
+      {
+        id: 'gameRec',
+        ownerId: 'o',
+        recordedAt: at(0),
+        durationSec: 582,
+        startT: 0,
+      },
+    ],
+    laps: [
+      {
+        id: 'gameRec-000',
+        ownerId: 'o',
+        sessionId: 'LIVE',
+        recordingId: 'gameRec',
+        startT: 0,
+        endT: 73,
+      },
+    ],
+    traces: [],
+    files: [],
+    band: null,
+    track: null,
+    boundaries: null,
+    fieldText: '{}',
+  });
+  const doc = db.docs.get('sessions/LIVE');
+  assert.deepEqual(doc.recordingIds, stored.recordingIds);
+  const {recordingIds: _storedIds, ...storedRest} = stored;
+  const {recordingIds: _docIds, ...docRest} = doc;
+  assert.deepEqual(docRest, storedRest);
+  assert.equal(db.docs.has('laps/gameRec-000'), false);
+  assert.equal(db.docs.has('laps/liveRec-001'), true);
+  assert.equal(db.docs.has('laps/liveRec-002'), true);
+  assert.deepEqual(deleted, []);
+});
+
+test('laps a covered game file adds do not replace the live session header', async () => {
+  const stored = {
+    id: 'LIVE',
+    ownerId: 'o',
+    recordingIds: ['liveRec'],
+    bestLapId: 'liveRec-001',
+    lapCount: 2,
+    analysis: {v: 4, blocks: {plan: 3}},
+  };
+  const db = memoryStore(
+    {
+      'sessions/LIVE': structuredClone(stored),
+      'recordings/liveRec': {
+        id: 'liveRec',
+        ownerId: 'o',
+        recordedAt: at(244),
+        durationSec: 800,
+        startT: 0,
+      },
+      'laps/liveRec-001': {
+        id: 'liveRec-001',
+        ownerId: 'o',
+        sessionId: 'LIVE',
+        recordingId: 'liveRec',
+      },
+    },
+    {ownerKey: 'o'},
+  );
+  await createStore({
+    ...db,
+    deleteFile: async () => {},
+    listFiles: async () => [],
+    getFile: async () => null,
+  }).upload({
+    healLack: true,
+    session: {
+      id: 'LIVE',
+      ownerId: 'o',
+      recordingIds: ['gameRec'],
+      bestLapId: 'gameRec-002',
+      lapCount: 5,
+      analysis: {v: 9, blocks: {}},
+    },
+    recordings: [
+      {
+        id: 'gameRec',
+        ownerId: 'o',
+        recordedAt: at(0),
+        durationSec: 1054,
+        startT: 0,
+      },
+    ],
+    laps: [
+      {
+        id: 'gameRec-000',
+        ownerId: 'o',
+        sessionId: 'LIVE',
+        recordingId: 'gameRec',
+        startT: 0,
+        endT: 50,
+      },
+      {
+        id: 'gameRec-001',
+        ownerId: 'o',
+        sessionId: 'LIVE',
+        recordingId: 'gameRec',
+        startT: 50,
+        endT: 179,
+      },
+    ],
+    traces: [],
+    files: [],
+    band: null,
+    track: null,
+    boundaries: null,
+  });
+  const doc = db.docs.get('sessions/LIVE');
+  assert.equal(doc.bestLapId, 'liveRec-001');
+  assert.equal(doc.lapCount, 2);
+  assert.deepEqual(doc.recordingIds, ['liveRec', 'gameRec']);
+  assert.equal(doc.analysis.v, 0);
+  assert.equal(db.docs.has('laps/gameRec-000'), true);
+  assert.equal(db.docs.has('laps/gameRec-001'), true);
+  assert.equal(db.docs.has('laps/liveRec-001'), true);
 });
 
 test('an adoption whose live session is gone from the store is undone, never re-created', async () => {

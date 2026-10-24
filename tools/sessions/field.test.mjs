@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {test} from 'node:test';
 import {run, sqlPath} from './duck.mjs';
+import {MIN_COVER_SHARE as LIVE_MIN_COVER_SHARE} from './liveSession.mjs';
 import {needsDuckdb} from './duckTestSupport.mjs';
 import {
   alignment,
@@ -13,6 +14,7 @@ import {
   encode,
   fieldFor,
   fieldAfterSync,
+  MIN_COVER_SHARE,
   captureDoubted,
   goodRows,
   listCaptures,
@@ -412,5 +414,35 @@ test('fieldAfterSync: no new field keeps the stored one; a new one replaces it',
   assert.equal(kept.deletePath, null);
   assert.equal(kept.field.path, stored.path);
   assert.equal(kept.field.mark.kind, 'smaller');
+  assert.equal(kept.field.aside, smaller.path);
   assert.equal(kept.keptAside, smaller);
+  // A stored mark stays the one on screen. The aside path still has to be on
+  // the field, or the capture never verifies (verifyStored).
+  const doubted = {...richer, mark: {kind: 'doubted'}, note: 'Other cars: recording doubted'};
+  const overMark = fieldAfterSync(smaller, doubted);
+  assert.equal(overMark.upload, false);
+  assert.equal(overMark.deletePath, null);
+  assert.equal(overMark.field.path, stored.path);
+  assert.equal(overMark.field.mark.kind, 'doubted');
+  assert.equal(overMark.field.aside, smaller.path);
+  assert.equal(overMark.keptAside, smaller);
+  // A larger garbage field does not replace a clean one, and does not delete it.
+  const garbage = {...fresh, cars: 40, durationS: 100, mark: {kind: 'garbage'}};
+  const clean = {...stored, cars: 20, durationS: 180};
+  const held = fieldAfterSync(garbage, clean);
+  assert.equal(held.upload, false);
+  assert.equal(held.deletePath, null);
+  assert.equal(held.field.path, stored.path);
+  assert.equal(held.field.mark, undefined);
+  assert.equal(held.field.aside, garbage.path);
+  assert.equal(held.keptAside, garbage);
+  const misaligned = {...fresh, cars: 40, durationS: 100, mark: {kind: 'misaligned', alignM: 40}};
+  const aligned = fieldAfterSync(misaligned, clean);
+  assert.equal(aligned.deletePath, null);
+  assert.equal(aligned.field.path, stored.path);
+  assert.equal(aligned.field.aside, misaligned.path);
+});
+
+test('the cover share matches liveSession, which field.mjs cannot import', () => {
+  assert.equal(MIN_COVER_SHARE, LIVE_MIN_COVER_SHARE);
 });

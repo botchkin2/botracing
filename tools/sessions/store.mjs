@@ -527,6 +527,15 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     }
   }
   const kept = fieldAfterSync(session.field, before?.field ?? null);
+  // A covered game file keeps the live session's field, put back with the
+  // doc below. Uploading or recomputing here would delete that file, or
+  // rewrite blocks the put-back then throws away.
+  if (out.healLack && before) {
+    kept.field = null;
+    kept.upload = false;
+    kept.deletePath = null;
+    kept.keptAside = null;
+  }
   session.field = kept.field;
   session.fieldMissing = fieldMissingAfter(
     kept.field,
@@ -666,12 +675,19 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     out.laps = lapsToAdd(storedRecs, out.recordings, out.laps);
     const extra = new Set(out.laps.map(l => l.recordingId));
     out.recordings = out.recordings.filter(r => extra.has(r.id));
-    session.recordingIds = [
+    const recordingIds = [
       ...new Set([...ids, ...out.recordings.map(r => r.id)]),
     ];
     out.keepStoredLaps = true;
+    // Those blocks name the game file's laps. The live doc keeps its own.
+    // Laps that were added leave the stamp stale so the next open recomputes
+    // the header from the stored laps plus the new ones.
+    const added = out.laps.length;
+    for (const key of Object.keys(session)) delete session[key];
+    Object.assign(session, before, {recordingIds});
+    if (added > 0) session.analysis = {...LIVE_STAMP};
     log(
-      `  heal lack: ${out.laps.length} lap(s) the live copy did not have` +
+      `  heal lack: ${added} lap(s) the live copy did not have` +
         (prefix ? `, ${prefix.seconds}s before the recorder` : ''),
     );
   }

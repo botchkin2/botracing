@@ -97,16 +97,10 @@ export const tombstoneExpired = (doc, nowMs, listedIds) =>
   nowMs - Date.parse(doc.supersededAt) > TOMBSTONE_DAYS * 86_400_000;
 
 /**
- * Game-file sessions that cover a drive the PC uploaded live from a defective
- * capture (in the full live index, not in the usable one) take that live
- * session's id and carry `healDefect`. Only when it is unambiguous: one live
- * id for the session, and no other session claiming it. `cover(entries, info)`
- * is liveSession.mjs liveCover.
- */
-/**
  * A game file whose every recording is covered by one live session is built
  * under that session's id (audit row 13). It does not replace the live
  * recordings; store.mjs adds only the stretches the live copy lacks.
+ * The caller confirms the live session is still in the store (confirmClaims).
  */
 export function claimCoveredSessions(sessions, index, cover) {
   const claimed = [];
@@ -201,6 +195,13 @@ export function uncoveredPrefixS(stored, built) {
   return best;
 }
 
+/**
+ * Game-file sessions that cover a drive the PC uploaded live from a defective
+ * capture (in the full live index, not in the usable one) take that live
+ * session's id and carry `healDefect`. Only when it is unambiguous: one live
+ * id for the session, and no other session claiming it. `cover(entries, info)`
+ * is liveSession.mjs liveCover.
+ */
 export function adoptLiveIds(sessions, fullIndex, usableIndex, cover) {
   const defective = Object.fromEntries(
     Object.entries(fullIndex).filter(([key]) => !(key in usableIndex)),
@@ -242,6 +243,23 @@ export async function confirmAdoptions(adopted, exists) {
       s.id = s.hashId;
       delete s.hashId;
       delete s.healDefect;
+    }
+  }
+  return standing;
+}
+
+/**
+ * Same rule as confirmAdoptions, for a covered game file (claimCoveredSessions).
+ * A deleted live session is not rebuilt from the game file under that id.
+ */
+export async function confirmClaims(claimed, exists) {
+  const standing = [];
+  for (const s of claimed) {
+    if (await exists(s.id)) standing.push(s);
+    else {
+      s.id = s.hashId;
+      delete s.hashId;
+      delete s.healLack;
     }
   }
   return standing;

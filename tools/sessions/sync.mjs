@@ -57,6 +57,7 @@ import {
   adoptLiveIds,
   claimCoveredSessions,
   confirmAdoptions,
+  confirmClaims,
   coveredCopies,
   settleSupersedes,
 } from './heal.mjs';
@@ -485,13 +486,17 @@ async function main() {
   const liveIndex = usableLiveIndex(readLiveIndex(work), captureRoot);
   const files = scanned;
   const sessions = group(files);
-  for (const s of claimCoveredSessions(sessions, liveIndex, liveCover))
-    log(`  ${s.hashId}: game file kept with live session ${s.id}`);
-  // A drive whose live capture is defective (brokenWheels.mjs) is rebuilt from
-  // its game file under the live session's id (heal.mjs, thread 74 step 1).
-  // Only while the live session still exists in the store, so a deleted live
-  // copy is never made again; without a store (local) nothing is adopted.
+  // A covered game file is built under the live session's id only while that
+  // session is still in the store. A deleted live copy is never made again
+  // (STORAGE.md). Without a store (local) nothing is claimed or adopted.
   if (remoteStore) {
+    for (const s of await confirmClaims(
+      claimCoveredSessions(sessions, liveIndex, liveCover),
+      async id => Boolean(await remoteStore.getSession(id)),
+    ))
+      log(`  ${s.hashId}: game file kept with live session ${s.id}`);
+    // A drive whose live capture is defective (brokenWheels.mjs) is rebuilt from
+    // its game file under the live session's id (heal.mjs, thread 74 step 1).
     const adopted = adoptLiveIds(
       sessions,
       readLiveIndex(work),

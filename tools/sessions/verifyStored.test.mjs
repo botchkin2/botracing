@@ -82,6 +82,25 @@ test('a smaller field kept aside verifies when that file is in the bucket', asyn
   assert.match(gone.reason, /stored field old is not the uploaded abc/);
 });
 
+test('an aside path on the field verifies when the shown mark is not smaller', async () => {
+  const storedField = {
+    path: 'field/o/s1/old.json.gz',
+    hash: 'old',
+    mark: {kind: 'doubted'},
+    aside: FIELD.path,
+  };
+  const b = backend({
+    sessions: {s1: {id: 's1', field: storedField}},
+    laps: {s1: ['s1-1', 's1-2']},
+    files: [storedField.path, FIELD.path],
+  });
+  assert.equal((await verifyStored(b, built())).ok, true);
+  b.fileMd5 = async dest => (dest === storedField.path ? 'md5' : null);
+  const gone = await verifyStored(b, built());
+  assert.equal(gone.ok, false);
+  assert.match(gone.reason, /stored field old is not the uploaded abc/);
+});
+
 test('a stored field that is not the one uploaded fails it, unless the upload was skipped', async () => {
   const other = {path: FIELD.path, hash: 'old'};
   const r = await verifyStored(stored(other), built());

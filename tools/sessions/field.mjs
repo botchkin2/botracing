@@ -13,18 +13,12 @@
 import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {columns, rows, sqlPath} from './duck.mjs';
+import {sessionTypeOf} from './lmuCapture.mjs';
 
-// Same share as liveSession.mjs MIN_COVER_SHARE. Not imported: field.mjs is
-// loaded from paths that already have liveSession on the stack.
-const MIN_COVER_SHARE = 0.5;
-
-// Same bands as lmuCapture.sessionTypeOf. Kept here for the same reason.
-function sessionTypeOf(session) {
-  if (session >= 10 && session <= 13) return 'Race';
-  if (session >= 5 && session <= 8) return 'Qualify';
-  if (session === 9) return 'Warmup';
-  return 'Practice';
-}
+// Same share as liveSession.mjs MIN_COVER_SHARE. Not imported: liveSession.mjs
+// loads analyzeFromArchive, which reaches this file through lapTraffic and
+// fieldTags. A cycle leaves the share undefined. field.test.mjs checks equality.
+export const MIN_COVER_SHARE = 0.5;
 
 export const FIELD_HZ = 5;
 // Median player lap-distance disagreement above this means the clocks do not
@@ -462,33 +456,36 @@ export function fieldFor(root, session, recs) {
   });
 }
 
-// What the session keeps after a sync. A sync that found no field (captures
-// pruned after 14 days, a sync from a shell that can't see the capture folder,
-// a failed clock check) keeps the stored one instead of wiping it; only a new
-// field that joined and passed the clock check replaces it (scrutineer #693).
+// What the session keeps after a sync. No new field keeps the stored one.
+// A new field replaces it when it covers at least as much (cars × seconds)
+// and its mark is not stronger. A stronger mark is a worse field (garbage
+// outranks misaligned, then track, doubted, smaller): it is stored beside
+// the cleaner file and that file is not deleted. `aside` sits on the field
+// itself, so the mark the screen shows cannot drop the path (audit row 15).
 // Returns {field, upload, deletePath, keptAside}.
-// A new field replaces the stored one only when it covers at least as much
-// (cars × seconds). A smaller one is uploaded beside it and the stored field
-// stays, marked (audit row 15).
 const spanOf = f => (Number(f?.cars) || 0) * (Number(f?.durationS) || 0);
+const markRank = mark => MARK_RANK[mark?.kind] ?? 0;
+
+function holdAside(stored, fresh) {
+  const smaller = spanOf(fresh) < spanOf(stored);
+  const mark =
+    !stored.mark && smaller ? {kind: 'smaller', aside: fresh.path} : stored.mark;
+  const field = {...stored, aside: fresh.path};
+  if (mark) {
+    field.mark = mark;
+    field.note = fieldMarkText(mark);
+  }
+  return {field, upload: false, deletePath: null, keptAside: fresh};
+}
 
 export function fieldAfterSync(fresh, stored) {
   const none = {field: stored ?? null, upload: false, deletePath: null, keptAside: null};
   if (!fresh) return none;
   if (!stored?.path || stored.path === fresh.path)
     return {field: fresh, upload: true, deletePath: null, keptAside: null};
-  if (spanOf(fresh) >= spanOf(stored))
-    return {field: fresh, upload: true, deletePath: stored.path, keptAside: null};
-  const mark = pickMark([
-    stored.mark,
-    {kind: 'smaller', aside: fresh.path},
-  ]);
-  return {
-    field: {...stored, mark, note: fieldMarkText(mark)},
-    upload: false,
-    deletePath: null,
-    keptAside: fresh,
-  };
+  if (markRank(fresh.mark) > markRank(stored.mark) || spanOf(fresh) < spanOf(stored))
+    return holdAside(stored, fresh);
+  return {field: fresh, upload: true, deletePath: stored.path, keptAside: null};
 }
 
 // A block worked out from the field (result, classLaps, classBests) names the
