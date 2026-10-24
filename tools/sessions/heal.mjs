@@ -130,15 +130,57 @@ export function claimCoveredSessions(sessions, index, cover) {
   return claimed;
 }
 
-/** Built recordings the stored session has no pair for (heal.mjs PAIR_WITHIN_S). */
+const spanMs = rec => {
+  const at = Date.parse(rec.recordedAt);
+  const dur = Number(rec.durationSec ?? rec.durationS ?? 0);
+  return {at, end: at + dur * 1000};
+};
+
+/** True when two recordings cover the same wall-clock stretch. */
+function overlaps(a, b) {
+  return a.at < b.end && a.end > b.at;
+}
+
+/**
+ * Built recordings the stored session has no pair for. A pair is the same id,
+ * a start within PAIR_WITHIN_S, or any wall-clock overlap: the shared laps
+ * stay the stored ones. The seconds a built recording runs before that overlap
+ * are `uncoveredPrefixS` (the 10-21 Sebring files start 52 s and 66 s before
+ * the recorder). Those seconds sit inside the first lap, so they are not a
+ * recording of their own and are not uploaded here.
+ */
 export function recordingsToAdd(stored, built) {
   return built.filter(b => {
     if (stored.some(s => s.id === b.id)) return false;
-    const at = Date.parse(b.recordedAt);
-    return !stored.some(
-      s => Math.abs(Date.parse(s.recordedAt) - at) <= PAIR_WITHIN_S * 1000,
-    );
+    const span = spanMs(b);
+    return !stored.some(s => {
+      const other = spanMs(s);
+      if (Math.abs(other.at - span.at) <= PAIR_WITHIN_S * 1000) return true;
+      return overlaps(span, other);
+    });
   });
+}
+
+/**
+ * The longest head start of a built recording that then overlaps a stored one,
+ * in seconds, or null. That head is the part the live copy lacks.
+ */
+export function uncoveredPrefixS(stored, built) {
+  let best = null;
+  for (const b of built) {
+    const span = spanMs(b);
+    let cut = null;
+    for (const s of stored) {
+      const other = spanMs(s);
+      if (!overlaps(span, other) || !(other.at > span.at)) continue;
+      cut = cut == null ? other.at : Math.min(cut, other.at);
+    }
+    if (cut == null) continue;
+    const seconds = (cut - span.at) / 1000;
+    if (!best || seconds > best.seconds)
+      best = {id: b.id, seconds: Math.round(seconds * 10) / 10};
+  }
+  return best;
 }
 
 export function adoptLiveIds(sessions, fullIndex, usableIndex, cover) {

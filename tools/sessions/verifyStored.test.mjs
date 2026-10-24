@@ -59,6 +59,29 @@ test('no field stored, or its file missing from the bucket, fails it: the captur
   assert.match(gone.reason, /not in the bucket/);
 });
 
+test('a smaller field kept aside verifies when that file is in the bucket', async () => {
+  const richer = {
+    path: 'field/o/s1/old.json.gz',
+    hash: 'old',
+    mark: {kind: 'smaller', aside: FIELD.path},
+  };
+  const b = backend({
+    sessions: {s1: {id: 's1', field: richer}},
+    laps: {s1: ['s1-1', 's1-2']},
+    files: [richer.path, FIELD.path],
+  });
+  assert.deepEqual(await verifyStored(b, built()), {
+    ok: true,
+    sessionId: 's1',
+    laps: 2,
+    fieldHash: 'old',
+  });
+  b.fileMd5 = async dest => (dest === richer.path ? 'md5' : null);
+  const gone = await verifyStored(b, built());
+  assert.equal(gone.ok, false);
+  assert.match(gone.reason, /stored field old is not the uploaded abc/);
+});
+
 test('a stored field that is not the one uploaded fails it, unless the upload was skipped', async () => {
   const other = {path: FIELD.path, hash: 'old'};
   const r = await verifyStored(stored(other), built());

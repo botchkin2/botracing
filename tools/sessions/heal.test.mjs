@@ -6,6 +6,7 @@ import {
   claimCoveredSessions,
   confirmAdoptions,
   recordingsToAdd,
+  uncoveredPrefixS,
   coveredCopies,
   healPlan,
   settleSupersedes,
@@ -148,6 +149,18 @@ test('a usable live cover claims the game file and adds only the stretch it lack
     {id: 'game-extra', recordedAt: at(1000)},
   ];
   assert.deepEqual(recordingsToAdd(stored, built).map(r => r.id), ['game-extra']);
+  // The game file starts before the recorder and then covers the same stretch.
+  // The shared laps stay the stored ones. The head start is reported, not
+  // uploaded: on the 10-21 Sebring files it is the first part of lap 0.
+  const early = [
+    {id: 'game-early', recordedAt: at(0), durationSec: 582},
+  ];
+  const live = [{id: 'live-rec', recordedAt: at(52), durationSec: 530}];
+  assert.deepEqual(recordingsToAdd(live, early), []);
+  assert.deepEqual(uncoveredPrefixS(live, early), {
+    id: 'game-early',
+    seconds: 52,
+  });
 });
 
 test('the upload tombstones what it replaces, keeps the lone stretch and its laps, and hides both from the leftover cleanup', async () => {

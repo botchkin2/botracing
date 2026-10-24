@@ -9,6 +9,7 @@ import {needsDuckdb} from './duckTestSupport.mjs';
 import {
   alignment,
   capturesFor,
+  capturesOverlapping,
   encode,
   fieldFor,
   fieldAfterSync,
@@ -119,6 +120,77 @@ test('capturesFor: overlap and either track name', () => {
     endMs: Date.parse('2026-10-20T04:00:00Z'),
   };
   assert.deepEqual(capturesFor(all, later), []);
+});
+
+test('capturesOverlapping: half the shorter span, same type, largest wins', () => {
+  const practice = cap(
+    'practice',
+    'Other name',
+    '2026-10-21T18:00:00Z',
+    '2026-10-21T18:40:00Z',
+  );
+  practice.meta.sim = 'lmu';
+  practice.meta.session = 1;
+  const quali = cap(
+    'quali',
+    'Other name',
+    '2026-10-21T18:38:00Z',
+    '2026-10-21T18:55:00Z',
+  );
+  quali.meta.sim = 'lmu';
+  quali.meta.session = 5;
+  const race = cap(
+    'race',
+    'Other name',
+    '2026-10-21T19:00:00Z',
+    '2026-10-21T19:40:00Z',
+  );
+  race.meta.sim = 'lmu';
+  race.meta.session = 10;
+  const brush = {
+    tracks: ['Sebring International Raceway'],
+    sim: 'lmu',
+    sessionType: 'Qualify',
+    startMs: Date.parse('2026-10-21T18:39:00Z'),
+    endMs: Date.parse('2026-10-21T18:54:00Z'),
+  };
+  // Practice only touches the last minute of a 15 min quali: not a cover.
+  assert.deepEqual(capturesOverlapping([practice], brush), []);
+  // The quali capture covers the session; the practice one does not.
+  assert.deepEqual(
+    capturesOverlapping([practice, quali], brush).map(c => c.name),
+    ['quali'],
+  );
+  // A race capture of another type does not cover quali even when the clocks overlap.
+  const raceOnQuali = cap(
+    'race-clock',
+    'Other name',
+    '2026-10-21T18:39:00Z',
+    '2026-10-21T18:54:00Z',
+  );
+  raceOnQuali.meta.sim = 'lmu';
+  raceOnQuali.meta.session = 10;
+  assert.deepEqual(capturesOverlapping([raceOnQuali], brush), []);
+  // Two covers: the larger overlap is the one used.
+  const also = cap(
+    'also',
+    'Other name',
+    '2026-10-21T18:45:00Z',
+    '2026-10-21T18:54:00Z',
+  );
+  also.meta.sim = 'lmu';
+  also.meta.session = 5;
+  assert.deepEqual(
+    capturesOverlapping([also, quali], brush).map(c => c.name),
+    ['quali'],
+  );
+  // No session number on the capture: the type is unknown, so the cover stands.
+  delete quali.meta.session;
+  assert.deepEqual(
+    capturesOverlapping([quali], brush).map(c => c.name),
+    ['quali'],
+  );
+  assert.deepEqual(capturesOverlapping([race], brush), []);
 });
 
 test('modelOf: the telemetry model only, never anything with a car number', () => {

@@ -14,6 +14,18 @@ import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {columns, rows, sqlPath} from './duck.mjs';
 
+// Same share as liveSession.mjs MIN_COVER_SHARE. Not imported: field.mjs is
+// loaded from paths that already have liveSession on the stack.
+const MIN_COVER_SHARE = 0.5;
+
+// Same bands as lmuCapture.sessionTypeOf. Kept here for the same reason.
+function sessionTypeOf(session) {
+  if (session >= 10 && session <= 13) return 'Race';
+  if (session >= 5 && session <= 8) return 'Qualify';
+  if (session === 9) return 'Warmup';
+  return 'Practice';
+}
+
 export const FIELD_HZ = 5;
 // Median player lap-distance disagreement above this means the clocks do not
 // line up (a restart or rejoin reset the session clock). The field is still
@@ -322,14 +334,45 @@ export function fieldMarkText(mark) {
   return null;
 }
 
-// Wall-clock overlap only. A name that does not match still joins (audit row 6)
-// and is marked; a name match stays the normal path.
-export function capturesOverlapping(captures, {startMs, endMs}) {
-  return captures.filter(c => {
-    const from = Date.parse(c.meta.startUtc);
-    const to = c.meta.endUtc ? Date.parse(c.meta.endUtc) : c.lastMs;
-    return from <= endMs && to >= startMs;
-  });
+function captureWindow(c) {
+  const from = Date.parse(c.meta.startUtc);
+  const to = c.meta.endUtc ? Date.parse(c.meta.endUtc) : c.lastMs;
+  return {from, to};
+}
+
+// The recorder's session number, or null when the capture never wrote one.
+function captureSessionType(meta) {
+  if (meta.session == null || meta.session === '') return null;
+  const n = Number(meta.session);
+  return Number.isFinite(n) ? sessionTypeOf(n) : null;
+}
+
+/**
+ * One capture for a session whose track name did not match (audit row 6).
+ * The #712 cover rule (liveSession.mjs liveCover): same sim, same session
+ * type where both are known, overlap at least MIN_COVER_SHARE of the shorter
+ * span, and the largest overlap wins. A practice file that only brushes a
+ * qualifying session does not join.
+ */
+export function capturesOverlapping(captures, session) {
+  const {startMs, endMs, sim = 'lmu', sessionType = null} = session;
+  let best = null;
+  let bestMs = 0;
+  for (const c of captures) {
+    const capSim = c.meta.sim || 'lmu';
+    if (sim && capSim !== sim) continue;
+    const capType = captureSessionType(c.meta);
+    if (sessionType && capType && capType !== sessionType) continue;
+    const {from, to} = captureWindow(c);
+    const overlapMs = Math.min(endMs, to) - Math.max(startMs, from);
+    const shorterMs = Math.min(endMs - startMs, to - from);
+    if (!(overlapMs > 0) || overlapMs < MIN_COVER_SHARE * shorterMs) continue;
+    if (overlapMs > bestMs) {
+      best = c;
+      bestMs = overlapMs;
+    }
+  }
+  return best ? [best] : [];
 }
 
 /**
