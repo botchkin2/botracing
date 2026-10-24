@@ -56,6 +56,8 @@ export function towerRows(
           })
           .sort((a, b) => b.d - a.d)
           .map(e => e.car);
+  // every car of the class by class place, a garage car too: its interval is part of the way between two cars
+  const classRun = cars.filter(c => c.classKey === me.classKey && c.classPlace > 0).sort((a, b) => a.classPlace - b.classPlace);
   const at = ordered.indexOf(me);
   const count = Math.min(span, ordered.length);
   const first = Math.max(0, Math.min(at - Math.floor(count / 2), ordered.length - count));
@@ -65,23 +67,23 @@ export function towerRows(
     classTag: c.classTag,
     color: c.color,
     model: c.model,
-    gap: c === me ? '' : gapText(c, me, mode, trackM, ordered),
+    gap: c === me ? '' : gapText(c, me, mode, trackM, classRun),
     followed: c === me,
   }));
 }
 
-function gapText(c: TowerCar, me: TowerCar, mode: TowerMode, trackM: number, ordered: readonly TowerCar[]): string {
+function gapText(c: TowerCar, me: TowerCar, mode: TowerMode, trackM: number, classRun: readonly TowerCar[]): string {
   if (mode === 'near') {
     const d = roadOffsetM(c, me, trackM);
     return d === null ? '–' : `${formatSignedWhole(d)} m`;
   }
   // Order holds one class by class place: the cars between the two each add their interval to the one ahead of them.
-  const from = ordered.indexOf(c);
-  const to = ordered.indexOf(me);
+  const from = classRun.indexOf(c);
+  const to = classRun.indexOf(me);
   const [first, last] = from < to ? [from + 1, to] : [to + 1, from];
   let sumS = 0;
   for (let i = first; i <= last; i++) {
-    const intervalS = ordered[i].intervalS;
+    const intervalS = classRun[i].intervalS;
     if (intervalS === null) return '–';
     sumS += intervalS;
   }

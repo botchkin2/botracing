@@ -35,6 +35,12 @@ describe('towerRows', () => {
     // me = index 4; the car ahead is 1.5 + 0.4 = 1.9 up, the car behind is 1.5 + 0.5 = 2.0 back
     expect(rows.map(r => r.gap)).toEqual(['−1.9', '', '+2.0']);
   });
+  it('counts a garage car between the two in the gap, which a car in the garage still has a place for', () => {
+    const rows = towerRows(field.map(c => (c.index === 4 ? {...c, inGarage: true} : c)), 5, 'order', 3, TRACK);
+    // me = index 5 (place 6); index 4 (place 5) is in the garage but its 2.0 s is still on the way to index 3
+    expect(rows.map(r => r.index)).toEqual([3, 5, 6]);
+    expect(rows.map(r => r.gap)).toEqual(['−4.0', '', '+2.0']);
+  });
   it('prints a dash when an interval on the way is unknown (the grid)', () => {
     const grid = field.map(c => ({...c, intervalS: null}));
     expect(towerRows(grid, 4, 'order', 3, TRACK).map(r => r.gap)).toEqual(['–', '', '–']);

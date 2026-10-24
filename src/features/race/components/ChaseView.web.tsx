@@ -329,12 +329,12 @@ function ChaseSurface({
           <ChaseTower rows={tower} mode={towerMode} onMode={setTowerMode} onPick={pick} tight={false} />
         </View>
       ) : null}
-      {turned ? (
+      {turned && !listOpen ? (
         // a drag keeps its angle until Reset, so a turned camera says so, in the accent colour, where the HUD does not reach
         <Pressable
           accessibilityLabel='Reset the camera to chase'
           onPress={onReset}
-          style={[styles.turned, {top: canvasTop + space.xs, borderColor: color.accent, backgroundColor: color.surface}]}>
+          style={[styles.turned, tight ? {top: canvasTop + space.xs, right: space.sm} : {left: space.sm, bottom: space.sm + size.hit + space.xs}, {borderColor: color.accent, backgroundColor: color.surface}]}>
           <Text variant='dataSmall' tone='accentInk'>Camera turned · Reset</Text>
         </Pressable>
       ) : null}
@@ -440,7 +440,6 @@ const styles = StyleSheet.create({
   strip: {position: 'absolute', left: space.sm, right: space.sm},
   turned: {
     position: 'absolute',
-    right: space.sm,
     zIndex: 3,
     borderWidth: 1,
     borderRadius: radius.sm,
