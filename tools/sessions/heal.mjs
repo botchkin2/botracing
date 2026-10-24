@@ -152,10 +152,31 @@ export function recordingsToAdd(stored, built) {
 }
 
 /**
+ * A built lap's wall-clock span. The sync's lap doc has `startTime` and
+ * `durationSec` (analyzeFromArchive); a fixture may still pass the game
+ * clock (`startT` / `endT`) against the recording's `recordedAt`.
+ */
+export function lapWallMs(lap, rec) {
+  const origin = Number(rec?.startT ?? 0);
+  const base = Date.parse(rec?.recordedAt);
+  if (
+    Number.isFinite(base) &&
+    Number.isFinite(Number(lap.startT)) &&
+    Number.isFinite(Number(lap.endT))
+  ) {
+    return {
+      start: base + (Number(lap.startT) - origin) * 1000,
+      end: base + (Number(lap.endT) - origin) * 1000,
+    };
+  }
+  const start = Date.parse(lap.startTime);
+  return {start, end: start + Number(lap.durationSec) * 1000};
+}
+
+/**
  * Built laps the stored recordings do not already cover. A lap that ends
  * before the stored stretch starts is kept. A lap that overlaps it is not
- * added, and the stored laps stay. Wall time is the recording's `recordedAt`
- * plus the lap clock minus the recording's `startT`.
+ * added, and the stored laps stay.
  */
 export function lapsToAdd(stored, built, laps) {
   const spans = stored.map(spanMs).filter(s => Number.isFinite(s.at) && s.end > s.at);
@@ -163,10 +184,7 @@ export function lapsToAdd(stored, built, laps) {
   return laps.filter(lap => {
     const rec = byId.get(lap.recordingId);
     if (!rec) return false;
-    const base = Date.parse(rec.recordedAt);
-    const origin = Number(rec.startT ?? 0);
-    const start = base + (Number(lap.startT) - origin) * 1000;
-    const end = base + (Number(lap.endT) - origin) * 1000;
+    const {start, end} = lapWallMs(lap, rec);
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start)
       return false;
     return !spans.some(s => start < s.end && end > s.at);
@@ -177,6 +195,36 @@ export function lapsToAdd(stored, built, laps) {
  * The longest head start of a built recording that then overlaps a stored one,
  * in seconds, or null. That head is the part the live copy lacks.
  */
+/**
+ * Stored recordings, in this built recording's clock. The next open analyses
+ * the archive in full (analyzeStored); these spans are the stretches the live
+ * copy already owns, and analyze.mjs drops a lap that hits one. The same test
+ * as lapsToAdd: meeting a span only at an endpoint is not a hit.
+ */
+export function clipSpans(stored, built) {
+  const origin = Number(built.startT ?? 0);
+  const base = Date.parse(built.recordedAt);
+  if (!Number.isFinite(base)) return [];
+  const out = [];
+  for (const s of stored) {
+    const other = spanMs(s);
+    if (!Number.isFinite(other.at) || !(other.end > other.at)) continue;
+    const startT = origin + (other.at - base) / 1000;
+    const endT = origin + (other.end - base) / 1000;
+    if (Number.isFinite(startT) && Number.isFinite(endT) && endT > startT)
+      out.push({startT, endT});
+  }
+  return out;
+}
+
+/** A lap lapsToAdd would refuse: it overlaps a span the live copy owns. */
+export function lapHitsClip(lap, spans) {
+  return (
+    Array.isArray(spans) &&
+    spans.some(s => lap.startT < s.endT && lap.endT > s.startT)
+  );
+}
+
 export function uncoveredPrefixS(stored, built) {
   let best = null;
   for (const b of built) {

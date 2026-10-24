@@ -38,7 +38,7 @@ import {stampNewer, withKept} from './versionKey.mjs';
 import {captureExtractPath} from './captureExtract.mjs';
 import {resultsInputPath} from './resultsInput.mjs';
 import {guardedWriter} from './docShape.mjs';
-import {healPlan, lapsToAdd, uncoveredPrefixS} from './heal.mjs';
+import {clipSpans, healPlan, lapsToAdd, uncoveredPrefixS} from './heal.mjs';
 import {LIVE_STAMP} from './liveSession.mjs';
 import {packState} from './layoutBoundaries.mjs';
 import {trafficMedians} from '../../src/analysis/traffic.ts';
@@ -675,6 +675,13 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     out.laps = lapsToAdd(storedRecs, out.recordings, out.laps);
     const extra = new Set(out.laps.map(l => l.recordingId));
     out.recordings = out.recordings.filter(r => extra.has(r.id));
+    // The next open analyses every recording from its archive in full. The
+    // spans name the stretch the live copy already owns, in this file's
+    // clock, so that run drops those laps (analyze.mjs lapHitsClip).
+    for (const rec of out.recordings) {
+      const spans = clipSpans(storedRecs, rec);
+      if (spans.length) rec.clipSpans = spans;
+    }
     const recordingIds = [
       ...new Set([...ids, ...out.recordings.map(r => r.id)]),
     ];

@@ -7,6 +7,8 @@ import {
   confirmAdoptions,
   confirmClaims,
   recordingsToAdd,
+  clipSpans,
+  lapHitsClip,
   lapsToAdd,
   uncoveredPrefixS,
   coveredCopies,
@@ -164,6 +166,28 @@ test('a usable live cover claims the game file and adds only the stretch it lack
   assert.deepEqual(
     lapsToAdd(live, early, laps).map(l => l.id),
     ['game-early-000', 'game-early-001'],
+  );
+  // The recording doc carries that cut. A lap that only meets it at the
+  // recorder's start stays; the one that crosses is the one lapsToAdd drops.
+  const spans = clipSpans(live, early[0]);
+  assert.deepEqual(spans, [{startT: 244, endT: 1044}]);
+  assert.equal(lapHitsClip({startT: 50, endT: 179}, spans), false);
+  assert.equal(lapHitsClip({startT: 179, endT: 244}, spans), false);
+  assert.equal(lapHitsClip({startT: 179, endT: 400}, spans), true);
+  assert.deepEqual(
+    laps.filter(l => !lapHitsClip(l, spans)).map(l => l.id),
+    ['game-early-000', 'game-early-001'],
+  );
+  const apart = {id: 'game-apart', recordedAt: at(5000), durationSec: 100, startT: 0};
+  assert.equal(lapHitsClip({startT: 0, endT: 40}, clipSpans(live, apart)), false);
+  // The lap doc the sync writes has startTime, not the game clock.
+  assert.deepEqual(
+    lapsToAdd(live, early, [
+      {id: 'w0', recordingId: 'game-early', startTime: at(0), durationSec: 50},
+      {id: 'w1', recordingId: 'game-early', startTime: at(50), durationSec: 129},
+      {id: 'w2', recordingId: 'game-early', startTime: at(179), durationSec: 221},
+    ]).map(l => l.id),
+    ['w0', 'w1'],
   );
   // 52 s of the out lap, and the lap continues after the recorder starts: nothing new to add.
   const head = [{id: 'game-head', recordedAt: at(0), durationSec: 582, startT: 0}];
@@ -479,6 +503,9 @@ test('laps a covered game file adds do not replace the live session header', asy
   assert.equal(db.docs.has('laps/gameRec-000'), true);
   assert.equal(db.docs.has('laps/gameRec-001'), true);
   assert.equal(db.docs.has('laps/liveRec-001'), true);
+  assert.deepEqual(db.docs.get('recordings/gameRec').clipSpans, [
+    {startT: 244, endT: 1044},
+  ]);
 });
 
 test('an adoption whose live session is gone from the store is undone, never re-created', async () => {
