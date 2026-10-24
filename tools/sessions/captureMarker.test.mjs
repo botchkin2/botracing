@@ -183,10 +183,20 @@ test('a foreign id is dropped once another id on the marker verifies', () => {
   capture(root, 'a');
   markUploaded(root, ['a'], 'own');
   markUploaded(root, ['a'], 'foreign');
-  const drop = foreignMissing([
-    {id: 'own', ok: true, missing: false},
-    {id: 'foreign', ok: false, missing: true},
-  ]);
+  const span = {start: '2026-10-02T00:00:00.000Z', end: '2026-10-02T01:00:00.000Z'};
+  const drop = foreignMissing(
+    [
+      {
+        id: 'own',
+        ok: true,
+        missing: false,
+        start: span.start,
+        end: span.end,
+      },
+      {id: 'foreign', ok: false, missing: true},
+    ],
+    span,
+  );
   assert.deepEqual(drop, ['foreign']);
   assert.equal(dropSessionIds(root, 'a', drop), true);
   assert.equal(
@@ -202,22 +212,98 @@ test('a foreign id is dropped once another id on the marker verifies', () => {
 });
 
 test('an absent id stays when nothing else on the marker verified', () => {
+  const span = {start: '2026-10-02T00:00:00.000Z', end: '2026-10-02T01:00:00.000Z'};
   assert.deepEqual(
-    foreignMissing([{id: 'foreign', ok: false, missing: true}]),
+    foreignMissing([{id: 'foreign', ok: false, missing: true}], span),
     [],
   );
   assert.deepEqual(
-    foreignMissing([
-      {id: 'own', ok: false, missing: false},
-      {id: 'foreign', ok: false, missing: true},
-    ]),
+    foreignMissing(
+      [
+        {id: 'own', ok: false, missing: false},
+        {id: 'foreign', ok: false, missing: true},
+      ],
+      span,
+    ),
     [],
   );
   assert.deepEqual(
-    foreignMissing([
-      {id: 'own', ok: true, missing: false},
-      {id: 'foreign', ok: false, missing: false},
-    ]),
+    foreignMissing(
+      [
+        {id: 'own', ok: true, missing: false, start: span.start, end: span.end},
+        {id: 'foreign', ok: false, missing: false},
+      ],
+      span,
+    ),
+    [],
+  );
+});
+
+test('a missing id stays when the verified sessions cover under 90% of the capture', () => {
+  const span = {start: '2026-10-02T00:00:00.000Z', end: '2026-10-02T01:00:00.000Z'};
+  const half = foreignMissing(
+    [
+      {
+        id: 'own',
+        ok: true,
+        missing: false,
+        start: span.start,
+        end: '2026-10-02T00:30:00.000Z',
+      },
+      {id: 'other', ok: false, missing: true},
+    ],
+    span,
+  );
+  assert.deepEqual(half, []);
+  const edge = foreignMissing(
+    [
+      {
+        id: 'own',
+        ok: true,
+        missing: false,
+        start: span.start,
+        end: '2026-10-02T00:54:00.000Z',
+      },
+      {id: 'other', ok: false, missing: true},
+    ],
+    span,
+  );
+  assert.deepEqual(edge, ['other']);
+  const two = foreignMissing(
+    [
+      {
+        id: 'a',
+        ok: true,
+        missing: false,
+        start: span.start,
+        end: '2026-10-02T00:30:00.000Z',
+      },
+      {
+        id: 'b',
+        ok: true,
+        missing: false,
+        start: '2026-10-02T00:20:00.000Z',
+        end: '2026-10-02T00:55:00.000Z',
+      },
+      {id: 'other', ok: false, missing: true},
+    ],
+    span,
+  );
+  assert.deepEqual(two, ['other']);
+  assert.deepEqual(
+    foreignMissing(
+      [
+        {
+          id: 'own',
+          ok: true,
+          missing: false,
+          start: span.start,
+          end: span.end,
+        },
+        {id: 'other', ok: false, missing: true},
+      ],
+      null,
+    ),
     [],
   );
 });

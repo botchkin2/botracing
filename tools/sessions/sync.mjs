@@ -48,6 +48,7 @@ import {versionKey} from './versionKey.mjs';
 import {slugId} from './analyzeFromArchive.mjs';
 import {analysisVersion, blockVersions, trackMapVersion} from './analyze.mjs';
 import {
+  captureSpan,
   dropSessionIds,
   foreignMissing,
   liveMarks,
@@ -328,7 +329,15 @@ async function verifyMarked(store) {
           readBack,
         });
       }
-      const drop = foreignMissing(checks);
+      const span = captureSpan(captureRoot, name);
+      for (const check of checks) {
+        if (!check.ok || typeof store.getSession !== 'function') continue;
+        const id = check.readBack?.sessionId || check.id;
+        const doc = await store.getSession(id);
+        check.start = doc?.startedAt ?? null;
+        check.end = doc?.endedAt ?? null;
+      }
+      const drop = foreignMissing(checks, span);
       const dropped = new Set(
         dropSessionIds(captureRoot, name, drop) ? drop : [],
       );

@@ -120,20 +120,63 @@ export function liveMarks(root, liveIndex) {
   return out;
 }
 
+/** How much of the capture the verified sessions must cover before an absent id is dropped (thread 100 #6982). */
+export const MARKER_COVER_SHARE = 0.9;
+
+/** The capture's wall span from meta.json, or null when it has no start and end. */
+export function captureSpan(root, name) {
+  try {
+    const meta = JSON.parse(
+      readFileSync(resolve(root, name, 'meta.json'), 'utf8'),
+    );
+    if (!meta.startUtc || !meta.endUtc) return null;
+    return {start: meta.startUtc, end: meta.endUtc};
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Records a read-back for one session already in a capture's marker, leaving
- * its sessionId and uploadedUtc as they were. Returns whether it wrote.
+ * Whether `pieces` ({start, end} ISO) together cover at least `share` of
+ * `span`. Overlap is counted once. A missing time does not cover.
  */
+export function spanCovered(span, pieces, share = MARKER_COVER_SHARE) {
+  const start = Date.parse(span?.start);
+  const end = Date.parse(span?.end);
+  const width = end - start;
+  if (!Number.isFinite(width) || width <= 0) return false;
+  const ranges = [];
+  for (const piece of pieces ?? []) {
+    const from = Math.max(start, Date.parse(piece?.start));
+    const to = Math.min(end, Date.parse(piece?.end));
+    if (Number.isFinite(from) && to > from) ranges.push([from, to]);
+  }
+  ranges.sort((a, b) => a[0] - b[0]);
+  let covered = 0;
+  let cursor = start;
+  for (const [a, b] of ranges) {
+    const from = Math.max(a, cursor);
+    if (b > from) {
+      covered += b - from;
+      cursor = b;
+    }
+  }
+  return covered / width >= share;
+}
+
 /**
  * Ids a read-back could not see because they are not in this owner's store.
- * Dropped only when another id on the same marker verified, so a marker that
- * also names another account (thread 100, a seat-test sync) can still count
- * as stored. A failure that is not "absent" stays: that id may be his.
- * `checks` are {id, ok, missing}.
+ * Dropped only when the verified sessions cover the capture (MARKER_COVER_SHARE).
+ * A 404 can be one of his own sessions gone, and one capture can feed two of
+ * his (thread 100 #6982). A failure that is not "absent" stays.
+ * `checks` are {id, ok, missing, start?, end?}. `span` is {start, end}.
  */
-export function foreignMissing(checks) {
+export function foreignMissing(checks, span) {
   if (!checks?.some(c => c.ok)) return [];
-  return checks.filter(c => !c.ok && c.missing).map(c => c.id);
+  const missing = checks.filter(c => !c.ok && c.missing);
+  if (!missing.length) return [];
+  if (!spanCovered(span, checks.filter(c => c.ok))) return [];
+  return missing.map(c => c.id);
 }
 
 /**
