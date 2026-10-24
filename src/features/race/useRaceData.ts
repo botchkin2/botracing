@@ -54,6 +54,8 @@ export type RaceData =
   | {
       kind: 'ready';
       title: string;
+      /** One line when the field was kept and flagged. */
+      note: string | null;
       mode: RaceMode;
       prep: RacePrep;
       /** The player's lap and distance at a race time, and back; shared with Compare. */
@@ -92,7 +94,8 @@ export function useRaceData(sessionId: string): RaceData {
   const map = useTrackMap(session.data?.trackId);
   const surface = useTrackSurface(session.data?.trackId);
   const detail = session.data;
-  const hash = detail?.field?.hash ?? null;
+  const hideField = detail?.field?.mark?.kind === 'garbage';
+  const hash = hideField ? null : (detail?.field?.hash ?? null);
   const field = useField(sessionId, hash);
   const band = useSessionBand(sessionId);
   // A track with no map of its own (iRacing's) still has the lap's length.
@@ -249,7 +252,11 @@ export function useRaceData(sessionId: string): RaceData {
     SESSION_TITLE[detail.sessionType]
   }`;
   if (gate === 'no-field')
-    return {kind: 'no-field', title, why: detail.fieldMissing};
+    return {
+      kind: 'no-field',
+      title,
+      why: detail.field?.note ?? detail.fieldMissing,
+    };
   if (gate === 'field-error')
     return {
       kind: 'field-error',
@@ -269,6 +276,7 @@ export function useRaceData(sessionId: string): RaceData {
   return {
     kind: 'ready',
     title,
+    note: detail.field?.note ?? null,
     mode: detail.sessionType === 'R' ? 'race' : 'field',
     prep,
     clock,

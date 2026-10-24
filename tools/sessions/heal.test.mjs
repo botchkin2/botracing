@@ -3,7 +3,9 @@ import {test} from 'node:test';
 
 import {
   adoptLiveIds,
+  claimCoveredSessions,
   confirmAdoptions,
+  recordingsToAdd,
   coveredCopies,
   healPlan,
   settleSupersedes,
@@ -111,6 +113,41 @@ test('the game-file session takes the live id only for a defective capture, and 
   const c = session('c');
   const d = session('d');
   assert.deepEqual(adoptLiveIds([c, d], full, {}, liveCover), []);
+});
+
+test('a usable live cover claims the game file and adds only the stretch it lacks', () => {
+  const index = {
+    'cap#0': {
+      sessionId: 'LIVE',
+      sim: 'lmu',
+      layout: 'Sil',
+      startMs: T0,
+      endMs: T0 + 600_000,
+    },
+  };
+  const session = {
+    id: 'hash',
+    files: [
+      {
+        info: {
+          sim: 'lmu',
+          layout: 'Sil',
+          recordedAt: at(1),
+          startT: 0,
+          endT: 590,
+        },
+      },
+    ],
+  };
+  assert.deepEqual(claimCoveredSessions([session], index, liveCover), [session]);
+  assert.equal(session.id, 'LIVE');
+  assert.equal(session.healLack, true);
+  const stored = [{id: 'live-rec', recordedAt: at(1)}];
+  const built = [
+    {id: 'game-overlap', recordedAt: at(1)},
+    {id: 'game-extra', recordedAt: at(1000)},
+  ];
+  assert.deepEqual(recordingsToAdd(stored, built).map(r => r.id), ['game-extra']);
 });
 
 test('the upload tombstones what it replaces, keeps the lone stretch and its laps, and hides both from the leftover cleanup', async () => {

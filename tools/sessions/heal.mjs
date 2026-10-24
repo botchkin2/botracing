@@ -103,6 +103,44 @@ export const tombstoneExpired = (doc, nowMs, listedIds) =>
  * id for the session, and no other session claiming it. `cover(entries, info)`
  * is liveSession.mjs liveCover.
  */
+/**
+ * A game file whose every recording is covered by one live session is built
+ * under that session's id (audit row 13). It does not replace the live
+ * recordings; store.mjs adds only the stretches the live copy lacks.
+ */
+export function claimCoveredSessions(sessions, index, cover) {
+  const claimed = [];
+  for (const s of sessions) {
+    if (s.healDefect || s.healLack) continue;
+    const ids = new Set();
+    let open = false;
+    for (const f of s.files) {
+      const hit = cover(index, f.info);
+      if (!hit) open = true;
+      else ids.add(hit.sessionId);
+    }
+    if (open || ids.size !== 1) continue;
+    const [id] = ids;
+    if (s.id === id) continue;
+    s.hashId = s.id;
+    s.id = id;
+    s.healLack = true;
+    claimed.push(s);
+  }
+  return claimed;
+}
+
+/** Built recordings the stored session has no pair for (heal.mjs PAIR_WITHIN_S). */
+export function recordingsToAdd(stored, built) {
+  return built.filter(b => {
+    if (stored.some(s => s.id === b.id)) return false;
+    const at = Date.parse(b.recordedAt);
+    return !stored.some(
+      s => Math.abs(Date.parse(s.recordedAt) - at) <= PAIR_WITHIN_S * 1000,
+    );
+  });
+}
+
 export function adoptLiveIds(sessions, fullIndex, usableIndex, cover) {
   const defective = Object.fromEntries(
     Object.entries(fullIndex).filter(([key]) => !(key in usableIndex)),

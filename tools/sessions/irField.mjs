@@ -14,7 +14,7 @@
 import {readdirSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {columns, sqlPath} from './duck.mjs';
-import {FIELD_HZ, MAX_ALIGN_M, alignment, encode} from './field.mjs';
+import {settleField} from './field.mjs';
 import {carClasses} from './irClasses.mjs';
 import {iracingCapturesFor, listIracingCaptures} from './irCapture.mjs';
 
@@ -109,24 +109,11 @@ export function irFieldFor(root, span, recs, ibtDrivers = []) {
       player.lapDist.push(c.lapDist[k]);
     }
   }
-  const alignM = alignment(player, recs);
-  if (alignM === null)
-    return {field: null, reason: 'player car not in both sources'};
-  if (alignM > MAX_ALIGN_M)
-    return {
-      field: null,
-      reason: `clocks disagree: player ${alignM.toFixed(1)} m apart`,
-    };
-
-  const body = encode(c, cars);
-  return {
-    field: body,
-    meta: {
-      hz: FIELD_HZ,
-      cars: cars.length,
-      durationS: Math.round(body.tDs[body.tDs.length - 1] / 10),
-      captures: found.map(f => f.name),
-      alignM: Math.round(alignM * 10) / 10,
-    },
-  };
+  return settleField({
+    c,
+    cars,
+    player,
+    recs,
+    captures: found.map(f => f.name),
+  });
 }

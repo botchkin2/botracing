@@ -55,7 +55,7 @@ test('goodRows: a 25.4 km track, 110 cars and a 24 h clock lose no row', () => {
   assert.equal(goodRows(c), c);
 });
 
-test('listCaptures skips a capture doubted for most of the drive and keeps one with a stray look', () => {
+test('listCaptures keeps a capture doubted for most of the drive', () => {
   const root = mkdtempSync(join(tmpdir(), 'caps-'));
   for (const [name, meta] of [
     ['good', {track: 'T'}],
@@ -66,7 +66,8 @@ test('listCaptures skips a capture doubted for most of the drive and keeps one w
     writeFileSync(join(root, name, 'meta.json'), JSON.stringify(meta));
     writeFileSync(join(root, name, 'field-0000.parquet'), '');
   }
-  assert.deepEqual(listCaptures(root).map(c => c.name).sort(), ['good', 'stray']);
+  assert.deepEqual(listCaptures(root).map(c => c.name).sort(), ['doubt', 'good', 'stray']);
+  assert.deepEqual(listCaptures(root, {suspect: false}).map(c => c.name).sort(), ['good', 'stray']);
   assert.deepEqual(listCaptures(root, {suspect: true}).map(c => c.name), ['doubt']);
 });
 
@@ -240,12 +241,13 @@ test(
     );
     assert.equal(/#\d/.test(JSON.stringify(good.field)), false);
 
-    // The same capture against a recording whose clock is 5 s off: refused.
+    // The same capture against a recording whose clock is 5 s off: stored, marked.
     const off = fieldFor(root, session, [
       {t, lapDist: Float64Array.from(t, x => (x - 995) * 40)},
     ]);
-    assert.equal(off.field, null);
-    assert.match(off.reason, /clocks disagree/);
+    assert.ok(off.field);
+    assert.equal(off.meta.mark.kind, 'misaligned');
+    assert.match(off.meta.note, /200/);
   },
 );
 
@@ -300,22 +302,43 @@ test('fieldAfterSync: no new field keeps the stored one; a new one replaces it',
     field: stored,
     upload: false,
     deletePath: null,
+    keptAside: null,
   });
   assert.deepEqual(fieldAfterSync(null, null), {
     field: null,
     upload: false,
     deletePath: null,
+    keptAside: null,
   });
-  // A new field: upload it, and delete the file it replaces.
+  // A new field that covers as much: upload it, and delete the file it replaces.
+  const grown = {...fresh, cars: 4, durationS: 100};
+  const older = {...stored, cars: 4, durationS: 100};
+  assert.deepEqual(fieldAfterSync(grown, older), {
+    field: grown,
+    upload: true,
+    deletePath: stored.path,
+    keptAside: null,
+  });
+  // No size on either: nothing to protect, the new file replaces.
   assert.deepEqual(fieldAfterSync(fresh, stored), {
     field: fresh,
     upload: true,
     deletePath: stored.path,
+    keptAside: null,
   });
   // The same content again: same path, nothing to delete.
   assert.deepEqual(fieldAfterSync(stored, stored), {
     field: stored,
     upload: true,
     deletePath: null,
+    keptAside: null,
   });
+  const smaller = {...fresh, cars: 2, durationS: 10};
+  const richer = {...stored, cars: 20, durationS: 100};
+  const kept = fieldAfterSync(smaller, richer);
+  assert.equal(kept.upload, false);
+  assert.equal(kept.deletePath, null);
+  assert.equal(kept.field.path, stored.path);
+  assert.equal(kept.field.mark.kind, 'smaller');
+  assert.equal(kept.keptAside, smaller);
 });
