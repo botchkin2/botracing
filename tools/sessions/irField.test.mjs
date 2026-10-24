@@ -133,8 +133,9 @@ test(
     const root = mkdtempSync(resolve(tmpdir(), 'ir-field-'));
     writeCapture(root, {offsetM: 100});
     const r = irFieldFor(root, span, ibtRecs());
-    assert.equal(r.field, null);
-    assert.match(r.reason, /clocks disagree/);
+    assert.ok(r.field);
+    assert.equal(r.meta.mark.kind, 'misaligned');
+    assert.equal(r.meta.alignM, 100);
     rmSync(root, {recursive: true, force: true});
   },
 );

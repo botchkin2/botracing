@@ -20,6 +20,7 @@ import {
 } from './cornerSlices.mjs';
 import {classBestsDoc, classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {finishDoc} from '../../src/analysis/raceResult.ts';
+import {fieldFeedsDerived} from './field.mjs';
 import {paceFieldsOf, paceSetOf} from '../../src/analysis/paceSet.ts';
 import {carLabel} from '../../src/design/carModels.ts';
 import {lapTraffic} from './lapTraffic.mjs';
@@ -27,6 +28,23 @@ import {adapter as adapterOf} from './sims.mjs';
 
 export function plain(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+/**
+ * Traffic, class laps, class bests and the finish, or all null.
+ * A marked field is stored by the caller and not used here (field.mjs
+ * fieldFeedsDerived). No field is the same: nothing is derived.
+ */
+export function productsFromField(field, meta, sessionType, lapWindows) {
+  if (!field || !fieldFeedsDerived(meta)) {
+    return {traffic: null, classLaps: null, classBests: null, result: null};
+  }
+  return {
+    traffic: lapTraffic(field, lapWindows),
+    classLaps: classLapsDoc(field, sessionType),
+    classBests: classBestsDoc(field, sessionType),
+    result: finishDoc(field, sessionType),
+  };
 }
 
 /** A track or car id: the sim and the adapter's slug of its name. */
@@ -136,9 +154,16 @@ export function analyzeFromArchive({
   );
   // Traffic around the player per lap, from the field (lapTraffic.mjs). The
   // windows go out with the laps: a sync without the capture reads the
-  // uploaded field with them (store.mjs).
+  // uploaded field with them (store.mjs). A mark keeps the field and
+  // leaves these blocks empty (productsFromField).
   const lapWindows = a.laps.map(lap => ({from: lap.startT, to: lap.endT}));
-  const tags = fieldOut.field ? lapTraffic(fieldOut.field, lapWindows) : null;
+  const products = productsFromField(
+    fieldOut.field,
+    fieldOut.meta,
+    first.sessionType,
+    lapWindows,
+  );
+  const tags = products.traffic;
 
   const traces = [];
   const laps = a.laps.map((lap, k) => {
@@ -332,20 +357,15 @@ export function analyzeFromArchive({
       ? {path: fieldPath, hash: fieldHash, ...fieldOut.meta}
       : null,
     // Lap times by class, from the field (src/analysis/classLaps.ts); null
-    // without one.
-    classLaps: fieldOut.field
-      ? classLapsDoc(fieldOut.field, first.sessionType)
-      : null,
+    // without one, and null when the field is marked.
+    classLaps: products.classLaps,
     // The fastest cars of each class, from the same field; its own field of
     // the doc because classLaps rides in the session list (classBests.test.ts).
-    classBests: fieldOut.field
-      ? classBestsDoc(fieldOut.field, first.sessionType)
-      : null,
+    classBests: products.classBests,
     // The player's finishing position in a race, from the same field
-    // (src/analysis/raceResult.ts); null without one and outside a race.
-    result: fieldOut.field
-      ? finishDoc(fieldOut.field, first.sessionType)
-      : null,
+    // (src/analysis/raceResult.ts); null without one, outside a race, and
+    // when the field is marked.
+    result: products.result,
     // Per-corner slices of every lap (cornerSlices.mjs): the corner numbers
     // with a file at {prefix}/c{n}.json.gz, and the window they cover.
     slices: slices

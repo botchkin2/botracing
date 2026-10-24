@@ -27,6 +27,7 @@ import {
 import {finishCurrent, finishDoc} from '../../src/analysis/raceResult.ts';
 import {
   fieldAfterSync,
+  fieldFeedsDerived,
   fieldMissingAfter,
   madeFromField,
   stampField,
@@ -38,7 +39,7 @@ import {stampNewer, withKept} from './versionKey.mjs';
 import {captureExtractPath} from './captureExtract.mjs';
 import {resultsInputPath} from './resultsInput.mjs';
 import {guardedWriter} from './docShape.mjs';
-import {healPlan} from './heal.mjs';
+import {clipSpans, healPlan, lapsToAdd, uncoveredPrefixS} from './heal.mjs';
 import {LIVE_STAMP} from './liveSession.mjs';
 import {packState} from './layoutBoundaries.mjs';
 import {trafficMedians} from '../../src/analysis/traffic.ts';
@@ -569,13 +570,25 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     }
   }
   const kept = fieldAfterSync(session.field, before?.field ?? null);
+  // A covered game file keeps the live session's field, put back with the
+  // doc below. Uploading or recomputing here would delete that file, or
+  // rewrite blocks the put-back then throws away.
+  if (out.healLack && before) {
+    kept.field = null;
+    kept.upload = false;
+    kept.deletePath = null;
+    kept.keptAside = null;
+  }
   session.field = kept.field;
   session.fieldMissing = fieldMissingAfter(
     kept.field,
     out.fieldReason,
     before?.fieldMissing,
   );
-  if (kept.upload) {
+  if (kept.keptAside) {
+    await putGzip(kept.keptAside.path, out.fieldText, 'application/json');
+    log('  field: smaller one kept aside');
+  } else if (kept.upload) {
     await putGzip(session.field.path, out.fieldText, 'application/json');
     session.result = stampField(session.result, session.field);
     session.classLaps = stampField(session.classLaps, session.field);
@@ -591,6 +604,14 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
         lap.traffic = traffic[k];
       });
     }
+  } else if (kept.field && !fieldFeedsDerived(kept.field)) {
+    // The file stays. A later sync must not refill traffic, class laps,
+    // bests or the finish from a marked field (thread 100).
+    session.classLaps = null;
+    session.classBests = null;
+    session.result = null;
+    for (const lap of out.laps) lap.traffic = null;
+    log('  field: marked, kept, not used');
   } else if (kept.field) {
     log('  field: kept the stored one');
     // Everything computed from the field is kept or worked out again from
@@ -694,6 +715,41 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     })),
   );
 
+  if (out.healLack && before) {
+    const ids = before.recordingIds ?? [];
+    const storedRecs = (
+      await Promise.all(
+        ids.map(async id => ({id, ...(await backend.getDoc('recordings', id))})),
+      )
+    ).filter(r => r.recordedAt);
+    const prefix = uncoveredPrefixS(storedRecs, out.recordings);
+    out.laps = lapsToAdd(storedRecs, out.recordings, out.laps);
+    const extra = new Set(out.laps.map(l => l.recordingId));
+    out.recordings = out.recordings.filter(r => extra.has(r.id));
+    // The next open analyses every recording from its archive in full. The
+    // spans name the stretch the live copy already owns, in this file's
+    // clock, so that run drops those laps (analyze.mjs lapHitsClip).
+    for (const rec of out.recordings) {
+      const spans = clipSpans(storedRecs, rec);
+      if (spans.length) rec.clipSpans = spans;
+    }
+    const recordingIds = [
+      ...new Set([...ids, ...out.recordings.map(r => r.id)]),
+    ];
+    out.keepStoredLaps = true;
+    // Those blocks name the game file's laps. The live doc keeps its own.
+    // Laps that were added leave the stamp stale so the next open recomputes
+    // the header from the stored laps plus the new ones.
+    const added = out.laps.length;
+    for (const key of Object.keys(session)) delete session[key];
+    Object.assign(session, before, {recordingIds});
+    if (added > 0) session.analysis = {...LIVE_STAMP};
+    log(
+      `  heal lack: ${added} lap(s) the live copy did not have` +
+        (prefix ? `, ${prefix.seconds}s before the recorder` : ''),
+    );
+  }
+
   const ops = [];
   // The cloud's analysis writes no recording: they are stored, unchanged, and
   // the copy it read can be older than a part or an event the tray wrote
@@ -754,6 +810,9 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   // The heal's own: the kept stretch's laps stay, the replaced ones are
   // tombstoned by the ops above and must not also be deleted as leftovers.
   for (const id of healed?.protectedLapIds ?? []) keep.add(id);
+  if (out.keepStoredLaps) {
+    for (const id of await backend.sessionLapIds(session.id)) keep.add(id);
+  }
   let dropped = 0;
   for (const id of storedLapIds) {
     if (!keep.has(id)) {

@@ -97,6 +97,153 @@ export const tombstoneExpired = (doc, nowMs, listedIds) =>
   nowMs - Date.parse(doc.supersededAt) > TOMBSTONE_DAYS * 86_400_000;
 
 /**
+ * A game file whose every recording is covered by one live session is built
+ * under that session's id (audit row 13). It does not replace the live
+ * recordings; store.mjs adds only the stretches the live copy lacks.
+ * The caller confirms the live session is still in the store (confirmClaims).
+ */
+export function claimCoveredSessions(sessions, index, cover) {
+  const claimed = [];
+  for (const s of sessions) {
+    if (s.healDefect || s.healLack) continue;
+    const ids = new Set();
+    let open = false;
+    for (const f of s.files) {
+      const hit = cover(index, f.info);
+      if (!hit) open = true;
+      else ids.add(hit.sessionId);
+    }
+    if (open || ids.size !== 1) continue;
+    const [id] = ids;
+    if (s.id === id) continue;
+    s.hashId = s.id;
+    s.id = id;
+    s.healLack = true;
+    claimed.push(s);
+  }
+  return claimed;
+}
+
+const spanMs = rec => {
+  const at = Date.parse(rec.recordedAt);
+  const dur = Number(rec.durationSec ?? rec.durationS ?? 0);
+  return {at, end: at + dur * 1000};
+};
+
+/** True when two recordings cover the same wall-clock stretch. */
+function overlaps(a, b) {
+  return a.at < b.end && a.end > b.at;
+}
+
+/**
+ * Built recordings whose start is not already a stored recording (same id, or
+ * within PAIR_WITHIN_S). Overlap is not enough: a file can start minutes
+ * earlier and still overlap, and the laps in that head are new (lapsToAdd).
+ */
+export function recordingsToAdd(stored, built) {
+  return built.filter(b => {
+    if (stored.some(s => s.id === b.id)) return false;
+    const span = spanMs(b);
+    return !stored.some(s => {
+      const other = spanMs(s);
+      return Math.abs(other.at - span.at) <= PAIR_WITHIN_S * 1000;
+    });
+  });
+}
+
+/**
+ * A built lap's wall-clock span. The sync's lap doc has `startTime` and
+ * `durationSec` (analyzeFromArchive); a fixture may still pass the game
+ * clock (`startT` / `endT`) against the recording's `recordedAt`.
+ */
+export function lapWallMs(lap, rec) {
+  const origin = Number(rec?.startT ?? 0);
+  const base = Date.parse(rec?.recordedAt);
+  if (
+    Number.isFinite(base) &&
+    Number.isFinite(Number(lap.startT)) &&
+    Number.isFinite(Number(lap.endT))
+  ) {
+    return {
+      start: base + (Number(lap.startT) - origin) * 1000,
+      end: base + (Number(lap.endT) - origin) * 1000,
+    };
+  }
+  const start = Date.parse(lap.startTime);
+  return {start, end: start + Number(lap.durationSec) * 1000};
+}
+
+/**
+ * Built laps the stored recordings do not already cover. A lap that ends
+ * before the stored stretch starts is kept. A lap that overlaps it is not
+ * added, and the stored laps stay.
+ */
+export function lapsToAdd(stored, built, laps) {
+  const spans = stored.map(spanMs).filter(s => Number.isFinite(s.at) && s.end > s.at);
+  const byId = new Map(built.map(b => [b.id, b]));
+  return laps.filter(lap => {
+    const rec = byId.get(lap.recordingId);
+    if (!rec) return false;
+    const {start, end} = lapWallMs(lap, rec);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start)
+      return false;
+    return !spans.some(s => start < s.end && end > s.at);
+  });
+}
+
+/**
+ * The longest head start of a built recording that then overlaps a stored one,
+ * in seconds, or null. That head is the part the live copy lacks.
+ */
+/**
+ * Stored recordings, in this built recording's clock. The next open analyses
+ * the archive in full (analyzeStored); these spans are the stretches the live
+ * copy already owns, and analyze.mjs drops a lap that hits one. The same test
+ * as lapsToAdd: meeting a span only at an endpoint is not a hit.
+ */
+export function clipSpans(stored, built) {
+  const origin = Number(built.startT ?? 0);
+  const base = Date.parse(built.recordedAt);
+  if (!Number.isFinite(base)) return [];
+  const out = [];
+  for (const s of stored) {
+    const other = spanMs(s);
+    if (!Number.isFinite(other.at) || !(other.end > other.at)) continue;
+    const startT = origin + (other.at - base) / 1000;
+    const endT = origin + (other.end - base) / 1000;
+    if (Number.isFinite(startT) && Number.isFinite(endT) && endT > startT)
+      out.push({startT, endT});
+  }
+  return out;
+}
+
+/** A lap lapsToAdd would refuse: it overlaps a span the live copy owns. */
+export function lapHitsClip(lap, spans) {
+  return (
+    Array.isArray(spans) &&
+    spans.some(s => lap.startT < s.endT && lap.endT > s.startT)
+  );
+}
+
+export function uncoveredPrefixS(stored, built) {
+  let best = null;
+  for (const b of built) {
+    const span = spanMs(b);
+    let cut = null;
+    for (const s of stored) {
+      const other = spanMs(s);
+      if (!overlaps(span, other) || !(other.at > span.at)) continue;
+      cut = cut == null ? other.at : Math.min(cut, other.at);
+    }
+    if (cut == null) continue;
+    const seconds = (cut - span.at) / 1000;
+    if (!best || seconds > best.seconds)
+      best = {id: b.id, seconds: Math.round(seconds * 10) / 10};
+  }
+  return best;
+}
+
+/**
  * Game-file sessions that cover a drive the PC uploaded live from a defective
  * capture (in the full live index, not in the usable one) take that live
  * session's id and carry `healDefect`. Only when it is unambiguous: one live
@@ -144,6 +291,23 @@ export async function confirmAdoptions(adopted, exists) {
       s.id = s.hashId;
       delete s.hashId;
       delete s.healDefect;
+    }
+  }
+  return standing;
+}
+
+/**
+ * Same rule as confirmAdoptions, for a covered game file (claimCoveredSessions).
+ * A deleted live session is not rebuilt from the game file under that id.
+ */
+export async function confirmClaims(claimed, exists) {
+  const standing = [];
+  for (const s of claimed) {
+    if (await exists(s.id)) standing.push(s);
+    else {
+      s.id = s.hashId;
+      delete s.hashId;
+      delete s.healLack;
     }
   }
   return standing;

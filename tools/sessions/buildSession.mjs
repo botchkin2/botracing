@@ -69,6 +69,8 @@ export function makeBuilder({
     const last = s.files[s.files.length - 1].info;
     return {
       tracks: [first.track, first.layout],
+      sim: first.sim,
+      sessionType: first.sessionType,
       startMs: Date.parse(first.recordedAt),
       endMs: Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000,
     };
