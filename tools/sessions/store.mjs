@@ -392,6 +392,23 @@ async function supersedeSession(backend, oldId, byId, nowIso) {
   return {recordings: recordingIds.length, laps: lapIds.length};
 }
 
+// Beside the capture extract, not on the session doc: the session list and
+// the API read whole session docs, and a long race's map is ~60 KB.
+const lapHashesPath = (ownerId, sessionId) =>
+  `inputs/${ownerId}/${sessionId}/lapHashes.json.gz`;
+
+async function readLapHashes(backend, session) {
+  // Unreadable is as good as absent: every lap is then written.
+  try {
+    const stored = await backend.getFile(
+      lapHashesPath(session.ownerId, session.id),
+    );
+    return stored ? JSON.parse(gunzipSync(stored).toString('utf8')) : {};
+  } catch {
+    return {};
+  }
+}
+
 /** The content hash of a lap doc's exact payload, before the write. */
 export function lapHash(lap) {
   return createHash('sha1').update(JSON.stringify(lap)).digest('hex');
@@ -664,6 +681,7 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   // comes out the same (pit wall thread 101): a lap whose payload hashes as
   // the stored one, and whose doc is still there, is not written again.
   const storedLapIds = new Set(await backend.sessionLapIds(session.id));
+  const storedHashes = await readLapHashes(backend, session);
   const lapHashes = {};
   let lapsSkipped = 0;
   for (const lap of out.laps) {
@@ -671,7 +689,7 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     lapHashes[lap.id] = hash;
     if (
       !out.healDefect &&
-      before?.lapHashes?.[lap.id] === hash &&
+      storedHashes[lap.id] === hash &&
       storedLapIds.has(lap.id)
     ) {
       lapsSkipped++;
@@ -679,7 +697,6 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     }
     ops.push({op: 'set', coll: 'laps', id: lap.id, data: lap});
   }
-  session.lapHashes = lapHashes;
   // A game-file build that replaces a live copy of the same drive in place
   // (heal.mjs): the stored recordings it covers, and their laps, are
   // tombstoned in the same batch; a stretch it lacks stays.
@@ -723,6 +740,13 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   await backend.writeDocs(
     [{op: 'set', coll: 'sessions', id: session.id, data: session}],
     writer,
+  );
+  // Last of the writes: a crash before it leaves the older hashes, which only
+  // costs a rewrite, never a skipped lap that is stale.
+  await backend.putFile(
+    lapHashesPath(session.ownerId, session.id),
+    {body: Buffer.from(JSON.stringify(lapHashes))},
+    {contentType: 'application/json', gzip: true},
   );
   // Only after the session points at the new file: a phone still holding the
   // old URL gets a 404 and refetches the session.

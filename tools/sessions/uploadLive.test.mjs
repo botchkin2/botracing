@@ -164,6 +164,7 @@ test('a lap that lands while the cloud analyses is not taken as analysed', async
   await createStore({
     ...b,
     sessionLapIds: async () => [],
+    getFile: async () => null,
     deleteFile: async () => {},
     listFiles: async () => [],
   }).upload(out);
@@ -306,11 +307,13 @@ test('an analysis run sends only the traces whose content changed', async () => 
   b.putFile = async (dest, {body}, {gzip} = {}) => {
     const bytes = gzip ? gzipSync(body, {level: 9}) : body;
     b.files.set(dest, createHash('md5').update(bytes).digest('base64'));
-    sent.push(dest);
+    // The lap hashes (store.mjs) go up every run; this is about the traces.
+    if (!dest.endsWith('lapHashes.json.gz')) sent.push(dest);
   };
   const store = createStore({
     ...b,
     sessionLapIds: async () => [],
+    getFile: async () => null,
     deleteFile: async () => {},
     listFiles: async () => [],
   });

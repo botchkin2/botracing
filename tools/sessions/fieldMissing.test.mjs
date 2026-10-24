@@ -46,6 +46,7 @@ function memory(before) {
         if (op.op === 'set') docs.set(`${op.coll}/${op.id}`, op.data);
     },
     sessionLapIds: async () => [],
+    getFile: async () => null,
     fileMd5: async () => null,
     putFile: async () => {},
     deleteFile: async () => {},
