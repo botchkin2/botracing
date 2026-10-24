@@ -305,7 +305,7 @@ test('a lap that lands during the analysis still leaves it stale (the live stamp
   assert.equal(s.analysis.v, 0);
 });
 
-test('an analysis of stored recordings never writes their archive (a part landed meanwhile stays listed)', async () => {
+test('an analysis of stored recordings writes no recording at all (a part or an event the tray wrote meanwhile stays)', async () => {
   const backend = backendOver(new Map());
   const writes = [];
   const writeDocs = backend.writeDocs;
@@ -318,8 +318,6 @@ test('an analysis of stored recordings never writes their archive (a part landed
   out.session.recordingIds = ['r1'];
   out.recordingsAreStored = true;
   await createStore(backend).upload(out);
-  const rec = writes.find(op => op.coll === 'recordings');
-  assert.equal(rec.merge, true);
-  assert.equal('archive' in rec.data, false);
-  assert.equal(rec.data.track, 'T');
+  assert.equal(writes.some(op => op.coll === 'recordings'), false);
+  assert.ok(writes.some(op => op.coll === 'sessions'));
 });

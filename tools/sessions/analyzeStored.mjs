@@ -211,8 +211,8 @@ export async function analyzeStored({
   await store.upload(
     {
       ...out,
-      // Already stored, unchanged: the recordings and their archive. Their
-      // archive is not written (store.mjs: recordingsAreStored).
+      // Already stored, unchanged: the recordings and their archive, so none
+      // is written (store.mjs: recordingsAreStored).
       recordings: recordings.map(r => r.info),
       recordingsAreStored: true,
       files: [],

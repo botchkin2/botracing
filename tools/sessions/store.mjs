@@ -671,16 +671,12 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   );
 
   const ops = [];
-  for (const rec of out.recordings) {
-    if (out.recordingsAreStored) {
-      // The cloud's analysis never writes a recording's archive: the tray
-      // alone adds its parts, and the copy this analysis read may be older
-      // than a part that landed meanwhile (thread 103, 0dddbcb7).
-      const data = {...rec};
-      delete data.archive;
-      ops.push({op: 'set', coll: 'recordings', id: rec.id, data, merge: true});
-    } else ops.push({op: 'set', coll: 'recordings', id: rec.id, data: rec});
-  }
+  // The cloud's analysis writes no recording: they are stored, unchanged, and
+  // the copy it read can be older than a part or an event the tray wrote
+  // meanwhile (thread 103, 0dddbcb7).
+  if (!out.recordingsAreStored)
+    for (const rec of out.recordings)
+      ops.push({op: 'set', coll: 'recordings', id: rec.id, data: rec});
   for (const lap of out.laps)
     ops.push({op: 'set', coll: 'laps', id: lap.id, data: lap});
   // A game-file build that replaces a live copy of the same drive in place
