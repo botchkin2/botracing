@@ -199,6 +199,15 @@ describe('problems', () => {
     expect(
       problemText(
         problem({
+          kind: 'replay-cap',
+          message: 'Replay copies are close to their 20 GB cap',
+          sessionId: null,
+        }),
+      ),
+    ).toBe('Replay copies · Replay copies are close to their 20 GB cap');
+    expect(
+      problemText(
+        problem({
           kind: 'not-seen',
           at: Date.parse('2026-10-01T12:00:00Z'),
           message: '',

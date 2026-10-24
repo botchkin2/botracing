@@ -158,7 +158,15 @@ const iso = ms => (ms != null ? new Date(ms).toISOString() : null);
 // pit wall thread 100), 0.5 GB an hour, so a 24 h race is about 12.4 GB; 15 GB leaves it room.
 export const DISK_LOW_BYTES = 15e9;
 
-export function problemsOf({sims, recorder, refusals = [], noField = {}, freeBytes = null, nowMs}) {
+export function problemsOf({
+  sims,
+  recorder,
+  refusals = [],
+  noField = {},
+  freeBytes = null,
+  replay = null,
+  nowMs,
+}) {
   const out = [];
   const message = m => redact(scrub(m)).slice(0, PROBLEM_MESSAGE_MAX);
   for (const st of sims) {
@@ -226,6 +234,14 @@ export function problemsOf({sims, recorder, refusals = [], noField = {}, freeByt
       kind: 'disk-low',
       at: iso(nowMs),
       message: message(`${(freeBytes / 1e9).toFixed(0)} GB free; a 24 h race records about 13 GB`),
+    });
+  // The replay safety copies are near, or over, their cap (replaySafety.mjs).
+  // Unverified copies are kept either way; the line is the only signal.
+  if (replay?.message)
+    out.push({
+      kind: 'replay-cap',
+      at: iso(replay.atMs ?? nowMs),
+      message: message(replay.message),
     });
   // A session uploaded without a field, from the last two weeks (noField.mjs):
   // its row opens the session, whose Field screen says why.

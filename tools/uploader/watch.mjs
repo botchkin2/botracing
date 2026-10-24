@@ -73,6 +73,11 @@ import {floorOf} from '../sessions/syncState.mjs';
 import {readLiveIndex} from '../sessions/liveSession.mjs';
 import {usableLiveIndex} from '../sessions/brokenWheels.mjs';
 import {QUIET_MIN_DEFAULT} from '../sessions/sessionFiles.mjs';
+import {
+  DEFAULT_REPLAY_FOLDER,
+  maintainReplayCopies,
+  replayCopiesRoot,
+} from '../sessions/replaySafety.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // LAP_SYNC_SCRIPT, LAP_HEARTBEAT_FILE, LAP_LOCK_PIPE and LAP_GAME_EXE are test
@@ -516,6 +521,7 @@ async function main() {
         refusals: watch.refusals,
         noField: Object.assign({}, ...SIMS.map(sim => readNoField(workOf(sim)))),
         freeBytes,
+        replay: watch.replayProblem,
         nowMs,
       }),
       // The tray writes this file when an update is downloaded (update.rs).
@@ -569,6 +575,33 @@ async function main() {
       for (const sim of LIVE_SIMS) {
         const live = ((watch.live ??= {})[sim.id] ??= {});
         const recorder = readJson(recorderStatusOf(sim), null);
+        // LMU only: when this capture's recorder logged a loss, keep a safety
+        // copy of that session's replay (thread 100 #6847). The game file stays.
+        if (sim.id === 'lmu') {
+          const closing = liveClosed(live.dir, recorder) ? live.dir : null;
+          if (closing && watch.replayHold !== closing)
+            watch.replayHoldSince = Date.now();
+          const outcome = await maintainReplayCopies({
+            captureRoot,
+            replaysRoot: replayCopiesRoot(home),
+            replayFolder: process.env.LAP_LMU_REPLAYS || DEFAULT_REPLAY_FOLDER,
+            closedDir: closing || watch.replayHold || null,
+            holdSinceMs: watch.replayHoldSince ?? Date.now(),
+            nowMs: Date.now(),
+            gameRunning: exeRunning(gameExeOf(sim)),
+            log,
+          });
+          const prevHold = watch.replayHold ?? null;
+          const prevProblem = watch.replayProblem?.message ?? null;
+          watch.replayHold = outcome.hold;
+          watch.replayProblem = outcome.problem;
+          if (!outcome.hold) watch.replayHoldSince = null;
+          if (
+            (watch.replayHold ?? null) !== prevHold ||
+            (watch.replayProblem?.message ?? null) !== prevProblem
+          )
+            save();
+        }
         // The capture live laps were following has closed (the drive ended,
         // the game quit): one last run sends its in-lap, game running or not.
         // Closed is a new capture, or the recorder no longer recording: when

@@ -263,6 +263,18 @@ test('problems: low disk space is a line before the disk fails; a chunk the disk
   assert.deepEqual(full.map(p => [p.kind, p.message]), [['disk-full', "can't write the capture: Access is denied. (os error 5)"]], 'the failure replaces the warning');
 });
 
+test('problems: replay copies near their cap are a line', () => {
+  const problems = problemsOf({
+    sims: [{retries: {}}],
+    recorder: null,
+    replay: {message: 'Replay copies are close to their 20 GB cap', atMs: nowMs},
+    nowMs,
+  });
+  assert.deepEqual(problems.map(p => [p.kind, p.message]), [
+    ['replay-cap', 'Replay copies are close to their 20 GB cap'],
+  ]);
+});
+
 test('problems: none when all is well; a finished sync with an old error is not a crash', () => {
   assert.deepEqual(
     problemsOf({sims: [{retries: {}}], recorder: input.recorder, nowMs}),
