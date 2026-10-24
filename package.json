@@ -13,6 +13,7 @@
     "lint": "expo lint",
     "lint-fix": "expo lint --fix",
     "test": "jest",
+    "check": "node tools/ci/check.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "generate-icons": "node scripts/generate-icons.js",
