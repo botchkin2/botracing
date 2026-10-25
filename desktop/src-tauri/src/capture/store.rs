@@ -463,6 +463,17 @@ impl Capture {
         Ok(written)
     }
 
+    /// Cuts the open chunk and waits until it is on disk; the capture goes on. For a shutdown or a sleep that
+    /// is about to take the process: the timed flush alone loses up to a chunk (CHUNK_MS).
+    pub fn persist(&mut self, ms: u64) -> Result<u64, String> {
+        let flushed = self.flush(ms);
+        let settled = self.writer.settle();
+        if let Ok(bytes) = &settled {
+            self.bytes += bytes;
+        }
+        Ok(flushed? + settled?)
+    }
+
     /// Flushes, waits for the writer, and marks the capture finished; returns
     /// the bytes written since the last flush.
     pub fn close(&mut self, ms: u64) -> Result<u64, String> {
