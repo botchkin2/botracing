@@ -29,6 +29,15 @@ const lapRow = (m: ReturnType<typeof buildSessionModel>, label: string) =>
 describe('buildSessionModel', () => {
   const m = buildSessionModel(session, laps, none);
 
+  it('a classPace with only his own laps shows no block and no class median: the class table stays', () => {
+    const onlyMe = classPaceDoc(
+      classPaceRace.drivers.filter(d => d.player) as ResultsDriver[],
+    );
+    const solo = buildSessionModel({...session, classPace: onlyMe}, laps, none);
+    expect(solo.classPace).toBeNull();
+    expect(solo.facts.map(f => f.label)).not.toContain('Class median');
+  });
+
   it('a race with the results file drivers names the class median beside his, after the Median; without them it does not', () => {
     const pace = classPaceDoc(classPaceRace.drivers as ResultsDriver[]);
     const withPace = buildSessionModel(
@@ -508,6 +517,11 @@ describe('trafficPaceFacts', () => {
     const classPace = classPaceDoc(classPaceRace.drivers as ResultsDriver[]);
     const withPace = {...session, classPace, fieldMissing: 'Other cars: not recorded'};
     expect(trafficPaceFacts(withPace, [lap(81, null)])).toEqual([]);
+    // a classPace with only his own laps lists no other car: the line stays, no silent blank
+    const onlyMe = classPaceDoc(classPaceRace.drivers.filter(d => d.player) as ResultsDriver[]);
+    expect(
+      trafficPaceFacts({...session, classPace: onlyMe, fieldMissing: 'Other cars: not recorded'}, [lap(81, null)]),
+    ).toEqual([{label: 'Other cars', value: 'not recorded'}]);
     // without classPace the field's own line is still said
     expect(
       trafficPaceFacts({...session, fieldMissing: 'Other cars: not recorded'}, [lap(81, null)]),
