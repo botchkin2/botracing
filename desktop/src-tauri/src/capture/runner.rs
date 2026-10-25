@@ -400,11 +400,6 @@ pub fn start_iracing(root: PathBuf) -> Handle {
 /// while it held the tray's event loop (quit.log "recorders stopped +3.8s").
 pub const STOP_SLICE: Duration = Duration::from_millis(100);
 
-/// Sleeps `d`, or less when `stop` is set meanwhile.
-pub fn sleep_unless_stopped(d: Duration, stop: &AtomicBool) {
-    sleep_unless(d, &|| stop.load(Ordering::SeqCst));
-}
-
 /// Sleeps `d`, or less when `wake` says so; looked at every STOP_SLICE.
 fn sleep_unless(d: Duration, wake: &dyn Fn() -> bool) {
     let end = std::time::Instant::now() + d;
@@ -530,7 +525,7 @@ mod tests {
         let stop = Arc::new(AtomicBool::new(false));
         let s2 = stop.clone();
         let t = std::time::Instant::now();
-        let h = std::thread::spawn(move || sleep_unless_stopped(Duration::from_secs(5), &s2));
+        let h = std::thread::spawn(move || sleep_unless(Duration::from_secs(5), &|| s2.load(Ordering::SeqCst)));
         std::thread::sleep(Duration::from_millis(50));
         stop.store(true, Ordering::SeqCst);
         h.join().unwrap();
@@ -544,7 +539,7 @@ mod tests {
         let stop = AtomicBool::new(false);
         let t = std::time::Instant::now();
         for _ in 0..10 {
-            sleep_unless_stopped(Duration::from_millis(4), &stop);
+            sleep_unless(Duration::from_millis(4), &|| stop.load(Ordering::SeqCst));
         }
         assert!(t.elapsed() < Duration::from_millis(200), "{:?}", t.elapsed());
     }
