@@ -6,6 +6,9 @@ position, yaw and pit flag at 50 Hz; everything else is derived and checked, nev
   laps + place          : from line crossings and progress, checked against the results XML,
   class, vehicle, best  : from the results XML driver rows, the replay car matched to its driver by
                           comparing lap times (a driver is taken only when its lap times match).
+A qualifying has no progress order (it ranks by best lap), so its place is the best-lap order at each moment
+(--kind, read from the XML's <Qualify>/<Race> block when not given); laps follow the XML's lap numbers (a
+qualifying's out lap has no row and ended before the replay's first tick).
 Read-only: reads the .Vcr, the surface JSON and the results XML, writes a JSON file and a report.
 Run: uv run --with numpy python -I tools/recover/vcrField.py --vcr R.Vcr --surface surf.json --xml results.xml --out field.json
 The record layout is rumble's (pit wall thread 94 #6231): slice = float32 time + uint16 count, event header
@@ -140,13 +143,23 @@ def read_xml(path):
     out = []
     for blk in re.findall(r'<Driver>([\s\S]*?)</Driver>', s):
         rows = re.findall(r'<Lap [^>]*et="([0-9.]+)"[^>]*>([0-9.-]+)</Lap>', blk)
+        nums = [int(n) for n in re.findall(r'<Lap num="([0-9]+)"[^>]*et="[0-9.]+"', blk)]  # the game's lap number at each row's end
         ends = [float(e) for e, _ in rows]  # the session clock at the end of each lap
         laps = [float(t) if re.fullmatch(r'[0-9.]+', t) else -1.0 for _, t in rows]  # an invalid lap reads --.----
         out.append({'name': g(blk, 'Name'), 'cls': g(blk, 'CarClass'), 'model': g(blk, 'CarType'),
                     'best': float(g(blk, 'BestLapTime') or -1), 'position': int(g(blk, 'Position') or 0),
                     'classPos': int(g(blk, 'ClassPosition') or 0), 'lapsXml': int(g(blk, 'Laps') or 0),
-                    'laps': laps, 'ends': ends, 'finish': g(blk, 'FinishStatus')})
+                    'laps': laps, 'ends': ends, 'nums': nums, 'finish': g(blk, 'FinishStatus')})
     return out
+
+
+def read_kind(path):
+    """race | qualify | practice, from the results XML's session block (a race is the default)."""
+    s = open(path, encoding='utf-8', errors='replace').read()
+    for tag, kind in (('<Qualify>', 'qualify'), ('<Race>', 'race')):
+        if tag in s:
+            return kind
+    return 'practice' if re.search(r'<Practice[0-9]*>', s) else 'race'
 
 
 def main():
@@ -158,12 +171,15 @@ def main():
     ap.add_argument('--out', required=True)
     ap.add_argument('--player', type=int, default=None, help='replay driver id of the player')
     ap.add_argument('--report', default=None)
+    ap.add_argument('--kind', choices=['race', 'qualify', 'practice'], default=None, help="the session's kind; read from the XML when not given")
+    ap.add_argument('--player-best', type=float, default=None, help="the player's best lap in seconds (the app's session best): names the player's XML driver, so the timing-line offset needs only 3 laps, not 5")
     a = ap.parse_args()
     R = read_vcr(a.vcr)
     ids = [int(i) for i in np.unique(R['drv'])]
     C, L = centre_from_game(a.game) if a.game else centre_from_surface(a.surface)
     cent = ("the player's own laps in the game file (%d points, lap length %.1f m)" % (len(C), L)) if a.game else 'the stored surface'
     drivers = read_xml(a.xml)
+    kind = a.kind or read_kind(a.xml)
     tmax = float(R['t'].max())
     ticks = np.arange(0, tmax, TICK_S)
     nT = len(ticks)
@@ -191,6 +207,7 @@ def main():
         cars[d] = {'x': x, 'z': z, 'yaw': yaw, 'ld': ld, 'lat': lat, 'pit': pit, 'valid': valid}
     rep = []
     rep.append('centre path from ' + cent)
+    rep.append('session kind: %s' % kind)
     rep.append('cars in the replay: %s (xml drivers: %d)' % (sorted(cars), len(drivers)))
 
     def crossings(ld, start_of):
@@ -225,20 +242,29 @@ def main():
         c['pit'] = np.where(ticks < c['start'], 1, 0)
     # The xml times a lap at its own timing line, not at lapDist 0: one constant offset for every car. It is
     # measured on the player (known from the game file) against the xml driver whose lap ends sit closest.
+    # With the player's own best lap the driver is named, so 3 laps are enough to measure the offset (a qualifying
+    # has 4-5); without it the driver is the best fit of all, which needs 5 to be told from a lucky one.
+    need = 3 if a.player_best is not None else 5
     delta = 0.0
-    if a.player in cars and len(cars[a.player]['cross']) > 3:
+    if a.player in cars and len(cars[a.player]['cross']) >= need - 1:
         pc = cars[a.player]['cross']
         best = None
         for dr in drivers:
-            if len(dr['ends']) < 5:
+            if len(dr['ends']) < need:
+                continue
+            if a.player_best is not None and not (dr['best'] > 0 and abs(dr['best'] - a.player_best) < 0.002):
                 continue
             e = np.array(dr['ends'])
             diffs = np.array([e[np.abs(e - x).argmin()] - x for x in pc if np.abs(e - x).min() < 3.0])
-            if len(diffs) >= 5 and (best is None or np.median(np.abs(diffs - np.median(diffs))) < best[0]):
-                best = (float(np.median(np.abs(diffs - np.median(diffs)))), float(np.median(diffs)), dr['name'])
+            if len(diffs) >= need and (best is None or np.median(np.abs(diffs - np.median(diffs))) < best[0]):
+                best = (float(np.median(np.abs(diffs - np.median(diffs)))), float(np.median(diffs)), dr['name'], len(diffs))
         if best:
             delta = best[1]
-            rep.append("timing-line offset (xml lap end minus the car's lapDist-0 crossing), from the player against %s: %.3f s" % (best[2], delta))
+            rep.append("timing-line offset (xml lap end minus the car's lapDist-0 crossing), from the player against %s over %d laps: %.3f s" % (best[2], best[3], delta))
+        else:
+            rep.append('timing-line offset: none measured (no driver with %d or more lap ends matched the player), offset 0' % need)
+    else:
+        rep.append('timing-line offset: none measured (the player has fewer than %d line crossings), offset 0' % (need - 1))
     for c in cars.values():
         c['cross_x'] = c['cross'] + delta
     scores = {}
@@ -292,7 +318,10 @@ def main():
     for d, c in cars.items():
         j = assign.get(d)
         ends = np.array(drivers[j]['ends']) if j is not None else c['cross']
-        c['laps'] = np.searchsorted(ends, ticks, side='right')  # laps completed, as the game counts them
+        # laps completed, as the game counts them: the lap number at each end. A qualifying's out lap has no row
+        # (it ended before the replay's first tick), so the first row's number is 2 and one lap was already done.
+        done = (drivers[j]['nums'][0] - 1 if drivers[j]['nums'] else 0) if j is not None else 0
+        c['laps'] = done + np.searchsorted(ends, ticks, side='right')
     unidentified = [d for d in cars if d not in assign]
     for d in unidentified:
         rep.append('NOT IN THE FIELD: replay car %d has no matching driver (%d line crossings); the xml drivers left without a car: %s' % (d, len(cars[d]['cross']), [drivers[j]['name'] + ' (' + str(drivers[j]['lapsXml']) + ' laps)' for j in range(len(drivers)) if j not in used]))
@@ -308,19 +337,40 @@ def main():
         # a finisher's rank is fixed at the flag: more laps first, then the earlier finish
         prog[i, done] = cars[d]['laps'][done] * L + (L - 1.0) - fin * 1e-3
     place = np.zeros(prog.shape, dtype=int)
-    for k in range(nT):
-        r = np.argsort(-prog[:, k])
-        place[r, k] = np.arange(1, len(order) + 1)
+    if kind == 'race':
+        for k in range(nT):
+            r = np.argsort(-prog[:, k])
+            place[r, k] = np.arange(1, len(order) + 1)
+    else:
+        # A qualifying (and a practice) ranks by best lap, never by progress on track: at each moment the best
+        # timed lap so far, a car with none yet after the ones that have, by progress.
+        bestnow = np.full(prog.shape, 1e9)
+        for i, d in enumerate(order):
+            j = assign.get(d)
+            if j is None:
+                continue
+            for end, lt in zip(drivers[j]['ends'], drivers[j]['laps']):
+                if lt > 0:
+                    m = ticks >= end
+                    bestnow[i, m] = np.minimum(bestnow[i, m], lt)
+        for k in range(nT):
+            r = np.lexsort((-prog[:, k], bestnow[:, k]))
+            place[r, k] = np.arange(1, len(order) + 1)
     final = {d: int(place[i, -1]) for i, d in enumerate(order)}
-    rep.append('final order from the replay (progress at the last tick) vs the xml Position, laps vs the xml Laps:')
+    rep.append('final order from the replay (%s) vs the xml Position, laps vs the xml Laps:' % ('progress at the last tick' if kind == 'race' else 'best lap so far; the xml position is ranked among the matched cars only'))
+    xml_rank = {}
+    if kind != 'race':
+        matched = sorted((d for d in order if assign.get(d) is not None), key=lambda d: drivers[assign[d]]['position'])
+        xml_rank = {d: n + 1 for n, d in enumerate(matched)}
+        final = {d: int(sum(1 for e in matched if place[order.index(e), -1] <= place[order.index(d), -1])) for d in matched}
     differ = 0
     for d in order:
         j = assign.get(d)
         if j is None:
             continue
-        ok = final[d] == drivers[j]['position']
+        ok = final[d] == xml_rank.get(d, drivers[j]['position'])
         differ += 0 if ok else 1
-        rep.append('  %s: derived %d, xml %d | laps derived %d, xml %d %s' % (drivers[j]['name'], final[d], drivers[j]['position'], int(cars[d]['laps'][-1]), drivers[j]['lapsXml'], '' if ok else '<-- differs'))
+        rep.append('  %s: derived %d, xml %d | laps derived %d, xml %d %s' % (drivers[j]['name'], final[d], xml_rank.get(d, drivers[j]['position']), int(cars[d]['laps'][-1]), drivers[j]['lapsXml'], '' if ok else '<-- differs'))
     rep.append('matched cars whose final place differs from the xml: %d' % differ)
 
     def delta(vals, unit):
