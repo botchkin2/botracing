@@ -374,8 +374,11 @@ export function mountChase(
     }
     setTimeout(() => (drag = null), 0);
   };
-  // The browser took the gesture (a pan it owns) or the pointer was lost: the drag is over, the camera is let go.
-  const onCancel = () => {
+  // The browser took the gesture (a pan it owns) or the pointer was lost: the drag is over, the camera is let go. A touch
+  // gets lostpointercapture right after its pointerup (implicit capture): by then the finger has lifted and the fling
+  // is the page's to finish, and another finger's cancel is not this drag's.
+  const onCancel = (e: PointerEvent) => {
+    if (pan && e.pointerType === 'touch' && e.pointerId !== panPointer) return;
     pan?.cancel();
     panPointer = null;
     drag = null;
