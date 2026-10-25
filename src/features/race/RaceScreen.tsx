@@ -613,9 +613,10 @@ function RaceView({
         showCars={data.matches}
         attribution={data.attribution}
         // A field placed on the line by lap distance has no lateral picture:
-        // a radar would invent overlap (pit-wall thread 1, #2962).
+        // a radar would invent overlap (pit-wall thread 1, #2962). In a
+        // qualifying the other cars are not around you at all.
         radar={
-          prep.field.placedOnLine
+          prep.field.placedOnLine || mode === 'qualify'
             ? null
             : {
                 ...radarSize,
