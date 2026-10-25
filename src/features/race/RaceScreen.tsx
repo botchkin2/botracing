@@ -49,6 +49,7 @@ import {
 } from './components/RaceMap';
 import {RaceTransport} from './components/RaceTransport';
 import {useEmbedClock} from './useEmbedClock';
+import {useRestWhileAway} from './useRestWhileAway';
 import {RaceLanesBlock} from './components/RaceLanesBlock';
 import {
   buildRaceModel,
@@ -294,6 +295,7 @@ function RaceView({
   const clock = useRaceClock(endS, openAt, mapMode === 'chase' && chaseAvailable ? prep.field.hz : 0);
   // In the app's WebView the app's clock is the clock (embedBridge.ts).
   useEmbedClock(clock, endS, embed3d);
+  useRestWhileAway(clock);
   // Race writes the cursor back once the user has moved the clock and it has
   // rested; opening the screen never overwrites Compare's cursor.
   const touched = useRef(false);
