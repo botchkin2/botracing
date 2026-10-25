@@ -4,15 +4,14 @@ import {carsArePhysical} from './carsArePhysical';
 
 describe('carsArePhysical', () => {
   it('a race and a practice have the other cars on track', () => {
-    expect(carsArePhysical('Race')).toBe(true);
-    expect(carsArePhysical('R')).toBe(true);
-    expect(carsArePhysical('Practice')).toBe(true);
-    expect(carsArePhysical('P')).toBe(true);
+    for (const sim of ['lmu', 'iracing'])
+      for (const sessionType of ['Race', 'R', 'Practice', 'P'])
+        expect(carsArePhysical({sim, sessionType})).toBe(true);
   });
 
   it('a qualifying does not, as the doc and the app spell it', () => {
-    expect(carsArePhysical('Qualify')).toBe(false);
-    expect(carsArePhysical('Q')).toBe(false);
-    expect(carsArePhysical('qualifying')).toBe(false);
+    for (const sim of ['lmu', 'iracing'])
+      for (const sessionType of ['Qualify', 'Q', 'qualifying'])
+        expect(carsArePhysical({sim, sessionType})).toBe(false);
   });
 });

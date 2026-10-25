@@ -599,7 +599,7 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
         stored: null,
         load: null,
         windows: out.lapWindows,
-        sessionType: session.sessionType,
+        session,
       });
       out.laps.forEach((lap, k) => {
         lap.traffic = traffic[k];
@@ -664,7 +664,7 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
       stored: kept.field,
       load,
       windows: out.lapWindows,
-      sessionType: session.sessionType,
+      session,
     });
     out.laps.forEach((lap, k) => {
       lap.traffic = traffic[k];

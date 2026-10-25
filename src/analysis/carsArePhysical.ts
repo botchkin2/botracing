@@ -12,9 +12,13 @@ import {sessionKind} from './classLaps.ts';
  * Every qualifying says no, online or offline, because we do not know yet that
  * an Open Qualify or an offline one is different (pit wall thread 95 #7548,
  * #7554). The iRacing reader folds Lone and Open Qualify into 'Qualify'
- * (`mapSessionType`); when it keeps the raw type, this is the one place that
- * tells them apart. A consumer never spells `sessionType === 'Q'` itself.
+ * (`mapSessionType`); when it keeps the raw type, or `online` decides, this is
+ * the one place that tells them apart: the callers pass the session-shaped
+ * object and never spell `sessionType === 'Q'` themselves.
  */
-export function carsArePhysical(sessionType: string): boolean {
-  return sessionKind(sessionType) !== 'qualify';
+export function carsArePhysical(session: {
+  sim: string;
+  sessionType: string;
+}): boolean {
+  return sessionKind(session.sessionType) !== 'qualify';
 }
