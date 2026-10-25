@@ -325,6 +325,8 @@ export const space = {
 } as const;
 /** A control that is on screen but cannot be used (Button, map zoom, last Compare chip). */
 export const disabledOpacity = 0.4;
+/** Another car in a qualifying: on the map but not on the track with you (carsArePhysical, thread 95 #7544). */
+export const ghostOpacity = 0.35;
 /** What every tappable looks like while a finger is on it (src/ui/Pressable.tsx). */
 export const pressedOpacity = 0.6;
 /** A lone × is a real box this big, at least: a mouse needs one too. */

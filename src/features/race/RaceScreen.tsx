@@ -3,7 +3,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {type LaneZoom, raceLanes} from '@/src/analysis/raceLanes';
+import {type LaneZoom, ownLanes, raceLanes} from '@/src/analysis/raceLanes';
 import {lapPath} from '@/src/analysis/inputsPath';
 import {carsAt} from '@/src/analysis/raceState';
 import {fieldClasses} from '@/src/analysis/fieldClasses';
@@ -270,6 +270,9 @@ function Notice({data}: {data: Exclude<RaceData, {kind: 'ready'}>}) {
   );
 }
 
+/** A qualifying's other cars are not on the track with you (carsArePhysical), so the map draws them faint. */
+const QUALIFY_NOTE = "Other cars aren't on track with you in qualifying";
+
 function RaceView({
   data,
   selection,
@@ -324,10 +327,10 @@ function RaceView({
     clock.toggle();
   };
   // Built once per field, like the clock: it walks every update and car.
-  const lanes = useMemo(
-    () => raceLanes(prep.field, data.clock),
-    [prep.field, data.clock],
-  );
+  const lanes = useMemo(() => {
+    const all = raceLanes(prep.field, data.clock);
+    return mode === 'qualify' ? ownLanes(all) : all;
+  }, [prep.field, data.clock, mode]);
   // The session's classes, fastest first, with their colours and labels.
   const classes = useMemo(() => fieldClasses(prep.field), [prep.field]);
   const [zoom, setZoom] = useState<LaneZoom>('l10');
@@ -658,6 +661,10 @@ function RaceView({
           {data.matchM === null
             ? 'Cars not drawn: no track map match'
             : `Cars not drawn: ${Math.round(data.matchM)} m off the track map`}
+        </Text>
+      ) : mode === 'qualify' ? (
+        <Text variant='dataSmall' tone='textMuted' style={styles.matchNote}>
+          {QUALIFY_NOTE}
         </Text>
       ) : null}
     </View>

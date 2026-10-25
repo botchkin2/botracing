@@ -130,6 +130,43 @@ describe('displayModel', () => {
 });
 
 describe('buildRaceModel', () => {
+  it('a qualifying lists a class by place with no gap, draws the other cars as ghosts and has no road summary', () => {
+    const q = buildRaceModel({
+      classes: CLASSES,
+      cars: field,
+      filter: 'gt3',
+      focus: null,
+      mode: 'qualify',
+      trackM: 4000,
+    });
+    // By class place (best lap so far), not by distance from you.
+    expect(q.groups[0].rows.map(r => r.index)).toEqual([4, 3, 5]);
+    expect(
+      q.groups[0].rows.filter(r => r.state !== 'garage').map(r => r.gap),
+    ).toEqual(['', '']);
+    expect(q.groups[0].rows.map(r => r.position)).toEqual(['1', '2', '']);
+    expect(q.road).toBeNull();
+    expect(
+      q.dots
+        .filter(d => d.ghost)
+        .map(d => d.index)
+        .sort(),
+    ).toEqual([0, 1, 2, 4]);
+    expect(q.dots.find(d => d.player)?.ghost).toBe(false);
+    // Nothing is ghosted in a race or in a practice.
+    for (const mode of ['race', 'field'] as const)
+      expect(
+        buildRaceModel({
+          classes: CLASSES,
+          cars: field,
+          filter: 'all',
+          focus: null,
+          mode,
+          trackM: 4000,
+        }).dots.some(d => d.ghost),
+      ).toBe(false);
+  });
+
   it('All: one group per class present, with a header and the count', () => {
     const m = buildRaceModel({
       classes: CLASSES,
