@@ -183,6 +183,16 @@ impl IrCapture {
         Ok(written)
     }
 
+    /// Cuts the open chunk and waits until it is on disk; the capture goes on (see store.rs Capture::persist).
+    pub fn persist(&mut self, ms: u64) -> Result<u64, String> {
+        let flushed = self.flush(ms);
+        let settled = self.writer.settle();
+        if let Ok(bytes) = &settled {
+            self.bytes += bytes;
+        }
+        Ok(flushed? + settled?)
+    }
+
     /// Flushes, waits for the writer, and marks the capture finished.
     pub fn close(&mut self, ms: u64) -> Result<u64, String> {
         let before = self.flush(ms)?;

@@ -10,6 +10,7 @@
 //
 //   npm run check                 every step; one PASS/FAIL table at the end
 //   npm run check -- --only tsc   steps whose job or name contains the text
+//   npm run check -- --all        every step whatever the diff touches (a release head has no diff)
 //   npm run check -- --list       the steps and what gates them
 //   npm run check -- --body f.md  the PR body f.md against the ship-proof check
 //
@@ -32,6 +33,10 @@ const WORKFLOW = join(root, '.github', 'workflows', 'test.yml');
 // The same pattern as the workflow's "Anything on the tray/API line?" step.
 export const TRAY_API_LINE =
   /^(desktop\/|functions\/|tools\/(uploader|sessions|dev|capture|golden)\/|src\/(analysis|data\/uploaders)\/|contract\/|firebase(\.emulator)?\.json$|\.github\/workflows\/test\.yml$)/;
+
+// What the tray bundles, which its release tests walk (desktop/scripts/stage-resources.test.mjs follows
+// the uploader's imports through these folders): a change in one of them is a change to the tray.
+export const TRAY_BUNDLE = /^(desktop\/|tools\/(uploader|sessions)\/|src\/analysis\/)/;
 
 /**
  * job and cwd as in the workflow; `when` is a path pattern: the step runs only when a
@@ -104,7 +109,7 @@ export const STEPS = [
     name: 'Release script tests',
     cwd: 'desktop',
     cmd: 'node --test scripts/*.test.mjs',
-    when: /^desktop\//,
+    when: TRAY_BUNDLE,
   },
 ];
 
@@ -215,9 +220,9 @@ export function parityScripts(runs) {
 }
 
 /** The steps that apply to a diff: a gated step runs only when a changed file matches. */
-export function stepsFor(changed, only = null) {
+export function stepsFor(changed, only = null, all = false) {
   return allSteps().map(step => {
-    const hit = !step.when || changed == null || changed.some(f => step.when.test(f));
+    const hit = all || !step.when || changed == null || changed.some(f => step.when.test(f));
     const wanted =
       only == null ||
       `${step.job} ${step.name}`.toLowerCase().includes(only.toLowerCase());
@@ -419,7 +424,7 @@ export async function main(argv = process.argv.slice(2)) {
   }
   const only = flag('--only') >= 0 ? argv[flag('--only') + 1] : null;
   const changed = changedFiles();
-  const steps = stepsFor(changed, only);
+  const steps = stepsFor(changed, only, flag('--all') >= 0);
   if (flag('--list') >= 0) {
     for (const s of steps)
       console.log(`${s.skip ? 'skip' : 'run '}  ${s.job}: ${s.name}  [${s.cwd ?? '.'}] ${s.cmd}`);
