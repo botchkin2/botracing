@@ -17,6 +17,7 @@ import {
   type SessionScreenModel,
 } from '../model';
 
+import {ClassPaceBlock} from './ClassPaceBlock';
 import {ClassTableView} from './ClassTable';
 import {BrakeLedger} from './BrakeLedger';
 import {SpreadRows} from './SpreadRows';
@@ -208,7 +209,9 @@ export function SessionWorkspace({
                     set={day ? 'day' : null}
                   />
                 ) : null}
-                {model.classTable ? (
+                {model.classPace ? (
+                  <ClassPaceBlock doc={model.classPace} />
+                ) : model.classTable ? (
                   <ClassTableView table={model.classTable} />
                 ) : null}
               </View>

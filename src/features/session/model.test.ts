@@ -14,6 +14,8 @@ import {
   sessionScreenModelOf,
   trafficPaceFacts,
 } from './model';
+import {classPaceDoc, type ResultsDriver} from '@/src/analysis/classPace';
+import classPaceRace from '@/src/analysis/__fixtures__/classPaceR.json';
 import {spreadColumns, varyOf} from './spreadRows';
 import {HttpError} from '@/src/data/http';
 
@@ -26,6 +28,21 @@ const lapRow = (m: ReturnType<typeof buildSessionModel>, label: string) =>
 
 describe('buildSessionModel', () => {
   const m = buildSessionModel(session, laps, none);
+
+  it('a race with the results file drivers names the class median beside his, after the Median; without them it does not', () => {
+    const pace = classPaceDoc(classPaceRace.drivers as ResultsDriver[]);
+    const withPace = buildSessionModel(
+      {...session, classPace: pace},
+      laps,
+      none,
+    );
+    const labels = withPace.facts.map(f => f.label);
+    expect(labels).toContain('Class median');
+    expect(labels.indexOf('Class median')).toBeGreaterThan(
+      labels.indexOf('Median'),
+    );
+    expect(m.facts.map(f => f.label)).not.toContain('Class median');
+  });
 
   it('header and facts', () => {
     expect(m.title).toBe('Race · Road Atlanta');

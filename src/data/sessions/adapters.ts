@@ -1,4 +1,10 @@
 import {paceFieldsOf} from '@/src/analysis/paceSet';
+import {
+  CLASS_PACE_VERSION,
+  type ClassPaceDoc,
+  type DriverPace,
+  type SectorPace,
+} from '@/src/analysis/classPace';
 import {lapNoOf} from '@/src/analysis/lapNumbering';
 import {
   type ClassLaps,
@@ -295,6 +301,40 @@ export type SessionClassBests = {
   vehicles: string[];
 };
 
+/** The stored `classPace` (src/analysis/classPace.ts), or null without it, from another version of the rules, or when its shape is not the stored one. A driver that is not the stored shape is left out. */
+export function toClassPace(v: unknown): ClassPaceDoc | null {
+  const x = obj(v);
+  if (x.v !== CLASS_PACE_VERSION || !Array.isArray(x.drivers)) return null;
+  const sector = (s: unknown): SectorPace => {
+    const o = obj(s);
+    return {best: num(o.best), median: num(o.median)};
+  };
+  const drivers = x.drivers.flatMap((d): DriverPace[] => {
+    const o = obj(d);
+    const laps = num(o.laps);
+    if (typeof o.cls !== 'string' || typeof o.car !== 'string' || laps == null)
+      return [];
+    if (!Array.isArray(o.sectors) || o.sectors.length !== 3) return [];
+    return [
+      {
+        cls: o.cls,
+        car: o.car,
+        pos: num(o.pos),
+        you: o.you === true,
+        laps,
+        best: num(o.best),
+        median: num(o.median),
+        sectors: [
+          sector(o.sectors[0]),
+          sector(o.sectors[1]),
+          sector(o.sectors[2]),
+        ],
+      },
+    ];
+  });
+  return drivers.length > 0 ? {v: CLASS_PACE_VERSION, drivers} : null;
+}
+
 const numbers = (v: unknown): number[] | null =>
   Array.isArray(v) && v.every(x => typeof x === 'number' && Number.isFinite(x))
     ? (v as number[])
@@ -408,6 +448,8 @@ export type SessionDetail = SessionSummary & {
   classLaps: SessionClassLaps | null;
   /** Each class's cars by best lap; null without a field or before a session has been analysed with it. */
   classBests: SessionClassBests | null;
+  /** Every driver's pace by class from the game's results file (ticket 20); null without its drivers' laps (a session synced before the tray that sends them) and in the list. */
+  classPace: ClassPaceDoc | null;
   /** Median of the clean laps and of the traffic laps; null without a field. */
   traffic: SessionTraffic | null;
   /** The per-corner trace slices the uploader wrote (analysis version 13 and
@@ -516,6 +558,7 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     trackLimits: toSessionTrackLimits(raw.trackLimits),
     classLaps: toClassLaps(raw.classLaps),
     classBests: toClassBests(raw.classBests),
+    classPace: toClassPace(raw.classPace),
     traffic: toSessionTraffic(raw.traffic),
     slices: toSlicePointer(raw.slices),
     fuel: toSessionFuel(raw.fuel),

@@ -27,7 +27,7 @@ const LABELS: Record<PaceClass, string> = {
 const CLASS_TOKEN = /\s+LM(?:GT3|GTE|P2|P3|H|DH)\b/i;
 
 /** A field car's name: the app's car-name rule, then without its class. */
-const fieldCarName = (vehicle: string) =>
+export const fieldCarName = (vehicle: string) =>
   carLabel(vehicle).model.replace(CLASS_TOKEN, '').trim();
 
 /** The fifth-fastest car stands for the front of a class; with fewer cars, the last one. */

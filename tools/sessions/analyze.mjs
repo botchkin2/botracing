@@ -25,6 +25,7 @@ import {
 } from '../../src/analysis/consistency.ts';
 import {findTrackSections} from '../../src/analysis/corners.ts';
 import {sectionTimesOf, slowLapIds} from '../../src/analysis/paceEvents.ts';
+import {CLASS_PACE_VERSION} from '../../src/analysis/classPace.ts';
 import {TRAFFIC_VERSION} from '../../src/analysis/traffic.ts';
 import {PLAN_VERSION} from './planBlock.mjs';
 import {fileChange} from './fileChange.mjs';
@@ -114,6 +115,8 @@ export const blockVersions = {
   classLaps: CLASS_LAPS_VERSION,
   // Each class's fastest cars (the session doc's own `classBests`, not in the list).
   classBests: CLASS_BESTS_VERSION,
+  // Other drivers' pace by class (the session doc's own `classPace`, from the results input v2, not in the list).
+  classPace: CLASS_PACE_VERSION,
   offTrack: OFF_TRACK_VERSION,
   raceLength: RACE_LENGTH_VERSION,
   // The session doc's `online` (gameMode.mjs): every session re-syncs once to read its capture.

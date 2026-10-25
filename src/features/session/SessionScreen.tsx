@@ -53,6 +53,7 @@ import {fuelSummary, pitSummary, tiresSummary} from './foldedSummaries';
 import {LinkedScrollContext, useLinkedScroll} from './components/linkedScroll';
 import {OptimumLines} from './components/OptimumLines';
 import {SessionGrid} from './components/SessionGrid';
+import {ClassPaceBlock} from './components/ClassPaceBlock';
 import {ClassTableView} from './components/ClassTable';
 import {MovedLine, RebuiltLine} from './components/RebuiltLine';
 import {SessionHead} from './components/SessionHead';
@@ -473,7 +474,11 @@ function SessionView({
           set={day ? 'day' : null}
         />
       ) : null}
-      {model.classTable ? <ClassTableView table={model.classTable} /> : null}
+      {model.classPace ? (
+        <ClassPaceBlock doc={model.classPace} />
+      ) : model.classTable ? (
+        <ClassTableView table={model.classTable} />
+      ) : null}
 
       {chartBlock(tableW)}
       {!layout.isDesktop && model.optimumLines.length > 0 && (

@@ -255,6 +255,52 @@ test("the game's stored results input reaches the analysis, and none is none", a
   assert.equal(await run(base), null);
 });
 
+test("a v2 results input reaches the analysis with every driver's laps, which become the session's classPace", async () => {
+  const {gzipSync} = await import('node:zlib');
+  const {readFileSync: read} = await import('node:fs');
+  const {classPaceDoc} = await import('../../src/analysis/classPace.ts');
+  const {blockVersions} = await import('./analyze.mjs');
+  const drivers = JSON.parse(
+    read(
+      new URL(
+        '../../src/analysis/__fixtures__/classPaceR.json',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ).drivers;
+  const input = {
+    v: 2,
+    strikes: [],
+    unplaced: 0,
+    coveredFrom: null,
+    coveredTo: null,
+    drivers,
+  };
+  const files = new Map([
+    ['archive/botkin/lmu/s1/r1/samples.parquet', Buffer.from('S')],
+    ['archive/botkin/lmu/s1/r1/events.parquet', Buffer.from('E')],
+    [
+      'inputs/botkin/s1/results.json.gz',
+      gzipSync(Buffer.from(JSON.stringify(input))),
+    ],
+  ]);
+  let seen;
+  await analyzeStored({
+    backend: storeOf({session, recordings: [recording], files}),
+    sessionId: 's1',
+    owner: 'botkin',
+    workDir: mkdtempSync(join(tmpdir(), 'analyzeStored-')),
+    analyze: i => ((seen = i), engineOut()),
+  });
+  assert.deepEqual(seen.results.drivers, drivers);
+  const doc = classPaceDoc(seen.results.drivers);
+  assert.equal(doc.drivers.length, drivers.length);
+  assert.equal(doc.drivers.filter(d => d.you).length, 1);
+  // The block is versioned like classBests: a session analysed before it reads stale once.
+  assert.equal(blockVersions.classPace, doc.v);
+});
+
 test('the stored capture extract carries online/offline to the analysis; no extract is unknown, never offline', async () => {
   const {gzipSync} = await import('node:zlib');
   const base = new Map([
