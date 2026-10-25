@@ -226,6 +226,16 @@ export function finishCurrent(
 }
 
 /**
+ * The race's result as a line a header prints: "Finished P5 · P1 in class". The Session
+ * head and the Race tab's header both print this one string (livery #7757), so the
+ * two never say two places for him.
+ */
+export function finishedText(finish: FinishPosition | null): string | null {
+  const text = raceResultText(finish);
+  return text ? `Finished ${text}` : null;
+}
+
+/**
  * The result on a race row and in a race's head. A race the player left early gives the class place
  * with the class leader's laps as a floor, 'P20 GT3 · L20 of L23+' (the same
  * label as the Plan's last-race line: a floor that counts the formation step);

@@ -8,6 +8,7 @@ import {
   FINISH_VERSION,
   finishCurrent,
   finishDoc,
+  finishedText,
   finishFromResults,
   finishOf,
   finishPosition,
@@ -306,5 +307,29 @@ describe('finishOf: the one rule, in one place', () => {
   it('practice and qualifying have no result from the file', () => {
     expect(choose(drivers, 'Practice')).toBe(fromField);
     expect(choose(drivers, 'Qualify')).toBe(fromField);
+  });
+});
+
+describe('finishedText: the line both headers print', () => {
+  const drivers = race.drivers as ResultsDriver[];
+  const fromField = finishDoc(field, 'Race');
+
+  it('is "Finished " and the result text, and none without a result', () => {
+    const doc = finishOf({drivers, sessionType: 'Race', field: fromField})!;
+    expect(finishedText(doc.finish)).toBe('Finished P5 · P1 in class');
+    expect(finishedText(doc.finish)).toBe(
+      `Finished ${raceResultText(doc.finish)}`,
+    );
+    expect(finishedText(null)).toBeNull();
+  });
+
+  it('a penalty: the header says the file place while the field still has him where the road had him; both stay what they are', () => {
+    // On the road he was P2 overall at the flag (the field); the game's classification, after a penalty, is P5.
+    expect(raceResultText(fromField.finish)).toBe('P2 · P1 in class');
+    const doc = finishOf({drivers, sessionType: 'Race', field: fromField})!;
+    expect(finishedText(doc.finish)).toBe('Finished P5 · P1 in class');
+    expect(doc.source).toBe('results');
+    // the field's own reading is untouched: the Race tab's list at the flag is built from it
+    expect(finishPosition(field)).toEqual(fromField.finish);
   });
 });

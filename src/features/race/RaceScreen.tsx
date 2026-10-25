@@ -762,6 +762,9 @@ function RaceView({
             {sub}
           </Text>
         </View>
+        {data.result ? (
+          <Text variant='dataStrong'>{data.result}</Text>
+        ) : null}
         {roadLine ? (
           <Text variant='dataSmall' tone='textSecondary'>
             {roadLine}
@@ -842,6 +845,9 @@ function RaceView({
               </Pressable>
             )}
           </View>
+          {data.result ? (
+            <Text variant='dataStrong'>{data.result}</Text>
+          ) : null}
           {roadLine ? (
             <Text variant='dataSmall' tone='textSecondary'>
               {roadLine}
