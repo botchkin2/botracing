@@ -663,8 +663,12 @@ function RaceView({
             ? 'Cars not drawn: no track map match'
             : `Cars not drawn: ${Math.round(data.matchM)} m off the track map`}
         </Text>
-      ) : mode === 'qualify' ? (
-        <Text variant='dataSmall' tone='textMuted' style={styles.matchNote}>
+      ) : null}
+      {mode === 'qualify' ? (
+        <Text
+          variant='dataSmall'
+          tone='textMuted'
+          style={[styles.qualifyNote, {backgroundColor: color.surfaceRaised}]}>
           {QUALIFY_NOTE}
         </Text>
       ) : null}
@@ -893,6 +897,17 @@ const styles = StyleSheet.create({
     paddingVertical: space.xs,
   },
   matchNote: {marginTop: space.xs},
+  // Over the map's top right, where the radar is not drawn in a qualifying; it takes no height from the map.
+  qualifyNote: {
+    position: 'absolute',
+    top: space.sm,
+    right: space.sm,
+    maxWidth: '45%',
+    textAlign: 'right',
+    borderRadius: space.xs,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.xs,
+  },
   subRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   flexFill: {flex: 1},
   keyToggle: {
