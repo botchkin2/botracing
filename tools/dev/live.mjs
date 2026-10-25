@@ -6,7 +6,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
+import {createStopper} from './liveStop.mjs';
 import {mirrorLocalhost} from './loopbackMirror.mjs';
+import {holderMessage, holdersOf} from './portHolder.mjs';
 import {parseSlot, resolveSlot} from './liveSlots.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -32,11 +34,23 @@ console.log(
 );
 // Metro binds [::1] only, which adb reverse (it dials 127.0.0.1) cannot reach: answer on 127.0.0.1 too, in this
 // process, so an emulator proof needs no forwarder run by hand (tools/dev/loopbackMirror.mjs).
+// A taken port is named and refused, never moved past: a stale holder is what has to go (ticket 58).
+const holders = holdersOf(found.port);
+if (holders.length > 0)
+  fail(
+    new Error(
+      `live-${slot}: ${holderMessage(found.port, holders)}; nothing was started`,
+    ),
+  );
 const mirror = await mirrorLocalhost({port: found.port});
 if (mirror)
   console.log(
     `live-${slot}: also on 127.0.0.1:${found.port} (adb reverse tcp:${found.port} tcp:${found.port})`,
   );
+const preload = path
+  .join(root, 'tools', 'dev', 'exitWithParent.cjs')
+  .split(path.sep)
+  .join('/');
 const child = spawn(
   process.execPath,
   // --localhost: Metro listens on loopback only. Without it, it binds every
@@ -45,8 +59,19 @@ const child = spawn(
   {
     cwd: found.dir,
     stdio: 'inherit',
+    // Its own process group off Windows, so the launcher can end the whole tree (liveStop.mjs killTree).
+    detached: process.platform !== 'win32',
     env: {
       ...process.env,
+      // Metro and its workers end when this launcher is gone, however it went (tools/dev/exitWithParent.cjs).
+      LIVE_LAUNCHER_PID: String(process.pid),
+      // Forward slashes: NODE_OPTIONS reads a backslash as an escape.
+      NODE_OPTIONS: [
+        process.env.NODE_OPTIONS,
+        `--require ${JSON.stringify(preload)}`,
+      ]
+        .filter(Boolean)
+        .join(' '),
       BROWSER: 'none',
       LIVE_SEAT_SIGNIN_PORT: String(found.port),
       // The main checkout's functions/ holds firebase-admin; a worktree has none.
@@ -60,8 +85,15 @@ const child = spawn(
     },
   },
 );
-// preview_stop ends this process; take Metro with it.
-for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK'])
-  process.on(sig, () => child.kill());
-process.on('exit', () => child.kill());
-child.on('exit', code => process.exit(code ?? 0));
+// preview_stop ends this process: close the mirror, end Metro's whole tree, exit (liveStop.mjs).
+const stop = createStopper({child, mirror});
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(sig, stop);
+process.on('exit', stop);
+child.on('error', e => {
+  console.error(`live-${slot}: could not start Metro: ${e.message}`);
+  stop();
+});
+child.on('exit', code => {
+  stop();
+  process.exit(code ?? 0);
+});
