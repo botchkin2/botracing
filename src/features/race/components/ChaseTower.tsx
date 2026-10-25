@@ -21,7 +21,8 @@ export function ChaseTower({
 }: {
   rows: TowerRow[];
   mode: TowerMode;
-  onMode: (mode: TowerMode) => void;
+  /** Absent when only the class order makes sense (a qualifying's cars are not on the road with you): no switch. */
+  onMode?: (mode: TowerMode) => void;
   onPick: (index: number) => void;
   tight: boolean;
   /** Take the width of the place it is put in, instead of the desktop tower's fixed width. */
@@ -31,7 +32,7 @@ export function ChaseTower({
   const rowH = tight ? size.hit : size.gridCell;
   return (
     <View style={[styles.box, fill && styles.boxFill, {backgroundColor: color.surface, borderColor: color.lineStrong}]}>
-      <Segment options={MODES} value={mode} onChange={onMode} />
+      {onMode ? <Segment options={MODES} value={mode} onChange={onMode} /> : null}
       {rows.map(r => (
         <Pressable
           key={r.index}

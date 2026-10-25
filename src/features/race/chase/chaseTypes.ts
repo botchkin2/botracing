@@ -35,6 +35,8 @@ export interface ChaseUpdate {
   rate: number;
   /** Index into the ribbon where the player is, -1 when not on it. */
   inputIdx: number;
+  /** Every car but the followed one is drawn see-through: they are not on the track with you (a qualifying, `carsArePhysical`). */
+  ghosts: boolean;
 }
 
 export interface ChaseEngine {

@@ -577,6 +577,7 @@ function RaceView({
             rate: clock.rate,
             inputs,
             gaps: chaseGaps,
+            ghosts: mode === 'qualify',
             tower,
             trackM: prep.trackM,
             clockLabel: raceClockLabel(shownS, startS),
@@ -585,7 +586,7 @@ function RaceView({
             onCycleRate: () => clock.setRate(nextRate(clock.rate)),
           }
         : null,
-    [data.chase, cars, toChase, sample, focus, clock.playing, clock.rate, inputs, shownS, startS, chaseGaps, tower, prep.trackM, chaseOk],
+    [data.chase, cars, toChase, sample, focus, clock.playing, clock.rate, inputs, shownS, startS, chaseGaps, mode, tower, prep.trackM, chaseOk],
   );
   const toggleFocus = useCallback(
     (index: number) => setFocus(f => (f === index ? null : index)),
