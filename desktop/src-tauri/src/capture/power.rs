@@ -58,6 +58,10 @@ impl Flushes {
 
     /// Asks every registered recorder to write what it holds and waits for them, at most `wait`.
     /// True when all answered (also when none is running).
+    ///
+    /// Requests do not overlap (one handler thread). A recorder that answers request N after N timed out
+    /// counts for N+1 too, without having written the rows in between: milliseconds of rows between a
+    /// shutdown query and its end, and only after a 2 s miss.
     pub fn request(&self, wait: Duration) -> bool {
         let end = Instant::now() + wait;
         let mut state = self.lock();

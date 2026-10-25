@@ -5,13 +5,6 @@ import {stopWhenGameStarts} from './gameGuard.mjs';
 
 const wait = ms => new Promise(done => setTimeout(done, ms));
 
-// Waits for what the test expects, up to a deadline: a fixed wait of a few ticks fails on a loaded PC, where
-// the 5 ms timer is starved for tens of ms (npm run check runs this beside jest and cargo).
-async function until(condition, deadlineMs = 2000) {
-  const end = Date.now() + deadlineMs;
-  while (!condition() && Date.now() < end) await wait(5);
-}
-
 test('stops the sync once, when the game starts mid-sync', async () => {
   let checks = 0;
   const killed = [];
@@ -23,7 +16,7 @@ test('stops the sync once, when the game starts mid-sync', async () => {
       everyMs: 5,
     },
   );
-  await until(() => guard.stopped());
+  await wait(60);
   guard.cancel();
   assert.deepEqual(killed, [4242]);
   assert.equal(guard.stopped(), true);
@@ -53,7 +46,7 @@ test('a kill that fails because the sync just exited does not throw', async () =
       everyMs: 5,
     },
   );
-  await until(() => guard.stopped());
+  await wait(30);
   guard.cancel();
   assert.equal(guard.stopped(), true);
 });
@@ -72,7 +65,7 @@ test('a game check that throws is retried, not fatal', async () => {
       everyMs: 5,
     },
   );
-  await until(() => killed.length > 0);
+  await wait(40);
   guard.cancel();
   assert.deepEqual(killed, [9]);
 });
