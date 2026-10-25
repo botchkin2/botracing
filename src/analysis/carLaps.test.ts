@@ -1,6 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {carLapsOf, lapLabelOffset} from './carLaps';
+import {type CarLap, carLapsOf, currentLapIndex, lapLabelOffset} from './carLaps';
 import realLaps from './__fixtures__/roadAtlantaPlayerLaps.json';
 import {ABSENT, type Field, type FieldCar} from './field';
 
@@ -189,5 +189,60 @@ describe('carLapsOf labels and gaps', () => {
     expect(ir.map(l => l.lapNumber)).toEqual(
       Array.from({length: 20}, (_, i) => i + 3),
     );
+  });
+});
+
+describe('carLapsOf lap bounds', () => {
+  it('gives each lap the field times of its two line crossings, a lap with no time included', () => {
+    const laps = carLapsOf(
+      field([{lapS: 100, offsetM: 100, absent: [[1100, 1150]]}], 4 * LAP_UPDATES),
+      0,
+    );
+    expect(laps.map(l => l.timeS === null)).toEqual([false, true, false]);
+    for (const l of laps) {
+      expect(l.startS).not.toBeNull();
+      expect(l.endS).not.toBeNull();
+    }
+    expect(laps[1].startS).toBeCloseTo(laps[0].endS as number, 6);
+    expect(laps[0].endS as number - (laps[0].startS as number)).toBeCloseTo(100, 1);
+  });
+});
+
+const row = (startS: number | null, endS: number | null): CarLap => ({
+  lapNumber: 1,
+  timeS: null,
+  pit: null,
+  startS,
+  endS,
+});
+
+describe('currentLapIndex', () => {
+  const laps = [row(100, 190), row(190, 280), row(280, 370)];
+
+  it('is -1 before the first lap began', () => {
+    expect(currentLapIndex(laps, 50)).toBe(-1);
+    expect(currentLapIndex(laps, 99.9)).toBe(-1);
+  });
+
+  it('is the lap whose crossings hold the playhead, a boundary belonging to the lap that starts there', () => {
+    expect(currentLapIndex(laps, 100)).toBe(0);
+    expect(currentLapIndex(laps, 189.9)).toBe(0);
+    expect(currentLapIndex(laps, 190)).toBe(1);
+    expect(currentLapIndex(laps, 300)).toBe(2);
+  });
+
+  it('stays on the last row after the last crossing', () => {
+    expect(currentLapIndex(laps, 370)).toBe(2);
+    expect(currentLapIndex(laps, 9999)).toBe(2);
+  });
+
+  it('moves to the row after a lap that has ended when the next one has not begun (a lap the walk never saw)', () => {
+    const withHole = [row(100, 190), row(null, null), row(400, 490)];
+    expect(currentLapIndex(withHole, 250)).toBe(1);
+    expect(currentLapIndex(withHole, 450)).toBe(2);
+  });
+
+  it('is -1 with no laps', () => {
+    expect(currentLapIndex([], 10)).toBe(-1);
   });
 });

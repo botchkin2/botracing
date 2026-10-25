@@ -1,3 +1,4 @@
+import {useEffect, useRef} from 'react';
 import {ScrollView, StyleSheet, View} from 'react-native';
 
 import {size, space, useTheme} from '@/src/design';
@@ -9,18 +10,39 @@ import {type CarLapsView} from '../carLapsView';
 const VISIBLE_ROWS = 6;
 const LAP_W = 30;
 const TIME_W = 80;
+// The current lap sits this many rows from the top of the scroller, so the laps just before it show too.
+const ROWS_ABOVE_CURRENT = 2;
 
-/** One car's laps, approximate, under its leaderboard row (roadmap D55). */
+/** One car's laps, lap 1 first, approximate, under its leaderboard row (roadmap D55). The scroller follows the replay to the lap the car is on. */
 export function CarLapsPanel({view, rowH}: {view: CarLapsView; rowH: number}) {
   const {color} = useTheme();
+  const scroller = useRef<ScrollView>(null);
+  const shown = useRef(false);
+  const currentRow = view.rows.findIndex(r => r.current);
+  // Only when the current row changes (a lap line is crossed or the playhead is moved), so a hand scroll in between is left alone.
+  useEffect(() => {
+    if (currentRow < 0) return;
+    const y = Math.max(0, (currentRow - ROWS_ABOVE_CURRENT) * rowH);
+    scroller.current?.scrollTo({y, animated: shown.current});
+    shown.current = true;
+  }, [currentRow, rowH]);
   return (
     <View style={[styles.panel, {borderColor: color.line}]}>
       <Text variant='tableHeader' tone='textMuted' style={styles.title}>
         {view.title}
       </Text>
-      <ScrollView nestedScrollEnabled style={{maxHeight: rowH * VISIBLE_ROWS}}>
+      <ScrollView
+        ref={scroller}
+        nestedScrollEnabled
+        style={{maxHeight: rowH * VISIBLE_ROWS}}>
         {view.rows.map(r => (
-          <View key={r.key} style={[styles.row, {height: rowH}]}>
+          <View
+            key={r.key}
+            style={[
+              styles.row,
+              {height: rowH},
+              r.current ? {backgroundColor: color.accentTint} : null,
+            ]}>
             <Text variant='data' tone='textMuted' style={styles.lap}>
               {r.lap}
             </Text>

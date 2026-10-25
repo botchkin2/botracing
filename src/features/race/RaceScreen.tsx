@@ -7,7 +7,7 @@ import {type LaneZoom, raceLanes} from '@/src/analysis/raceLanes';
 import {lapPath} from '@/src/analysis/inputsPath';
 import {carsAt} from '@/src/analysis/raceState';
 import {fieldClasses} from '@/src/analysis/fieldClasses';
-import {carLapsOf} from '@/src/analysis/carLaps';
+import {carLapsOf, currentLapIndex} from '@/src/analysis/carLaps';
 import {updateAt} from '@/src/analysis/field';
 import {RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
 import {type GridTrace, traceCovers} from '@/src/analysis/resample';
@@ -375,17 +375,24 @@ function RaceView({
   );
   // The focused car's laps from the whole field, once per car picked; no
   // laps (or no car) means no panel.
+  const focusLaps = useMemo(
+    () => (focus === null ? [] : carLapsOf(prep.field, focus)),
+    [focus, prep.field],
+  );
+  // The panel follows the replay: only the row number changes the view, not every tick of the clock.
+  const currentLap = currentLapIndex(focusLaps, shownS);
   const carLaps = useMemo(() => {
     if (focus === null) return null;
     const car = sampleCars.find(c => c.index === focus);
     if (!car) return null;
     const view = carLapsView(
-      carLapsOf(prep.field, focus),
+      focusLaps,
       classes.of(car.classKey).title,
+      currentLap,
     );
     return view ? {index: focus, view} : null;
     // sampleCars only supplies the class, which never changes for a car.
-  }, [focus, prep.field, classes]);
+  }, [focus, focusLaps, classes, currentLap]);
   const dots = useMemo(
     () =>
       buildRaceModel({cars, filter, focus, mode, trackM: prep.trackM, classes})
