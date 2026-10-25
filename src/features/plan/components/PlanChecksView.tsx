@@ -8,7 +8,7 @@ import {type ChecksText} from '../planChecksText';
 /**
  * The Plan's facts under the per-lap line: max fuel, fuel and VE a lap, each
  * with whether two of LMU's own sources agree, then the notes (a VE that does
- * not match LMU's setup, the offline practice's comparison). Wraps on a phone.
+ * not match LMU's setup, the offline practice's comparison). One fact a line.
  */
 export function PlanChecksView({text}: {text: ChecksText}) {
   return (
@@ -44,5 +44,5 @@ const styles = StyleSheet.create({
     columnGap: space.lg,
     rowGap: space.xxs,
   },
-  fact: {flexDirection: 'row', alignItems: 'baseline', columnGap: space.xs},
+  fact: {flexDirection: 'row', alignItems: 'baseline', columnGap: space.md},
 });
