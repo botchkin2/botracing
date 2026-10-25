@@ -13,13 +13,23 @@ import {Pressable, Text} from '@/src/ui';
 // into sections, named by their turns): one row per lap, one cell per section, the
 // difference to the reference in seconds on the fixed color scale.
 
+/**
+ * One section cell: the seconds against the reference, or why there is none.
+ * `off` is a section the lap left with wheels off (never a silent blank,
+ * ticket 44); `none` is a lap with no time there.
+ */
+export type CornerCellValue = number | {absent: 'off' | 'none'};
+
+/** A cell with no time, for a caller that does not know the reason. */
+export const NO_TIME: CornerCellValue = {absent: 'none'};
+
 export type CornerGridRow = {
   key: string;
   label: string;
   /** Row label color (the lap's color); undefined for summary rows. */
   color?: string;
-  /** Seconds vs the reference per corner; null when unknown. */
-  cells: (number | null)[];
+  /** Seconds vs the reference per corner, or why there is none. */
+  cells: CornerCellValue[];
 };
 
 const LABEL_W = 36;
@@ -88,8 +98,10 @@ export function CornerGrid({
  * One row of section cells: the difference to the reference in seconds on the
  * fixed color scale (design/tokens.ts cornerCell). `showValue` false draws the
  * color alone, for a cell too narrow for its number (the phone's lap table);
- * the row then names each cell for a screen reader instead. Without `onPress`
- * the cells are not tappable.
+ * the row then names each cell for a screen reader instead. A section left
+ * with wheels off reads "off" ("×" in a narrow cell, in a dashed outline no
+ * delta colour has); a lap with no time there is an empty cell. Without
+ * `onPress` the cells are not tappable.
  */
 export function CornerCells({
   cells,
@@ -99,7 +111,7 @@ export function CornerCells({
   showValue = true,
   labels,
 }: {
-  cells: (number | null)[];
+  cells: CornerCellValue[];
   cellW: number;
   /** The index of the cell drawn open (outlined); -1 for none. */
   openIndex?: number;
@@ -112,8 +124,10 @@ export function CornerCells({
   return (
     <>
       {cells.map((d, i) => {
-        const c = d == null ? null : cornerCell(d);
-        const text = d == null ? '—' : formatCornerGap(d);
+        const gap = typeof d === 'number' ? d : null;
+        const off = typeof d !== 'number' && d.absent === 'off';
+        const c = gap == null ? null : cornerCell(gap);
+        const text = gap != null ? formatCornerGap(gap) : off ? 'off' : '—';
         const style = [
           styles.cell,
           {
@@ -122,12 +136,19 @@ export function CornerCells({
             backgroundColor: c?.bg ?? color.surfaceRaised,
             borderColor: i === openIndex ? color.text : 'transparent',
           },
+          off && {borderColor: color.textMuted, borderStyle: 'dashed' as const},
         ];
-        const body = showValue ? (
-          <Text variant='dataSmall' style={{color: c?.fg ?? color.textFaint}}>
-            {text}
-          </Text>
-        ) : null;
+        // A wheels-off cell always draws a mark; the others only where the number fits.
+        const body =
+          showValue || off ? (
+            <Text
+              variant='dataSmall'
+              style={{
+                color: c?.fg ?? (off ? color.textSecondary : color.textFaint),
+              }}>
+              {off && !showValue ? '×' : text}
+            </Text>
+          ) : null;
         return onPress ? (
           <Pressable key={i} onPress={() => onPress(i)} style={style}>
             {body}

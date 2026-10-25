@@ -16,11 +16,17 @@ import {
   type OptimumLap,
   sectionOptimum,
 } from '@/src/analysis/sectionOptimum';
+import {MIN_LAP_SPREAD_LAPS} from '@/src/analysis/setStats';
 import type {Lap} from '@/src/data/sessions';
 
-/** Median, best and IQR of the lap times of `laps`; untimed laps skipped. */
+/**
+ * Median, best and IQR of the lap times of `laps`; untimed laps skipped. The
+ * IQR is quoted from MIN_LAP_SPREAD_LAPS laps (setStats.ts), so the head, the
+ * stint lines and the Stints table never show a spread of 3 laps.
+ */
 export function lapTimeStats(laps: readonly Lap[]): SegmentStats {
-  return columnStats(laps.map(l => l.timeS));
+  const stats = columnStats(laps.map(l => l.timeS));
+  return stats.n >= MIN_LAP_SPREAD_LAPS ? stats : {...stats, spreadS: null};
 }
 
 /**

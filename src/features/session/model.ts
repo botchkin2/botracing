@@ -65,7 +65,8 @@ import {
 } from './trafficFacts';
 import {isCompound} from '@/src/data/sessions/corners';
 import {type BrakeRow, brakeLedger} from './brakeLedger';
-import {sessionGrid} from './grid';
+import {cornerCellOf, sessionGrid} from './grid';
+import type {CornerCellValue} from '@/src/charts/CornerGrid';
 import {
   type SpreadBlock,
   type SpreadCell,
@@ -151,10 +152,10 @@ export type LapRowModel = {
   sections: {value: string; best: boolean}[];
   /**
    * The phone table's cells, one per section in the same order: this lap's time in the section minus the section's
-   * median over the basis laps (grid.ts, the number the grid shows); null where the lap has no time or the section
-   * has under two basis laps. Empty without section times.
+   * median over the basis laps (grid.ts, the number the grid shows); or why there is none: wheels off in the section,
+   * or no time (or under two basis laps). One entry per section, empty without section times.
    */
-  sectionDeltas: (number | null)[];
+  sectionDeltas: CornerCellValue[];
   tags: Tag[];
   comparable: boolean;
   selIndex: number | null;
@@ -495,8 +496,7 @@ function spreadFooter(
     if (!c) return dash;
     return c.offsShort ?? c.seconds?.replace(' s', '') ?? dash;
   });
-  const pooled = spread.some(c => c?.pooled);
-  return {label: pooled ? 'Spread (pooled)' : 'Spread', cells};
+  return {label: 'Spread', cells};
 }
 
 /** "Rebuilt from the game file" and, on a tap, when and which stretches. */
@@ -569,12 +569,14 @@ export function buildSessionModel(
     sectionTimes
       ? sessionGrid(sectionTimes, new Set(selection.laps)).rows.map(r => [
           r.lapId,
-          r.cells.map(c => c.deltaS),
+          r.cells.map(cornerCellOf),
         ])
       : [],
   );
   // A lap the section times leave out still has its cells, empty.
-  const noDeltas = (sectionTimes?.segments ?? []).map(() => null);
+  const noDeltas = (sectionTimes?.segments ?? []).map(
+    (): CornerCellValue => ({absent: 'none'}),
+  );
   const stintLines = new Map(
     stintNumbers(laps, basis, sectionTimes).map(s => [s.stint, s]),
   );
@@ -656,7 +658,7 @@ export function buildSessionModel(
     const line = stintLines.get(stint.n);
     if (line?.lapTimes.medianS != null) {
       bits.push(`med ${formatLapTime(line.lapTimes.medianS)}`);
-      if (line.n > 1 && line.lapTimes.spreadS != null)
+      if (line.lapTimes.spreadS != null)
         // A no-break space keeps the number with its unit when the line wraps at 375.
         bits.push(`spread ${line.lapTimes.spreadS.toFixed(2)} s`);
       bits.push(`of ${line.n}`);

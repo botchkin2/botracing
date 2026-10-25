@@ -7,6 +7,7 @@ import {basisOf} from '@/src/analysis/lapBasis';
 // the ticked median, so removing a lap shows where it sat. Pure: the hook
 // gathers the inputs, components draw.
 
+import {type CornerCellValue} from '@/src/charts/CornerGrid';
 import {type SegmentTimes} from '@/src/analysis/segments';
 
 import {segmentBasisStats} from './selectionStats';
@@ -53,6 +54,11 @@ export type SessionGrid = {
   columns: GridColumn[];
   rows: GridRow[];
 };
+
+/** A cell as the colour cells draw it: its gap, or why it has none (wheels off in the section, or no time). */
+export function cornerCellOf(c: GridCell): CornerCellValue {
+  return c.deltaS ?? {absent: c.off ? 'off' : 'none'};
+}
 
 /** The grid for one session. `ticked` is the shared selection. */
 export function sessionGrid(

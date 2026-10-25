@@ -2,7 +2,7 @@ import {describe, expect, test} from '@jest/globals';
 
 import {type SegmentTimes} from '@/src/analysis/segments';
 
-import {sessionGrid, sortRows, type GridRow} from './grid';
+import {cornerCellOf, sessionGrid, sortRows, type GridRow} from './grid';
 
 const seg = (label: string) => ({label, range: null});
 
@@ -96,6 +96,20 @@ describe('cells', () => {
     const g = sessionGrid(times(), ticked('L1', 'L2', 'L4'));
     expect(g.rows.find(r => r.lapId === 'L1')!.cells[0].best).toBe(true);
     expect(g.rows.find(r => r.lapId === 'L4')!.cells[0].best).toBe(false);
+  });
+});
+
+describe('cornerCellOf: a cell with no gap says why', () => {
+  test('a gap is the number; wheels off is off; no time is none', () => {
+    const data = times();
+    // L3 has no time in S2 (a pit window); L1's S2 was left with wheels off.
+    data.laps[0] = {...data.laps[0], timesS: [10.0, null], offs: [false, true]};
+    const g = sessionGrid(data, ticked('L1', 'L2', 'L4'));
+    const cell = (id: string, i: number) =>
+      cornerCellOf(g.rows.find(r => r.lapId === id)!.cells[i]);
+    expect(cell('L2', 0)).toBeCloseTo(0, 6);
+    expect(cell('L1', 1)).toEqual({absent: 'off'});
+    expect(cell('L3', 1)).toEqual({absent: 'none'});
   });
 });
 

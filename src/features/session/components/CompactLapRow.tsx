@@ -126,10 +126,9 @@ export function CompactLapRow({
         <Text variant='dataStrong'>{row.label}</Text>
         {tag ? (
           <Text
-            variant='dataSmall'
+            variant='dataTag'
             tone={tag.best ? 'best' : 'textMuted'}
-            numberOfLines={1}
-            style={styles.tag}>
+            numberOfLines={1}>
             {tag.code.split(' ')[0] + (more > 0 ? ` +${more}` : '')}
           </Text>
         ) : null}
@@ -189,6 +188,5 @@ const styles = StyleSheet.create({
   cells: {flexDirection: 'row', alignItems: 'center'},
   right: {textAlign: 'right'},
   center: {textAlign: 'center'},
-  tag: {fontSize: 9, lineHeight: 11},
   hlBar: {position: 'absolute', left: -space.xl, top: 0, bottom: 0, width: 3},
 });

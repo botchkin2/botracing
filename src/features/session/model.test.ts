@@ -63,12 +63,25 @@ describe('buildSessionModel', () => {
     expect(head.value).not.toMatch(/IQR|±/);
   });
 
-  it('says no spread where the basis laps are too few for one', () => {
-    const two = buildSessionModel(session, laps, {
-      laps: [laps[3].id],
-      hl: null,
-    });
-    expect(two.facts.map(f => f.label)).not.toContain('Spread');
+  it('quotes no spread from under 5 basis laps, in the head or on a stint line (consistency.ts floor)', () => {
+    const pick = (n: number) => {
+      const ticked = laps
+        .filter(l => l.comparable)
+        .slice(0, n)
+        .map(l => l.id);
+      return buildSessionModel(session, laps, {laps: ticked, hl: null});
+    };
+    const spreadOf = (m: ReturnType<typeof buildSessionModel>) =>
+      m.facts.find(f => f.label === 'Spread');
+    const stintLabel = (m: ReturnType<typeof buildSessionModel>) => {
+      const row = m.rows.find(r => r.kind === 'stint');
+      return row?.kind === 'stint' ? row.label : '';
+    };
+    expect(spreadOf(pick(4))).toBeUndefined();
+    expect(stintLabel(pick(4))).toContain('of 4');
+    expect(stintLabel(pick(4))).not.toContain('spread');
+    expect(spreadOf(pick(5))).toBeDefined();
+    expect(stintLabel(pick(5))).toContain('spread');
   });
 
   it('one bar per lap, up = faster, clamped at ±1.5 s', () => {

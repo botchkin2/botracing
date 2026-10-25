@@ -9,7 +9,7 @@ import {formatLapTime} from '@/src/design';
 
 import fixture from './__fixtures__/roadAtlantaRace.json';
 import {buildStintTable} from './desktopModel';
-import {sessionGrid} from './grid';
+import {cornerCellOf, sessionGrid} from './grid';
 import {buildSessionModel} from './model';
 import {lapTimeStats, segmentBasisStats, stintNumbers} from './selectionStats';
 
@@ -162,7 +162,7 @@ describe('one answer per question (decision 2026-10-11)', () => {
     for (const row of grid.rows) {
       const lapRow = rows.find(r => r.kind === 'lap' && r.lapId === row.lapId);
       expect(lapRow?.kind === 'lap' && lapRow.sectionDeltas).toEqual(
-        row.cells.map(c => c.deltaS),
+        row.cells.map(cornerCellOf),
       );
     }
   });
