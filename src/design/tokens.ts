@@ -392,8 +392,6 @@ export const size = {
   // On a phone the 3D view's top is the map's mode row (a 32 pt control with its 8 pt margins, drawn over the page by the
   // app), then the Near strip, then the canvas: nothing floats over the cars.
   chaseControlsH: 48,
-  // The numbers column on a phone's bottom right: its width.
-  chaseNumbersTight: 128,
   // Phone bottom bar (round 4 nav frame, item 8): 52 pt, as drawn.
   bottomBar: 52,
   // The same bar on a phone turned on its side, where 375 pt of height is all there is.
