@@ -2,7 +2,7 @@
 // moves to the next port (which left a slot "moved to 19102 and exited" beside a stale Metro, ticket 58, chassis #7697).
 import {spawnSync} from 'node:child_process';
 
-/** The listeners on `port` in `netstat -ano -p tcp` output: [{address, pid}], any address family. */
+/** The listeners on `port` in `netstat -ano` output: [{address, pid}], IPv4 and IPv6. */
 export function listenersOn(netstat, port) {
   const out = [];
   for (const line of netstat.split(/\r?\n/)) {
@@ -21,7 +21,8 @@ export function holdersOf(
   {platform = process.platform, run = spawnSync} = {},
 ) {
   if (platform !== 'win32') return [];
-  const r = run('netstat', ['-ano', '-p', 'tcp'], {encoding: 'utf8'});
+  // Plain `-ano`: `-p tcp` lists IPv4 only, and the stale Metro this exists to name is on [::1] (steward #7726).
+  const r = run('netstat', ['-ano'], {encoding: 'utf8'});
   return r.status === 0 ? listenersOn(String(r.stdout), port) : [];
 }
 

@@ -22,6 +22,18 @@ test('names the listeners on a port, any family, and nothing else', () => {
   assert.deepEqual(listenersOn(NETSTAT, 19105), []);
 });
 
+test('holdersOf asks netstat for every family, so a Metro on [::1] is seen', () => {
+  const asked = [];
+  const run = (cmd, args) => {
+    asked.push([cmd, ...args]);
+    return {status: 0, stdout: NETSTAT};
+  };
+  const holders = holdersOf(19103, {platform: 'win32', run});
+  // `-p tcp` would list IPv4 only and hide the [::1] listener.
+  assert.deepEqual(asked, [['netstat', '-ano']]);
+  assert.ok(holders.some(h => h.address === '::1' && h.pid === 4176));
+});
+
 test('holdersOf reads netstat on Windows and is empty elsewhere', () => {
   const run = () => ({status: 0, stdout: NETSTAT});
   assert.equal(holdersOf(19103, {platform: 'win32', run}).length, 2);
