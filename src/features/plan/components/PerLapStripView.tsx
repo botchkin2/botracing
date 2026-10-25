@@ -6,9 +6,8 @@ import {Text} from '@/src/ui';
 import {type PerLapStrip} from '../perLapStrip';
 
 /**
- * The Plan's first line (thread 99, PLN): use per lap as the hero, its p90,
- * the laps a tank and the litres a % beside it, then what the numbers stand
- * on (`notes`: the laps and sessions, the VE ratio's source, the newest
+ * The Plan's first line (thread 99, PLN): use per lap as the hero and its
+ * p90 beside it, then what the numbers stand on (`notes`: the laps and sessions, the VE ratio's source, the newest
  * session's drift).
  */
 export function PerLapStripView({

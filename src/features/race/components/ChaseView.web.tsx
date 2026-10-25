@@ -1,4 +1,4 @@
-import {createElement, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
+import {createElement, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {StyleSheet, View} from 'react-native';
 
@@ -11,7 +11,8 @@ import {Pressable, Segment, Text} from '@/src/ui';
 import {ChaseNearStrip} from '@/src/features/race/components/ChaseNearStrip';
 import {ChaseTower} from '@/src/features/race/components/ChaseTower';
 import {inAppWebView, postPan, postReady} from '@/src/features/race/useEmbedClock';
-import {DriverInputs} from '@/src/features/race/components/DriverInputs';
+import {LiveDriverInputs} from '@/src/features/race/components/LiveDriverInputs';
+import type {ChaseFrame, FrameSubscribe} from '@/src/features/race/chase/chaseInputsAt';
 import {GEAR_UNKNOWN, tightNumberRows} from '@/src/features/race/chase/numbersRows';
 import {type TowerCar, type TowerMode, type TowerRow, towerRows} from '@/src/features/race/chase/towerRows';
 import type {ChaseCamMode, ChaseCar, ChaseEngine, ChaseGaps, ChaseInputs, ChaseSampler} from '@/src/features/race/chase/chaseTypes';
@@ -68,9 +69,13 @@ export function ChaseView(props: ChaseProps) {
   const [full, setFull] = useState(props.embedded === true);
   const [cam, setCam] = useState<CamValue>('1');
   const [free, setFree] = useState(false);
-  const {failed, host, reset} = useChaseEngine(props, cam, setFree);
+  const frames = useRef<((frame: ChaseFrame) => void) | null>(null);
+  const subscribe = useCallback<FrameSubscribe>(listener => {
+    frames.current = listener;
+  }, []);
+  const {failed, host, reset} = useChaseEngine(props, cam, setFree, frames);
   const surface = (
-    <ChaseSurface {...props} full={full} setFull={setFull} cam={cam} setCam={setCam} host={host} failed={failed} free={free} onReset={reset} />
+    <ChaseSurface {...props} full={full} setFull={setFull} cam={cam} setCam={setCam} host={host} failed={failed} free={free} onReset={reset} subscribe={subscribe} />
   );
   return full && typeof document !== 'undefined'
     ? createPortal(surface, document.body)
@@ -82,6 +87,7 @@ function useChaseEngine(
   {road, sample, timeS, focus, playing, rate, inputs, onPressCar, embedded}: ChaseProps,
   cam: CamValue,
   onFree: (free: boolean) => void,
+  frames: {current: ((frame: ChaseFrame) => void) | null},
 ): {failed: string | null; host: HTMLDivElement; reset: () => void} {
   const {color} = useTheme();
   const [host] = useState(() => {
@@ -119,7 +125,7 @@ function useChaseEngine(
       try {
         const {mountChase} = await import('../chase/chaseEngine');
         if (dead) return;
-        made = mountChase(host, {onPick: (i: number) => pick.current(i), theme, onFree, onPan: embedded && inAppWebView() ? postPan : undefined});
+        made = mountChase(host, {onPick: (i: number) => pick.current(i), theme, onFree, onPan: embedded && inAppWebView() ? postPan : undefined, onFollowed: f => frames.current?.(f)});
         engine.current = made;
         made.setRoad(road);
         made.setCam(Number(cam) as ChaseCamMode);
@@ -183,6 +189,7 @@ function ChaseSurface({
   failed,
   free,
   onReset,
+  subscribe,
 }: ChaseProps & {
   full: boolean;
   setFull: (f: boolean) => void;
@@ -192,6 +199,7 @@ function ChaseSurface({
   failed: string | null;
   free: boolean;
   onReset: () => void;
+  subscribe: FrameSubscribe;
 }) {
   const {color} = useTheme();
   // Full screen: its own play toggle (Space) and a way out (Esc).
@@ -371,8 +379,8 @@ function ChaseSurface({
         <View
           pointerEvents='none'
           style={[styles.dock, tight && styles.dockTight, tight && {bottom: bottomInset + space.xs}]}>
-          {now ? (
-            <DriverInputs brakePct={now.brakePct} throttlePct={now.throttlePct} steeringPct={now.steeringPct} tight={tight} />
+          {now && inputs ? (
+            <LiveDriverInputs now={now} trace={inputs.trace} subscribe={subscribe} tight={tight} />
           ) : null}
           <View style={[styles.numbers, tight && styles.numbersTight, {backgroundColor: color.surface, borderColor: color.lineStrong}]}>
           {tight

@@ -16,6 +16,7 @@ import {chaseHeading, stepTravel} from '@/src/analysis/chaseHeading';
 import type {ChaseRoad} from '@/src/analysis/chaseRoad';
 import {roadIndex, type RoadIndex} from '@/src/analysis/chaseRoadIndex';
 import type {ChaseCamMode, ChaseCar, ChaseEngine, ChaseRibbon, ChaseTheme, ChaseUpdate} from '@/src/features/race/chase/chaseTypes';
+import type {ChaseFrame} from './chaseInputsAt';
 import {createCarLabels, declutterLabels, type LabelCandidate} from './carLabels';
 import {createCarKit, type CarObject} from './carMeshes';
 import {createCameraRig} from './cameraRig';
@@ -61,7 +62,13 @@ interface CarState {
 
 export function mountChase(
   container: HTMLElement,
-  opts: {theme: ChaseTheme; onPick: (index: number) => void; onFree?: (free: boolean) => void; onPan?: (dy: number) => void},
+  opts: {
+    theme: ChaseTheme;
+    onPick: (index: number) => void; onFree?: (free: boolean) => void;
+    onPan?: (dy: number) => void;
+    /** Every frame drawn: the followed car's lap distance at the engine's own clock (the HUD reads the recording there). */
+    onFollowed?: (frame: ChaseFrame) => void;
+  },
 ): ChaseEngine {
   const T = opts.theme;
   const renderer = new THREE.WebGLRenderer({antialias: true, powerPreference: 'high-performance'});
@@ -258,6 +265,7 @@ export function mountChase(
       }
     }
     const mine = me.car.player;
+    opts.onFollowed?.({lapDistM: me.car.lapDistM, player: mine});
     if (inputs) {
       const first = clamp(inputIdx + 1, 0, inputs.count - 2);
       const count = clamp(Math.min(INPUT_WINDOW, inputs.count - 2 - first), 0, INPUT_WINDOW);

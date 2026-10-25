@@ -60,6 +60,7 @@ export {
   useSessionLapSet,
 } from './lapSet';
 export {topSpreadCorner, useTopSpreadCorner} from './spreadLanding';
+export {needsPool, poolCandidates, useSpreadPool} from './spreadPool';
 export {
   type PlanBlock,
   type PlanLap,

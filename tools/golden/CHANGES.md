@@ -127,3 +127,27 @@ Changed:
 Why: GRID_LAP_VERSION 2: a grid start's lap 0 is read over its racing lap (line to line), no longer over the stretch to the formation line, so the lap's off-track seconds are the racing lap's (0.26 s, none before) (pit-wall thread 100, ticket #49). Only lap 0 moved; every other lap and number is unchanged.
 Changed:
 - laps.0.offTrackSec: 0 -> 0.26
+
+## 2026-10-25 lmu-race-road-atlanta
+Why: the session doc's fuel block gains setupVePct and setupVePerLapPct, LMU's own VE expectation read from the car setup's VM_VIRTUAL_ENERGY string (pit-wall thread 104 #7391, ticket #47). The golden slices carry no such string (iRacing has none), so both are null here and no other number moved.
+Changed:
+- fuel.setupVePct: undefined -> null
+- fuel.setupVePerLapPct: undefined -> null
+
+## 2026-10-25 iracing-race-road-atlanta
+Why: the session doc's fuel block gains setupVePct and setupVePerLapPct, LMU's own VE expectation read from the car setup's VM_VIRTUAL_ENERGY string (pit-wall thread 104 #7391, ticket #47). The golden slices carry no such string (iRacing has none), so both are null here and no other number moved.
+Changed:
+- fuel.setupVePct: undefined -> null
+- fuel.setupVePerLapPct: undefined -> null
+
+## 2026-10-25 lmu-race-daytona-tyres
+Why: the session doc's fuel block gains setupVePct and setupVePerLapPct, LMU's own VE expectation read from the car setup's VM_VIRTUAL_ENERGY string (pit-wall thread 104 #7391, ticket #47). The golden slices carry no such string (iRacing has none), so both are null here and no other number moved.
+Changed:
+- fuel.setupVePct: undefined -> null
+- fuel.setupVePerLapPct: undefined -> null
+
+## 2026-10-25 lmu-practice-road-atlanta
+Why: the session doc's fuel block gains setupVePct and setupVePerLapPct, LMU's own VE expectation read from the car setup's VM_VIRTUAL_ENERGY string (pit-wall thread 104 #7391, ticket #47). The golden slices carry no such string (iRacing has none), so both are null here and no other number moved.
+Changed:
+- fuel.setupVePct: undefined -> null
+- fuel.setupVePerLapPct: undefined -> null

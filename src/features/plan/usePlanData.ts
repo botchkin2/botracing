@@ -7,6 +7,8 @@ import {formationBurnOf} from './formation';
 import {lastRaceOf, lastRaceSessionOf} from './lastRace';
 import {pitLaneBase, pitModelOf, refuelRateFor} from './pitBase';
 import {type Combo, fuelOnly, planView, rulesFor, sessionLimitL} from './model';
+import {planChecks} from './planChecks';
+import {checksText} from './planChecksText';
 import {eventLabel} from './planEvent';
 import {buildPlanCards} from './planCards';
 import {type Unit} from './unit';
@@ -113,6 +115,21 @@ export function usePlanData(
           unit,
         )
       : null;
+  // What the facts rest on: only for a rule set (a series week has no sources to compare).
+  const checks =
+    ruleSet && plan
+      ? checksText(
+          planChecks({
+            set: ruleSet,
+            sessions: limits.runs,
+            measured: {
+              fuelPerLapL: plan.perLap.fuel?.median ?? null,
+              vePerLapPct: plan.perLap.ve?.median ?? null,
+            },
+            ownIds: hist.usedSessions.map(s => s.id),
+          }),
+        )
+      : null;
   const cards =
     rules && plan
       ? buildPlanCards(
@@ -135,6 +152,7 @@ export function usePlanData(
     pitBase,
     refuelRate,
     view,
+    checks,
     cards,
     formation,
     fuelOnly: noVe,

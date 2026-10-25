@@ -35,6 +35,8 @@ export type GridCell = {
   unit: number;
   /** The fastest basis time in this section. */
   best: boolean;
+  /** No time because the window was left with wheels off: the cell says "off", not a dash. */
+  off: boolean;
 };
 
 export type GridRow = {
@@ -49,7 +51,7 @@ export type GridRow = {
 };
 
 export type SessionGrid = {
-  /** Laps the column numbers are of: the head reads "IQR of N". */
+  /** Laps the column numbers are of: the head reads "Varies · N laps". */
   basisCount: number;
   columns: GridColumn[];
   rows: GridRow[];
@@ -88,6 +90,7 @@ export function sessionGrid(
           ? timeS - medianS
           : null;
       return {
+        off: timeS == null && lap.offs?.[i] === true,
         timeS,
         deltaS,
         unit:

@@ -20,7 +20,11 @@ describe('the Corner landing and the first SPREAD row', () => {
       new Set(all.slice(0, 11).map(l => l.id)),
     ]) {
       const basis = new Set(basisOf(times!.laps, ticked).map(l => l.id));
-      const rows = spreadRows(times, basis, sectionTable(times, basis, track));
+      const {rows} = spreadRows(
+        times,
+        basis,
+        sectionTable(times, basis, track),
+      );
       expect(rows.length).toBeGreaterThan(0);
       const first = rows.find(r => r.corner != null);
       expect(topSpreadCorner(all, track, ticked)).toBe(first?.corner);

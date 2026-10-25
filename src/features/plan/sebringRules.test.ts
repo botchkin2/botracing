@@ -158,7 +158,7 @@ describe('the Wed rules with no load known (a practice only, thread 104)', () =>
       formationFactor: {fuel: 1.19 / median(laps.map(l => l.fuelL)), ve: 0},
     };
     const plan = planRace(rules, laps, null, 0.625);
-    const cells = rulesCells(rules, true, 0.625);
+    const cells = rulesCells(rules, true);
     expect(cells.map(c => c.label)).not.toContain('Max fuel');
     expect(JSON.stringify(cells)).not.toMatch(/125|Infinity|NaN/);
     // one stop fewer would need under 100 / 30 = 3.3 % a lap against his 5.7

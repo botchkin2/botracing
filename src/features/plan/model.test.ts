@@ -73,6 +73,8 @@ const sessionFuel = (over: Partial<SessionFuel> = {}): SessionFuel => ({
   tankL: null,
   litresPerVePct: null,
   litresPerVePctStop: null,
+  setupVePct: null,
+  setupVePerLapPct: null,
   ...over,
 });
 
@@ -127,7 +129,7 @@ describe('veRatioFor', () => {
     key: 'wedR',
     sessionIds: ['wedR'],
     newestAt: '2026-10-22T16:39:00Z',
-    ratio: {perPctL: 0.625, from: {startedAt: '2026-10-22T16:39:00Z', sessionType: 'R'}},
+    ratio: {perPctL: 0.625, from: {id: 'wedR', startedAt: '2026-10-22T16:39:00Z', sessionType: 'R', online: null}},
     fromPracticeOnly: false,
     stopRatio: 0.609,
     mostRunL: 73,
@@ -265,10 +267,8 @@ describe('planView', () => {
     expect(view.basis.drift).toBeNull();
   });
 
-  it('shows where the VE ratio came from', () => {
-    const note = view.basis.ratio;
-    expect(note).toContain('0.700 L per 1 % VE');
-    expect(note).toContain('measured in the session of ');
+  it('prints no ratio note when VE was measured: the rules line names the session', () => {
+    expect(view.basis.ratio).toBeNull();
   });
 
   it('reads a race that needs no stop as a load to finish', () => {
@@ -383,6 +383,8 @@ describe('sessionLimitL', () => {
       tankL: null,
       litresPerVePct: null,
       litresPerVePctStop: null,
+      setupVePct: null,
+      setupVePerLapPct: null,
       ...o,
     });
     expect(sessionLimitL(f({fillLimitL: 75, startL: 60, tankL: 117}))).toBe(75);
@@ -497,8 +499,7 @@ describe('an iRacing history: every lap has no VE', () => {
     const history = Array.from({length: 5}, lap);
     const hasVe = !fuelOnly(history);
     expect(hasVe).toBe(false);
-    expect(rulesCells(rules, hasVe, null).map(c => c.label)).toEqual([
-      'Max fuel',
+    expect(rulesCells(rules, hasVe).map(c => c.label)).toEqual([
       'Mandatory',
       'Formation',
     ]);
@@ -550,6 +551,8 @@ describe('limitsOfPlan', () => {
               tankL: null,
               litresPerVePct: null,
               litresPerVePctStop: null,
+              setupVePct: null,
+              setupVePerLapPct: null,
             },
             laps: null,
             race: null,
@@ -708,7 +711,7 @@ describe('a stored preset VE % is kept but not applied (thread 104)', () => {
 
 describe('under a rule set the tank is never the load (thread 104)', () => {
   // A live online practice: the capture reports the car's own 117 L tank, no fill limit, a start of 78.9 L.
-  const livePractice = {startL: 78.9, fillLimitL: null, tankL: 117, litresPerVePct: 0.839, litresPerVePctStop: null};
+  const livePractice = {startL: 78.9, fillLimitL: null, tankL: 117, litresPerVePct: 0.839, litresPerVePctStop: null, setupVePct: null, setupVePerLapPct: null};
   const length = {kind: 'min' as const, value: 60};
   const laps: GreenLap[] = Array.from({length: 10}, () => ({fuelL: 3.6, vePct: 4.3, lapTimeS: 123, sessionId: 's'}));
 
@@ -728,17 +731,17 @@ describe('under a rule set the tank is never the load (thread 104)', () => {
     const view = planView(null, rules, plan, {
       since: null,
       lastFillLimitL: null,
-      eventText: '0.84 L/% · rules from Practice, Oct 21',
+      eventText: 'Rules from your practice, Oct 21',
       ruleSet: true,
       ratio: null,
       lastRatio: null,
       ratioLoadsL: [],
       drift: null,
     });
-    expect(view.rulesLine).toBe('Rules: 0.84 L/% · rules from Practice, Oct 21 (fuel load not known: planned on VE)');
+    expect(view.rulesLine).toBe('Rules from your practice, Oct 21');
     expect(view.rulesLine).not.toMatch(/117|83\.9|167|125/);
     // no Max fuel cell, no litres anywhere in the rules cells
-    expect(rulesCells(rules.rules, true, 0.839).map(c => c.label)).not.toContain('Max fuel');
+    expect(rulesCells(rules.rules, true).map(c => c.label)).not.toContain('Max fuel');
   });
 
   it('a fuel-only car (no ratio, so no VE allowance) with no load still needs fuel', () => {
@@ -753,14 +756,14 @@ describe('under a rule set the tank is never the load (thread 104)', () => {
     const view = planView(null, rules, planRace(rules.rules, laps), {
       since: null,
       lastFillLimitL: 85,
-      eventText: '85 L · 0.84 L/% · rules from Race, Oct 21',
+      eventText: 'Rules from your race, Oct 21',
       ruleSet: true,
       ratio: null,
       lastRatio: null,
       ratioLoadsL: [],
       drift: null,
     });
-    expect(view.rulesLine).toBe('Rules: 85 L · 0.84 L/% · rules from Race, Oct 21 (85 L fill limit)');
+    expect(view.rulesLine).toBe('Rules from your race, Oct 21');
   });
 
   it('a series week of a car with no VE keeps its old reading of the load', () => {

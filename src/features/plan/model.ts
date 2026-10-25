@@ -382,21 +382,14 @@ export type RulesCell = {label: string; value: string};
 export function rulesCells(
   rules: PlanRules | null,
   hasVe: boolean,
-  /** Litres one % of VE is worth; null without VE. */
-  ratioPerPctL: number | null,
   /** What the formation lap burns, measured or estimated (`formation.ts`); unset reads "1 lap". */
   formation: FormationBurn | null = null,
 ): RulesCell[] {
   if (!rules) return [];
   return [
-    // no load known (VE alone): no Max fuel cell
-    ...(rules.fuelL != null
-      ? [{label: 'Max fuel', value: `${rules.fuelL} L`}]
-      : []),
+    // Max fuel is the facts line's (planChecks.ts): this block never repeats it
+    // under the same name with the load the plan uses (thread 104 #7403)
     ...(hasVe ? [{label: 'Max VE', value: `${rules.vePct} %`}] : []),
-    ...(hasVe && ratioPerPctL != null
-      ? [{label: '1 % VE', value: `${ratioPerPctL.toFixed(2)} L`}]
-      : []),
     {
       label: 'Mandatory',
       value: `${rules.mandatoryStops} ${
@@ -506,27 +499,28 @@ export type PlanView = {
 
 const NL = String.fromCharCode(10);
 const l2 = (v: number) => `${v.toFixed(2)} L`;
+/** The Plan's words when no session here measured VE (pit-wall thread 104 #7391). */
+export const NO_VE_MEASURED =
+  "No VE measured here yet. Run an offline practice with this week's settings.";
+
 const pct2 = (v: number) => `${v.toFixed(2)} %`;
 
+/** Why there is no VE a lap, else null: where the ratio came from is the rules line's (session and date), and the ratio itself is no number he reads. */
 function ratioNote(
   ratio: VeRatio | null,
   fuelL: number | null,
   loadsL: number[],
   eventText: string | null = null,
-): string {
+): string | null {
   if (!ratio && eventText != null)
-    return `no VE a lap yet: no green lap with fuel and VE in this event (${eventText}); drive one lap here, or type the ratio into a rule set`;
+    return NO_VE_MEASURED;
   if (!ratio)
     return loadsL.length > 0
       ? `no VE: none of your sessions ran ${fuelL} L (they ran ${loadsL.join(
           ', ',
         )} L) and the ratio follows the load; type it into the preset`
       : 'no VE ratio yet: no green lap with both fuel and VE';
-  const src =
-    ratio.source.kind === 'preset'
-      ? 'from the preset'
-      : `measured in the session of ${formatDate(ratio.source.startedAt)}`;
-  return `at ${ratio.perPctL.toFixed(3)} L per 1 % VE, ${src}`;
+  return null;
 }
 
 function loadCell(l: Load): string {
@@ -599,7 +593,7 @@ export function planView(
     lastRatio: number | null;
     /** The fill limits of the history sessions that have a ratio, for the note. */
     ratioLoadsL: number[];
-    /** The event the plan is for ("100 L · 0.97 L/% · One Stint Sprint · rules from Race, Oct 21"); null for a preset or no event. */
+    /** The event the plan is for ("Rules from your race, Oct 21 · One Stint Sprint"); null for a preset or no event. */
     eventText?: string | null;
     /** The event is a rule set: its load is its own, so the car's tank (117 L from a live capture) is not printed beside it. */
     ruleSet?: boolean;
@@ -613,8 +607,9 @@ export function planView(
   const eventText = preset ? null : history.eventText ?? null;
   const rulesLine = preset
     ? `Rules: ${preset.name}  ·  set ${formatDate(preset.savedAt)}`
-    : rules.fuelSource === 'unknown'
-    ? `Rules: ${eventText ?? 'last race here'} (fuel load not known: planned on VE)`
+    : history.ruleSet || rules.fuelSource === 'unknown'
+    ? // a rule set names its session and date; its max fuel is the checks' own line
+      eventText ?? 'Rules: last race here'
     : `Rules: ${eventText ?? 'last race here'} (${r.fuelL} L ${
         rules.fuelSource === 'fill limit'
           ? 'fill limit'
@@ -623,8 +618,7 @@ export function planView(
           : 'start fuel'
       }${
         rules.fuelSource !== 'tank' &&
-        rules.last?.tankL != null &&
-        !history.ruleSet
+        rules.last?.tankL != null
           ? `, ${rules.last.tankL} L tank`
           : ''
       })`;

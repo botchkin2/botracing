@@ -63,27 +63,29 @@ export function eventsOf(
   return [...byWeek.values()].sort((a, b) => b.key.localeCompare(a.key));
 }
 
-const TYPE_WORD: Record<SessionType, string> = {R: 'Race', Q: 'Qualifying', P: 'Practice'};
+export const TYPE_WORD: Record<SessionType, string> = {R: 'race', Q: 'qualifying', P: 'practice'};
 
-/** "rules from Race, Oct 21": which session the plan's ratio comes from, so a stale set is visible. */
+/** "Rules from your offline practice, Oct 26": which session the plan's rules come from, so a stale set is visible. */
 export function rulesSource(rules: RuleSet): string {
-  const {startedAt, sessionType} = rules.ratio.from;
-  return `rules from ${TYPE_WORD[sessionType]}, ${formatDayMonth(startedAt)}`;
+  const {startedAt, sessionType, online} = rules.ratio.from;
+  const mode = online == null ? '' : online ? 'online ' : 'offline ';
+  return `Rules from your ${mode}${TYPE_WORD[sessionType]}, ${formatDayMonth(startedAt)}`;
 }
 
 /**
- * "100 L · 0.97 L/% · One Stint Sprint · rules from Race, Oct 21", or for a
- * car with no VE "100 L · One Stint Sprint · week of 09-29"; the load and the
- * series only when known. The load leads: on a phone the Rules chip cuts its label with an
- * ellipsis from the end, and the fuel figure is the part that must stay.
+ * "Rules from your offline practice, Oct 26 · One Stint Sprint" for a rule
+ * set (its date tells two sets apart; its max fuel is the Plan's own fact
+ * line), or for a car with no VE "100 L · One Stint Sprint · week of 09-29";
+ * the load and the series only when known. The load leads there: on a phone
+ * the Rules chip cuts its label with an ellipsis from the end, and the fuel
+ * figure is the part that must stay.
  */
 export function eventLabel(e: PlanEvent, loadL: number | null): string {
   return [
-    loadL != null ? `${Math.round(loadL * 10) / 10} L` : null,
-    // two rule sets can share a load and a series; the litres per 1 % VE tell them apart
-    e.rules ? `${e.rules.ratio.perPctL.toFixed(2)} L/%` : null,
+    e.rules ? rulesSource(e.rules) : null,
+    e.rules || loadL == null ? null : `${Math.round(loadL * 10) / 10} L`,
     e.series,
-    e.rules ? rulesSource(e.rules) : `week of ${e.key.slice(5)}`,
+    e.rules ? null : `week of ${e.key.slice(5)}`,
   ]
     .filter(Boolean)
     .join(' · ');
