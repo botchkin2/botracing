@@ -115,7 +115,10 @@ impl Drop for Registration<'_> {
 }
 
 #[cfg(windows)]
-pub use window::{start, wide, CLASS};
+pub use window::start;
+// The test finds the window by its class.
+#[cfg(all(windows, test))]
+pub use window::{wide, CLASS};
 
 #[cfg(windows)]
 mod window {
