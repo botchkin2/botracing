@@ -116,6 +116,77 @@
   Pop $1
 !macroend
 
+; One line in install.log.
+!macro BOTRACING_LOG_LINE TEXT
+  Push $1
+  CreateDirectory "${BOTRACING_DATA}"
+  FileOpen $1 "${BOTRACING_DATA}\install.log" a
+  FileSeek $1 0 END
+  FileWrite $1 "${TEXT}$\r$\n"
+  FileClose $1
+  Pop $1
+!macroend
+
+; The old exe is moved aside, not overwritten (pit wall thread 100, ticket 10): a file that something else
+; holds open without sharing writes (a scanner on the exe that just exited, the shell) cannot be written, but
+; it can be renamed, and so can an exe that is still running. The new exe is then written to a free name.
+; "1" once this run has moved it.
+Var BotRacingAside
+
+; Test seam for tray-e2e.yml (desktop/scripts/e2e-exe-lock.ps1): ${BOTRACING_DATA}\install-test.ini with
+; [test] pause_after_check and pause_after_move (ms), fail_after_move (1). The tray never writes this file;
+; without it these do nothing.
+!macro BOTRACING_TEST_SEAM KEY
+  Push $0
+  ReadINIStr $0 "${BOTRACING_DATA}\install-test.ini" "test" "${KEY}"
+  ${If} $0 != ""
+    !insertmacro BOTRACING_LOG_LINE "test seam ${KEY}=$0"
+    StrCmp "${KEY}" "fail_after_move" 0 +3
+      Pop $0
+      Abort "install-test: fail_after_move"
+    Sleep $0
+  ${EndIf}
+  Pop $0
+!macroend
+
+; Moves botracing.exe to botracing.exe.old as the last step before the files are written. A leftover .old
+; from an earlier run is deleted first; if it cannot be, nothing is moved and the wait above, then NSIS's own
+; Retry, are all there is (as before). A rename that fails is the same: logged, never an error.
+!macro BOTRACING_MOVE_EXE_ASIDE
+  StrCpy $BotRacingAside ""
+  ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
+    ClearErrors
+    Delete "$INSTDIR\${MAINBINARYNAME}.exe.old"
+    ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe.old"
+      !insertmacro BOTRACING_LOG_LINE "exe not moved aside: an old .old is still held (update mode $UpdateMode)"
+    ${Else}
+      ClearErrors
+      Rename "$INSTDIR\${MAINBINARYNAME}.exe" "$INSTDIR\${MAINBINARYNAME}.exe.old"
+      ${If} ${Errors}
+        !insertmacro BOTRACING_LOG_LINE "exe not moved aside: the rename failed (update mode $UpdateMode)"
+      ${Else}
+        StrCpy $BotRacingAside "1"
+        !insertmacro BOTRACING_LOG_LINE "moved the old exe aside (update mode $UpdateMode)"
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
+!macroend
+
+; The install failed or was cancelled after the old exe was moved aside: put it back, so the Start with Windows
+; entry still starts a tray. Only when this run moved it (a stale .old is never put over an exe).
+Function .onInstFailed
+  ${If} $BotRacingAside == "1"
+    Delete "$INSTDIR\${MAINBINARYNAME}.exe"
+    ClearErrors
+    Rename "$INSTDIR\${MAINBINARYNAME}.exe.old" "$INSTDIR\${MAINBINARYNAME}.exe"
+    ${If} ${Errors}
+      !insertmacro BOTRACING_LOG_LINE "install failed and the old exe could not be put back"
+    ${Else}
+      !insertmacro BOTRACING_LOG_LINE "install failed: the old exe is back"
+    ${EndIf}
+  ${EndIf}
+FunctionEnd
+
 ; Ends and deletes one old logon task if it is there. Absent is not an error;
 ; a refusal (a task made with the highest privileges) is written for the tray
 ; to say once, never an installer error.
@@ -155,16 +226,25 @@
 
 !macro NSIS_HOOK_PREINSTALL
   !insertmacro BOTRACING_LOG_HOOK "preinstall"
+  !insertmacro BOTRACING_REMOVE_TASK "LapUploader"
+  !insertmacro BOTRACING_REMOVE_TASK "LapRecorder"
+  ; The tray wait and the exe-writable check come last: they were first, and the two task rounds above (a
+  ; process start each) sat between "the exe is free" and the file write, long enough for a scanner to open it.
   ${If} $UpdateMode <> 1
     !insertmacro BOTRACING_QUIT_TRAY
   ${Else}
     !insertmacro BOTRACING_WAIT_TRAY_GONE
   ${EndIf}
-  !insertmacro BOTRACING_REMOVE_TASK "LapUploader"
-  !insertmacro BOTRACING_REMOVE_TASK "LapRecorder"
+  !insertmacro BOTRACING_LOG_LINE "exe free (update mode $UpdateMode)"
+  !insertmacro BOTRACING_TEST_SEAM "pause_after_check"
+  !insertmacro BOTRACING_MOVE_EXE_ASIDE
+  !insertmacro BOTRACING_TEST_SEAM "pause_after_move"
+  !insertmacro BOTRACING_TEST_SEAM "fail_after_move"
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
+  ; Still held by whatever blocked the write: left for the next run, which deletes it first.
+  Delete "$INSTDIR\${MAINBINARYNAME}.exe.old"
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
@@ -174,6 +254,8 @@
   ${Else}
     !insertmacro BOTRACING_WAIT_TRAY_GONE
   ${EndIf}
+  ; Before the template removes the folder (RMDir $INSTDIR), which an .old would keep.
+  Delete "$INSTDIR\${MAINBINARYNAME}.exe.old"
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL
