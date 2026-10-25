@@ -50,11 +50,27 @@ export async function verifyStored(
   // one stored. A skipped upload (the cloud's analysis is newer) or a heal
   // successor keeps its own.
   const built = out?.session.field?.hash ?? null;
-  if (!replaced && built && !skipped && field.hash !== built)
-    return {
-      ok: false,
-      reason: `stored field ${field.hash} is not the uploaded ${built}`,
-    };
+  const builtPath = out?.session.field?.path ?? null;
+  // A field that did not replace the stored one is uploaded beside it
+  // (fieldAfterSync). The session keeps the stored hash, so the built hash
+  // differs on purpose: `field.aside` is that file. A doc from before `aside`
+  // moved off the mark still carries the path on a `smaller` mark. The file
+  // has to be in the bucket or the capture never verifies and the 14-day
+  // prune deletes it (gauge on #730).
+  if (!replaced && built && !skipped && field.hash !== built) {
+    const aside =
+      field.aside ??
+      (field.mark?.kind === 'smaller' ? field.mark.aside : null);
+    const asideKept =
+      aside &&
+      aside === builtPath &&
+      (await backend.fileMd5(aside)) !== null;
+    if (!asideKept)
+      return {
+        ok: false,
+        reason: `stored field ${field.hash} is not the uploaded ${built}`,
+      };
+  }
 
   return {
     ok: true,

@@ -7,7 +7,7 @@ import {type LaneZoom, raceLanes} from '@/src/analysis/raceLanes';
 import {lapPath} from '@/src/analysis/inputsPath';
 import {carsAt} from '@/src/analysis/raceState';
 import {fieldClasses} from '@/src/analysis/fieldClasses';
-import {carLapsOf} from '@/src/analysis/carLaps';
+import {carLapsOf, currentLapIndex} from '@/src/analysis/carLaps';
 import {updateAt} from '@/src/analysis/field';
 import {RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
 import {type GridTrace, traceCovers} from '@/src/analysis/resample';
@@ -49,6 +49,8 @@ import {
 } from './components/RaceMap';
 import {RaceTransport} from './components/RaceTransport';
 import {useEmbedClock} from './useEmbedClock';
+import {useRestWhileAway} from './useRestWhileAway';
+import {PageScrollContext, usePageScrollOwner} from './usePageScroll';
 import {RaceLanesBlock} from './components/RaceLanesBlock';
 import {
   buildRaceModel,
@@ -169,6 +171,11 @@ function RaceShell({
         </Text>
       </View>
       {!layout.isDesktop && <SessionNav sessionId={sessionId} />}
+      {data.kind === 'ready' && data.note ? (
+        <Text tone='textMuted' style={{paddingHorizontal: space.md, paddingBottom: space.sm}}>
+          {data.note}
+        </Text>
+      ) : null}
       {data.kind === 'ready' ? (
         <RaceView
           data={data}
@@ -289,6 +296,8 @@ function RaceView({
   const clock = useRaceClock(endS, openAt, mapMode === 'chase' && chaseAvailable ? prep.field.hz : 0);
   // In the app's WebView the app's clock is the clock (embedBridge.ts).
   useEmbedClock(clock, endS, embed3d);
+  const onTop = useRestWhileAway(clock);
+  const pageScroll = usePageScrollOwner();
   // Race writes the cursor back once the user has moved the clock and it has
   // rested; opening the screen never overwrites Compare's cursor.
   const touched = useRef(false);
@@ -297,7 +306,7 @@ function RaceView({
     latest.current = {selection, onSelectionChange};
   });
   useEffect(() => {
-    if (clock.playing || !touched.current) return;
+    if (!onTop || clock.playing || !touched.current) return;
     const timer = setTimeout(() => {
       const place = data.clock.playerAt(clock.timeS);
       if (!place) return;
@@ -305,7 +314,7 @@ function RaceView({
       write(selectionFor(place, sel, data.laps));
     }, SETTLE_MS);
     return () => clearTimeout(timer);
-  }, [clock.playing, clock.timeS, data.clock, data.laps]);
+  }, [onTop, clock.playing, clock.timeS, data.clock, data.laps]);
   const scrub = (timeS: number) => {
     touched.current = true;
     clock.setTimeS(timeS);
@@ -368,17 +377,24 @@ function RaceView({
   );
   // The focused car's laps from the whole field, once per car picked; no
   // laps (or no car) means no panel.
+  const focusLaps = useMemo(
+    () => (focus === null ? [] : carLapsOf(prep.field, focus)),
+    [focus, prep.field],
+  );
+  // The panel follows the replay: only the row number changes the view, not every tick of the clock.
+  const currentLap = currentLapIndex(focusLaps, shownS);
   const carLaps = useMemo(() => {
     if (focus === null) return null;
     const car = sampleCars.find(c => c.index === focus);
     if (!car) return null;
     const view = carLapsView(
-      carLapsOf(prep.field, focus),
+      focusLaps,
       classes.of(car.classKey).title,
+      currentLap,
     );
     return view ? {index: focus, view} : null;
     // sampleCars only supplies the class, which never changes for a car.
-  }, [focus, prep.field, classes]);
+  }, [focus, focusLaps, classes, currentLap]);
   const dots = useMemo(
     () =>
       buildRaceModel({cars, filter, focus, mode, trackM: prep.trackM, classes})
@@ -481,9 +497,9 @@ function RaceView({
     // inside it the trace can still be another pass over the same distance: R1 6's lap 0 holds the formation lap there
     // (105 km/h, gear 2) where the car is doing 225 on the race lap, so the car's own speed must agree
     if (!traceAgrees(trace.speedKph[i], player.speedKmh)) return null;
-    return {idx: i, throttlePct: trace.throttlePct[i], brakePct: trace.brakePct[i], steeringPct: trace.steeringPct[i], gear: trace.gear[i], speedKph: trace.speedKph[i]};
+    return {idx: i, anchorM: place.distanceM, throttlePct: trace.throttlePct[i], brakePct: trace.brakePct[i], steeringPct: trace.steeringPct[i], gear: trace.gear[i], speedKph: trace.speedKph[i]};
   }, [trace, place, loaded, ribbon, player]);
-  const inputs = ribbon ? {ribbon, now: inputsNow} : null;
+  const inputs = ribbon && trace ? {ribbon, now: inputsNow, trace} : null;
   // The followed car's class place and the gaps to the car ahead and behind in its class (the standings' own intervals).
   const chaseGaps = useMemo<ChaseGaps | null>(() => {
     const me = cars.find(c => c.index === focus) ?? cars.find(c => c.player);
@@ -782,8 +798,9 @@ function RaceView({
   // below at full length, the lanes after it; the transport stays under the
   // page (thread 44 #1733).
   return (
+    <PageScrollContext.Provider value={pageScroll.scrollBy}>
     <View style={styles.fill}>
-      <ScrollView style={styles.fill}>
+      <ScrollView style={styles.fill} {...pageScroll.scrollProps}>
         <View style={styles.phoneTop}>
           <View style={styles.subRow}>
             <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
@@ -816,6 +833,7 @@ function RaceView({
       </ScrollView>
       {controls}
     </View>
+    </PageScrollContext.Provider>
   );
 }
 

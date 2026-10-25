@@ -260,7 +260,9 @@ export function pitPlan(
     // every later one against a full load.
     const loaded = i === 0 ? startLoad(rules) : rules;
     const dry = (pick: 'median' | 'p90') =>
-      (fuelBurnt != null && fuelBurnt[pick] > loaded.fuelL + EPS) ||
+      (fuelBurnt != null &&
+        loaded.fuelL != null &&
+        fuelBurnt[pick] > loaded.fuelL + EPS) ||
       (veBurnt != null && veBurnt[pick] > loaded.vePct + EPS);
     return {
       n: i + 1,
@@ -269,7 +271,10 @@ export function pitPlan(
       fuelL,
       vePct,
       left: {
-        fuelL: fuelBurnt ? Math.max(0, loaded.fuelL - fuelBurnt.median) : null,
+        fuelL:
+          fuelBurnt && loaded.fuelL != null
+            ? Math.max(0, loaded.fuelL - fuelBurnt.median)
+            : null,
         vePct: veBurnt ? Math.max(0, loaded.vePct - veBurnt.median) : null,
       },
       dryAtMedian: dry('median'),

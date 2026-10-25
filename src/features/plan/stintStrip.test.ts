@@ -84,16 +84,16 @@ describe('perLapStrip', () => {
     sessionId: 's',
   }));
 
-  it('leads with VE per lap, then its p90, the laps a tank and the litres a %', () => {
-    const s = perLapStrip(planRace(rules, laps), rules, 've', 0.68)!;
+  it('leads with VE per lap, then its p90, and no laps a tank or litres a %', () => {
+    const s = perLapStrip(planRace(rules, laps), 've')!;
     expect(s.label).toBe('VE');
     expect(s.value).toBe('5.05 %/lap');
-    expect(s.detail).toMatch(/^p90 5\.\d\d · 19\.8 laps a tank · 0\.68 L\/%$/);
+    expect(s.detail).toMatch(/^p90 5\.\d\d$/);
   });
 
   it('reads litres for a fuel-only car', () => {
-    const s = perLapStrip(planRace(rules, laps), rules, 'fuel', null)!;
+    const s = perLapStrip(planRace(rules, laps), 'fuel')!;
     expect(s.value).toBe('3.45 L/lap');
-    expect(s.detail).toMatch(/laps a tank$/);
+    expect(s.detail).toMatch(/^p90 3\.\d\d$/);
   });
 });

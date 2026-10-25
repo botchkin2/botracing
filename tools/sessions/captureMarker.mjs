@@ -97,9 +97,108 @@ export function unverifiedMarks(root) {
 }
 
 /**
- * Records a read-back for one session already in a capture's marker, leaving
- * its sessionId and uploadedUtc as they were. Returns whether it wrote.
+ * The captures live laps uploaded (the live index, liveSession.mjs: keys are
+ * "<capture>#<stretch>") whose marker does not yet hold their sessions as
+ * verified, as {name, sessionIds}. The live path writes no marker of its own,
+ * so a drive uploaded live is read back here.
  */
+export function liveMarks(root, liveIndex) {
+  const byCapture = new Map();
+  for (const [key, entry] of Object.entries(liveIndex ?? {})) {
+    const name = key.split('#')[0];
+    if (!entry?.sessionId || !existsSync(resolve(root, name, 'meta.json')))
+      continue;
+    if (!byCapture.has(name)) byCapture.set(name, new Set());
+    byCapture.get(name).add(entry.sessionId);
+  }
+  const out = [];
+  for (const [name, ids] of byCapture) {
+    const {verified} = previous(resolve(root, name, MARKER));
+    const missing = [...ids].filter(id => !verified[id]);
+    if (missing.length) out.push({name, sessionIds: missing});
+  }
+  return out;
+}
+
+/** How much of the capture the verified sessions must cover before an absent id is dropped (thread 100 #6982). */
+export const MARKER_COVER_SHARE = 0.9;
+
+/**
+ * Whether `pieces` ({start, end} ISO) together cover at least `share` of
+ * `span`. The span is the capture's on-track time, not the garage (thread 100
+ * #6990). Overlap is counted once. A missing time does not cover.
+ */
+export function spanCovered(span, pieces, share = MARKER_COVER_SHARE) {
+  const start = Date.parse(span?.start);
+  const end = Date.parse(span?.end);
+  const width = end - start;
+  if (!Number.isFinite(width) || width <= 0) return false;
+  const ranges = [];
+  for (const piece of pieces ?? []) {
+    const from = Math.max(start, Date.parse(piece?.start));
+    const to = Math.min(end, Date.parse(piece?.end));
+    if (Number.isFinite(from) && to > from) ranges.push([from, to]);
+  }
+  ranges.sort((a, b) => a[0] - b[0]);
+  let covered = 0;
+  let cursor = start;
+  for (const [a, b] of ranges) {
+    const from = Math.max(a, cursor);
+    if (b > from) {
+      covered += b - from;
+      cursor = b;
+    }
+  }
+  return covered / width >= share;
+}
+
+/**
+ * Ids a read-back could not see because they are not in this owner's store.
+ * Dropped only when the verified sessions cover the capture (MARKER_COVER_SHARE).
+ * A 404 can be one of his own sessions gone, and one capture can feed two of
+ * his (thread 100 #6982). A failure that is not "absent" stays.
+ * `checks` are {id, ok, missing, start?, end?}. `span` is {start, end}.
+ */
+export function foreignMissing(checks, span) {
+  if (!checks?.some(c => c.ok)) return [];
+  const missing = checks.filter(c => !c.ok && c.missing);
+  if (!missing.length) return [];
+  if (!spanCovered(span, checks.filter(c => c.ok))) return [];
+  return missing.map(c => c.id);
+}
+
+/**
+ * Removes `ids` from one capture's marker. Leaves the file in place, and
+ * leaves it unchanged when that would remove every session. uploadedUtc stays,
+ * so the marker's clock does not move.
+ */
+export function dropSessionIds(root, name, ids) {
+  const drop = new Set((ids ?? []).filter(Boolean));
+  if (drop.size === 0) return false;
+  const file = resolve(root, name, MARKER);
+  if (!existsSync(file)) return false;
+  const marker = JSON.parse(readFileSync(file, 'utf8'));
+  const had = Array.isArray(marker.sessionIds)
+    ? marker.sessionIds
+    : marker.sessionId
+      ? [marker.sessionId]
+      : [];
+  const sessionIds = had.filter(id => id && !drop.has(id));
+  if (sessionIds.length === 0 || sessionIds.length === had.length) return false;
+  const verified = {...(marker.verified ?? {})};
+  for (const id of drop) delete verified[id];
+  const sessionId = sessionIds.includes(marker.sessionId)
+    ? marker.sessionId
+    : sessionIds[sessionIds.length - 1];
+  const tmp = `${file}.tmp`;
+  writeFileSync(
+    tmp,
+    JSON.stringify({...marker, sessionId, sessionIds, verified}),
+  );
+  renameSync(tmp, file);
+  return true;
+}
+
 export function markVerified(root, name, sessionId, check, now = new Date()) {
   const file = resolve(root, name, MARKER);
   if (!check?.ok || !existsSync(file)) return false;

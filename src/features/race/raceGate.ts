@@ -21,6 +21,32 @@ export type RaceGate =
  */
 export type LineState = 'pending' | 'drawn' | 'failed' | 'missing';
 
+/**
+ * The field hash the Race screen loads, and the line its empty state shows.
+ * A garbage mark is stored and not drawn: the gate sees no field, and `why`
+ * is that field's note (useRaceData).
+ */
+export function raceScreenField(
+  detail:
+    | {
+        field?: {
+          hash?: string | null;
+          mark?: {kind?: string} | null;
+          note?: string | null;
+        } | null;
+        fieldMissing?: string | null;
+      }
+    | null
+    | undefined,
+): {hash: string | null; why: string | null} {
+  const field = detail?.field;
+  const hide = field?.mark?.kind === 'garbage';
+  return {
+    hash: hide ? null : (field?.hash ?? null),
+    why: field?.note ?? detail?.fieldMissing ?? null,
+  };
+}
+
 export function raceGate(input: {
   sessionPending: boolean;
   hasDetail: boolean;

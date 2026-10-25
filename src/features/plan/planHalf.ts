@@ -127,6 +127,8 @@ export function buildPlanHalf(input: {
       rows: [],
     };
   const capacity = hasVe ? rules.vePct : rules.fuelL;
+  // a race's own plan always has its fill limit; the type allows an unknown load
+  if (capacity == null) return {note: null, rows: []};
   // Laps of use the formation lap burns from the first load, in this meter.
   const formation = formationLaps(rules)[hasVe ? 've' : 'fuel'];
   const stopLaps = option.stopLaps;

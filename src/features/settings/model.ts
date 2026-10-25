@@ -116,6 +116,8 @@ export function problemText(p: UploaderProblem): string {
       ? ['Low disk space', p.message]
       : p.kind === 'disk-full'
       ? ['A recording chunk could not be written', p.message]
+      : p.kind === 'replay-cap'
+      ? ['Replay copies', p.message]
       : p.kind === 'field-missing'
       ? [`Session ${(p.sessionId ?? '').slice(0, 8)}`, p.message]
       : p.kind === 'capture-suspect'

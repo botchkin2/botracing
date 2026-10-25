@@ -1,11 +1,13 @@
 // Run: node --test tools/sessions/gridLap.test.mjs
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
+import {lapTicks} from './analyze.mjs';
 import {
   GRID_PARKED_SEC,
   jumpsOffTheGrid,
   MAX_TICK_RISE_M,
   partialWhy,
+  racingSpan,
 } from './gridLap.mjs';
 
 // A 100 Hz lap at 50 m/s: 0.5 m per tick.
@@ -65,4 +67,56 @@ test('partialWhy: parked then jumped is grid; a jump without the parked start, o
   // Cut by a recording boundary, no jump: still file.
   assert.equal(partialWhy(true, roll(0, 100), 40), 'file');
   assert.equal(partialWhy(false, roll(0, 100), 40), null);
+});
+
+// A rolling-start race's lap 0 (Road Atlanta, seat-test 0acca4e2): parked on the grid slot at 2185 m,
+// the formation lap to the line at 3656 m, then the racing lap from 0 to 4081 m. Ticks of 1 m, 10 m/s on the lap.
+const gridRace = ({racingM = 4081, tail = 0} = {}) => [
+  ...new Array(100).fill(2185),
+  ...Array.from({length: 1471}, (_, i) => 2185 + i),
+  ...Array.from({length: racingM}, (_, i) => i),
+  ...Array.from({length: tail}, (_, i) => i),
+];
+const dropsOf = d => d.map((v, i) => (i > 0 && d[i - 1] - v > 150 ? i : -1)).filter(i => i >= 0);
+
+test('the racing lap of a grid start is the span after the formation line, not the stretch up to it (ticket #49)', () => {
+  const d = gridRace();
+  const resets = dropsOf(d);
+  assert.deepEqual(resets, [1571]);
+  assert.deepEqual(racingSpan(d, 0, d.length - 1, resets), [1571, d.length - 1]);
+});
+
+test('a lap that starts at the line has no grid span: the first span is the lap', () => {
+  const lap = Array.from({length: 4081}, (_, i) => i);
+  const d = [...lap, ...lap.slice(0, 20)]; // the end beacon came after the line
+  assert.equal(racingSpan(d, 0, d.length - 1, dropsOf(d)), null);
+});
+
+test('a grid start whose racing lap is cut short keeps the old first span', () => {
+  const d = gridRace({racingM: 1500});
+  assert.equal(racingSpan(d, 0, d.length - 1, dropsOf(d)), null);
+});
+
+test('a grid start whose end beacon came after the second line takes the span between the two lines', () => {
+  const d = gridRace({tail: 30});
+  const resets = dropsOf(d);
+  assert.equal(resets.length, 2);
+  assert.deepEqual(racingSpan(d, 0, d.length - 1, resets), [resets[0], resets[1] - 1]);
+});
+
+// lapTicks through a recording shaped like the stored one: ticks 10 ms apart, the lap beacon at the start only.
+test('lapTicks gives a grid start its racing lap and a plain lap its own ticks', () => {
+  const d = gridRace();
+  const t = d.map((_, i) => i * 0.01);
+  const rec = {s: {t, lap_dist_m: d}};
+  const seg = {start: 0, end: t[t.length - 1], lapNumber: 0, partial: true};
+  const [i0, i1, grid] = lapTicks(rec, seg);
+  assert.deepEqual([i0, i1], [1571, d.length - 1]);
+  assert.deepEqual(grid, [0, 1570]);
+  assert.equal(d[i0], 0);
+  assert.equal(d[i1], 4080);
+  // a lap that rolls from the line is untouched, whatever follows it
+  const plain = Array.from({length: 4081}, (_, i) => i);
+  const rec2 = {s: {t: plain.map((_, i) => i * 0.01), lap_dist_m: plain}};
+  assert.deepEqual(lapTicks(rec2, {start: 0, end: 40.8}), [0, 4080, null]);
 });

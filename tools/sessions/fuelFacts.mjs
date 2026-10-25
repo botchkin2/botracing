@@ -534,16 +534,25 @@ export function neverLeavesZero(values) {
  * started at 75.0 L. maxValue (71) is a slider step count there, not litres,
  * so the tank is unknown.
  *
- * Anything else, or a missing setup, gives null for both; an empty string
+ * Anything else, or a missing setup, gives null for the limits; an empty string
  * (the 2026-09-29 Daytona Manthey files) keeps the tank. A Hypercar's string is unchecked.
+ *
+ * The same setup holds LMU's own VE expectation, `VM_VIRTUAL_ENERGY`, a
+ * string like '100% (18.5 laps)': the VE setting N and the game's laps
+ * estimate at it. `setupVePct` is N and `setupVePerLapPct` is N / laps, the
+ * game's VE a lap (5.41 for that string). It is a second source for the VE a
+ * lap he measures, never the plan's number (pit-wall thread 104 #7391); any
+ * other form, or 0 laps, gives null for both.
  */
 export function fuelSetup(setupJson) {
-  let level = null;
+  let setup = null;
   try {
-    level = JSON.parse(setupJson)?.VM_FUEL_LEVEL ?? null;
+    setup = JSON.parse(setupJson);
   } catch {
-    // No usable setup: both stay null.
+    // No usable setup: everything stays null.
   }
+  const level = setup?.VM_FUEL_LEVEL ?? null;
+  const expectation = veExpectation(setup?.VM_VIRTUAL_ENERGY?.stringValue);
   const text = String(level?.stringValue ?? '').trim();
   const bare = /^\d*\.?\d+$/.test(text) ? parseFloat(text) : NaN;
   const gallons = text.match(/^(\d*\.?\d+)gal(?:\s|$)/)?.[1];
@@ -552,12 +561,14 @@ export function fuelSetup(setupJson) {
     return {
       fillLimitL: round(bare * 100, 1),
       tankL: Number.isFinite(tank) && tank > 0 ? tank : null,
+      ...expectation,
     };
   }
   if (gallons !== undefined && parseFloat(gallons) > 0) {
     return {
       fillLimitL: round(parseFloat(gallons) * LITRES_PER_US_GALLON, 1),
       tankL: null,
+      ...expectation,
     };
   }
   // An empty string is a GT3 with no limit recorded: its maxValue is still
@@ -565,5 +576,17 @@ export function fuelSetup(setupJson) {
   return {
     fillLimitL: null,
     tankL: text === '' && Number.isFinite(tank) && tank > 0 ? tank : null,
+    ...expectation,
   };
+}
+
+/** '100% (18.5 laps)' → {setupVePct: 100, setupVePerLapPct: 5.41}; any other form → both null. */
+function veExpectation(stringValue) {
+  const m = String(stringValue ?? '')
+    .trim()
+    .match(/^(\d*\.?\d+)%\s*\((\d*\.?\d+)\s*laps?\)$/);
+  const pct = m ? parseFloat(m[1]) : NaN;
+  const laps = m ? parseFloat(m[2]) : NaN;
+  if (!(pct > 0) || !(laps > 0)) return {setupVePct: null, setupVePerLapPct: null};
+  return {setupVePct: pct, setupVePerLapPct: round(pct / laps, 2)};
 }

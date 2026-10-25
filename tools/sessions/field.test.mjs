@@ -5,13 +5,16 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {test} from 'node:test';
 import {run, sqlPath} from './duck.mjs';
+import {MIN_COVER_SHARE as LIVE_MIN_COVER_SHARE} from './liveSession.mjs';
 import {needsDuckdb} from './duckTestSupport.mjs';
 import {
   alignment,
   capturesFor,
+  capturesOverlapping,
   encode,
   fieldFor,
   fieldAfterSync,
+  MIN_COVER_SHARE,
   captureDoubted,
   goodRows,
   listCaptures,
@@ -55,7 +58,7 @@ test('goodRows: a 25.4 km track, 110 cars and a 24 h clock lose no row', () => {
   assert.equal(goodRows(c), c);
 });
 
-test('listCaptures skips a capture doubted for most of the drive and keeps one with a stray look', () => {
+test('listCaptures keeps a capture doubted for most of the drive', () => {
   const root = mkdtempSync(join(tmpdir(), 'caps-'));
   for (const [name, meta] of [
     ['good', {track: 'T'}],
@@ -66,7 +69,8 @@ test('listCaptures skips a capture doubted for most of the drive and keeps one w
     writeFileSync(join(root, name, 'meta.json'), JSON.stringify(meta));
     writeFileSync(join(root, name, 'field-0000.parquet'), '');
   }
-  assert.deepEqual(listCaptures(root).map(c => c.name).sort(), ['good', 'stray']);
+  assert.deepEqual(listCaptures(root).map(c => c.name).sort(), ['doubt', 'good', 'stray']);
+  assert.deepEqual(listCaptures(root, {suspect: false}).map(c => c.name).sort(), ['good', 'stray']);
   assert.deepEqual(listCaptures(root, {suspect: true}).map(c => c.name), ['doubt']);
 });
 
@@ -118,6 +122,77 @@ test('capturesFor: overlap and either track name', () => {
     endMs: Date.parse('2026-10-20T04:00:00Z'),
   };
   assert.deepEqual(capturesFor(all, later), []);
+});
+
+test('capturesOverlapping: half the shorter span, same type, largest wins', () => {
+  const practice = cap(
+    'practice',
+    'Other name',
+    '2026-10-21T18:00:00Z',
+    '2026-10-21T18:40:00Z',
+  );
+  practice.meta.sim = 'lmu';
+  practice.meta.session = 1;
+  const quali = cap(
+    'quali',
+    'Other name',
+    '2026-10-21T18:38:00Z',
+    '2026-10-21T18:55:00Z',
+  );
+  quali.meta.sim = 'lmu';
+  quali.meta.session = 5;
+  const race = cap(
+    'race',
+    'Other name',
+    '2026-10-21T19:00:00Z',
+    '2026-10-21T19:40:00Z',
+  );
+  race.meta.sim = 'lmu';
+  race.meta.session = 10;
+  const brush = {
+    tracks: ['Sebring International Raceway'],
+    sim: 'lmu',
+    sessionType: 'Qualify',
+    startMs: Date.parse('2026-10-21T18:39:00Z'),
+    endMs: Date.parse('2026-10-21T18:54:00Z'),
+  };
+  // Practice only touches the last minute of a 15 min quali: not a cover.
+  assert.deepEqual(capturesOverlapping([practice], brush), []);
+  // The quali capture covers the session; the practice one does not.
+  assert.deepEqual(
+    capturesOverlapping([practice, quali], brush).map(c => c.name),
+    ['quali'],
+  );
+  // A race capture of another type does not cover quali even when the clocks overlap.
+  const raceOnQuali = cap(
+    'race-clock',
+    'Other name',
+    '2026-10-21T18:39:00Z',
+    '2026-10-21T18:54:00Z',
+  );
+  raceOnQuali.meta.sim = 'lmu';
+  raceOnQuali.meta.session = 10;
+  assert.deepEqual(capturesOverlapping([raceOnQuali], brush), []);
+  // Two covers: the larger overlap is the one used.
+  const also = cap(
+    'also',
+    'Other name',
+    '2026-10-21T18:45:00Z',
+    '2026-10-21T18:54:00Z',
+  );
+  also.meta.sim = 'lmu';
+  also.meta.session = 5;
+  assert.deepEqual(
+    capturesOverlapping([also, quali], brush).map(c => c.name),
+    ['quali'],
+  );
+  // No session number on the capture: the type is unknown, so the cover stands.
+  delete quali.meta.session;
+  assert.deepEqual(
+    capturesOverlapping([quali], brush).map(c => c.name),
+    ['quali'],
+  );
+  assert.deepEqual(capturesOverlapping([race], brush), []);
 });
 
 test('modelOf: the telemetry model only, never anything with a car number', () => {
@@ -240,12 +315,13 @@ test(
     );
     assert.equal(/#\d/.test(JSON.stringify(good.field)), false);
 
-    // The same capture against a recording whose clock is 5 s off: refused.
+    // The same capture against a recording whose clock is 5 s off: stored, marked.
     const off = fieldFor(root, session, [
       {t, lapDist: Float64Array.from(t, x => (x - 995) * 40)},
     ]);
-    assert.equal(off.field, null);
-    assert.match(off.reason, /clocks disagree/);
+    assert.ok(off.field);
+    assert.equal(off.meta.mark.kind, 'misaligned');
+    assert.match(off.meta.note, /200/);
   },
 );
 
@@ -300,22 +376,73 @@ test('fieldAfterSync: no new field keeps the stored one; a new one replaces it',
     field: stored,
     upload: false,
     deletePath: null,
+    keptAside: null,
   });
   assert.deepEqual(fieldAfterSync(null, null), {
     field: null,
     upload: false,
     deletePath: null,
+    keptAside: null,
   });
-  // A new field: upload it, and delete the file it replaces.
+  // A new field that covers as much: upload it, and delete the file it replaces.
+  const grown = {...fresh, cars: 4, durationS: 100};
+  const older = {...stored, cars: 4, durationS: 100};
+  assert.deepEqual(fieldAfterSync(grown, older), {
+    field: grown,
+    upload: true,
+    deletePath: stored.path,
+    keptAside: null,
+  });
+  // No size on either: nothing to protect, the new file replaces.
   assert.deepEqual(fieldAfterSync(fresh, stored), {
     field: fresh,
     upload: true,
     deletePath: stored.path,
+    keptAside: null,
   });
   // The same content again: same path, nothing to delete.
   assert.deepEqual(fieldAfterSync(stored, stored), {
     field: stored,
     upload: true,
     deletePath: null,
+    keptAside: null,
   });
+  const smaller = {...fresh, cars: 2, durationS: 10};
+  const richer = {...stored, cars: 20, durationS: 100};
+  const kept = fieldAfterSync(smaller, richer);
+  assert.equal(kept.upload, false);
+  assert.equal(kept.deletePath, null);
+  assert.equal(kept.field.path, stored.path);
+  assert.equal(kept.field.mark.kind, 'smaller');
+  assert.equal(kept.field.aside, smaller.path);
+  assert.equal(kept.keptAside, smaller);
+  // A stored mark stays the one on screen. The aside path still has to be on
+  // the field, or the capture never verifies (verifyStored).
+  const doubted = {...richer, mark: {kind: 'doubted'}, note: 'Other cars: recording doubted'};
+  const overMark = fieldAfterSync(smaller, doubted);
+  assert.equal(overMark.upload, false);
+  assert.equal(overMark.deletePath, null);
+  assert.equal(overMark.field.path, stored.path);
+  assert.equal(overMark.field.mark.kind, 'doubted');
+  assert.equal(overMark.field.aside, smaller.path);
+  assert.equal(overMark.keptAside, smaller);
+  // A larger garbage field does not replace a clean one, and does not delete it.
+  const garbage = {...fresh, cars: 40, durationS: 100, mark: {kind: 'garbage'}};
+  const clean = {...stored, cars: 20, durationS: 180};
+  const held = fieldAfterSync(garbage, clean);
+  assert.equal(held.upload, false);
+  assert.equal(held.deletePath, null);
+  assert.equal(held.field.path, stored.path);
+  assert.equal(held.field.mark, undefined);
+  assert.equal(held.field.aside, garbage.path);
+  assert.equal(held.keptAside, garbage);
+  const misaligned = {...fresh, cars: 40, durationS: 100, mark: {kind: 'misaligned', alignM: 40}};
+  const aligned = fieldAfterSync(misaligned, clean);
+  assert.equal(aligned.deletePath, null);
+  assert.equal(aligned.field.path, stored.path);
+  assert.equal(aligned.field.aside, misaligned.path);
+});
+
+test('the cover share matches liveSession, which field.mjs cannot import', () => {
+  assert.equal(MIN_COVER_SHARE, LIVE_MIN_COVER_SHARE);
 });

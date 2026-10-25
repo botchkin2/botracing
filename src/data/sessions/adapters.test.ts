@@ -185,6 +185,8 @@ describe('fuel facts', () => {
       tankL: 115,
       litresPerVePct: null,
       litresPerVePctStop: null,
+      setupVePct: null,
+      setupVePerLapPct: null,
     });
     expect(
       toSessionDetail({
@@ -192,6 +194,13 @@ describe('fuel facts', () => {
         fuel: {startL: 84, litresPerVePct: 0.81, litresPerVePctStop: 0.8},
       }).fuel,
     ).toMatchObject({litresPerVePct: 0.81, litresPerVePctStop: 0.8});
+    // LMU's own VE expectation, Sebring Wed 10-22: '100% (18.5 laps)'.
+    expect(
+      toSessionDetail({
+        ...raw,
+        fuel: {startL: 73, setupVePct: 100, setupVePerLapPct: 5.41},
+      }).fuel,
+    ).toMatchObject({setupVePct: 100, setupVePerLapPct: 5.41});
     // A recording without a setup string: the limits are null, the start stays.
     expect(
       toSessionDetail({...raw, fuel: {startL: 100, fillLimitL: null}}).fuel,

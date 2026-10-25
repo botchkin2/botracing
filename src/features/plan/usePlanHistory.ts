@@ -14,11 +14,14 @@ import {
   type Combo,
   greenLapsOf,
   eventLoad,
+  lastFuelOf,
   historySessions,
   limitsOfPlan,
   veRatioFor,
 } from './model';
+import {checkRunOf} from './planChecks';
 import {eventsOf} from './planEvent';
+import {type RuleSet, ruleSetsOf} from './ruleSet';
 
 /**
  * One request for the whole Plan: every session's plan block at a track and
@@ -66,32 +69,41 @@ export function usePlanRows(combo: Combo | null) {
  */
 export function usePlanLimits(
   combo: Combo | null,
-  /** The series week of the planned event; null is the newest one. */
-  eventWeek: string | null = null,
+  /** The key of the planned event (its rule set's, or a series week's); null is the newest one. */
+  eventKey: string | null = null,
 ) {
   const rows = usePlanRows(combo);
-  const events = useMemo(
-    () => (combo ? eventsOf(combo.sessions) : []),
-    [combo],
-  );
-  const event = events.find(e => e.week === eventWeek) ?? events[0] ?? null;
+  const {runs, events} = useMemo(() => {
+    if (!combo) return {runs: [], events: []};
+    const ruleSessions = combo.sessions.flatMap(s => {
+      const run = checkRunOf(s, rows.byId.get(s.id)?.plan ?? null);
+      return run ? [run] : [];
+    });
+    return {
+      runs: ruleSessions,
+      events: eventsOf(combo.sessions, ruleSetsOf(ruleSessions)),
+    };
+  }, [combo, rows.byId]);
+  const event = events.find(e => e.key === eventKey) ?? events[0] ?? null;
   const fuelOf = (id: string): SessionFuel | null =>
     rows.byId.get(id)?.plan?.fuel ?? null;
-  // The event's full load is the largest over its sessions, not the newest's.
-  const load = event ? eventLoad(event.sessionIds.map(fuelOf)) : null;
+  // The load is the most he has run in the rule set (his setup's fuel, not
+  // the event's cap), never a practice's start: a series week with no rule
+  // set (no VE) keeps the old reading, the largest over its sessions.
+  const load = event?.rules
+    ? event.rules.mostRunL != null
+      ? {kind: 'fill limit' as const, litres: event.rules.mostRunL}
+      : null
+    : event
+    ? eventLoad(event.sessionIds.map(fuelOf))
+    : null;
   const newestFuel = event?.sessionIds[0] ? fuelOf(event.sessionIds[0]) : null;
-  const lastFuel =
-    newestFuel && load
-      ? {
-          ...newestFuel,
-          fillLimitL: load.kind === 'fill limit' ? load.litres : null,
-          startL: load.kind === 'start fuel' ? load.litres : newestFuel.startL,
-          tankL: load.kind === 'tank' ? load.litres : newestFuel.tankL,
-        }
-      : newestFuel;
+  const lastFuel = lastFuelOf(newestFuel, load, event?.rules != null);
   return {
     lastFuel,
     events,
+    /** Every session here as the rule sets and the checks read it (planChecks.ts). */
+    runs,
     event,
     rows,
     ...limitsOfPlan(
@@ -126,28 +138,31 @@ export function sessionsWithLaps<S extends {id: string}>(
 export function usePlanHistory(
   combo: Combo | null,
   limitsL: (number | null | undefined)[],
-  wantedL: number | null,
+  /** The rules are known (a load, or VE alone): the history is read. */
+  rulesKnown: boolean,
   preset: FuelPreset | null,
   /** The sessions of the planned event, whose ratio the plan takes; unset, every session counts as in it. */
   eventIds: string[] | null = null,
+  /** The rule set of the planned event: where the ratio comes from; null for a car with no VE. */
+  rules: RuleSet | null = null,
 ) {
   const rows = usePlanRows(combo);
   const history =
-    combo && wantedL != null
+    combo && rulesKnown
       ? historySessions(combo, limitsL, eventIds ?? [])
       : [];
   const planOf = (id: string) => rows.byId.get(id)?.plan ?? null;
 
-  // The litres one VE % is worth: the preset's, else the uploader's value for
-  // the newest session there (VE % per lap depends on the load; thread 35
-  // #1004). A session whose block has none has none.
+  // What each session of the history measured: the litres one VE % is worth
+  // and its fill limit, for the stale-preset note and the rules editor's
+  // "last session" hint. The ratio the plan uses is the rule set's (veRatioFor).
+  // A session whose block has no ratio has none.
   const measured = history.map(s => ({
     startedAt: s.startedAt,
     ratio: planOf(s.id)?.fuel.litresPerVePct ?? null,
     fillLimitL: planOf(s.id)?.fuel.fillLimitL ?? null,
-    inEvent: eventIds == null || eventIds.includes(s.id),
   }));
-  const ratio = veRatioFor(preset, measured);
+  const ratio = veRatioFor(preset, rules);
   const perSession = history.map(s => ({
     id: s.id,
     laps: greenLapsOf(

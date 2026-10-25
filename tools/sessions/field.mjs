@@ -13,11 +13,17 @@
 import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {columns, rows, sqlPath} from './duck.mjs';
+import {sessionTypeOf} from './lmuCapture.mjs';
+
+// Same share as liveSession.mjs MIN_COVER_SHARE. Not imported: liveSession.mjs
+// loads analyzeFromArchive, which reaches this file through lapTraffic and
+// fieldTags. A cycle leaves the share undefined. field.test.mjs checks equality.
+export const MIN_COVER_SHARE = 0.5;
 
 export const FIELD_HZ = 5;
 // Median player lap-distance disagreement above this means the clocks do not
-// line up (a restart or rejoin reset the session clock): no field for this
-// session rather than every car shifted.
+// line up (a restart or rejoin reset the session clock). The field is still
+// stored, with mark kind 'misaligned', and the screen says how far off it is.
 export const MAX_ALIGN_M = 20;
 // Recordings start and stop in the pits; keep the field a little either side.
 const PAD_S = 30;
@@ -30,7 +36,7 @@ export const captureDoubted = meta =>
   (meta.playerDoubtful ?? 0) * 2 > (meta.playerChecks ?? 0) ||
   (meta.layoutDoubtful ?? 0) * 2 > (meta.layoutChecks ?? 0);
 
-export function listCaptures(root, {suspect = false} = {}) {
+export function listCaptures(root, {suspect = null} = {}) {
   if (!root || !existsSync(root)) return [];
   const out = [];
   for (const name of readdirSync(root)) {
@@ -41,9 +47,11 @@ export function listCaptures(root, {suspect = false} = {}) {
       // LMU's captures only: this reads LMU's columns (the iRacing tray
       // recorder shares the folder; irCapture.mjs reads those).
       if (meta.sim && meta.sim !== 'lmu') continue;
-      // Doubted for most of the drive (captureDoubted): kept on disk for a fix
-      // to re-read, used for nothing.
-      if (captureDoubted(meta) !== suspect) continue;
+      // A doubted capture is used (audit row 3). `suspect: true` is only the
+      // doubted ones; `suspect: false` is only the clean ones.
+      const doubted = captureDoubted(meta);
+      if (suspect === true && !doubted) continue;
+      if (suspect === false && doubted) continue;
       const files = readdirSync(resolve(root, name))
         .filter(f => /^field-\d+\.parquet$/.test(f))
         .map(f => resolve(root, name, f));
@@ -293,17 +301,141 @@ export function fieldMissingAfter(field, reason, stored) {
   return fieldMissingText(reason) ?? stored ?? null;
 }
 
-// The session's field, or {field: null, reason}.
+const MARK_RANK = {garbage: 5, misaligned: 4, track: 3, doubted: 2, smaller: 1};
+
+/** The one mark the screen shows, strongest first. */
+export function pickMark(marks) {
+  const list = marks.filter(Boolean);
+  if (!list.length) return null;
+  return list.reduce((a, b) =>
+    (MARK_RANK[b.kind] ?? 0) > (MARK_RANK[a.kind] ?? 0) ? b : a,
+  );
+}
+
+// These marks are kept on the session and shown. They do not feed traffic,
+// class laps, bests, or the finish (thread 100). `smaller` is not in the
+// set: it names a file held aside, and the field the session points at is
+// still the one those blocks are read from.
+const UNUSED_MARKS = new Set(['garbage', 'misaligned', 'track', 'doubted']);
+
+/** False when this field must not feed anything derived from it. */
+export function fieldFeedsDerived(field) {
+  return !UNUSED_MARKS.has(field?.mark?.kind);
+}
+
+/** One line for a marked field (gauge #6846). Null when there is no mark. */
+export function fieldMarkText(mark) {
+  if (!mark) return null;
+  if (mark.kind === 'doubted') return 'Other cars: recording doubted';
+  if (mark.kind === 'misaligned')
+    return mark.alignM == null
+      ? "Other cars: recording doesn't match the game file"
+      : `Other cars: offset from the game file, ${mark.alignM} m`;
+  if (mark.kind === 'garbage') return 'Other cars: recording not drawn';
+  if (mark.kind === 'track')
+    return `Other cars: track name does not match (${mark.capture})`;
+  if (mark.kind === 'smaller')
+    return 'Other cars: a smaller recording was kept aside';
+  return null;
+}
+
+function captureWindow(c) {
+  const from = Date.parse(c.meta.startUtc);
+  const to = c.meta.endUtc ? Date.parse(c.meta.endUtc) : c.lastMs;
+  return {from, to};
+}
+
+// The recorder's session number, or null when the capture never wrote one.
+function captureSessionType(meta) {
+  if (meta.session == null || meta.session === '') return null;
+  const n = Number(meta.session);
+  return Number.isFinite(n) ? sessionTypeOf(n) : null;
+}
+
+/**
+ * One capture for a session whose track name did not match (audit row 6).
+ * The #712 cover rule (liveSession.mjs liveCover): same sim, same session
+ * type where both are known, overlap at least MIN_COVER_SHARE of the shorter
+ * span, and the largest overlap wins. A practice file that only brushes a
+ * qualifying session does not join.
+ */
+export function capturesOverlapping(captures, session) {
+  const {startMs, endMs, sim = 'lmu', sessionType = null} = session;
+  let best = null;
+  let bestMs = 0;
+  for (const c of captures) {
+    const capSim = c.meta.sim || 'lmu';
+    if (sim && capSim !== sim) continue;
+    const capType = captureSessionType(c.meta);
+    if (sessionType && capType && capType !== sessionType) continue;
+    const {from, to} = captureWindow(c);
+    const overlapMs = Math.min(endMs, to) - Math.max(startMs, from);
+    const shorterMs = Math.min(endMs - startMs, to - from);
+    if (!(overlapMs > 0) || overlapMs < MIN_COVER_SHARE * shorterMs) continue;
+    if (overlapMs > bestMs) {
+      best = c;
+      bestMs = overlapMs;
+    }
+  }
+  return best ? [best] : [];
+}
+
+/**
+ * Encode `c` and attach the marks. A clock that does not agree still stores
+ * the field (audit row 4). `player` is `{et, lapDist}` for the player car.
+ */
+export function settleField({c, cars, player, recs, captures, marks = []}) {
+  const alignM = alignment(player, recs);
+  const rounded = alignM == null ? null : Math.round(alignM * 10) / 10;
+  const next = [...marks];
+  if (alignM === null || alignM > MAX_ALIGN_M)
+    next.push({kind: 'misaligned', alignM: rounded});
+  const body = encode(c, cars);
+  const mark = pickMark(next);
+  const note = fieldMarkText(mark);
+  return {
+    field: body,
+    meta: {
+      hz: FIELD_HZ,
+      cars: cars.length,
+      durationS: body.tDs?.length
+        ? Math.round(body.tDs[body.tDs.length - 1] / 10)
+        : 0,
+      captures,
+      alignM: rounded,
+      ...(mark ? {mark, note} : {}),
+    },
+  };
+}
+
+function playerOf(c) {
+  const player = {et: [], lapDist: []};
+  for (let k = 0; k < c.et.length; k++) {
+    if (c.player[k]) {
+      player.et.push(c.et[k]);
+      player.lapDist.push(c.lapDist[k]);
+    }
+  }
+  return player;
+}
+
+// The session's field, or {field: null, reason}. A check that used to drop the
+// field stores it with meta.mark instead (audit rows 3-6).
 // session: {tracks, startMs, endMs}; recs: [{t, lapDist}] from the .duckdb.
 export function fieldFor(root, session, recs) {
-  const found = capturesFor(listCaptures(root), session);
-  if (!found.length)
-    return {
-      field: null,
-      reason: capturesFor(listCaptures(root, {suspect: true}), session).length
-        ? 'capture marked suspect'
-        : 'no capture',
-    };
+  const all = listCaptures(root);
+  let found = capturesFor(all, session);
+  const marks = [];
+  if (!found.length) {
+    found = capturesOverlapping(all, session);
+    if (found.length)
+      marks.push({
+        kind: 'track',
+        capture: found.map(f => f.meta.track).filter(Boolean).join(', '),
+      });
+  }
+  if (!found.length) return {field: null, reason: 'no capture'};
+  if (found.some(f => captureDoubted(f.meta))) marks.push({kind: 'doubted'});
   const fromEt = Math.min(...recs.map(r => r.t[0])) - PAD_S;
   const toEt = Math.max(...recs.map(r => r.t[r.t.length - 1])) + PAD_S;
   const models = Object.assign(
@@ -319,47 +451,52 @@ export function fieldFor(root, session, recs) {
   const {cars} = read;
   if (!read.c.et || read.c.et.length === 0)
     return {field: null, reason: 'capture has no rows in this session'};
-  const c = goodRows(read.c);
-  if (!c) return {field: null, reason: 'capture game data not recognised'};
-  const player = {et: [], lapDist: []};
-  for (let k = 0; k < c.et.length; k++) {
-    if (c.player[k]) {
-      player.et.push(c.et[k]);
-      player.lapDist.push(c.lapDist[k]);
-    }
-  }
-  const alignM = alignment(player, recs);
-  if (alignM === null)
-    return {field: null, reason: 'player car not in both sources'};
-  if (alignM > MAX_ALIGN_M) {
-    return {
-      field: null,
-      reason: `clocks disagree: player ${alignM.toFixed(1)} m apart`,
-    };
-  }
-  const body = encode(c, cars);
-  return {
-    field: body,
-    meta: {
-      hz: FIELD_HZ,
-      cars: cars.length,
-      durationS: Math.round(body.tDs[body.tDs.length - 1] / 10),
-      captures: found.map(f => f.name),
-      alignM: Math.round(alignM * 10) / 10,
-    },
-  };
+  const n = read.c.et.length;
+  let bad = 0;
+  for (let k = 0; k < n; k++) if (garbage(read.c.lapDist[k])) bad++;
+  const majority = bad * 4 > n;
+  const c = majority ? read.c : goodRows(read.c);
+  if (majority) marks.push({kind: 'garbage'});
+  return settleField({
+    c,
+    cars,
+    player: playerOf(c),
+    recs,
+    captures: found.map(f => f.name),
+    marks,
+  });
 }
 
-// What the session keeps after a sync. A sync that found no field (captures
-// pruned after 14 days, a sync from a shell that can't see the capture folder,
-// a failed clock check) keeps the stored one instead of wiping it; only a new
-// field that joined and passed the clock check replaces it (scrutineer #693).
-// Returns {field, upload, deletePath}.
+// What the session keeps after a sync. No new field keeps the stored one.
+// A new field replaces it when it covers at least as much (cars × seconds)
+// and its mark is not stronger. A stronger mark is a worse field (garbage
+// outranks misaligned, then track, doubted, smaller): it is stored beside
+// the cleaner file and that file is not deleted. `aside` sits on the field
+// itself, so the mark the screen shows cannot drop the path (audit row 15).
+// Returns {field, upload, deletePath, keptAside}.
+const spanOf = f => (Number(f?.cars) || 0) * (Number(f?.durationS) || 0);
+const markRank = mark => MARK_RANK[mark?.kind] ?? 0;
+
+function holdAside(stored, fresh) {
+  const smaller = spanOf(fresh) < spanOf(stored);
+  const mark =
+    !stored.mark && smaller ? {kind: 'smaller', aside: fresh.path} : stored.mark;
+  const field = {...stored, aside: fresh.path};
+  if (mark) {
+    field.mark = mark;
+    field.note = fieldMarkText(mark);
+  }
+  return {field, upload: false, deletePath: null, keptAside: fresh};
+}
+
 export function fieldAfterSync(fresh, stored) {
-  if (!fresh) return {field: stored ?? null, upload: false, deletePath: null};
-  const deletePath =
-    stored?.path && stored.path !== fresh.path ? stored.path : null;
-  return {field: fresh, upload: true, deletePath};
+  const none = {field: stored ?? null, upload: false, deletePath: null, keptAside: null};
+  if (!fresh) return none;
+  if (!stored?.path || stored.path === fresh.path)
+    return {field: fresh, upload: true, deletePath: null, keptAside: null};
+  if (markRank(fresh.mark) > markRank(stored.mark) || spanOf(fresh) < spanOf(stored))
+    return holdAside(stored, fresh);
+  return {field: fresh, upload: true, deletePath: stored.path, keptAside: null};
 }
 
 // A block worked out from the field (result, classLaps, classBests) names the

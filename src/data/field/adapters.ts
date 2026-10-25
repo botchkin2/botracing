@@ -3,11 +3,20 @@
 // that was wrong, instead of returning a field with holes.
 import {ABSENT, type Field, type FieldCar} from '@/src/analysis/field';
 
+export type FieldMark = {
+  kind: 'doubted' | 'misaligned' | 'garbage' | 'track' | 'smaller';
+  alignM?: number | null;
+};
+
 export type FieldPointer = {
   hash: string;
   hz: number;
   cars: number;
   durationS: number;
+  /** Set when a check kept the field and flagged it (audit rows 3-6, 15). */
+  mark: FieldMark | null;
+  /** The one line the screens show for `mark`. */
+  note: string | null;
 };
 
 const obj = (v: unknown): Record<string, unknown> =>
@@ -18,11 +27,21 @@ export function toFieldPointer(raw: unknown): FieldPointer | null {
   const x = obj(raw);
   if (typeof x.hash !== 'string' || x.hash === '') return null;
   const n = (v: unknown) => (typeof v === 'number' && isFinite(v) ? v : 0);
+  const kinds = ['doubted', 'misaligned', 'garbage', 'track', 'smaller'] as const;
+  const rawMark = obj(x.mark);
+  const kind = kinds.find(k => k === rawMark.kind) ?? null;
   return {
     hash: x.hash,
     hz: n(x.hz),
     cars: n(x.cars),
     durationS: n(x.durationS),
+    mark: kind
+      ? {
+          kind,
+          ...(typeof rawMark.alignM === 'number' ? {alignM: rawMark.alignM} : {}),
+        }
+      : null,
+    note: typeof x.note === 'string' && x.note !== '' ? x.note : null,
   };
 }
 

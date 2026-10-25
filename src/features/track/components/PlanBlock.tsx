@@ -50,16 +50,17 @@ export function PlanBlock({
 function PlanCard({combo}: {combo: Combo}) {
   const {color} = useTheme();
   const router = useRouter();
-  const {lastFuel, pending, limitsL} = usePlanLimits(combo);
+  const {lastFuel, pending, limitsL, event} = usePlanLimits(combo);
   const presets = useFuelPresets(s => s.presets);
   const activeId = useFuelPresets(s => s.activeId);
   const length = useFuelPresets(s => s.length);
   const preset = presets.find(p => p.id === activeId) ?? null;
-  const rules = rulesFor(preset, length, lastFuel);
+  // a rule set with no load known plans on VE alone, like the Plan page
+  const rules = rulesFor(preset, length, lastFuel, {}, event?.rules != null);
   const {chosen, loading: planLoading} = usePlanHistory(
     combo,
     limitsL,
-    rules?.rules.fuelL ?? null,
+    rules != null,
     preset,
   );
   // The rules need the last session's fuel, and the laps need the sessions.

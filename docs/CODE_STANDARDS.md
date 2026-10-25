@@ -83,7 +83,7 @@ Botkin uses this app mostly on his phone, straight out of the car after a sessio
 - Components get tests only when they hold logic that cannot move to a model. Prefer moving the logic.
 - A bug fix starts with a failing test that reproduces it.
 - **A test that must prove a number is a number checks `Number.isFinite`, never `toEqual`.** Jest's `toEqual` treats NaN as equal to NaN, so a "the pose is unchanged" test passes on a NaN pose. #713's camera went blank on any pause (`ease(0, 0)`), its own pause test passed, and a finite check over still frames, every mode and `dt` in {0, tiny, normal, huge, negative} is what caught it (`cameraRig.test.ts`). Anything that feeds a matrix, a scale or a clock gets that sweep.
-- `npm test`, `npm run lint` and `npx tsc --noEmit` pass before every PR. Never skip or weaken a test to make it pass; if a test is wrong, say why in the PR.
+- `npm run check` is green before the first push (`tools/ci/check.mjs`): it runs the commands CI runs, not a shorter list (`npm run lint` is `expo lint`, and CI's lint is `npx eslint src app` plus `npx eslint "tools/**/*.mjs"`). A test fails when `.github/workflows/test.yml` runs something it does not. What it cannot run on a PC (installs, the emulators, the golden bucket) is named in `CI_ONLY` there. Never skip or weaken a test to make it pass; if a test is wrong, say why in the PR.
 
 ## 9. Errors and loading
 

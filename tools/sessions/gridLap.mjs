@@ -7,15 +7,21 @@
 // parked car stretched across most of the lap (pit-wall thread 44, #1462: with
 // two comparable laps the speed band's median fell to 35 km/h mid-lap).
 //
+// That first lap's segment runs from the grid to the end of the first racing
+// lap, so it holds two line crossings: the formation lap's and the racing lap's.
+// racingSpan picks the racing lap's ticks, so its trace, distance and pedals are
+// the racing lap's and not the formation lap's (pit-wall thread 100, ticket #49).
+//
 // Plain JavaScript, no imports: analyze.mjs and its test both call it.
 
 /**
  * The version of this rule, hashed into the sync fingerprint through
  * analyze.mjs blockVersions. 1: a lap whose distance trace opens more than 100 m
  * along the lap, or jumps more than 100 m in a tick, is partial (grid starts of
- * a race's lap 0, file-boundary slivers).
+ * a race's lap 0, file-boundary slivers). 2: a grid start's ticks are its racing
+ * lap's (racingSpan), not the stretch up to the formation line.
  */
-export const GRID_LAP_VERSION = 1;
+export const GRID_LAP_VERSION = 2;
 
 /**
  * Biggest believable rise of the lap distance between two ticks, in metres.
@@ -59,4 +65,41 @@ export function partialWhy(segPartial, dist, durationSec) {
     return parkedSec >= GRID_PARKED_SEC ? 'grid' : 'file';
   }
   return segPartial ? 'file' : null;
+}
+
+/** A drop of the lap distance this big is the line: the distance starts again from 0. */
+export const LINE_DROP_M = 150;
+
+/** The racing lap is a span that covers at least this share of the lap's longest distance. */
+export const RACING_SPAN_SHARE = 0.9;
+
+/**
+ * The ticks of a grid start's racing lap, as [first, last], or null when the lap
+ * is not one: `dist` is the segment's raw lap distance, `from` and `to` its
+ * first and last tick, `resets` the ticks where the distance dropped at the line.
+ * The segment is cut into the spans between the line crossings. The first span
+ * is the grid and the roll to the formation line (jumpsOffTheGrid); the racing
+ * lap is the last span that covers 90 % of the longest distance seen. A segment
+ * whose later spans fall short (the recording ends in the first racing lap, or
+ * its end beacon came after the line) returns null, and the caller keeps the
+ * first span as before.
+ */
+export function racingSpan(dist, from, to, resets) {
+  if (resets.length === 0) return null;
+  const spans = [];
+  let first = from;
+  for (const reset of resets) {
+    spans.push([first, reset - 1]);
+    first = reset;
+  }
+  spans.push([first, to]);
+  const grid = spans[0];
+  if (!jumpsOffTheGrid(dist.slice(grid[0], grid[1] + 1))) return null;
+  let longest = 0;
+  for (let i = from; i <= to; i++) if (dist[i] > longest) longest = dist[i];
+  for (let k = spans.length - 1; k >= 1; k--) {
+    const [a, b] = spans[k];
+    if (dist[b] - dist[a] >= RACING_SPAN_SHARE * longest) return [a, b];
+  }
+  return null;
 }

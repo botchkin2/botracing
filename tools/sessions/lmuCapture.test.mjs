@@ -23,7 +23,18 @@ import {fileURLToPath} from 'node:url';
 import {analyzeFromArchive} from './analyzeFromArchive.mjs';
 import {rows, run} from './duck.mjs';
 import {needsDuckdb} from './duckTestSupport.mjs';
-import {describeCapture, writeCaptureArchive} from './lmuCapture.mjs';
+import {describeCapture, onTrackSpanOf, writeCaptureArchive} from './lmuCapture.mjs';
+
+test('onTrackSpanOf is the first realtime row to the last', () => {
+  const span = onTrackSpanOf([
+    {startMs: 1_000, endMs: 2_000},
+    {startMs: 3_000, endMs: 4_000},
+  ]);
+  assert.equal(span.start, new Date(1_000).toISOString());
+  assert.equal(span.end, new Date(4_000).toISOString());
+  assert.equal(onTrackSpanOf([]), null);
+  assert.equal(onTrackSpanOf([{startMs: 5, endMs: 5}]), null);
+});
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const fixture = resolve(here, 'fixtures/lmu-capture');

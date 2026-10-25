@@ -74,4 +74,35 @@ describe('road scene', () => {
     disposeGroup(plain);
     disposeGroup(withUse);
   });
+  it('carries the use texture across the lap seam: its v never steps back, so no quad squeezes the whole map into 1.5 m', () => {
+    const centre = Array.from({length: 40}, (_, i) => ({x: i * 10, y: 0}));
+    const base = fixtureRoad(centre, 400);
+    const use = {shade: new Float32Array(40 * USE_COLUMNS).fill(0.5), kerbLeft: new Uint8Array(40), kerbRight: new Uint8Array(40)};
+    const group = buildRoadScene({...base, use}, roadIndex(base), theme);
+    const fill = group.children[0] as THREE.Mesh;
+    const uv = fill.geometry.getAttribute('uv');
+    // two columns per row; the largest step of v between neighbouring rows is one row of the map
+    for (let r = 1; r < uv.count / 2; r++) expect(uv.getY(r * 2) - uv.getY((r - 1) * 2)).toBeCloseTo(1 / 40, 5);
+    expect((((fill.material as THREE.MeshLambertMaterial).map) as THREE.Texture).wrapT).toBe(THREE.RepeatWrapping);
+    disposeGroup(group);
+  });
+  it('lays the start line on a cambered road surface, both sides above it (Road Atlanta rolls -1.3 degrees at the line)', () => {
+    const centre = Array.from({length: 40}, (_, i) => ({x: i * 10, y: 0}));
+    const road = fixtureRoad(centre, 400, {bankDeg: centre.map(() => -1.31)});
+    const group = buildRoadScene(road, roadIndex(road), theme);
+    const fill = group.children[0] as THREE.Mesh;
+    // the theme's text colour is only the start line's; the ground is also one 4-point quad, in the fill colour
+    const line = group.children.find(
+      c => (c as THREE.Mesh).isMesh && ((c as THREE.Mesh).material as THREE.MeshBasicMaterial).color?.getHexString() === 'ffffff',
+    ) as THREE.Mesh;
+    const surface = fill.geometry.getAttribute('position');
+    const quad = line.geometry.getAttribute('position');
+    // row 0 of both: the left edge (column 0) and the right edge (column 1); three.js y is up
+    for (const column of [0, 1]) {
+      const above = quad.getY(column) - surface.getY(column);
+      expect(above).toBeGreaterThan(0);
+      expect(above).toBeLessThan(0.2);
+    }
+    disposeGroup(group);
+  });
 });

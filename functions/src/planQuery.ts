@@ -15,6 +15,14 @@ export const PLAN_FIELDS = [
   'plan',
   // The opening set's lap times, for the track progression (thread 88, S5).
   'paceSet',
+  // The litres per 1 % VE the stops added (his setup's fuel ratio), read from
+  // the session's own fuel: the plan block does not carry it, and a block
+  // change would re-analyse every session (thread 104).
+  'fuel.litresPerVePctStop',
+  // LMU's own VE expectation from the car setup: the Plan's VE check (ticket
+  // 47). Same reason: not in the block.
+  'fuel.setupVePct',
+  'fuel.setupVePerLapPct',
 ] as const;
 
 export type PlanCombo = {sim: string; trackId: string; carModel: string};
@@ -73,6 +81,17 @@ export function planRows(
   return docs.map((doc, i) => {
     const d = doc.data();
     const p = d.plan;
+    const own = (k: string) =>
+      typeof d.fuel?.[k] === 'number' ? (d.fuel[k] as number) : null;
+    const fuel =
+      p?.fuel && typeof p.fuel === 'object'
+        ? {
+            ...p.fuel,
+            litresPerVePctStop: own('litresPerVePctStop'),
+            setupVePct: own('setupVePct'),
+            setupVePerLapPct: own('setupVePerLapPct'),
+          }
+        : p?.fuel ?? null;
     return {
       id: doc.id,
       startedAt: String(d.startedAt ?? ''),
@@ -86,7 +105,7 @@ export function planRows(
         p && typeof p === 'object'
           ? {
               v: p.v,
-              fuel: p.fuel ?? null,
+              fuel,
               laps: i < lapSessions && Array.isArray(p.laps) ? p.laps : null,
               race: p.race ?? null,
             }

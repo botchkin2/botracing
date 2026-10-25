@@ -9,7 +9,6 @@ import {Text} from '@/src/ui';
 
 import {formationBurnOf} from '../formation';
 import {planCombos} from '../model';
-import {seriesWeek} from '../planEvent';
 import {buildPlanHalf, type PlanHalf} from '../planHalf';
 import {raceRules} from '../planVsRace';
 import {usePlanHistory, usePlanLimits} from '../usePlanHistory';
@@ -37,19 +36,15 @@ export function PitPlanHalf({card, facts}: {card: PitCard; facts: RaceFacts}) {
       : null;
   }, [sessions.data, facts.planKey, facts.startedAt]);
   const limits = usePlanLimits(prior);
-  // The race's own event: the sessions before it in its series week, whose
-  // ratio the plan takes.
-  const week = seriesWeek(facts.startedAt);
-  const eventIds =
-    prior?.sessions
-      .filter(s => seriesWeek(s.startedAt) === week)
-      .map(s => s.id) ?? null;
+  // The rules the race ran, as the plan could know them: the newest rule set
+  // among the sessions before it, whose ratio the plan takes.
   const hist = usePlanHistory(
     prior,
     limits.limitsL,
-    facts.limitL,
+    facts.limitL != null,
     null,
-    eventIds,
+    limits.event?.sessionIds ?? null,
+    limits.event?.rules ?? null,
   );
   const laps = hist.chosen.laps;
   // The formation lap burns what the driver's earlier races say.

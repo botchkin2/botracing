@@ -4,9 +4,11 @@ import {planComboKey} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
 
 import {formationBurnOf} from './formation';
-import {lastRaceOf} from './lastRace';
+import {lastRaceOf, lastRaceSessionOf} from './lastRace';
 import {pitLaneBase, pitModelOf, refuelRateFor} from './pitBase';
 import {type Combo, fuelOnly, planView, rulesFor, sessionLimitL} from './model';
+import {planChecks} from './planChecks';
+import {checksText} from './planChecksText';
 import {eventLabel} from './planEvent';
 import {buildPlanCards} from './planCards';
 import {type Unit} from './unit';
@@ -24,23 +26,34 @@ export function usePlanData(
   unit: Unit = 've',
   /** What the car starts with when less than a full load, typed for this race. */
   start: {fuelL?: number | null; vePct?: number | null} = {},
-  /** The series week of the event being planned; null is the newest event at this track and car. */
-  eventWeek: string | null = null,
+  /** The key of the event being planned (its rule set); null is the newest event at this track and car. */
+  eventKey: string | null = null,
 ) {
   const presets = useFuelPresets(s => s.presets);
   const activeId = useFuelPresets(s => s.activeId);
   const length = useFuelPresets(s => s.length);
   const preset = presets.find(p => p.id === activeId) ?? null;
 
-  const limits = usePlanLimits(combo, eventWeek);
-  const baseRules = rulesFor(preset, length, limits.lastFuel, start);
-  const wantedL = baseRules?.rules.fuelL ?? null;
+  const limits = usePlanLimits(combo, eventKey);
+  // The litres 100 % VE allows in the planned rule set: with no load known the
+  // plan runs on VE alone (a practice-only week, thread 104).
+  const ruleSet = limits.event?.rules ?? null;
+  const baseRules = rulesFor(
+    preset,
+    length,
+    limits.lastFuel,
+    start,
+    ruleSet != null,
+  );
+  // the litres a % of VE adds at his stops: a stop's litres when no load is known
+  if (baseRules) baseRules.rules.stopRatioL = ruleSet?.stopRatio ?? null;
   const hist = usePlanHistory(
     combo,
     limits.limitsL,
-    wantedL,
+    baseRules != null,
     preset,
     limits.event?.sessionIds ?? null,
+    limits.event?.rules ?? null,
   );
   const eventText = limits.event
     ? eventLabel(
@@ -87,6 +100,7 @@ export function usePlanData(
                 : null,
             lastFillLimitL: limits.lastFuel?.fillLimitL ?? null,
             eventText,
+            ruleSet: ruleSet != null,
             ratio: hist.ratio,
             lastRatio: hist.measured.find(m => m.ratio != null)?.ratio ?? null,
             drift: hist.chosen.drift,
@@ -99,6 +113,21 @@ export function usePlanData(
             ],
           },
           unit,
+        )
+      : null;
+  // What the facts rest on: only for a rule set (a series week has no sources to compare).
+  const checks =
+    ruleSet && plan
+      ? checksText(
+          planChecks({
+            set: ruleSet,
+            sessions: limits.runs,
+            measured: {
+              fuelPerLapL: plan.perLap.fuel?.median ?? null,
+              vePerLapPct: plan.perLap.ve?.median ?? null,
+            },
+            ownIds: hist.usedSessions.map(s => s.id),
+          }),
         )
       : null;
   const cards =
@@ -123,6 +152,7 @@ export function usePlanData(
     pitBase,
     refuelRate,
     view,
+    checks,
     cards,
     formation,
     fuelOnly: noVe,
@@ -141,12 +171,7 @@ export function useLastRaceHere(
   event: {sessionIds: string[]} | null = null,
 ) {
   const rows = usePlanRows(combo);
-  const newest =
-    combo?.sessions.find(
-      s =>
-        s.sessionType === 'R' &&
-        (event == null || event.sessionIds.includes(s.id)),
-    ) ?? null;
+  const newest = combo ? lastRaceSessionOf(combo.sessions, event) : null;
   const row = newest ? rows.byId.get(newest.id) : undefined;
   if (!combo || !newest || !row) return null;
   const key = planComboKey(combo.trackId, combo.car, combo.sim);

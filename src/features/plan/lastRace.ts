@@ -30,6 +30,25 @@ export type LastRace = {
   classLeaderLapsDone: number | null;
 };
 
+/**
+ * The race "your last race here" shows: the newest race of the planned event,
+ * or of the track and car with none given. A session with no VE ratio (a block
+ * from before analysis version 11) is in no rule set, so a newest race without
+ * one is skipped and the newest race of the set is shown (pit-wall thread 104).
+ * `sessions` is newest first.
+ */
+export function lastRaceSessionOf<S extends {id: string; sessionType: string}>(
+  sessions: S[],
+  event: {sessionIds: string[]} | null,
+): S | null {
+  return (
+    sessions.find(
+      s =>
+        s.sessionType === 'R' && (event == null || event.sessionIds.includes(s.id)),
+    ) ?? null
+  );
+}
+
 /** The race's facts as the Plan screen shows them; the stop and end laps are the app's lap names. */
 export function lastRaceOf(
   sessionId: string,

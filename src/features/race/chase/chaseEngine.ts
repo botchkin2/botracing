@@ -11,10 +11,12 @@ import {clamp, mod} from '@/src/analysis/chaseMath';
 import {clockAt, followApp, type ChaseClock} from '@/src/analysis/chaseClock';
 import {surfacePose} from '@/src/analysis/chasePose';
 import {dragFree, isFree, resetFree, zoomFree} from '@/src/analysis/chaseFreeCam';
+import {createPanRule} from '@/src/analysis/panGesture';
 import {chaseHeading, stepTravel} from '@/src/analysis/chaseHeading';
 import type {ChaseRoad} from '@/src/analysis/chaseRoad';
 import {roadIndex, type RoadIndex} from '@/src/analysis/chaseRoadIndex';
 import type {ChaseCamMode, ChaseCar, ChaseEngine, ChaseRibbon, ChaseTheme, ChaseUpdate} from '@/src/features/race/chase/chaseTypes';
+import type {ChaseFrame} from './chaseInputsAt';
 import {createCarLabels, declutterLabels, type LabelCandidate} from './carLabels';
 import {createCarKit, type CarObject} from './carMeshes';
 import {createCameraRig} from './cameraRig';
@@ -60,7 +62,13 @@ interface CarState {
 
 export function mountChase(
   container: HTMLElement,
-  opts: {theme: ChaseTheme; onPick: (index: number) => void; onFree?: (free: boolean) => void},
+  opts: {
+    theme: ChaseTheme;
+    onPick: (index: number) => void; onFree?: (free: boolean) => void;
+    onPan?: (dy: number) => void;
+    /** Every frame drawn: the followed car's lap distance at the engine's own clock (the HUD reads the recording there). */
+    onFollowed?: (frame: ChaseFrame) => void;
+  },
 ): ChaseEngine {
   const T = opts.theme;
   const renderer = new THREE.WebGLRenderer({antialias: true, powerPreference: 'high-performance'});
@@ -257,6 +265,7 @@ export function mountChase(
       }
     }
     const mine = me.car.player;
+    opts.onFollowed?.({lapDistM: me.car.lapDistM, player: mine});
     if (inputs) {
       const first = clamp(inputIdx + 1, 0, inputs.count - 2);
       const count = clamp(Math.min(INPUT_WINDOW, inputs.count - 2 - first), 0, INPUT_WINDOW);
@@ -297,6 +306,8 @@ export function mountChase(
   let wasFree = false;
   function frame(now: number) {
     if (!alive) return;
+    const panDy = pan?.frame(now) ?? 0;
+    if (panDy !== 0) opts.onPan?.(panDy);
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     if (dirty || state.playing) {
@@ -324,22 +335,62 @@ export function mountChase(
   resize();
 
   // press: the nearest car within a finger's reach; drag: Heli looks round, Chase and High turn and raise the camera
-  // round the car (chaseFreeCam); the wheel zooms; a double click is Reset
+  // round the car (chaseFreeCam); the wheel zooms; a double click is Reset. With `onPan` (the app's WebView) a finger
+  // drag is the camera's by its sideways travel only, or the page's when it is steep: panGesture decides once, and
+  // the page's share goes out once a frame. It is the page's from anywhere in the WebView (the strip and the camera
+  // chips are in it too), the camera's only from the canvas. A mouse keeps the free drag.
+  const pan = opts.onPan ? createPanRule() : null;
+  let panPointer: number | null = null;
+  let panOnCanvas = false;
+  const rootTouchAction = document.documentElement.style.touchAction;
+  if (pan) document.documentElement.style.touchAction = 'none';
+  // The drag is measured on the screen (screenX/Y, from the touch's raw position): the page scrolls under the finger as it
+  // forwards the drag, so clientY would shrink to nothing as the page catches up and the scroll would stop at about half.
+  const onPanDown = (e: PointerEvent) => {
+    if (!pan || e.pointerType !== 'touch' || panPointer !== null) return;
+    panPointer = e.pointerId;
+    panOnCanvas = e.target === el;
+    pan.down(e.screenX, e.screenY, e.timeStamp);
+  };
   let drag: {x: number; y: number; px: number; py: number; orbit: number; moved: boolean} | null = null;
   const onDown = (e: PointerEvent) => {
     drag = {x: e.clientX, y: e.clientY, px: e.clientX, py: e.clientY, orbit: rig.orbit, moved: false};
   };
   const onMove = (e: PointerEvent) => {
+    let turnPx: number | null = null;
+    if (pan && panPointer !== null) {
+      if (e.pointerId !== panPointer) return;
+      const turn = pan.move(e.screenX, e.screenY, e.timeStamp);
+      turnPx = panOnCanvas ? turn : 0;
+    }
     if (!drag) return;
     const dx = e.clientX - drag.x;
     if (Math.abs(dx) > 4 || Math.abs(e.clientY - drag.y) > 4) drag.moved = true;
-    if (rig.mode === 4) rig.orbit = drag.orbit - dx * HELI_DRAG_RAD_PER_PX;
+    if (turnPx !== null) {
+      if (rig.mode === 4) rig.orbit -= turnPx * HELI_DRAG_RAD_PER_PX;
+      else if (rig.mode === 1 || rig.mode === 2) dragFree(rig.free, turnPx, 0);
+    } else if (rig.mode === 4) rig.orbit = drag.orbit - dx * HELI_DRAG_RAD_PER_PX;
     else if ((rig.mode === 1 || rig.mode === 2) && drag.moved) dragFree(rig.free, e.clientX - drag.px, e.clientY - drag.py);
     drag.px = e.clientX;
     drag.py = e.clientY;
     dirty = true;
   };
-  const onUp = () => setTimeout(() => (drag = null), 0);
+  const onUp = (e: PointerEvent) => {
+    if (pan && e.pointerId === panPointer) {
+      pan.up(e.timeStamp);
+      panPointer = null;
+    }
+    setTimeout(() => (drag = null), 0);
+  };
+  // The browser took the gesture (a pan it owns) or the pointer was lost: the drag is over, the camera is let go. A touch
+  // gets lostpointercapture right after its pointerup (implicit capture): by then the finger has lifted and the fling
+  // is the page's to finish, and another finger's cancel is not this drag's.
+  const onCancel = (e: PointerEvent) => {
+    if (pan && e.pointerType === 'touch' && e.pointerId !== panPointer) return;
+    pan?.cancel();
+    panPointer = null;
+    drag = null;
+  };
   const onWheel = (e: WheelEvent) => {
     if (rig.mode !== 1 && rig.mode !== 2) return;
     e.preventDefault();
@@ -371,7 +422,10 @@ export function mountChase(
   el.addEventListener('dblclick', onDouble);
   el.addEventListener('wheel', onWheel, {passive: false});
   addEventListener('pointermove', onMove);
+  addEventListener('pointerdown', onPanDown, true);
   addEventListener('pointerup', onUp);
+  addEventListener('pointercancel', onCancel);
+  el.addEventListener('lostpointercapture', onCancel);
   requestAnimationFrame(frame);
 
   return {
@@ -405,7 +459,11 @@ export function mountChase(
       el.removeEventListener('dblclick', onDouble);
       el.removeEventListener('wheel', onWheel);
       removeEventListener('pointermove', onMove);
+      removeEventListener('pointerdown', onPanDown, true);
+      document.documentElement.style.touchAction = rootTouchAction;
       removeEventListener('pointerup', onUp);
+      removeEventListener('pointercancel', onCancel);
+      el.removeEventListener('lostpointercapture', onCancel);
       for (const o of objects.values()) {
         scene.remove(o);
         kit.release(o);
