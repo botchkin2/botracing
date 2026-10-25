@@ -37,11 +37,13 @@ export function displayModel(vehicle: string | null): string {
 
 /**
  * A race ranks its cars (class place, gap to the leader). Practice and
- * qualifying have no road position that means anything, so the field mode
- * shows what is true of the road instead: how far each car is from you, ahead
- * or behind (pit-wall thread 45 #1589, decision 2026-10-01).
+ * practice has no race order, so the field mode shows what is true of the
+ * road instead: how far each car is from you, ahead or behind (pit-wall
+ * thread 45 #1589, decision 2026-10-01). A qualifying has no cars on the track
+ * with you (`carsArePhysical`): the qualify mode lists them by class place with
+ * no gap, and draws them as ghosts (thread 95 #7544).
  */
-export type RaceMode = 'race' | 'field';
+export type RaceMode = 'race' | 'field' | 'qualify';
 
 /**
  * Metres along the road from `you` to a car, positive ahead, in (-L/2, L/2]
@@ -196,6 +198,8 @@ export type RaceGroup = {title: string | null; rows: RaceRow[]};
 
 export type RaceDot = {
   index: number;
+  /** Another car in a qualifying: not on the track with you, drawn faint. */
+  ghost: boolean;
   slot: ClassSlot;
   state: CarState;
   player: boolean;
@@ -293,6 +297,7 @@ type Frame = {
 function gapOf(car: RaceCar, frame: Frame): string {
   if (car.state === 'garage') return '—';
   if (frame.mode === 'race') return gapText(car);
+  if (frame.mode === 'qualify') return '';
   if (car.player || !frame.you) return '';
   const m = roadOffsetM(car, frame.you, frame.trackM);
   if (m === null) return '';
@@ -340,7 +345,7 @@ function byRoad(a: RaceCar, b: RaceCar, frame: Frame): number {
 }
 
 const byOrder = (a: RaceCar, b: RaceCar, frame: Frame): number =>
-  frame.mode === 'race' ? byRun(a, b) : byRoad(a, b, frame);
+  frame.mode === 'field' ? byRoad(a, b, frame) : byRun(a, b);
 
 function focusText(car: RaceCar, frame: Frame): string {
   const parts = [displayModel(car.vehicle)];
@@ -352,7 +357,7 @@ function focusText(car: RaceCar, frame: Frame): string {
     if (gap) parts.push(gap);
   } else {
     parts.push(`${frame.classes.of(car.classKey).title} P${car.classPlace}`);
-    const gap = gapText(car);
+    const gap = frame.mode === 'race' ? gapText(car) : '';
     if (gap) parts.push(gap);
   }
   return parts.join(' · ');
@@ -456,6 +461,7 @@ export function buildRaceModel(input: {
     zM: c.zM,
     // No road position outside a race: nothing to number a dot with.
     label: frame.mode === 'race' ? String(c.classPlace) : '',
+    ghost: frame.mode === 'qualify' && !c.player,
     labelRank: labelRank(c, youCar, focus),
   });
   // A car in the garage is not on the map (R1d).

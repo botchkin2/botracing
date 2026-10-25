@@ -189,6 +189,7 @@ export function RaceMap({
             radius: (d.player ? YOU_RADIUS : RADIUS[d.slot]) * scale,
             state: d.state === 'garage' ? 'running' : d.state,
             you: d.player,
+            ghost: d.ghost,
             focused: d.focused,
             label: labels === 'pos' ? d.label : undefined,
             labelRank: d.labelRank,

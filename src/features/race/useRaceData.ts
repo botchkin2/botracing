@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from 'react';
 
+import {carsArePhysical} from '@/src/analysis/carsArePhysical';
 import {placeFieldOnLine} from '@/src/analysis/fieldOnLine';
 import {SURFACE_STEP_M} from '@/src/analysis/trackSurface';
 import {raceClock, type RaceClock} from '@/src/analysis/raceClock';
@@ -27,6 +28,7 @@ import {useLapTraceLoad} from '@/src/data/traces';
 import {shortTrackName} from '@/src/design';
 
 import {type ChaseWorld, chaseWorldSteps, SLICE_BUDGET_MS, yieldToLoop} from './chaseWorld';
+import {type RaceMode} from './model';
 import {raceGate, raceScreenField} from './raceGate';
 
 const SESSION_TITLE = {R: 'Race', Q: 'Qualifying', P: 'Practice'} as const;
@@ -35,8 +37,11 @@ const GRID_STEP_M = 5;
 // Every 10th player sample is plenty for a median over a lap-long line.
 const MATCH_STEP = 10;
 
-/** A race ranks its cars; practice and qualifying show the road around the player instead. */
-export type RaceMode = 'race' | 'field';
+/** A race ranks its cars; practice shows the road around the player; a qualifying has no cars on the track with it (`carsArePhysical`). */
+export function raceModeOf(session: {sim: string; sessionType: string}): RaceMode {
+  if (session.sessionType === 'R') return 'race';
+  return carsArePhysical(session) ? 'field' : 'qualify';
+}
 
 export type RaceData =
   | {kind: 'loading'}
@@ -277,7 +282,7 @@ export function useRaceData(sessionId: string): RaceData {
     kind: 'ready',
     title,
     note: detail.field?.note ?? null,
-    mode: detail.sessionType === 'R' ? 'race' : 'field',
+    mode: raceModeOf(detail),
     prep,
     clock,
     laps: (laps.data ?? []).map(l => ({

@@ -56,9 +56,10 @@ function field(updates) {
 }
 
 const windows = [{from: 0, to: 1e9}];
+const race = {sim: 'lmu', sessionType: 'Race'};
 
 test('a lap block carries the version, the old counts and the faster-class passes', () => {
-  const [t] = lapTraffic(field(200), windows);
+  const [t] = lapTraffic(field(200), windows, race);
   assert.equal(t.v, TRAFFIC_VERSION);
   assert.equal(typeof t.trafficAheadS, 'number');
   assert.equal(t.passesSufferedAll, 1);
@@ -73,6 +74,7 @@ test('a fresh capture is read first, and the uploaded field is not touched', asy
     stored: {path: 'p'},
     load: async () => (loads++, null),
     windows,
+    session: race,
   });
   assert.equal(t.overtakes.length, 1);
   assert.equal(loads, 0);
@@ -85,6 +87,7 @@ test('a resync without the capture keeps the block, read from the uploaded field
     stored: {path: 'p'},
     load: async () => stored,
     windows,
+    session: race,
   });
   assert.equal(t.v, TRAFFIC_VERSION);
   assert.equal(t.overtakes.length, 1);
@@ -96,6 +99,7 @@ test('no capture and no stored field, or one that cannot be read, is null (and t
     stored: null,
     load: async () => assert.fail('nothing to load'),
     windows,
+    session: race,
   });
   assert.deepEqual(none, [null]);
   const broken = await lapTrafficFrom({
@@ -103,6 +107,40 @@ test('no capture and no stored field, or one that cannot be read, is null (and t
     stored: {path: 'p'},
     load: async () => null,
     windows,
+    session: race,
   });
   assert.deepEqual(broken, [null]);
+});
+
+test('a qualifying has no traffic block: the same field gives one in a race and none in a Q, on both paths', async () => {
+  const f = field(200);
+  assert.equal(lapTraffic(f, windows, race)[0].overtakes.length, 1);
+  for (const type of ['Qualify', 'Q']) {
+    assert.deepEqual(lapTraffic(f, windows, {sim: 'lmu', sessionType: type}), [
+      null,
+    ]);
+    const viaFresh = await lapTrafficFrom({
+      fresh: f,
+      stored: null,
+      load: null,
+      windows,
+      session: {sim: 'lmu', sessionType: type},
+    });
+    assert.deepEqual(viaFresh, [null]);
+    const viaStored = await lapTrafficFrom({
+      fresh: null,
+      stored: {path: 'p'},
+      load: async () =>
+        assert.fail('a qualifying does not load the stored field'),
+      windows,
+      session: {sim: 'lmu', sessionType: type},
+    });
+    assert.deepEqual(viaStored, [null]);
+  }
+  // A practice has the cars on track.
+  assert.equal(
+    lapTraffic(f, windows, {sim: 'lmu', sessionType: 'Practice'})[0].overtakes
+      .length,
+    1,
+  );
 });

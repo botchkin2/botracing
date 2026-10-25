@@ -3,7 +3,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {type LaneZoom, raceLanes} from '@/src/analysis/raceLanes';
+import {type LaneZoom, ownLanes, raceLanes} from '@/src/analysis/raceLanes';
 import {lapPath} from '@/src/analysis/inputsPath';
 import {carsAt} from '@/src/analysis/raceState';
 import {fieldClasses} from '@/src/analysis/fieldClasses';
@@ -270,6 +270,9 @@ function Notice({data}: {data: Exclude<RaceData, {kind: 'ready'}>}) {
   );
 }
 
+/** A qualifying's other cars are not on the track with you (carsArePhysical), so the map draws them faint. */
+const QUALIFY_NOTE = "Other cars aren't on track with you in qualifying";
+
 function RaceView({
   data,
   selection,
@@ -324,10 +327,10 @@ function RaceView({
     clock.toggle();
   };
   // Built once per field, like the clock: it walks every update and car.
-  const lanes = useMemo(
-    () => raceLanes(prep.field, data.clock),
-    [prep.field, data.clock],
-  );
+  const lanes = useMemo(() => {
+    const all = raceLanes(prep.field, data.clock);
+    return mode === 'qualify' ? ownLanes(all) : all;
+  }, [prep.field, data.clock, mode]);
   // The session's classes, fastest first, with their colours and labels.
   const classes = useMemo(() => fieldClasses(prep.field), [prep.field]);
   const [zoom, setZoom] = useState<LaneZoom>('l10');
@@ -592,8 +595,12 @@ function RaceView({
   const sub = rows.you
     ? `${count} \u00b7 you ${rows.you.model} ${rows.you.cls.title}`
     : count;
-  // Outside a race: who is near you on the road, in place of a position.
-  const roadLine = rows.road ? roadSummaryText(rows.road) : '';
+  // Outside a race: who is near you on the road, in place of a position. In a qualifying nobody is, and the line says so: in the flow above the map, covering no control.
+  const roadLine = rows.road
+    ? roadSummaryText(rows.road)
+    : mode === 'qualify'
+    ? QUALIFY_NOTE
+    : '';
 
   const map = data.roadPending ? (
     <Skeleton height={mapH} />
@@ -610,9 +617,10 @@ function RaceView({
         showCars={data.matches}
         attribution={data.attribution}
         // A field placed on the line by lap distance has no lateral picture:
-        // a radar would invent overlap (pit-wall thread 1, #2962).
+        // a radar would invent overlap (pit-wall thread 1, #2962). In a
+        // qualifying the other cars are not around you at all.
         radar={
-          prep.field.placedOnLine
+          prep.field.placedOnLine || mode === 'qualify'
             ? null
             : {
                 ...radarSize,

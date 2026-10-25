@@ -166,7 +166,7 @@ length, event, kept values.
 | Consistency, band | `analyze.mjs` (1043-1052, 1146-1206) | derived | golden (R) |
 | Field file | `field.mjs fieldFor` (LMU), `irField.mjs irFieldFor` (iRacing), named by content (`analyzeFromArchive.mjs` 225-231) | the capture's field chunks | `field.test.mjs` (S, synthetic capture). On a real capture through upload and analysis: **none today** (#619 replay assertion) |
 | Class laps, class bests, result | `src/analysis/classLaps.ts`, `raceResult.ts` (`analyzeFromArchive.mjs` 292-304; again in `store.mjs` 433-459 from the stored field) | field | `classLaps.test.ts`, `classBests.test.ts`, `raceResult.test.ts` (S) |
-| Traffic per lap and session | `lapTraffic.mjs` (`analyzeFromArchive.mjs` 196; `store.mjs` 412-421, 460-468, 508) | field | `lapTraffic.test.mjs` (S) |
+| Traffic per lap and session | `lapTraffic.mjs` (`analyzeFromArchive.mjs` 196; `store.mjs` 412-421, 460-468, 508): **none in a qualifying** (`src/analysis/carsArePhysical.ts`: its other cars are not on the track with the player; every qualifying, online or offline, until the iRacing reader keeps Lone/Open Qualify apart; Botkin 2026-10-25, thread 95 #7544); `TRAFFIC_VERSION` 8 makes a stored qualifying stale | field | `lapTraffic.test.mjs` (S), `carsArePhysical.test.ts` |
 | Damage | `playerDamage.mjs damageFor`, stored as the capture extract (`captureExtract.mjs`) | capture | `neverResync.test.mjs:57` (S); `damageFor`: **none** |
 | Race length | `raceLength.mjs raceLengthFor` (LMU), `.ibt` YAML (iRacing) | capture / .ibt | `raceLength.test.mjs`, `keepCapture.test.mjs` (S) |
 | Weather | `analyzeFromArchive.mjs:249` from `recording.weather` | game file (`lmu.mjs:178`); the capture sets `''` (`lmuCapture.mjs:218`) | **none** |

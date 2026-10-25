@@ -35,12 +35,13 @@ export function plain(value) {
  * A marked field is stored by the caller and not used here (field.mjs
  * fieldFeedsDerived). No field is the same: nothing is derived.
  */
-export function productsFromField(field, meta, sessionType, lapWindows) {
+export function productsFromField(field, meta, session, lapWindows) {
+  const {sessionType} = session;
   if (!field || !fieldFeedsDerived(meta)) {
     return {traffic: null, classLaps: null, classBests: null, result: null};
   }
   return {
-    traffic: lapTraffic(field, lapWindows),
+    traffic: lapTraffic(field, lapWindows, session),
     classLaps: classLapsDoc(field, sessionType),
     classBests: classBestsDoc(field, sessionType),
     result: finishDoc(field, sessionType),
@@ -160,7 +161,7 @@ export function analyzeFromArchive({
   const products = productsFromField(
     fieldOut.field,
     fieldOut.meta,
-    first.sessionType,
+    {sim, sessionType: first.sessionType},
     lapWindows,
   );
   const tags = products.traffic;

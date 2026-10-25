@@ -1,6 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {laneWindow, type RaceLanes} from '@/src/analysis/raceLanes';
+import {laneWindow, ownLanes, type RaceLanes} from '@/src/analysis/raceLanes';
 
 import {laneScrubber, lanesLayout, timeAtX} from './raceLanesLayout';
 
@@ -22,10 +22,23 @@ const lanes: RaceLanes = {
     {timeS: 60, made: true},
     {timeS: 900, made: false},
   ],
+  cars: true,
 };
 const opts = {laneWidth: 200, laneHeight: 10, lapLabelEvery: 2};
 
 describe('lanesLayout', () => {
+  it('a session without the other cars on track draws the pit lane only, over the same lap lines', () => {
+    const l = lanesLayout({
+      ...opts,
+      lanes: ownLanes(lanes),
+      window: {fromS: 0, toS: 1000},
+    });
+    expect(l.rows.map(r => r.key)).toEqual(['pit']);
+    expect(l.height).toBe(10);
+    expect(l.rows[0].spans).toHaveLength(1);
+    expect(l.lapLines).toHaveLength(6);
+  });
+
   it('whole race: 200 px over 1000 s, five lanes stacked', () => {
     const l = lanesLayout({
       ...opts,
