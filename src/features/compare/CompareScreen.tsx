@@ -20,7 +20,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Line} from 'react-native-svg';
 
 import {panCursor} from '@/src/analysis/window';
-import {CornerGrid, TrackStrip} from '@/src/charts';
+import {CornerGrid, NO_TIME, TrackStrip} from '@/src/charts';
 import {useField} from '@/src/data/field';
 import {
   type DefaultSession,
@@ -609,7 +609,7 @@ function CompareView({
         rows={model.grid.rows.map(r => ({
           key: r.key,
           label: r.label,
-          cells: r.cells,
+          cells: r.cells.map(c => c ?? NO_TIME),
           color:
             r.selIndex == null
               ? undefined

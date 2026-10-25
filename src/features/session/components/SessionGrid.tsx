@@ -4,6 +4,7 @@ import {formatGap, size, space, useTheme} from '@/src/design';
 import {Pressable, Text} from '@/src/ui';
 
 import {type GridRow, type GridSort} from '../grid';
+import {type SpreadBlock} from '../spreadRows';
 import type {DaySet} from '@/src/data/sessions';
 import {useSessionGrid} from '../useSessionGrid';
 import {
@@ -14,7 +15,9 @@ import {
 
 // The session as a spread grid (Theme D): one row per lap, one column per
 // section. The lap column stays put while the sections scroll sideways, the head
-// and every row together (one linked scroll offset).
+// and every row together (one linked scroll offset). The Varies row under the
+// heads is the Varies most block's number for the section (spreadRows.ts), the
+// pooled days named above it; the cells are this session's own gaps to its median.
 const LAP_W = 92;
 const CELL_W = 84;
 const ROW_H = 44;
@@ -24,11 +27,14 @@ const BAR_MAX = 56;
 export function SessionGrid({
   id,
   ticked,
+  spread,
   onTap,
   day = null,
 }: {
   id: string;
   ticked: readonly string[];
+  /** The model's spread block: what each section varies by, and which laps that is of. */
+  spread: SpreadBlock;
   onTap: (lapId: string) => void;
   /** A day: the grid of its merged laps. */
   day?: DaySet | null;
@@ -48,50 +54,56 @@ export function SessionGrid({
 
   return (
     <View style={styles.wrap}>
+      {spread.line != null ? (
+        <Text variant='dataSmall' tone='textMuted' style={styles.line}>
+          {`Varies: ${spread.line}`}
+        </Text>
+      ) : null}
       <View style={styles.row}>
         <View style={[styles.lap, {width: LAP_W}]}>
           <Text variant='label'>Lap</Text>
           <Text variant='dataSmall' tone='textMuted'>
-            {`Varies · ${grid.basisCount} laps`}
+            Varies
           </Text>
         </View>
         <LinkedHScroll link={link}>
           <View style={styles.row}>
-            {grid.columns.map((c, i) => (
-              <Pressable
-                key={i}
-                accessibilityRole='button'
-                accessibilityLabel={`Sort by ${c.head}`}
-                onPress={() => onHead(i)}
-                style={[styles.head, {width: CELL_W}]}>
-                <Text
-                  variant='label'
-                  asWritten
-                  tone={isSorted(sort, i) ? 'accentInk' : 'textSecondary'}>
-                  {c.head}
-                </Text>
-                <View
-                  style={[
-                    styles.barTrack,
-                    {backgroundColor: color.lineHeader},
-                  ]}>
+            {grid.columns.map((c, i) => {
+              const vary = spread.columns[i];
+              return (
+                <Pressable
+                  key={i}
+                  accessibilityRole='button'
+                  accessibilityLabel={`Sort by ${c.head}`}
+                  onPress={() => onHead(i)}
+                  style={[styles.head, {width: CELL_W}]}>
+                  <Text
+                    variant='label'
+                    asWritten
+                    tone={isSorted(sort, i) ? 'accentInk' : 'textSecondary'}>
+                    {c.head}
+                  </Text>
                   <View
                     style={[
-                      styles.bar,
-                      {
-                        width: Math.round(c.barFraction * BAR_MAX),
-                        backgroundColor: color.textMuted,
-                      },
-                    ]}
-                  />
-                </View>
-                <Text variant='dataSmall' tone='textMuted'>
-                  {c.n < 2 || c.spreadS == null
-                    ? '—'
-                    : `${c.spreadS.toFixed(2)} s`}
-                </Text>
-              </Pressable>
-            ))}
+                      styles.barTrack,
+                      {backgroundColor: color.lineHeader},
+                    ]}>
+                    <View
+                      style={[
+                        styles.bar,
+                        {
+                          width: Math.round((vary?.frac ?? 0) * BAR_MAX),
+                          backgroundColor: color.textMuted,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text variant='dataSmall' tone='textMuted'>
+                    {vary?.offsShort ?? vary?.seconds ?? '—'}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         </LinkedHScroll>
       </View>
@@ -181,6 +193,7 @@ function withAlpha(hex: string, a: number): string {
 
 const styles = StyleSheet.create({
   wrap: {gap: space.xs, paddingVertical: space.sm},
+  line: {paddingHorizontal: space.sm},
   row: {flexDirection: 'row', alignItems: 'stretch'},
   lapRow: {minHeight: ROW_H, alignItems: 'center'},
   lap: {paddingHorizontal: space.sm, justifyContent: 'center'},

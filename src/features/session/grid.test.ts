@@ -2,7 +2,7 @@ import {describe, expect, test} from '@jest/globals';
 
 import {type SegmentTimes} from '@/src/analysis/segments';
 
-import {sessionGrid, sortRows, type GridRow} from './grid';
+import {cornerCellOf, sessionGrid, sortRows, type GridRow} from './grid';
 
 const seg = (label: string) => ({label, range: null});
 
@@ -31,7 +31,7 @@ describe('columnStats over the ticked laps', () => {
 
   test('a single ticked lap is its own median, with no spread shown', () => {
     const g = sessionGrid(times(), ticked('L2'));
-    expect(g.columns[0]).toMatchObject({n: 1, medianS: 10.2, spreadS: null});
+    expect(g.columns[0]).toMatchObject({n: 1, medianS: 10.2});
     // A median of one lap is no comparison: no gap to it, not ±0.000.
     expect(g.rows.find(r => r.lapId === 'L2')?.cells[0].deltaS).toBeNull();
   });
@@ -78,11 +78,13 @@ describe('cells', () => {
 
   test('unit is delta over the column spread, held to ±1', () => {
     const g = sessionGrid(times(), ticked('L1', 'L2', 'L4'));
-    const spread = g.columns[0].spreadS!;
+    // S1 ticked: 10.0, 10.2, 10.4 → IQR 0.2, median 10.2.
     const l5 = g.rows.find(r => r.lapId === 'L5')!;
     expect(l5.cells[0].unit).toBe(1);
+    const l1 = g.rows.find(r => r.lapId === 'L1')!;
+    expect(l1.cells[0].unit).toBeCloseTo(-1, 6);
     const l2 = g.rows.find(r => r.lapId === 'L2')!;
-    expect(l2.cells[0].unit).toBeCloseTo((10.2 - 10.2) / spread, 6);
+    expect(l2.cells[0].unit).toBeCloseTo(0, 6);
   });
 
   test('a zero spread gives unit 0, not a division by zero', () => {
@@ -97,6 +99,20 @@ describe('cells', () => {
   });
 });
 
+describe('cornerCellOf: a cell with no gap says why', () => {
+  test('a gap is the number; wheels off is off; no time is none', () => {
+    const data = times();
+    // L3 has no time in S2 (a pit window); L1's S2 was left with wheels off.
+    data.laps[0] = {...data.laps[0], timesS: [10.0, null], offs: [false, true]};
+    const g = sessionGrid(data, ticked('L1', 'L2', 'L4'));
+    const cell = (id: string, i: number) =>
+      cornerCellOf(g.rows.find(r => r.lapId === id)!.cells[i]);
+    expect(cell('L2', 0)).toBeCloseTo(0, 6);
+    expect(cell('L1', 1)).toEqual({absent: 'off'});
+    expect(cell('L3', 1)).toEqual({absent: 'none'});
+  });
+});
+
 describe('stop flag', () => {
   test('a row carries the pit stop flag from its lap', () => {
     const data = times();
@@ -104,17 +120,6 @@ describe('stop flag', () => {
     const g = sessionGrid(data, ticked('L1'));
     expect(g.rows.find(r => r.lapId === 'L3')!.stop).toBe(true);
     expect(g.rows.find(r => r.lapId === 'L1')!.stop).toBe(false);
-  });
-});
-
-describe('bars and the shared scale', () => {
-  test('bar fractions are against the widest column spread', () => {
-    const g = sessionGrid(times(), ticked('L1', 'L2', 'L4'));
-    const widest = Math.max(...g.columns.map(c => c.spreadS ?? 0));
-    expect(Math.max(...g.columns.map(c => c.barFraction))).toBeCloseTo(1, 6);
-    g.columns.forEach(c =>
-      expect(c.barFraction).toBeCloseTo((c.spreadS ?? 0) / widest, 6),
-    );
   });
 });
 

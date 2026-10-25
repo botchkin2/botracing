@@ -89,8 +89,7 @@ export function buildStintTable(
       count: `${picked.length}/${stintLaps.length}`,
       median: stats.medianS == null ? dash : formatLapTime(stats.medianS),
       best: stats.bestS == null ? dash : formatLapTime(stats.bestS),
-      spread:
-        stats.n > 1 && stats.spreadS != null ? stats.spreadS.toFixed(2) : dash,
+      spread: stats.spreadS != null ? stats.spreadS.toFixed(2) : dash,
       detail: lapRangeLabel(first, last),
     });
   }
