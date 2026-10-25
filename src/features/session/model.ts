@@ -53,7 +53,7 @@ import {optimumFacts} from './optimumFacts';
 import {type OptimumLine, optimumLines} from './optimumLines';
 import {lapTimeStats, segmentBasisStats, stintNumbers} from './selectionStats';
 import {energyLine, type EnergyLine} from './energyLine';
-import {type ClassPaceDoc} from '@/src/analysis/classPace';
+import {type ClassPaceDoc, hasOtherDrivers} from '@/src/analysis/classPace';
 import {classMedianFacts} from './classMedianFact';
 import {classTable, type ClassTable} from './classTable';
 import {buildPitCard, type PitCard} from './pitCard';
@@ -337,9 +337,9 @@ export function trafficPaceFacts(
   // whole-session value.
   const traffic = paceSplit(basisLaps);
   // The "Other cars" line is about the 5 Hz field. A race whose results file gave every driver's laps (`classPace`)
-  // lists other cars in its Class pace block, so it never says they were not recorded.
+  // lists other cars in its Class pace block, so it never says they were not recorded (a `classPace` with only his own laps lists none, and then the line stays).
   if (traffic == null)
-    return field == null && session.classPace == null
+    return field == null && !hasOtherDrivers(session.classPace)
       ? [otherCarsFact(session.fieldMissing)]
       : [];
   const facts: Fact[] = [];
@@ -813,7 +813,9 @@ export function buildSessionModel(
     detail,
     tray,
     // Every driver's pace by class from the game's results file replaces the class table where it exists (ticket 20).
-    classPace: day ? null : session.classPace,
+    // A classPace with only his own laps has nothing to compare: the block waits for another driver, and the class table stays.
+    classPace:
+      day || !hasOtherDrivers(session.classPace) ? null : session.classPace,
     classTable: day
       ? null
       : classTable(session.classBests, bestLap?.timeS ?? session.bestTimeS),

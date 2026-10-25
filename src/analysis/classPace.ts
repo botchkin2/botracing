@@ -136,6 +136,11 @@ export function sectorGapS(
   return mine === null || theirs === null ? null : mine - theirs;
 }
 
+/** Whether `classPace` lists a driver other than him: the one test for "this session knows its other cars" (a doc with only his own laps does not). */
+export function hasOtherDrivers(doc: ClassPaceDoc | null): boolean {
+  return doc !== null && doc.drivers.some(d => !d.you);
+}
+
 export type TopVsYou = {
   cls: string;
   /** How many cars the comparison is over: up to TOP_CARS, fewer in a small class. */
