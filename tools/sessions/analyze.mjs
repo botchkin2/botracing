@@ -1393,6 +1393,9 @@ export function analyzeSession(
       startL: firstFuel?.fuel.startL ?? null,
       fillLimitL: recs[0].recording.fuelSetup?.fillLimitL ?? null,
       tankL: recs[0].recording.fuelSetup?.tankL ?? null,
+      // LMU's own VE expectation from the car setup (fuelFacts.mjs fuelSetup).
+      setupVePct: recs[0].recording.fuelSetup?.setupVePct ?? null,
+      setupVePerLapPct: recs[0].recording.fuelSetup?.setupVePerLapPct ?? null,
       // Litres per 1 % of Virtual Energy, measured (fuelFacts.mjs).
       litresPerVePct: ratio.drive,
       litresPerVePctStop: ratio.stop,

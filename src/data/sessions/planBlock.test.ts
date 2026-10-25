@@ -51,6 +51,27 @@ describe('toPlanSessions', () => {
     ]);
     expect(out.items[0].plan?.laps?.[0]).toEqual(block.laps[0]);
     expect(out.items[0].plan?.fuel.litresPerVePctStop).toBeNull();
+    expect(out.items[0].plan?.fuel.setupVePerLapPct).toBeNull();
+  });
+
+  it("reads LMU's VE expectation the route fills in from the session's own fuel", () => {
+    const out = toPlanSessions({
+      items: [
+        {
+          id: 'a',
+          startedAt: '2026-10-22T00:39:00Z',
+          sessionType: 'Race',
+          plan: {
+            ...block,
+            fuel: {...block.fuel, setupVePct: 100, setupVePerLapPct: 5.41},
+          },
+        },
+      ],
+    });
+    expect(out.items[0].plan?.fuel).toMatchObject({
+      setupVePct: 100,
+      setupVePerLapPct: 5.41,
+    });
   });
 
   it('reads a session with no block as null (no data), and drops a row with no id or time', () => {

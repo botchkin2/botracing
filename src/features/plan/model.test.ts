@@ -73,6 +73,8 @@ const sessionFuel = (over: Partial<SessionFuel> = {}): SessionFuel => ({
   tankL: null,
   litresPerVePct: null,
   litresPerVePctStop: null,
+  setupVePct: null,
+  setupVePerLapPct: null,
   ...over,
 });
 
@@ -383,6 +385,8 @@ describe('sessionLimitL', () => {
       tankL: null,
       litresPerVePct: null,
       litresPerVePctStop: null,
+      setupVePct: null,
+      setupVePerLapPct: null,
       ...o,
     });
     expect(sessionLimitL(f({fillLimitL: 75, startL: 60, tankL: 117}))).toBe(75);
@@ -550,6 +554,8 @@ describe('limitsOfPlan', () => {
               tankL: null,
               litresPerVePct: null,
               litresPerVePctStop: null,
+              setupVePct: null,
+              setupVePerLapPct: null,
             },
             laps: null,
             race: null,
@@ -708,7 +714,7 @@ describe('a stored preset VE % is kept but not applied (thread 104)', () => {
 
 describe('under a rule set the tank is never the load (thread 104)', () => {
   // A live online practice: the capture reports the car's own 117 L tank, no fill limit, a start of 78.9 L.
-  const livePractice = {startL: 78.9, fillLimitL: null, tankL: 117, litresPerVePct: 0.839, litresPerVePctStop: null};
+  const livePractice = {startL: 78.9, fillLimitL: null, tankL: 117, litresPerVePct: 0.839, litresPerVePctStop: null, setupVePct: null, setupVePerLapPct: null};
   const length = {kind: 'min' as const, value: 60};
   const laps: GreenLap[] = Array.from({length: 10}, () => ({fuelL: 3.6, vePct: 4.3, lapTimeS: 123, sessionId: 's'}));
 
