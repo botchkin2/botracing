@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from 'react';
 
 import {carsArePhysical} from '@/src/analysis/carsArePhysical';
+import {finishedText} from '@/src/analysis/raceResult';
 import {placeFieldOnLine} from '@/src/analysis/fieldOnLine';
 import {SURFACE_STEP_M} from '@/src/analysis/trackSurface';
 import {raceClock, type RaceClock} from '@/src/analysis/raceClock';
@@ -62,6 +63,8 @@ export type RaceData =
       /** One line when the field was kept and flagged. */
       note: string | null;
       mode: RaceMode;
+      /** "Finished P5 · P1 in class" for a race with a stored result, the Session head's own line; null otherwise. The list below stays on-track at every moment (livery #7757). */
+      result: string | null;
       prep: RacePrep;
       /** The player's lap and distance at a race time, and back; shared with Compare. */
       clock: RaceClock;
@@ -283,6 +286,7 @@ export function useRaceData(sessionId: string): RaceData {
     title,
     note: detail.field?.note ?? null,
     mode: raceModeOf(detail),
+    result: detail.sessionType === 'R' ? finishedText(detail.finish) : null,
     prep,
     clock,
     laps: (laps.data ?? []).map(l => ({

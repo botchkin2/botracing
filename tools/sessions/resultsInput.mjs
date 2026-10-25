@@ -8,8 +8,10 @@
 // A few hundred bytes. Absent when the PC has no results file for the session.
 //
 // v2 (ticket 20, thread 111) adds `drivers`: every driver's laps for the class
-// pace (src/analysis/classPace.ts), [{player, cls, car, pos, laps: [{t, s1, s2,
-// s3, pit}]}], t and the sectors null where the file reads `--.----`. No names,
+// pace (src/analysis/classPace.ts), [{player, cls, car, pos, overall, status,
+// laps: [{t, s1, s2, s3, pit}]}]; `pos` is the class position, `overall` the
+// place among all cars and `status` the game's FinishStatus, which the race
+// result reads (analysis/raceResult.ts finishFromResults), t and the sectors null where the file reads `--.----`. No names,
 // no numbers, no other driver's strikes. The reader takes both versions, so a
 // session whose input is v1 keeps its track-limit strikes (a reader that refused
 // v2 would lose them silently on the next open); the writer moves to 2 with the
@@ -46,6 +48,8 @@ function readDriver(d) {
     cls: d.cls,
     car: d.car,
     pos: timeOrNull(d.pos),
+    overall: timeOrNull(d.overall),
+    status: typeof d.status === 'string' ? d.status : null,
     laps: d.laps.map(l => ({
       t: timeOrNull(l?.t),
       s1: timeOrNull(l?.s1),

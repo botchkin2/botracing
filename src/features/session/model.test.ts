@@ -15,6 +15,7 @@ import {
   trafficPaceFacts,
 } from './model';
 import {classPaceDoc, type ResultsDriver} from '@/src/analysis/classPace';
+import {finishedText, raceResultText} from '@/src/analysis/raceResult';
 import classPaceRace from '@/src/analysis/__fixtures__/classPaceR.json';
 import {spreadColumns, varyOf} from './spreadRows';
 import {HttpError} from '@/src/data/http';
@@ -86,6 +87,28 @@ describe('buildSessionModel', () => {
       buildSessionModel(s, laps, none).facts.find(f => f.label === 'Result');
     expect(result({...session, finish})?.value).toBe('P4 · P2 in class');
     expect(result({...session, finish: null})).toBeUndefined();
+    // The phone head's line is the one string the Race tab header prints (finishedText): head === Race tab.
+    expect(result({...session, finish})?.line).toBe(finishedText(finish));
+    expect(finishedText(finish)).toBe('Finished P4 · P2 in class');
+  });
+
+  it('a race he left early reads in the head as the Sessions list row does, with no "Finished"', () => {
+    const finish = {
+      overall: 26,
+      inClass: 20,
+      ofOverall: 54,
+      ofClass: 20,
+      lapsDone: 20,
+      leaderLapsDone: 26,
+      classLeaderLapsDone: 23,
+      leftEarly: true,
+    };
+    const fact = buildSessionModel({...session, finish}, laps, none).facts.find(
+      f => f.label === 'Result',
+    );
+    expect(fact?.line).toBe('P20 · L20 of L23+ (left early)');
+    expect(fact?.line).toBe(raceResultText(finish));
+    expect(fact?.line).toBe(finishedText(finish));
   });
 
   it('the head and the stint line give one spread on one basis', () => {
