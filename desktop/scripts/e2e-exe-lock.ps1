@@ -45,33 +45,43 @@ $before = [datetime]::new(2000, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)
 
 # Hold the exe with no sharing, from another process, and start the installer
 # only once the hold is taken. The hold lasts HoldS seconds from the moment the
-# installer's preinstall hook logs: counted from the installer's start, a slow
+# installer's hook logs that it starts to wait (after its task cleanup): counted from the installer's start, a slow
 # runner's unpacking outlasted a 3 s hold and the guard never had to wait
 # (#641's rehearsal, 2026-10-16).
 $taken = Join-Path $env:RUNNER_TEMP "exe-lock-taken"
-Remove-Item $taken -ErrorAction SilentlyContinue
 $trace = Join-Path $env:RUNNER_TEMP "exe-lock-holder.log"
 Remove-Item $trace -ErrorAction SilentlyContinue
-$holder = Start-Job -ArgumentList $exe, $HoldS, $taken, $installLog, $trace -ScriptBlock {
-  param($path, $secs, $flag, $log, $trace)
-  $mark = { param($what) Add-Content $trace "$((Get-Date).ToString('HH:mm:ss.fff')) $what (pid $PID)" }
-  $fs = [IO.File]::Open($path, 'Open', 'Read', 'None')
-  & $mark 'taken'
-  Set-Content $flag "taken"
-  $deadline = (Get-Date).AddSeconds(60)
-  while (-not ((Test-Path $log) -and (Select-String -Path $log -Pattern '^preinstall:' -Quiet)) -and (Get-Date) -lt $deadline) {
-    Start-Sleep -Milliseconds 100
+# The hold is probed before the installer starts: on a CI runner a hold now and then does not stop a write
+# (the probe says WRITABLE, seen on main and on #759), and a test that goes on then proves nothing about the
+# installer. The hold is taken again, up to 5 times; a hold that never holds is a failure that says so.
+$holder = $null
+for ($try = 1; $try -le 5; $try++) {
+  if ($holder) { Stop-Job $holder -ErrorAction SilentlyContinue; Remove-Job $holder -Force -ErrorAction SilentlyContinue }
+  Remove-Item $taken -ErrorAction SilentlyContinue
+  $holder = Start-Job -ArgumentList $exe, $HoldS, $taken, $installLog, $trace -ScriptBlock {
+    param($path, $secs, $flag, $log, $trace)
+    $mark = { param($what) Add-Content $trace "$((Get-Date).ToString('HH:mm:ss.fff')) $what (pid $PID)" }
+    $fs = [IO.File]::Open($path, 'Open', 'Read', 'None')
+    & $mark 'taken'
+    Set-Content $flag "taken"
+    $deadline = (Get-Date).AddSeconds(60)
+    while (-not ((Test-Path $log) -and (Select-String -Path $log -Pattern '^waiting for the tray and the exe' -Quiet)) -and (Get-Date) -lt $deadline) {
+      Start-Sleep -Milliseconds 100
+    }
+    & $mark 'preinstall seen'
+    Start-Sleep -Seconds $secs
+    $fs.Close()
+    & $mark 'released'
   }
-  & $mark 'preinstall seen'
-  Start-Sleep -Seconds $secs
-  $fs.Close()
-  & $mark 'released'
+  $deadline = (Get-Date).AddSeconds(15)
+  while (-not (Test-Path $taken) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 50 }
+  if (-not (Test-Path $taken)) { Receive-Job $holder -ErrorAction SilentlyContinue; Fail "the lock was never taken" }
+  $writable = $true
+  try { [IO.File]::Open($exe, 'Open', 'ReadWrite', 'None').Close() } catch { $writable = $false }
+  if (-not $writable) { Write-Host "probe: the exe is locked, as it should be (try $try)"; break }
+  Write-Host "probe: the exe is WRITABLE under the hold (try $try): taking it again"
 }
-$deadline = (Get-Date).AddSeconds(15)
-while (-not (Test-Path $taken) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 50 }
-if (-not (Test-Path $taken)) { Receive-Job $holder -ErrorAction SilentlyContinue; Fail "the lock was never taken" }
-
-try { [IO.File]::Open($exe, 'Open', 'ReadWrite', 'None').Close(); Write-Host "probe: the exe is WRITABLE under the hold" } catch { Write-Host "probe: the exe is locked, as it should be" }
+if ($writable) { Fail "the hold never held in 5 tries: the exe stayed writable under it" }
 $t0 = Get-Date
 Write-Host "installer start $($t0.ToString('HH:mm:ss.fff'))"
 $p = Start-Process -FilePath $Installer -ArgumentList "/S" -Wait -PassThru

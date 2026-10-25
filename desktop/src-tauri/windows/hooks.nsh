@@ -231,6 +231,7 @@ FunctionEnd
   !insertmacro BOTRACING_REMOVE_TASK "LapRecorder"
   ; The tray wait and the exe-writable check come last: they were first, and the two task rounds above (a
   ; process start each) sat between "the exe is free" and the file write, long enough for a scanner to open it.
+  !insertmacro BOTRACING_LOG_LINE "waiting for the tray and the exe (update mode $UpdateMode)"
   ${If} $UpdateMode <> 1
     !insertmacro BOTRACING_QUIT_TRAY
   ${Else}
