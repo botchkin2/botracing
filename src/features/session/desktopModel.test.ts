@@ -21,8 +21,21 @@ describe('buildStintTable', () => {
       rows.map(r => [r.name, r.count, r.median, r.best, r.spread]),
     ).toEqual([
       ['Stint 1', '13/17', '1:21.938', '1:20.774', '1.22'],
-      ['Stint 2', '3/5', '1:21.481', '1:20.763', '0.66'],
+      // Three laps: a spread of them is a range, so the table says none (MIN_LAP_SPREAD_LAPS).
+      ['Stint 2', '3/5', '1:21.481', '1:20.763', '—'],
     ]);
+  });
+
+  it('quotes a spread from 5 laps, as the head and the stint lines do', () => {
+    const stint1 = laps.filter(l => l.stint === 1 && l.comparable);
+    const spreadOf = (n: number) =>
+      buildStintTable(
+        session,
+        laps,
+        new Set(stint1.slice(0, n).map(l => l.id)),
+      )[0].spread;
+    expect(spreadOf(4)).toBe('—');
+    expect(spreadOf(5)).not.toBe('—');
   });
 
   it('follows the ticks: count, median, best and IQR are of the ticked laps', () => {

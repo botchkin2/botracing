@@ -296,6 +296,8 @@ export const type = {
     ...tabular,
   },
   dataSmall: {fontFamily: fonts.mono, fontSize: 11, ...tabular},
+  // A lap's tag under its name in the phone's lap table (one 32 pt row holds both lines).
+  dataTag: {fontFamily: fonts.mono, fontSize: 9, lineHeight: 11, ...tabular},
   tableHeader: {
     fontFamily: fonts.monoMedium,
     fontSize: 9.5,

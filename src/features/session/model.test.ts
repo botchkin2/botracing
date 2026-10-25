@@ -14,6 +14,7 @@ import {
   sessionScreenModelOf,
   trafficPaceFacts,
 } from './model';
+import {spreadColumns, varyOf} from './spreadRows';
 import {HttpError} from '@/src/data/http';
 
 // Road Atlanta race, 2026-09-26: 22 laps, two stints, a pit stop at L17/L18.
@@ -39,8 +40,48 @@ describe('buildSessionModel', () => {
       {label: 'Comparable', value: '16'},
       {label: 'Best', value: '1:20.763', best: true, basis: 'session'},
       {label: 'Median', value: '1:21.915', basis: 'of 16'},
+      {label: 'Spread', value: '1.14 s'},
       {label: 'Other cars', value: 'none recorded'},
     ]);
+  });
+
+  it('the head and the stint line give one spread on one basis', () => {
+    // One stint, so the head's laps and the stint line's laps are the same sixteen.
+    const one = {...session, stints: session.stints.slice(0, 1)};
+    const oneStint = laps.map(l => ({...l, stint: 1}));
+    const single = buildSessionModel(one, oneStint, none);
+    const head = single.facts.find(f => f.label === 'Spread')!;
+    const median = single.facts.find(f => f.label === 'Median')!;
+    const stint = single.rows.find(r => r.kind === 'stint')!;
+    expect(stint.kind === 'stint' && stint.label).toContain(
+      `med ${median.value} · spread ${head.value.replace(' s', ' s')} · ${
+        median.basis
+      }`,
+    );
+    // Nobody says "IQR" and nobody says ±.
+    expect(stint.kind === 'stint' && stint.label).not.toMatch(/IQR|±/);
+    expect(head.value).not.toMatch(/IQR|±/);
+  });
+
+  it('quotes no spread from under 5 basis laps, in the head or on a stint line (consistency.ts floor)', () => {
+    const pick = (n: number) => {
+      const ticked = laps
+        .filter(l => l.comparable)
+        .slice(0, n)
+        .map(l => l.id);
+      return buildSessionModel(session, laps, {laps: ticked, hl: null});
+    };
+    const spreadOf = (m: ReturnType<typeof buildSessionModel>) =>
+      m.facts.find(f => f.label === 'Spread');
+    const stintLabel = (m: ReturnType<typeof buildSessionModel>) => {
+      const row = m.rows.find(r => r.kind === 'stint');
+      return row?.kind === 'stint' ? row.label : '';
+    };
+    expect(spreadOf(pick(4))).toBeUndefined();
+    expect(stintLabel(pick(4))).toContain('of 4');
+    expect(stintLabel(pick(4))).not.toContain('spread');
+    expect(spreadOf(pick(5))).toBeDefined();
+    expect(stintLabel(pick(5))).toContain('spread');
   });
 
   it('one bar per lap, up = faster, clamped at ±1.5 s', () => {
@@ -62,8 +103,8 @@ describe('buildSessionModel', () => {
     expect(m.rows[0]).toMatchObject({
       kind: 'stint',
       // The opening ticks are none here, so the basis is the comparable laps:
-      // 13 of stint 1, IQR 1.219 s recomputed from the fixture's lap times.
-      label: 'Stint 1 · L1–L17 · med 1:21.938 · IQR 1.22 s · of 13',
+      // 13 of stint 1, spread 1.219 s recomputed from the fixture's lap times.
+      label: 'Stint 1 · L1–L17 · med 1:21.938 · spread 1.22 s · of 13',
     });
     expect(m.rows.filter(r => r.kind === 'stint')).toHaveLength(2);
   });
@@ -210,23 +251,9 @@ describe('buildSessionModel', () => {
     expect(lapRow(m, 'L1').gap).toBeNull();
   });
 
-  it('no detail without a selection; the tray keeps the two stints to pick', () => {
+  it('no detail and no tray without a selection', () => {
     expect(m.detail).toBeNull();
-    expect(m.tray).toMatchObject({count: 0, label: '', laps: []});
-    expect(m.tray!.stints.map(s => [s.label, s.active])).toEqual([
-      ['1', false],
-      ['2', false],
-    ]);
-  });
-
-  it('one stint has nothing to pick: no tray without a selection', () => {
-    const one = {...session, stints: session.stints.slice(0, 1)};
-    const oneLaps = laps.map(l => ({...l, stint: 1}));
-    expect(buildSessionModel(one, oneLaps, none).tray).toBeNull();
-    expect(
-      buildSessionModel(one, oneLaps, {laps: [oneLaps[3].id], hl: null}).tray!
-        .stints,
-    ).toEqual([]);
+    expect(m.tray).toBeNull();
   });
 });
 
@@ -247,50 +274,31 @@ describe('selection', () => {
     const sel = {laps: [ids[20], ids[3]], hl: ids[20]};
     const m = buildSessionModel(session, laps, sel);
     expect(m.detail!.action).toBe('remove');
-    expect(m.tray).toMatchObject({count: 2, label: 'L21 · L4'});
+    expect(m.tray).toMatchObject({count: 2, label: '2 laps'});
   });
 
-  it('a tray of more than three laps says how many, without naming a reference', () => {
+  it('the tray is one line that says how many laps, without naming a reference', () => {
     const sel = {laps: [ids[17], ids[18], ids[19], ids[20]], hl: null};
     const m = buildSessionModel(session, laps, sel);
     expect(m.tray!.label).toBe('4 laps');
+    expect(m.tray).not.toHaveProperty('stints');
+    const one = buildSessionModel(session, laps, {laps: [ids[3]], hl: null});
+    expect(one.tray!.label).toBe('1 lap');
   });
 });
 
-describe('stint picks (D16/D17)', () => {
-  const stintRow = (m: ReturnType<typeof buildSessionModel>, n: number) =>
-    m.rows.find(r => r.kind === 'stint' && r.key === `stint-${n}`) as {
-      lapIds: string[];
-    };
+describe('stint line selects its stint (D16/D17)', () => {
   const base = buildSessionModel(session, laps, none);
 
-  it("each pick is its stint header's comparable laps", () => {
-    for (const pick of base.tray!.stints)
-      expect(pick.lapIds).toEqual(stintRow(base, pick.n).lapIds);
-  });
-
-  it('a pick is marked while the selection is exactly its laps, in any order', () => {
-    const two = stintRow(base, 2).lapIds;
-    const m = buildSessionModel(session, laps, {
-      laps: [...two].reverse(),
-      hl: null,
-    });
-    expect(m.tray!.stints.map(s => s.active)).toEqual([false, true]);
-    expect(m.tray!.count).toBe(two.length);
-  });
-
-  it('unticking one lap of the stint clears the mark; adding one does too', () => {
-    const two = stintRow(base, 2).lapIds;
-    const less = buildSessionModel(session, laps, {
-      laps: two.slice(1),
-      hl: null,
-    });
-    expect(less.tray!.stints.some(s => s.active)).toBe(false);
-    const more = buildSessionModel(session, laps, {
-      laps: [...two, stintRow(base, 1).lapIds[0]],
-      hl: null,
-    });
-    expect(more.tray!.stints.some(s => s.active)).toBe(false);
+  it("each stint header carries its stint's comparable laps, for Select stint", () => {
+    for (const n of [1, 2]) {
+      const row = base.rows.find(
+        r => r.kind === 'stint' && r.key === `stint-${n}`,
+      );
+      expect(row?.kind === 'stint' && row.lapIds).toEqual(
+        laps.filter(l => l.stint === n && l.comparable).map(l => l.id),
+      );
+    }
   });
 });
 
@@ -558,22 +566,27 @@ describe('sectionTable', () => {
     ],
   };
 
-  it('gives median, best and IQR over the basis laps, named IQR', () => {
-    const table = sectionTable(times, new Set(['a', 'b', 'c', 'd', 'e']))!;
-    expect(table.footer.map(r => r.label)).toEqual(['Median', 'Best', 'IQR']);
-    const [median, best, iqr] = table.footer;
+  it('gives median and best over the basis laps, and the spread the Varies most block gives', () => {
+    const basis = new Set(['a', 'b', 'c', 'd', 'e']);
+    const spread = spreadColumns(times, varyOf(times, basis, []));
+    const table = sectionTable(times, basis, null, spread)!;
+    expect(table.footer.map(r => r.label)).toEqual([
+      'Median',
+      'Best',
+      'Spread',
+    ]);
+    const [median, best] = table.footer;
     expect(median.cells).toEqual(['10.20']);
     expect(best.cells).toEqual(['10.00']);
-    // 10.0 … 10.4: p75 10.3 − p25 10.1.
-    expect(iqr.cells).toEqual(['0.20']);
+    // Five laps is too few for the Varies most block to say a spread (MIN_SPREAD_LAPS): a dash, not a second answer.
+    expect(table.footer[2].cells).toEqual(['—']);
   });
 
-  it('follows the ticks: unticking the slowest two moves every row', () => {
+  it('follows the ticks: unticking the slowest two moves the median and best', () => {
     const table = sectionTable(times, new Set(['a', 'b', 'c']))!;
-    expect(table.footer.map(r => r.cells[0])).toEqual([
+    expect(table.footer.slice(0, 2).map(r => r.cells[0])).toEqual([
       '10.10',
       '10.00',
-      '0.10',
     ]);
   });
 });
@@ -739,7 +752,7 @@ describe('a day cut at different corner windows', () => {
   it('is lap times only otherwise: no section table, spread or optimum', () => {
     const m = build(false);
     expect(m.sections).toBeNull();
-    expect(m.spread).toEqual({rows: [], line: null});
+    expect(m.spread).toEqual({rows: [], columns: [], line: null});
     expect(build(true).optimumLines.length).toBeGreaterThan(0);
     expect(m.optimumLines).toEqual([]);
     expect(m.rows.some(r => r.kind === 'lap' && r.sections.length > 0)).toBe(

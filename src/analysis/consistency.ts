@@ -18,7 +18,7 @@
 //
 // Plain TypeScript with erasable syntax only, no imports: Node runs it as is.
 
-import {median, percentile} from './setStats.ts';
+import {median, MIN_LAP_SPREAD_LAPS, percentile} from './setStats.ts';
 
 export interface CornerFacts {
   // Entry to next entry (src/analysis/corners.ts), so the exit is included.
@@ -602,7 +602,7 @@ export function analyzeConsistency(
     const d = delta.get(l.id) ?? null;
     // With a handful of laps there is no pace to be off.
     const offPace =
-      laps.length >= MIN_SPREAD_LAPS &&
+      laps.length >= MIN_LAP_SPREAD_LAPS &&
       r >= Math.max(t.offPaceZ * lapSigma, t.offPaceMinSec);
     const losses: CornerLoss[] = [];
     if (d) {
@@ -747,8 +747,6 @@ function cornerSplit(
   };
 }
 
-// Below this many laps a spread is not worth quoting.
-const MIN_SPREAD_LAPS = 5;
 // Per off-pace lap, name at most this many corners in the text.
 const TEXT_CORNERS = 3;
 
@@ -760,7 +758,7 @@ function overview(
   laps: LapFacts[],
 ): string {
   const parts = [`${s.laps} ${s.laps === 1 ? 'lap' : 'laps'}.`];
-  if (s.laps >= MIN_SPREAD_LAPS && s.scatter != null) {
+  if (s.laps >= MIN_LAP_SPREAD_LAPS && s.scatter != null) {
     parts.push(
       `Scatter ${s.scatter.toFixed(
         2,
@@ -810,14 +808,14 @@ function overview(
           .join('. ') +
         '.',
     );
-  } else if (s.laps >= MIN_SPREAD_LAPS) {
+  } else if (s.laps >= MIN_LAP_SPREAD_LAPS) {
     parts.push('No lap off pace.');
   }
   const lost = [...corners]
     .filter(c => c.lostSec >= 0.1)
     .sort((a, b) => b.lostSec - a.lostSec)
     .slice(0, 2);
-  if (lost.length && s.laps >= MIN_SPREAD_LAPS) {
+  if (lost.length && s.laps >= MIN_LAP_SPREAD_LAPS) {
     parts.push(
       `Most time lost against repeatable pace: ${lost
         .map(c => `section ${c.n} (${c.lostSec.toFixed(1)} s)`)

@@ -10,6 +10,9 @@ export type Sample = number | null | undefined;
 /** Fewest values a spread (IQR) is shown for: one value has no spread, and 0 would say it was perfectly consistent. */
 export const MIN_SPREAD_N = 2;
 
+/** Fewest laps a lap-time spread is quoted for: an IQR of 3 laps is a range, not a spread. Read by `lapTimeStats` (the Session head's Spread, the stint lines and the Stints table) and by the consistency text; a section's spread has its own, higher floor (spreadShare.ts). */
+export const MIN_LAP_SPREAD_LAPS = 5;
+
 /** Fewest laps whose median a gap is measured against: a median of one lap is that lap itself, so a gap to it would be a pair and read "±0.000". Every "vs median" on every screen uses this one floor. */
 export const MIN_COMPARISON_LAPS = 2;
 
