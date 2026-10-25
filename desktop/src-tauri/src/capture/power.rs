@@ -115,7 +115,7 @@ impl Drop for Registration<'_> {
 }
 
 #[cfg(windows)]
-pub use window::start;
+pub use window::{start, stop};
 // The test finds the window by its class.
 #[cfg(all(windows, test))]
 pub use window::{wide, CLASS};
@@ -123,17 +123,25 @@ pub use window::{wide, CLASS};
 #[cfg(windows)]
 mod window {
     use super::{FLUSHES, WAIT};
+    use std::sync::atomic::{AtomicPtr, Ordering};
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows_sys::Win32::System::Threading::{
         GetCurrentProcess, GetPriorityClass, SetPriorityClass, ABOVE_NORMAL_PRIORITY_CLASS,
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, RegisterClassW, TranslateMessage,
-        MSG, PBT_APMSUSPEND, WM_ENDSESSION, WM_POWERBROADCAST, WM_QUERYENDSESSION, WNDCLASSW,
+        CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW, PostMessageW,
+        PostQuitMessage, RegisterClassW, TranslateMessage, MSG, PBT_APMSUSPEND, WM_CLOSE, WM_DESTROY,
+        WM_ENDSESSION, WM_POWERBROADCAST, WM_QUERYENDSESSION, WNDCLASSW,
     };
 
     pub const CLASS: &str = "BotRacingPowerWatcher";
+
+    /// The window and its thread, for `stop`.
+    static WINDOW: AtomicPtr<std::ffi::c_void> = AtomicPtr::new(std::ptr::null_mut());
+    static THREAD: Mutex<Option<std::thread::JoinHandle<()>>> = Mutex::new(None);
 
     pub fn wide(text: &str) -> Vec<u16> {
         text.encode_utf16().chain(std::iter::once(0)).collect()
@@ -178,6 +186,14 @@ mod window {
                 }
                 1
             }
+            WM_CLOSE => {
+                DestroyWindow(hwnd);
+                0
+            }
+            WM_DESTROY => {
+                PostQuitMessage(0);
+                0
+            }
             _ => DefWindowProcW(hwnd, message, wparam, lparam),
         }
     }
@@ -186,7 +202,7 @@ mod window {
     /// recorders then run as before, bounded by the timed flush.
     pub fn start(log: impl Fn(&str) + Send + 'static) {
         // A thread that cannot start leaves recording as before; there is no one to tell.
-        let _ = std::thread::Builder::new().name("power".into()).spawn(move || {
+        let spawned = std::thread::Builder::new().name("power".into()).spawn(move || {
             // SAFETY: plain Win32 calls with valid arguments; the class name and title outlive the calls.
             unsafe {
                 let class = wide(CLASS);
@@ -217,13 +233,37 @@ mod window {
                     log(&format!("power watcher: no window ({})", std::io::Error::last_os_error()));
                     return;
                 }
+                WINDOW.store(hwnd, Ordering::SeqCst);
                 let mut message: MSG = std::mem::zeroed();
                 while GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) > 0 {
                     TranslateMessage(&message);
                     DispatchMessageW(&message);
                 }
+                WINDOW.store(std::ptr::null_mut(), Ordering::SeqCst);
             }
         });
+        if let Ok(thread) = spawned {
+            *THREAD.lock().unwrap_or_else(|p| p.into_inner()) = Some(thread);
+        }
+    }
+
+    /// Closes the window and ends its thread, waiting at most `wait`. The tray calls it when it quits,
+    /// before an update installer is started: the window then goes in an orderly way and not with the
+    /// process, in the milliseconds the installer is checking whether the tray has gone.
+    pub fn stop(wait: Duration) {
+        let window = WINDOW.load(Ordering::SeqCst);
+        if !window.is_null() {
+            // SAFETY: a window of this process; if it is already gone the call fails and does nothing.
+            unsafe { PostMessageW(window, WM_CLOSE, 0, 0) };
+        }
+        let Some(thread) = THREAD.lock().unwrap_or_else(|p| p.into_inner()).take() else { return };
+        let end = Instant::now() + wait;
+        while !thread.is_finished() && Instant::now() < end {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        if thread.is_finished() {
+            let _ = thread.join();
+        }
     }
 }
 

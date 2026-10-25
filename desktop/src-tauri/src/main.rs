@@ -333,6 +333,10 @@ fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit, log: QuitLog) {
     } else {
         "recorder gave up after 5 s"
     });
+    // The power window goes before the installer starts, not with the process (power.rs stop).
+    #[cfg(windows)]
+    capture::power::stop(Duration::from_secs(1));
+    log.note("power window closed");
     if on_quit == OnQuit::InstallWaitingUpdate {
         let pending = app
             .try_state::<update::Slot>()

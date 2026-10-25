@@ -1542,6 +1542,10 @@ mod tests {
         assert!(written, "the shutdown going ahead found the chunk on disk");
         let (_, written) = answer("power-called-off", WM_ENDSESSION, 0);
         assert!(!written, "a shutdown called off writes nothing early");
+        // Quitting closes the window: gone at once, its thread ended, and no message is answered any more.
+        power::stop(std::time::Duration::from_secs(2));
+        // SAFETY: a valid NUL-terminated class name; null title.
+        assert!(unsafe { FindWindowW(class.as_ptr(), std::ptr::null()) }.is_null(), "the window is gone after stop");
         for (stop, join) in running {
             stop.store(true, Ordering::SeqCst);
             join.join().unwrap();
