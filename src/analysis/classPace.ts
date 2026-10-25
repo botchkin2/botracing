@@ -124,13 +124,13 @@ export type TopVsYou = {
   cls: string;
   /** How many cars the comparison is over: up to TOP_CARS, fewer in a small class. */
   cars: number;
-  /** Their median sector minus his, S1 to S3, seconds; null where either side has none. */
+  /** His median sector minus theirs, S1 to S3, seconds: + is slower than the top cars, as every "vs" number on the screens (livery, thread 111 #7653); null where either side has none. */
   sectorsS: [number | null, number | null, number | null];
 };
 
 /**
- * "Class top 5 vs you": his class's fastest TOP_CARS cars by best valid lap, him
- * excluded; for each sector the median of their sector medians minus his. Null
+ * "You vs top 5": his class's fastest TOP_CARS cars by best valid lap, him
+ * excluded; for each sector his median minus the median of their sector medians. Null
  * when he is not in the doc or nobody else of his class is.
  */
 export function topVsYou(doc: ClassPaceDoc | null): TopVsYou | null {
@@ -143,7 +143,7 @@ export function topVsYou(doc: ClassPaceDoc | null): TopVsYou | null {
   const sector = (i: 0 | 1 | 2): number | null => {
     const mine = you.sectors[i].median;
     const theirs = median(others.map(d => d.sectors[i].median));
-    return mine == null || theirs == null ? null : theirs - mine;
+    return mine == null || theirs == null ? null : mine - theirs;
   };
   return {
     cls: you.cls,

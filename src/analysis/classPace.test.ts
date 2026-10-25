@@ -159,7 +159,7 @@ const docOf = (
   )!;
 
 describe('topVsYou', () => {
-  it('is the class top cars by best lap, him left out: their median sector minus his', () => {
+  it('is the class top cars by best lap, him left out: his median sector minus theirs, + where he is slower', () => {
     // him: sectors 40 / 30 / 30 (times 100..103 => 0.4, 0.3, 0.3 of each); the others are faster by 1, 2, 3 s laps
     const doc = docOf([
       {player: true, times: [100, 100, 100, 100]},
@@ -171,9 +171,9 @@ describe('topVsYou', () => {
     expect(top.cars).toBe(3);
     expect(top.cls).toBe('GT3');
     // theirs: 98 -> 39.2 / 29.4 / 29.4, he: 100 -> 40 / 30 / 30; the median of 99, 98, 97 is 98
-    expect(top.sectorsS[0]).toBeCloseTo(39.2 - 40, 6);
-    expect(top.sectorsS[1]).toBeCloseTo(29.4 - 30, 6);
-    expect(top.sectorsS[2]).toBeCloseTo(29.4 - 30, 6);
+    expect(top.sectorsS[0]).toBeCloseTo(40 - 39.2, 6);
+    expect(top.sectorsS[1]).toBeCloseTo(30 - 29.4, 6);
+    expect(top.sectorsS[2]).toBeCloseTo(30 - 29.4, 6);
   });
 
   it(`takes ${TOP_CARS} cars at most, the fastest ones, and never a car of another class`, () => {
@@ -188,7 +188,7 @@ describe('topVsYou', () => {
     const top = topVsYou(doc)!;
     expect(top.cars).toBe(TOP_CARS);
     // the five fastest GT3 are 90..94, median 92; the LMP2 at 80 is not one of them
-    expect(top.sectorsS[0]).toBeCloseTo(92 * 0.4 - 100 * 0.4, 6);
+    expect(top.sectorsS[0]).toBeCloseTo(100 * 0.4 - 92 * 0.4, 6);
   });
 
   it('a sector with no median on his side or theirs is null, the others stay', () => {
