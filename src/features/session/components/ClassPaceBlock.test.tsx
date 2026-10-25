@@ -31,7 +31,7 @@ function mount(): ReactTestRenderer {
 describe('ClassPaceBlock', () => {
   it('the top line, signed from his side, then his class by place with him as You', () => {
     const t = texts(mount());
-    expect(t).toContain('Class pace');
+    expect(t).toContain('Class pace · all timed laps');
     expect(t).toContain('You vs top 5');
     // his S1 is faster than the top cars' (−), his S2 slower (+): U+2212 for the minus
     expect(t.some(x => /^S1 −0\.31$/.test(x))).toBe(true);
@@ -67,6 +67,23 @@ describe('ClassPaceBlock', () => {
     );
     expect(after.length).toBe(0);
     expect(texts(r)).toContain('Oreca 07');
+  });
+
+  it('the sector heads are S1 S2 S3 over his class, and there are none over another class', () => {
+    const r = mount();
+    expect(texts(r)).toEqual(expect.arrayContaining(['S1', 'S2', 'S3']));
+    const chip = r.root.findAll(
+      n =>
+        typeof n.props?.onPress === 'function' &&
+        n.findAll(
+          c => (c.type as unknown) === 'Text' && c.children.join('') === 'LMP2',
+        ).length > 0,
+    )[0];
+    act(() => chip.props.onPress());
+    // the top line's three chips still say S1 S2 S3 as "S1 −0.31"; the column heads are gone
+    expect(
+      texts(r).filter(x => x === 'S1' || x === 'S2' || x === 'S3'),
+    ).toEqual([]);
   });
 
   it('a tap on a row opens their best and median sectors beside his medians, a second tap closes it', () => {
