@@ -296,7 +296,7 @@ function RaceView({
   const clock = useRaceClock(endS, openAt, mapMode === 'chase' && chaseAvailable ? prep.field.hz : 0);
   // In the app's WebView the app's clock is the clock (embedBridge.ts).
   useEmbedClock(clock, endS, embed3d);
-  useRestWhileAway(clock);
+  const onTop = useRestWhileAway(clock);
   const pageScroll = usePageScrollOwner();
   // Race writes the cursor back once the user has moved the clock and it has
   // rested; opening the screen never overwrites Compare's cursor.
@@ -306,7 +306,7 @@ function RaceView({
     latest.current = {selection, onSelectionChange};
   });
   useEffect(() => {
-    if (clock.playing || !touched.current) return;
+    if (!onTop || clock.playing || !touched.current) return;
     const timer = setTimeout(() => {
       const place = data.clock.playerAt(clock.timeS);
       if (!place) return;
@@ -314,7 +314,7 @@ function RaceView({
       write(selectionFor(place, sel, data.laps));
     }, SETTLE_MS);
     return () => clearTimeout(timer);
-  }, [clock.playing, clock.timeS, data.clock, data.laps]);
+  }, [onTop, clock.playing, clock.timeS, data.clock, data.laps]);
   const scrub = (timeS: number) => {
     touched.current = true;
     clock.setTimeS(timeS);
