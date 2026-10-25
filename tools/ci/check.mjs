@@ -87,7 +87,7 @@ export const STEPS = [
   },
   {
     job: 'capture',
-    name: 'Recovery tool: apply guards',
+    name: 'Recovery tool - apply guards',
     cwd: 'tools/recover',
     cmd: 'node --test applyField.test.cjs',
     when: /^tools\/recover\//,

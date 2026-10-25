@@ -200,3 +200,15 @@ test('--body runs the ship-proof check on the branch diff and the body file', ()
   assert.equal(without.ok, false);
   assert.match(without.problems[0], /no "## Proof where he uses it" section/);
 });
+
+// This file reads test.yml with a line reader, not a YAML parser, so a name GitHub cannot parse passed the drift test
+// and went red in CI (#722: "Recovery tool: apply guards", a colon in an unquoted name). A step name must be a plain
+// YAML scalar: no ": " or " #" inside it, and no indicator character first.
+test('every step name in test.yml is a plain YAML scalar', () => {
+  const bad = yml
+    .split(/\r?\n/)
+    .map(l => l.match(/^\s*-\s+name:\s*(.*?)\s*$/)?.[1])
+    .filter(v => v !== undefined && !/^['"]/.test(v))
+    .filter(v => /: | #/.test(v) || /^[[\]{}&*!|>%@`,?-]/.test(v));
+  assert.deepEqual(bad, []);
+});

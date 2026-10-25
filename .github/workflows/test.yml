@@ -133,7 +133,7 @@ jobs:
         working-directory: tools/recover
         run: uv run --locked --group dev pytest -q
       # applyField.cjs's guards and pointer, without Firestore.
-      - name: Recovery tool: apply guards
+      - name: Recovery tool - apply guards
         working-directory: tools/recover
         run: node --test applyField.test.cjs
   # The tray (Rust) and its release scripts had no CI: auth.rs and the
