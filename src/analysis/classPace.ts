@@ -59,11 +59,16 @@ export type DriverPace = {
 
 export type ClassPaceDoc = {v: number; drivers: DriverPace[]};
 
-const best = (values: number[]): number | null =>
-  values.length ? Math.min(...values) : null;
+// The game prints four decimals: a median of two laps is a half of one, anything finer is noise in the doc's bytes.
+const round4 = (x: number) => Math.round(x * 1e4) / 1e4;
 
-const medianFrom = (values: number[]): number | null =>
-  values.length >= MIN_PACE_LAPS ? median(values) : null;
+const best = (values: number[]): number | null =>
+  values.length ? round4(Math.min(...values)) : null;
+
+const medianFrom = (values: number[]): number | null => {
+  const m = values.length >= MIN_PACE_LAPS ? median(values) : null;
+  return m === null ? null : round4(m);
+};
 
 const finite = (x: number | null): x is number =>
   typeof x === 'number' && Number.isFinite(x);

@@ -52,6 +52,7 @@ import {optimumFacts} from './optimumFacts';
 import {type OptimumLine, optimumLines} from './optimumLines';
 import {lapTimeStats, segmentBasisStats, stintNumbers} from './selectionStats';
 import {energyLine, type EnergyLine} from './energyLine';
+import {classMedianFacts} from './classMedianFact';
 import {classTable, type ClassTable} from './classTable';
 import {buildPitCard, type PitCard} from './pitCard';
 import {buildTiresCard, type TiresCard} from './tireCard';
@@ -786,6 +787,7 @@ export function buildSessionModel(
       ...(basisTimes.spreadS != null
         ? [{label: 'Spread', value: `${basisTimes.spreadS.toFixed(2)} s`}]
         : []),
+      ...(day ? [] : classMedianFacts(session)),
       ...trafficPace,
     ],
     optimum: optimumFacts([...stintLines.values()], stintCount),
