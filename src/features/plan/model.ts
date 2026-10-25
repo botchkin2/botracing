@@ -14,10 +14,10 @@ import {
   type SessionFuel,
   type SessionSummary,
 } from '@/src/data/sessions';
-import {trackInfo} from '@/src/data/tracks';
-import {carLabel, formatDate, shortTrackName} from '@/src/design';
+import {carLabel, formatDate} from '@/src/design';
 import {planComboKey} from '@/src/nav/routes';
 import {type FuelPreset, type RaceLength} from '@/src/state/fuelPresets';
+import {type Combo, comboCar, comboTrack} from '@/src/workspace/planCombo';
 
 import {type FormationBurn, formationText} from './formation';
 import {type RuleSet} from './ruleSet';
@@ -40,19 +40,6 @@ export function columnWidth(contentW: number, gutter: number): number {
 /** Sessions of one track and car model that the history is drawn from. */
 export const HISTORY_SESSIONS = 8;
 
-export type Combo = {
-  key: string;
-  sim: string;
-  trackId: string;
-  track: string;
-  /** For the chip: short track name, the layout if two share it, and the car. */
-  label: string;
-  /** Car model, not livery: fuel use follows the car. */
-  car: string;
-  /** Newest first. */
-  sessions: SessionSummary[];
-};
-
 /**
  * The Plan a track he has never driven opens on (M11: Tracks → Plan): the
  * track with the car of his newest LMU session, his current car; the Plan's
@@ -71,47 +58,6 @@ export function undrivenPlanKey(
   return newest
     ? planComboKey(trackId, carLabel(newest.car).model, 'lmu')
     : null;
-}
-
-/** Every track+car he has driven, the one he drove last first. */
-export function planCombos(sessions: SessionSummary[]): Combo[] {
-  const byKey = new Map<string, Combo>();
-  for (const s of sessions) {
-    if (s.lapCount === 0) continue;
-    const car = carLabel(s.car).model;
-    const key = planComboKey(s.trackId, car, s.sim);
-    const combo = byKey.get(key) ?? {
-      key,
-      sim: s.sim,
-      trackId: s.trackId,
-      // The layout, so two Silverstones are told apart.
-      track: trackInfo(s.trackId)?.layout ?? s.track,
-      label: '',
-      car,
-      sessions: [],
-    };
-    combo.sessions.push(s);
-    byKey.set(key, combo);
-  }
-  const combos = [...byKey.values()];
-  // Two layouts of one circuit (Silverstone ELMS and WEC) share a short name.
-  const shortOf = (c: Combo) => shortTrackName(c.sessions[0].track);
-  for (const c of combos) {
-    const twins = combos.filter(
-      o => o !== c && shortOf(o) === shortOf(c) && o.car === c.car,
-    );
-    const layout = c.track.includes(' - ')
-      ? c.track.slice(c.track.lastIndexOf(' - ') + 3)
-      : c.track;
-    c.label = `${shortOf(c)}${twins.length > 0 ? ` ${layout}` : ''} · ${
-      carLabel(c.sessions[0].car).shortModel
-    }`;
-  }
-  for (const c of combos)
-    c.sessions.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
-  return combos.sort((a, b) =>
-    b.sessions[0].startedAt.localeCompare(a.sessions[0].startedAt),
-  );
 }
 
 /**
@@ -291,23 +237,6 @@ export function fuelOnly(laps: GreenLap[]): boolean {
     laps.filter(l => l.veMeasured).length < MIN_GREEN_LAPS
   );
 }
-
-/**
- * The track+car the plan opens on: the newest one with enough comparable laps
- * for a median, so it does not open on a car driven for one lap when others
- * have hundreds. The chips still list them all. Falls back to the newest.
- */
-export function defaultCombo(combos: Combo[]): Combo | null {
-  const enough = (c: Combo) =>
-    c.sessions.reduce((n, s) => n + s.comparableCount, 0) >= MIN_GREEN_LAPS;
-  return combos.find(enough) ?? combos[0] ?? null;
-}
-
-/** A combo's label is "short track · short car"; each half, for the two chips. */
-export const comboTrack = (c: Combo) =>
-  c.label.slice(0, c.label.lastIndexOf(' · '));
-export const comboCar = (c: Combo) =>
-  c.label.slice(c.label.lastIndexOf(' · ') + 3);
 
 /** One row of a picker list: the combo it selects, its text, and whether it is the one in force. */
 export type Choice = {key: string; label: string; selected: boolean};

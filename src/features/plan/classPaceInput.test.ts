@@ -1,9 +1,9 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {type SessionClassLaps, type SessionSummary} from '@/src/data/sessions';
+import {type Combo} from '@/src/workspace/planCombo';
 
 import {classPaceInput} from './classPaceInput';
-import {type Combo} from './model';
 
 const stats = {cars: 6, laps: 90, medianS: 100, p10S: 98, p90S: 103};
 

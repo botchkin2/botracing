@@ -1,8 +1,9 @@
 import {paceClass} from '@/src/analysis/classLaps';
 import {type SessionSummary} from '@/src/data/sessions';
+import {type Combo} from '@/src/workspace/planCombo';
 
 import {type ClassTimingInput, classSessionOf} from './classTiming';
-import {type Combo, HISTORY_SESSIONS} from './model';
+import {HISTORY_SESSIONS} from './model';
 import {median} from '@/src/analysis/setStats';
 
 // The session list and the plan in force, as the class pace model reads them.

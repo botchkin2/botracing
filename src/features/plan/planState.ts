@@ -1,7 +1,5 @@
-import {trackInfo} from '@/src/data/tracks';
 import {shortTrackName} from '@/src/design';
-
-import {type Combo} from './model';
+import {type Combo} from '@/src/workspace/planCombo';
 
 // Which state the Plan is in for a track and car, and the label that names
 // it. Pure; the screen only picks what to draw from `PlanState` (owner's note
@@ -14,45 +12,6 @@ import {type Combo} from './model';
  * - `ready`: the plan cards have numbers.
  */
 export type PlanState = 'undriven' | 'no-laps' | 'needs-fuel' | 'ready';
-
-/**
- * A combo for a track and car he has no session of, from a Plan key
- * (`planComboKey`: `[sim:]trackId|carModel`). Null for a key that is not one.
- */
-export function undrivenCombo(key: string): Combo | null {
-  const bar = key.indexOf('|');
-  if (bar <= 0 || bar === key.length - 1) return null;
-  const head = key.slice(0, bar);
-  const colon = head.indexOf(':');
-  const sim = colon > 0 ? head.slice(0, colon) : 'lmu';
-  const trackId = colon > 0 ? head.slice(colon + 1) : head;
-  const car = key.slice(bar + 1);
-  if (!trackId) return null;
-  const track = trackInfo(trackId)?.layout ?? trackId;
-  return {
-    key,
-    sim,
-    trackId,
-    track,
-    label: `${shortTrackName(track)} · ${car}`,
-    car,
-    sessions: [],
-  };
-}
-
-/**
- * The combo the Plan opens on: the one a link names, else (a link to a track
- * and car he has not driven) an empty combo for it, else the default. A link
- * never silently opens on some other track.
- */
-export function resolveCombo(
-  combos: Combo[],
-  key: string | null,
-  fallback: Combo | null,
-): Combo | null {
-  if (key == null) return fallback;
-  return combos.find(c => c.key === key) ?? undrivenCombo(key) ?? fallback;
-}
 
 /** The combos the track and car pickers list: his own, and the undriven one in force. */
 export function pickerCombos(combos: Combo[], current: Combo): Combo[] {

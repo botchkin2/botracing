@@ -5,9 +5,9 @@ import {radius, size, space, useTheme} from '@/src/design';
 import {planHref} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
 import {Pressable, Skeleton, Text} from '@/src/ui';
+import {type Combo, undrivenCombo} from '@/src/workspace/planCombo';
 
-import {type Combo, rulesFor} from '../../plan/model';
-import {undrivenCombo} from '../../plan/planState';
+import {rulesFor} from '../../plan/model';
 import {usePlanHistory, usePlanLimits} from '../../plan/usePlanHistory';
 import {planCardModel} from '../planCards';
 
