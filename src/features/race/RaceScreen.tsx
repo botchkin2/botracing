@@ -595,8 +595,12 @@ function RaceView({
   const sub = rows.you
     ? `${count} \u00b7 you ${rows.you.model} ${rows.you.cls.title}`
     : count;
-  // Outside a race: who is near you on the road, in place of a position.
-  const roadLine = rows.road ? roadSummaryText(rows.road) : '';
+  // Outside a race: who is near you on the road, in place of a position. In a qualifying nobody is, and the line says so: in the flow above the map, covering no control.
+  const roadLine = rows.road
+    ? roadSummaryText(rows.road)
+    : mode === 'qualify'
+    ? QUALIFY_NOTE
+    : '';
 
   const map = data.roadPending ? (
     <Skeleton height={mapH} />
@@ -662,14 +666,6 @@ function RaceView({
           {data.matchM === null
             ? 'Cars not drawn: no track map match'
             : `Cars not drawn: ${Math.round(data.matchM)} m off the track map`}
-        </Text>
-      ) : null}
-      {mode === 'qualify' ? (
-        <Text
-          variant='dataSmall'
-          tone='textMuted'
-          style={[styles.qualifyNote, {backgroundColor: color.surfaceRaised}]}>
-          {QUALIFY_NOTE}
         </Text>
       ) : null}
     </View>
@@ -897,17 +893,6 @@ const styles = StyleSheet.create({
     paddingVertical: space.xs,
   },
   matchNote: {marginTop: space.xs},
-  // Over the map's top right, where the radar is not drawn in a qualifying; it takes no height from the map.
-  qualifyNote: {
-    position: 'absolute',
-    top: space.sm,
-    right: space.sm,
-    maxWidth: '45%',
-    textAlign: 'right',
-    borderRadius: space.xs,
-    paddingHorizontal: space.sm,
-    paddingVertical: space.xs,
-  },
   subRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   flexFill: {flex: 1},
   keyToggle: {
