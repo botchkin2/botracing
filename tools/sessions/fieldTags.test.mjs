@@ -341,7 +341,7 @@ test('no array inside an array anywhere in a traffic block', () => {
   const [t] = lapFieldFacts(f, [all]);
   assert.ok(t.aheadSpans.length > 0 && t.blueSpans.length > 0);
   nested(t);
-  nested(lapTraffic(f, [all])[0]);
+  nested(lapTraffic(f, [all], {sim: 'lmu', sessionType: 'Race'})[0]);
 });
 
 test('draftSpans: where the tow was, adding up to draftS, as objects', () => {
@@ -399,7 +399,7 @@ test('iRacing offline: classes come from the label, not the empty short name', (
     assert.equal(t.passesSuffered, 0);
     assert.equal(t.passesSufferedAll, 1);
     assert.equal(t.passesMade, 1);
-    const [block] = lapTraffic(f, [all]);
+    const [block] = lapTraffic(f, [all], {sim: 'lmu', sessionType: 'Race'});
     assert.deepEqual(
       block.overtakes.map(o => o.cls),
       ['hypercar'],
