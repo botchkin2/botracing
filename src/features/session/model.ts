@@ -292,11 +292,28 @@ function buildFuelUseCard(
   };
 }
 
+const OTHER_CARS = 'Other cars: ';
+
+/**
+ * What a session with no field says about the other cars, under its own label
+ * (ticket 17): the stored `fieldMissing` line ("Other cars: not recorded",
+ * "…recording doubted", written by tools/sessions/field.mjs) without its
+ * prefix, since the label carries it; a session never stamped says none were
+ * recorded.
+ */
+export function otherCarsFact(fieldMissing: string | null): Fact {
+  const why = fieldMissing?.startsWith(OTHER_CARS)
+    ? fieldMissing.slice(OTHER_CARS.length)
+    : fieldMissing;
+  return {label: 'Other cars', value: why || 'none recorded'};
+}
+
 /**
  * The clean median beside the overall median, never instead of it (Botkin,
  * pit-wall thread 44 #1563): the headline pace stays every comparable lap. It
  * shows the laps it uses and is left out under the 3-lap floor or before a
- * field's traffic block is analysed. A session with no field says so, once.
+ * field's traffic block is analysed. A session with no field says so, once,
+ * under its own label and in the stored words (otherCarsFact).
  * The traffic median is gone: it was accented and told him nothing (triage #13).
  */
 export function trafficPaceFacts(
@@ -309,9 +326,7 @@ export function trafficPaceFacts(
   // whole-session value.
   const traffic = paceSplit(basisLaps);
   if (traffic == null)
-    return field == null
-      ? [{label: 'Clean median', value: 'No other cars recorded'}]
-      : [];
+    return field == null ? [otherCarsFact(session.fieldMissing)] : [];
   const facts: Fact[] = [];
   const value = setText(
     traffic.clean,
