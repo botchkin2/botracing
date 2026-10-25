@@ -36,7 +36,7 @@ import {BottomBar, WorkingLine} from '@/src/ui';
 import {queryClient} from '@/src/utils/queryClient';
 import {DesktopChrome} from '@/src/workspace/DesktopChrome';
 import {UpdateBanner} from '@/src/workspace/UpdateBanner';
-import {usePlanCombo} from '@/src/workspace/usePlanCombo';
+import {usePlanCombo} from '@/src/features/plan/usePlanCombo';
 import {useWorkspaceGo} from '@/src/workspace/useWorkspaceGo';
 
 holdSplashForUpdate();
@@ -111,7 +111,7 @@ function Navigation() {
         ) : (
           <>
             <UpdateBanner restart={restart} />
-            {isDesktop && <DesktopChrome />}
+            {isDesktop && <DesktopChrome usePlanCombo={usePlanCombo} />}
             <View style={styles.root}>
               {isDesktop ? stack : <PhoneFrame>{stack}</PhoneFrame>}
             </View>
@@ -143,6 +143,7 @@ function PhoneFrame({children}: {children: ReactNode}) {
   const plan = usePlanCombo(
     tab ? id ?? null : null,
     pathname.startsWith('/track/') ? id ?? null : null,
+    null,
     false,
   );
   const go = useWorkspaceGo({

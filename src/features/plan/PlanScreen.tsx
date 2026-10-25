@@ -74,9 +74,9 @@ export function PlanScreen() {
     () => planCombos(sessions.data?.items ?? []),
     [sessions.data],
   );
-  // A link from a session opens the plan on its track and car.
-  const {combo: comboParam} = useLocalSearchParams<{combo?: string}>();
-  const [comboKey, setComboKey] = useState<string | null>(comboParam ?? null);
+  // The track and car in force live in the URL (a link from a session names one; a pick writes it), so the desktop
+  // bar reads the same one.
+  const {combo: comboKey = null} = useLocalSearchParams<{combo?: string}>();
   // The car decides the unit (thread 99, #6684): VE where the plan has it.
   const unit: Unit = 've';
   const combo = resolveCombo(combos, comboKey, defaultCombo(combos));
@@ -239,7 +239,7 @@ export function PlanScreen() {
         car={comboCar(combo)}
         tracks={trackChoices(pickerCombos(combos, combo), combo)}
         cars={carChoices(pickerCombos(combos, combo), combo)}
-        onPick={setComboKey}>
+        onPick={key => router.setParams({combo: key})}>
         {wide ? null : rulesBlock(true)}
       </TrackCarPicker>
       {!wide && lapCards && view?.stale ? (

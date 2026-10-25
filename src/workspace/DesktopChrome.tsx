@@ -18,7 +18,6 @@ import {AppChrome, type ChromeSession} from '@/src/ui';
 
 import {chromeBox} from './chromeBox';
 import {SessionSwitcher} from './SessionSwitcher';
-import {usePlanCombo} from './usePlanCombo';
 import {useWorkspaceGo} from './useWorkspaceGo';
 
 /**
@@ -26,10 +25,18 @@ import {useWorkspaceGo} from './useWorkspaceGo';
  * the open session, its lap selection and its last corner become the box, so
  * switching tabs keeps context. The rules are pure, in `nav` and `chromeBox`.
  */
-export function DesktopChrome() {
+/** The track and car Plan opens and the pair the bar names (`features/plan/usePlanCombo`, which a workspace file may not import). */
+export type UsePlanCombo = (
+  sessionId: string | null,
+  trackId: string | null,
+  planKey: string | null,
+  wantPair: boolean,
+) => {key: string | undefined; pair: string | null};
+
+export function DesktopChrome({usePlanCombo}: {usePlanCombo: UsePlanCombo}) {
   const pathname = usePathname();
   const router = useRouter();
-  const {id, laps, ref, hl, set, n, c} = useGlobalSearchParams<{
+  const {id, laps, ref, hl, set, n, c, combo} = useGlobalSearchParams<{
     id?: string;
     laps?: string;
     ref?: string;
@@ -37,6 +44,7 @@ export function DesktopChrome() {
     set?: string;
     n?: string;
     c?: string;
+    combo?: string;
   }>();
   const {scheme} = useTheme();
   const {isWide} = useLayout();
@@ -66,6 +74,7 @@ export function DesktopChrome() {
   const plan = usePlanCombo(
     sessionId,
     pathname.startsWith('/track/') ? id ?? null : null,
+    pathname === '/plan' ? combo ?? null : null,
     true,
   );
   const go = useWorkspaceGo({
