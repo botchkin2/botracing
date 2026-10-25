@@ -36,7 +36,13 @@ export type RuleSet = {
   /** The newest session's start. */
   newestAt: string;
   /** The ratio to plan with and the session it comes from. */
-  ratio: {perPctL: number; from: {id: string; startedAt: string; sessionType: SessionType}};
+  ratio: {perPctL: number; from: {
+      id: string;
+      startedAt: string;
+      sessionType: SessionType;
+      online: boolean | null;
+    };
+  };
   /** No race or qualifying in the set: the ratio is a practice's and may differ from the race's. */
   fromPracticeOnly: boolean;
   /** The litres per 1 % VE a stop adds (the newest stop measured in the set); null with none. */
@@ -90,7 +96,12 @@ function setOf(g: RuleSession[]): RuleSet {
     newestAt: newest.startedAt,
     ratio: {
       perPctL: first.ratio as number,
-      from: {id: first.id, startedAt: first.startedAt, sessionType: first.sessionType},
+      from: {
+        id: first.id,
+        startedAt: first.startedAt,
+        sessionType: first.sessionType,
+        online: first.online,
+      },
     },
     fromPracticeOnly: source == null,
     stopRatio: stop?.stopRatio ?? null,

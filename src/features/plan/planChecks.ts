@@ -4,7 +4,8 @@
 // the second contradicts the first; nothing is dropped or corrected, the plan
 // uses its own number either way. The offline line says whether an offline
 // practice's rules have met an online session yet. Pure.
-import type {SessionType} from '@/src/data/sessions';
+import {usage} from '@/src/analysis/fuelPlan';
+import type {PlanBlock, SessionSummary, SessionType} from '@/src/data/sessions';
 
 import type {RuleSession, RuleSet} from './ruleSet';
 
@@ -26,6 +27,30 @@ export type CheckRun = RuleSession & {
   /** The median litres of its green laps; null when it carries no lap rows (only the newest sessions do). */
   fuelPerLapL: number | null;
 };
+
+/** A session of the combo as the rule sets and the checks read it; null with no plan block (nothing to read). */
+export function checkRunOf(
+  s: SessionSummary,
+  plan: PlanBlock | null,
+): CheckRun | null {
+  const f = plan?.fuel;
+  if (!f) return null;
+  return {
+    id: s.id,
+    startedAt: s.startedAt,
+    sessionType: s.sessionType,
+    trackCar: `${s.trackId}|${s.car}`,
+    ratio: f.litresPerVePct,
+    stopRatio: f.litresPerVePctStop,
+    fillLimitL: f.fillLimitL,
+    tankL: f.tankL,
+    startL: f.startL,
+    online: s.online,
+    setupVePct: f.setupVePct,
+    setupVePerLapPct: f.setupVePerLapPct,
+    fuelPerLapL: usage((plan.laps ?? []).map(l => l.usedL))?.median ?? null,
+  };
+}
 
 /** One real run: the docs that recorded it, merged. */
 export type Run = {ids: string[]; run: CheckRun};
@@ -61,13 +86,16 @@ export type PlanChecks = {
  * capture's `tankL` is the car's own tank, the game file's is the event's.
  */
 export function collapseTwins(sessions: CheckRun[]): Run[] {
-  const byStart = [...sessions].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  const byStart = [...sessions].sort((a, b) =>
+    a.startedAt.localeCompare(b.startedAt),
+  );
   const groups: CheckRun[][] = [];
   for (const s of byStart) {
     const g = groups.find(
       x =>
         x[0].trackCar === s.trackCar &&
-        Math.abs(Date.parse(s.startedAt) - Date.parse(x[0].startedAt)) <= TWIN_WINDOW_S * 1000,
+        Math.abs(Date.parse(s.startedAt) - Date.parse(x[0].startedAt)) <=
+          TWIN_WINDOW_S * 1000,
     );
     if (g) g.push(s);
     else groups.push([s]);
@@ -134,25 +162,38 @@ export function planChecks({
   };
 }
 
-// str × 100 is the source's own number; its second source is maxValue (equal
-// when the event caps the fill) or another run of the set. Another run of the
-// set with a different cap contradicts it.
+// Max fuel is the setup's `VM_FUEL_LEVEL.maxValue`. In a week that caps the
+// fill it equals the setup string's str × 100, a second reading in the same
+// file; in an uncapped week it is the car's tank and str × 100 is only what he
+// chose to load (Imola 07-21: 84 and 89 L in one week, maxValue 115 both), so
+// that never counts or contradicts. Either way another run of the set must
+// carry the same maxValue to confirm it and a different one disagrees. A run
+// with no str × 100 is a live capture, whose tank is the car's own 117 L even
+// in a 73 L week: it is no source (thread 104 #7399).
 function maxFuelCheck(source: Run | null, setRuns: Run[]): FactCheck {
-  const limit = source?.run.fillLimitL ?? null;
-  if (source == null || limit == null) return {value: null, state: null};
-  const equal = (l: number | null) => l != null && Math.abs(l - limit) <= MAX_FUEL_EQUAL_L;
-  const others = setRuns.filter(r => r !== source).map(r => r.run.fillLimitL);
-  const differs = others.some(l => l != null && !equal(l));
-  const agrees = equal(source.run.tankL) || others.some(equal);
-  return {value: limit, state: differs ? 'disagrees' : agrees ? 'checked' : 'one-source'};
+  const value = source?.run.tankL ?? null;
+  if (source == null || value == null || source.run.fillLimitL == null)
+    return {value: null, state: null};
+  const equal = (l: number) => Math.abs(l - value) <= MAX_FUEL_EQUAL_L;
+  const capped = equal(source.run.fillLimitL);
+  const others = setRuns
+    .filter(
+      r => r !== source && r.run.fillLimitL != null && r.run.tankL != null,
+    )
+    .map(r => r.run.tankL as number);
+  if (others.some(l => !equal(l))) return {value, state: 'disagrees'};
+  return {value, state: capped || others.length > 0 ? 'checked' : 'one-source'};
 }
 
 function fuelPerLapCheck(value: number | null, others: Run[]): FactCheck {
   if (value == null) return {value: null, state: null};
-  const theirs = others.flatMap(r => (r.run.fuelPerLapL != null ? [r.run.fuelPerLapL] : []));
+  const theirs = others.flatMap(r =>
+    r.run.fuelPerLapL != null ? [r.run.fuelPerLapL] : [],
+  );
   if (theirs.length === 0) return {value, state: 'one-source'};
   const against = median(theirs);
-  const within = Math.abs(value - against) / against <= FUEL_PER_LAP_TOLERANCE + 1e-9;
+  const within =
+    Math.abs(value - against) / against <= FUEL_PER_LAP_TOLERANCE + 1e-9;
   return {value, state: within ? 'checked' : 'disagrees'};
 }
 
@@ -165,7 +206,10 @@ function vePerLapCheck(
   const best = setRuns
     .filter(r => r.run.setupVePerLapPct != null && r.run.setupVePct != null)
     .reduce<Run | null>(
-      (a, r) => (a == null || (r.run.setupVePct as number) > (a.run.setupVePct as number) ? r : a),
+      (a, r) =>
+        a == null || (r.run.setupVePct as number) > (a.run.setupVePct as number)
+          ? r
+          : a,
       null,
     );
   const lmuPct = best?.run.setupVePerLapPct ?? null;
@@ -182,6 +226,12 @@ function offlineLine(setRuns: Run[]): OfflineLine | null {
   if (!setRuns.some(r => r.run.online === false)) return null;
   const online = setRuns.find(r => r.run.online === true);
   return online
-    ? {kind: 'matched', online: {startedAt: online.run.startedAt, sessionType: online.run.sessionType}}
+    ? {
+        kind: 'matched',
+        online: {
+          startedAt: online.run.startedAt,
+          sessionType: online.run.sessionType,
+        },
+      }
     : {kind: 'not-compared'};
 }

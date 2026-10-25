@@ -19,6 +19,7 @@ import {
   limitsOfPlan,
   veRatioFor,
 } from './model';
+import {checkRunOf} from './planChecks';
 import {eventsOf} from './planEvent';
 import {type RuleSet, ruleSetsOf} from './ruleSet';
 
@@ -72,29 +73,16 @@ export function usePlanLimits(
   eventKey: string | null = null,
 ) {
   const rows = usePlanRows(combo);
-  const events = useMemo(() => {
-    if (!combo) return [];
+  const {runs, events} = useMemo(() => {
+    if (!combo) return {runs: [], events: []};
     const ruleSessions = combo.sessions.flatMap(s => {
-      const f = rows.byId.get(s.id)?.plan?.fuel;
-      return f
-        ? [
-            {
-              id: s.id,
-              startedAt: s.startedAt,
-              sessionType: s.sessionType,
-              ratio: f.litresPerVePct,
-              stopRatio: f.litresPerVePctStop,
-              fillLimitL: f.fillLimitL,
-              tankL: f.tankL,
-              startL: f.startL,
-              online: s.online,
-              setupVePct: f.setupVePct,
-              setupVePerLapPct: f.setupVePerLapPct,
-            },
-          ]
-        : [];
+      const run = checkRunOf(s, rows.byId.get(s.id)?.plan ?? null);
+      return run ? [run] : [];
     });
-    return eventsOf(combo.sessions, ruleSetsOf(ruleSessions));
+    return {
+      runs: ruleSessions,
+      events: eventsOf(combo.sessions, ruleSetsOf(ruleSessions)),
+    };
   }, [combo, rows.byId]);
   const event = events.find(e => e.key === eventKey) ?? events[0] ?? null;
   const fuelOf = (id: string): SessionFuel | null =>
@@ -114,6 +102,8 @@ export function usePlanLimits(
   return {
     lastFuel,
     events,
+    /** Every session here as the rule sets and the checks read it (planChecks.ts). */
+    runs,
     event,
     rows,
     ...limitsOfPlan(

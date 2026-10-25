@@ -29,6 +29,7 @@ import {TrackCarPicker} from './components/TrackCarPicker';
 import {LoadTableCard} from './components/PlanCards';
 import {RaceCardView} from './components/RaceCardView';
 import {PerLapStripView} from './components/PerLapStripView';
+import {PlanChecksView} from './components/PlanChecksView';
 import {SavingCardView} from './components/SavingCardView';
 import {lastRaceLine} from './lastRace';
 import {
@@ -122,10 +123,8 @@ export function PlanScreen() {
   const meter = slider.meter;
   const perLap = useMemo(
     () =>
-      plan && rules
-        ? perLapStrip(plan, rules.rules, meter, hist.ratio?.perPctL ?? null)
-        : null,
-    [plan, rules, meter, hist.ratio],
+      plan ? perLapStrip(plan, meter) : null,
+    [plan, meter],
   );
   const saving = useMemo(
     () =>
@@ -382,6 +381,7 @@ export function PlanScreen() {
               ].filter((n): n is string => n != null)}
             />
           ) : null}
+          {data.checks ? <PlanChecksView text={data.checks} /> : null}
           {data.cards ? (
             <PlanCard title='Race'>
               <RaceCardView card={data.cards.race} />
