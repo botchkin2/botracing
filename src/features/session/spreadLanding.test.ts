@@ -5,7 +5,7 @@ import {segmentTimesFor, topSpreadCorner} from '@/src/data/sessions';
 import {laps, map} from '@/src/data/sessions/__fixtures__/spreadSet';
 
 import {sectionTable} from './model';
-import {spreadRows} from './spreadRows';
+import {spreadRows, varyOf} from './spreadRows';
 
 // The corner the Corner tab opens on and the first SPREAD row he sees are of
 // the same laps: one basis (analysis/lapBasis.ts), one section-to-corner map.
@@ -24,6 +24,7 @@ describe('the Corner landing and the first SPREAD row', () => {
         times,
         basis,
         sectionTable(times, basis, track),
+        varyOf(times, basis),
       );
       expect(rows.length).toBeGreaterThan(0);
       const first = rows.find(r => r.corner != null);

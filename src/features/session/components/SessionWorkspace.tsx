@@ -253,6 +253,7 @@ export function SessionWorkspace({
                 id={sessionId}
                 day={day}
                 ticked={selection.laps}
+                spread={model.spread}
                 onTap={lapId =>
                   onSelectionChange({
                     ...selection,

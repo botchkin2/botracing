@@ -65,7 +65,14 @@ import {
 } from './trafficFacts';
 import {isCompound} from '@/src/data/sessions/corners';
 import {type BrakeRow, brakeLedger} from './brakeLedger';
-import {type SpreadBlock, spreadRows} from './spreadRows';
+import {sessionGrid} from './grid';
+import {
+  type SpreadBlock,
+  type SpreadCell,
+  spreadColumns,
+  spreadRows,
+  varyOf,
+} from './spreadRows';
 import {MIN_COMPARISON_LAPS} from '@/src/analysis/setStats';
 
 // Session screen view model (handoff §2). buildSessionModel is pure: session,
@@ -142,6 +149,12 @@ export type LapRowModel = {
   sectors: {value: string; best: boolean}[];
   /** One cell per section, in the order of `SessionScreenModel.sections.heads` (the desktop table). */
   sections: {value: string; best: boolean}[];
+  /**
+   * The phone table's cells, one per section in the same order: this lap's time in the section minus the section's
+   * median over the basis laps (grid.ts, the number the grid shows); null where the lap has no time or the section
+   * has under two basis laps. Empty without section times.
+   */
+  sectionDeltas: (number | null)[];
   tags: Tag[];
   comparable: boolean;
   selIndex: number | null;
@@ -181,22 +194,11 @@ export type DetailModel = {
   action: 'add' | 'remove';
 };
 
-/** One stint the tray can select in a tap (D16/D17): its comparable laps. */
-export type StintPick = {
-  n: number;
-  /** "2", under a Stint label (S1-S3 are the sector heads). */
-  label: string;
-  lapIds: string[];
-  /** The selection is exactly this stint's comparable laps. */
-  active: boolean;
-};
-
+/** The compare tray: one line, "9 laps · Compare →". A stint is picked from its own line in the table. */
 export type TrayModel = {
   laps: {lapId: string; selIndex: number}[];
   label: string;
   count: number;
-  /** Two or more stints with comparable laps; empty otherwise (one stint is already the default set). */
-  stints: StintPick[];
 };
 
 /** The desktop Laps table's section columns: their heads, and the median, best and spread rows under it. */
@@ -437,14 +439,16 @@ function cellsOf(
 }
 
 /**
- * The heads and the median, best and IQR rows of the section columns, over
- * the basis laps: the same numbers as the grid heads (selectionStats.ts), so
- * the two never disagree. Tow and traffic are flags, never exclusions.
+ * The heads and the median, best and spread rows of the section columns, over
+ * the basis laps: the median and best are the grid heads' (selectionStats.ts),
+ * the spread is the Varies most block's (spreadRows.ts), so a section has one
+ * answer to "how much does it vary". Tow and traffic are flags, never exclusions.
  */
 export function sectionTable(
   times: SegmentTimes | null,
   basis: ReadonlySet<string>,
   map?: TrackMapData | null,
+  spread: readonly (SpreadCell | null)[] = [],
 ): SectionTable | null {
   if (!times) return null;
   const stats = segmentBasisStats(times, basis);
@@ -476,9 +480,23 @@ export function sectionTable(
     footer: [
       row('Median', s => s.medianS),
       row('Best', s => s.bestS),
-      row('IQR', s => s.spreadS),
+      spreadFooter(times.segments.length, spread),
     ],
   };
+}
+
+/** The footer's spread row: the seconds of the Varies most block; a section named for its offs says so, with no seconds. */
+function spreadFooter(
+  sections: number,
+  spread: readonly (SpreadCell | null)[],
+): {label: string; cells: string[]} {
+  const cells = Array.from({length: sections}, (_, i) => {
+    const c = spread[i];
+    if (!c) return dash;
+    return c.offsShort ?? c.seconds?.replace(' s', '') ?? dash;
+  });
+  const pooled = spread.some(c => c?.pooled);
+  return {label: pooled ? 'Spread (pooled)' : 'Spread', cells};
 }
 
 /** "Rebuilt from the game file" and, on a tap, when and which stretches. */
@@ -546,6 +564,17 @@ export function buildSessionModel(
     : null;
   const sectorCells = cellsOf(sectorTimes, basis, 1);
   const sectionCells = cellsOf(sectionTimes, basis, 2);
+  // The phone's colour cells: each lap's gap to its section's basis median, the grid's number (grid.ts).
+  const deltasOf = new Map(
+    sectionTimes
+      ? sessionGrid(sectionTimes, new Set(selection.laps)).rows.map(r => [
+          r.lapId,
+          r.cells.map(c => c.deltaS),
+        ])
+      : [],
+  );
+  // A lap the section times leave out still has its cells, empty.
+  const noDeltas = (sectionTimes?.segments ?? []).map(() => null);
   const stintLines = new Map(
     stintNumbers(laps, basis, sectionTimes).map(s => [s.stint, s]),
   );
@@ -628,7 +657,8 @@ export function buildSessionModel(
     if (line?.lapTimes.medianS != null) {
       bits.push(`med ${formatLapTime(line.lapTimes.medianS)}`);
       if (line.n > 1 && line.lapTimes.spreadS != null)
-        bits.push(`IQR ${line.lapTimes.spreadS.toFixed(2)} s`);
+        // A no-break space keeps the number with its unit when the line wraps at 375.
+        bits.push(`spread ${line.lapTimes.spreadS.toFixed(2)} s`);
       bits.push(`of ${line.n}`);
     }
     const split = stintTrafficText(stintLaps);
@@ -657,6 +687,7 @@ export function buildSessionModel(
         gapFaster: gap != null && gap < 0,
         sectors: sectorCells(l.id),
         sections: sectionCells(l.id),
+        sectionDeltas: deltasOf.get(l.id) ?? noDeltas,
         tags: tagsFor(l, bestLapId),
         comparable: l.comparable,
         selIndex: selIndexOf(l.id),
@@ -685,28 +716,26 @@ export function buildSessionModel(
   };
 
   const selected = checked;
-  const stints = stintPicks(rows, selection.laps);
-  // The tray stays while there are stints to pick, even with nothing selected.
-  const tray: TrayModel | null =
-    selected.length || stints.length
-      ? {
-          laps: selected.map(l => ({
-            lapId: l.id,
-            selIndex: slotOf.get(l.id) as number,
-          })),
-          count: selected.length,
-          label:
-            selected.length === 0
-              ? ''
-              : selected.length <= 3
-              ? selected.map(l => lapLabel(l.lapNo)).join(' · ')
-              : `${selected.length} laps`,
-          stints,
-        }
-      : null;
+  const tray: TrayModel | null = selected.length
+    ? {
+        laps: selected.map(l => ({
+          lapId: l.id,
+          selIndex: slotOf.get(l.id) as number,
+        })),
+        count: selected.length,
+        label: `${selected.length} ${selected.length === 1 ? 'lap' : 'laps'}`,
+      }
+    : null;
 
   const bestLap = laps.find(l => l.id === bestLapId);
-  const sections = sectionTable(sectionTimes, basis, map);
+  // One answer per section to "how much does it vary": the Varies most rows, the grid's Varies row and the footer read it.
+  const vary = varyOf(sectionTimes, basis, pool);
+  const sections = sectionTable(
+    sectionTimes,
+    basis,
+    map,
+    sectionTimes ? spreadColumns(sectionTimes, vary) : [],
+  );
   const trafficPace = day ? [] : trafficPaceFacts(session, basisLaps);
   const pitCard = day ? null : buildPitCard(session.sessionType, laps, session);
   const fuelUse = day ? null : buildFuelUseCard(session, laps);
@@ -751,12 +780,16 @@ export function buildSessionModel(
         value: timeOrDash(median),
         basis: basisTimes.n > 0 ? `of ${basisTimes.n}` : undefined,
       },
+      // The IQR of the same basis laps as the Median and the stint lines (selectionStats.ts): one number, one set.
+      ...(basisTimes.spreadS != null
+        ? [{label: 'Spread', value: `${basisTimes.spreadS.toFixed(2)} s`}]
+        : []),
       ...trafficPace,
     ],
     optimum: optimumFacts([...stintLines.values()], stintCount),
     optimumLines: optimumLines([...stintLines.values()], stintCount),
     sections,
-    spread: spreadRows(sectionTimes, basis, sections, pool),
+    spread: spreadRows(sectionTimes, basis, sections, vary),
     brake: brakeLedger(laps, basis, bySections ? map : null),
     chart,
     noComparable,
@@ -947,28 +980,4 @@ export function gridCellTargetOf(
   if (!t || t.corner == null) return null;
   // The set is unchanged: the tapped lap is only highlighted.
   return {corner: t.corner, whole: t.whole, laps: checked};
-}
-
-/**
- * The stints the tray offers (D16/D17: pick a stint, compare, untick an
- * outlier, three taps): each stint header's comparable laps, when two or more
- * stints have any. A stint is active when the selection is exactly its laps,
- * in any order.
- */
-export function stintPicks(rows: RowModel[], selected: string[]): StintPick[] {
-  const picks = rows.flatMap(r =>
-    r.kind === 'stint' && r.lapIds.length > 0 ? [r] : [],
-  );
-  if (picks.length < 2) return [];
-  const chosen = new Set(selected);
-  return picks.map(r => {
-    const n = Number(r.key.slice('stint-'.length));
-    return {
-      n,
-      label: String(n),
-      lapIds: r.lapIds,
-      active:
-        r.lapIds.length === chosen.size && r.lapIds.every(id => chosen.has(id)),
-    };
-  });
 }

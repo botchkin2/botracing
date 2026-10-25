@@ -11,11 +11,7 @@ import fixture from './__fixtures__/roadAtlantaRace.json';
 import {buildStintTable} from './desktopModel';
 import {sessionGrid} from './grid';
 import {buildSessionModel} from './model';
-import {
-  lapTimeStats,
-  segmentBasisStats,
-  stintNumbers,
-} from './selectionStats';
+import {lapTimeStats, segmentBasisStats, stintNumbers} from './selectionStats';
 
 // Road Atlanta race, 2026-09-26: 22 laps, 16 comparable; stint 1 = L1–L17
 // (13 comparable), stint 2 = L18–L22 (3 comparable). Sector times on every lap.
@@ -104,9 +100,9 @@ describe('one answer per question (decision 2026-10-11)', () => {
     expect(stintLabel(after)).not.toEqual(stintLabel(before));
     expect(after.chart!.bars).not.toEqual(before.chart!.bars);
     // The session facts (laps, comparable, best) do not move: they are what
-    // happened. The head's Median is a comparison, so it moves with the ticks.
+    // happened. The head's Median and Spread are comparisons, so they move with the ticks.
     const facts = (m: ReturnType<typeof model>) =>
-      m.facts.filter(f => f.label !== 'Median');
+      m.facts.filter(f => f.label !== 'Median' && f.label !== 'Spread');
     expect(facts(after)).toEqual(facts(before));
     const medianFact = (m: ReturnType<typeof model>) =>
       m.facts.find(f => f.label === 'Median')?.value;
@@ -119,7 +115,7 @@ describe('one answer per question (decision 2026-10-11)', () => {
     expect(medianFact(after)).not.toBe(medianFact(before));
   });
 
-  it('the stint line, the Median fact and the Stints panel give one median, IQR and count', () => {
+  it('the stint line and the Stints panel give one median, spread and count', () => {
     const m = model(less);
     const picked = stint1.filter(l => l.id !== worst.id);
     const stats = lapTimeStats(picked);
@@ -127,7 +123,9 @@ describe('one answer per question (decision 2026-10-11)', () => {
     const stint = m.rows.find(r => r.kind === 'stint');
     expect(stint).toMatchObject({
       label: expect.stringContaining(
-        `med ${median} · IQR ${(stats.spreadS as number).toFixed(2)} s · of 12`,
+        `med ${median} · spread ${(stats.spreadS as number).toFixed(
+          2,
+        )} s · of 12`,
       ),
     });
     expect(m.optimum.find(f => f.label.startsWith('Median'))?.value).toBe(
@@ -146,12 +144,27 @@ describe('one answer per question (decision 2026-10-11)', () => {
     const ticks = new Set(less);
     const grid = sessionGrid(times, ticks);
     const table = model(less).sections!;
-    const [medians, bests, iqrs] = table.footer;
+    const [medians, bests, spreads] = table.footer;
+    const stats = segmentBasisStats(times, new Set(ticks));
     grid.columns.forEach((c, i) => {
       expect(medians.cells[i]).toBe((c.medianS as number).toFixed(2));
       expect(bests.cells[i]).toBe((c.bestS as number).toFixed(2));
-      expect(iqrs.cells[i]).toBe((c.spreadS as number).toFixed(2));
+      // Twelve basis laps need no earlier session: the Varies most block's seconds are the column's own IQR.
+      expect(spreads.cells[i]).toBe((stats[i].spreadS as number).toFixed(2));
     });
+    const rows = model(less).rows.filter(r => r.kind === 'lap');
+    // Every lap row has a cell per section, a lap without times included (an empty cell, not the sector text).
+    for (const row of rows)
+      expect(row.kind === 'lap' && row.sectionDeltas).toHaveLength(
+        table.heads.length,
+      );
+    // The phone's colour cells are each lap's gap to that same median.
+    for (const row of grid.rows) {
+      const lapRow = rows.find(r => r.kind === 'lap' && r.lapId === row.lapId);
+      expect(lapRow?.kind === 'lap' && lapRow.sectionDeltas).toEqual(
+        row.cells.map(c => c.deltaS),
+      );
+    }
   });
 
   it('the lap gaps, the bars and the detail are against the same median as the strip', () => {

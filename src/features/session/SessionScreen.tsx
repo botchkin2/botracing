@@ -61,6 +61,7 @@ import {SetToggle} from './components/SetToggle';
 import type {SetKind} from './components/SetToggle';
 import {SpreadRows} from './components/SpreadRows';
 import {SessionWorkspace} from './components/SessionWorkspace';
+import {CompactLapHeader, CompactLapRow} from './components/CompactLapRow';
 import {
   LapRow,
   LapTableHeader,
@@ -513,9 +514,6 @@ function SessionView({
       tray={model.tray}
       colorOf={i => colorOf(i)}
       onClear={() => onSelectionChange({laps: [], hl: selection.hl})}
-      onStint={lapIds =>
-        onSelectionChange({...selection, laps: replace(lapIds)})
-      }
       onCompare={() =>
         router.push(compareHref(sessionId, {laps: selection.laps, set}))
       }
@@ -531,6 +529,7 @@ function SessionView({
 
   // Which section columns open something: the game's sectors and the start straight do not.
   const sectionTaps = sectionTapsOf(model.sections);
+  const sectionHeads = model.sections?.heads ?? model.sectorHeads;
   const renderRow = (item: RowModel, width: number, wide = false) =>
     item.kind === 'note' ? (
       <NoteRow
@@ -551,6 +550,20 @@ function SessionView({
           item.sessionId
             ? () => router.push(sessionHref(item.sessionId as string))
             : undefined
+        }
+      />
+    ) : !layout.isDesktop ? (
+      <CompactLapRow
+        row={item}
+        width={width}
+        heads={sectionHeads}
+        lapColor={item.selIndex != null ? colorOf(item.selIndex) : undefined}
+        onPress={() => highlight(item.lapId, false)}
+        onToggle={() =>
+          onSelectionChange({
+            ...selection,
+            laps: toggle(selection.laps, item.lapId),
+          })
         }
       />
     ) : (
@@ -686,38 +699,46 @@ function SessionView({
                   />
                 </View>
                 <View style={styles.section}>
-                  <LapTableHeader
-                    width={tableW}
-                    heads={model.sections?.heads ?? model.sectorHeads}
-                    headTaps={sectionTaps}
-                    onHeadPress={i => {
-                      const href = sectionHeadHref(
-                        sessionId,
-                        model.sections,
-                        i,
-                        selection.laps,
-                        set,
-                      );
-                      if (href) router.push(href);
-                    }}
-                  />
+                  {layout.isDesktop ? (
+                    <LapTableHeader
+                      width={tableW}
+                      heads={sectionHeads}
+                      headTaps={sectionTaps}
+                      onHeadPress={i => {
+                        const href = sectionHeadHref(
+                          sessionId,
+                          model.sections,
+                          i,
+                          selection.laps,
+                          set,
+                        );
+                        if (href) router.push(href);
+                      }}
+                    />
+                  ) : (
+                    <CompactLapHeader width={tableW} heads={sectionHeads} />
+                  )}
                 </View>
               </>
             }
             ListFooterComponent={
               <View style={[styles.footer, {width: tableW}]}>
-                {/* The grid comes after the lap table (Botkin, 2 Oct screenshots). */}
-                <SessionGrid
-                  id={sessionId}
-                  day={day}
-                  ticked={selection.laps}
-                  onTap={lapId =>
-                    onSelectionChange({
-                      ...selection,
-                      laps: toggle(selection.laps, lapId),
-                    })
-                  }
-                />
+                {/* The grid comes after the lap table (Botkin, 2 Oct screenshots). The phone's lap table
+                    already colors every lap by section, so it has no second table. */}
+                {layout.isDesktop ? (
+                  <SessionGrid
+                    id={sessionId}
+                    day={day}
+                    ticked={selection.laps}
+                    spread={model.spread}
+                    onTap={lapId =>
+                      onSelectionChange({
+                        ...selection,
+                        laps: toggle(selection.laps, lapId),
+                      })
+                    }
+                  />
+                ) : null}
                 {layout.isDesktop ? null : (
                   <FoldedSection title='Tags' summary={null}>
                     <TagKey />

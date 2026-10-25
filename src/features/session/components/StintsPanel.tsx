@@ -29,7 +29,7 @@ export function StintsPanel({rows}: {rows: StintTableRow[]}) {
           variant='tableHeader'
           tone='textMuted'
           style={{width: COL.spread}}>
-          IQR
+          Spread
         </Text>
       </View>
       {rows.map(r => (

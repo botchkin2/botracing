@@ -253,7 +253,7 @@ export function StintRow({
             variant='dataSmall'
             tone='accentInk'
             style={styles.stintLabel}
-            numberOfLines={1}>
+            numberOfLines={wide ? 1 : 2}>
             {row.label}
           </Text>
         </Pressable>
@@ -261,7 +261,7 @@ export function StintRow({
         <Text
           variant='dataSmall'
           style={[styles.stintText, styles.stintLabel]}
-          numberOfLines={1}>
+          numberOfLines={wide ? 1 : 2}>
           {row.label}
         </Text>
       )}
@@ -489,7 +489,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     alignSelf: 'center',
   },
-  stintLabel: {fontFamily: fonts.monoBold, fontSize: 10},
+  // Two lines fit the row (ROW_H): at 375 the numbers of a stint line run past one.
+  stintLabel: {fontFamily: fonts.monoBold, fontSize: 10, lineHeight: 12},
   stintText: {flexShrink: 1},
   // 10 pt like the tags: the longest line, a pit line with laps left and the
   // time in the pits, is 363 pt at 11 pt and the phone row is 343.

@@ -1,6 +1,6 @@
 import {basisOf} from '@/src/analysis/lapBasis';
 // The session as a spread grid: rows are laps, columns are sections. Each
-// column's median, best and IQR come from the basis laps (the ticked ones, or
+// column's median and best come from the basis laps (the ticked ones, or
 // the comparable ones with none ticked: selectionStats.ts), so ticking or
 // unticking a lap moves every median, and the desktop table under the lap list
 // reads the same numbers. An unticked lap stays a row, dimmed, compared with
@@ -22,16 +22,13 @@ export type GridColumn = {
   n: number;
   bestS: number | null;
   medianS: number | null;
-  spreadS: number | null;
-  /** The spread bar's length: this column's spread over the widest one, 0–1. */
-  barFraction: number;
 };
 
 export type GridCell = {
   timeS: number | null;
   /** Time minus the ticked median; null with no time or no median. */
   deltaS: number | null;
-  /** delta over this column's spread, held to ±1 (the colour). 0 with no spread. */
+  /** delta over this column's basis spread, held to ±1 (the colour only: the spread the screen prints is spreadRows.ts's). 0 with no spread. */
   unit: number;
   /** The fastest basis time in this section. */
   best: boolean;
@@ -51,7 +48,7 @@ export type GridRow = {
 };
 
 export type SessionGrid = {
-  /** Laps the column numbers are of: the head reads "Varies · N laps". */
+  /** Laps the column numbers are of. */
   basisCount: number;
   columns: GridColumn[];
   rows: GridRow[];
@@ -65,14 +62,11 @@ export function sessionGrid(
 ): SessionGrid {
   const basis = new Set(basisOf(times.laps, ticked).map(l => l.id));
   const stats = segmentBasisStats(times, basis);
-  const widest = Math.max(0, ...stats.map(s => s.spreadS ?? 0));
   const columns: GridColumn[] = times.segments.map((seg, i) => ({
     head: seg.label,
     n: stats[i].n,
     bestS: stats[i].bestS,
     medianS: stats[i].medianS,
-    spreadS: stats[i].spreadS,
-    barFraction: widest > 0 ? (stats[i].spreadS ?? 0) / widest : 0,
   }));
 
   const rows: GridRow[] = times.laps.map(lap => ({
