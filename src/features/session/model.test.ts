@@ -39,7 +39,7 @@ describe('buildSessionModel', () => {
       {label: 'Comparable', value: '16'},
       {label: 'Best', value: '1:20.763', best: true, basis: 'session'},
       {label: 'Median', value: '1:21.915', basis: 'of 16'},
-      {label: 'Clean median', value: 'No other cars recorded'},
+      {label: 'Other cars', value: 'none recorded'},
     ]);
   });
 
@@ -442,10 +442,33 @@ describe('trafficPaceFacts', () => {
     } as unknown as Lap);
   const clean = [lap(81, 0), lap(82, 0), lap(83, 0), lap(84, 0)];
 
-  it('says so when the session has no field', () => {
+  it('says so when the session has no field, under its own label', () => {
     expect(trafficPaceFacts(session, [lap(81, null)])).toEqual([
-      {label: 'Clean median', value: 'No other cars recorded'},
+      {label: 'Other cars', value: 'none recorded'},
     ]);
+  });
+
+  it('reads the stored reason, without the prefix its label carries', () => {
+    const say = (fieldMissing: string | null) =>
+      trafficPaceFacts({...session, fieldMissing}, [lap(81, null)]);
+    expect(say('Other cars: not recorded')).toEqual([
+      {label: 'Other cars', value: 'not recorded'},
+    ]);
+    expect(say('Other cars: recording doubted')).toEqual([
+      {label: 'Other cars', value: 'recording doubted'},
+    ]);
+    expect(say("Other cars: recording doesn't match the game file")).toEqual([
+      {label: 'Other cars', value: "recording doesn't match the game file"},
+    ]);
+  });
+
+  it('a session with a field never says it', () => {
+    expect(
+      trafficPaceFacts(
+        {...session, field, fieldMissing: 'Other cars: not recorded'},
+        [lap(81, null)],
+      ),
+    ).toEqual([]);
   });
 
   it('is left out for a field not yet analysed for traffic', () => {
