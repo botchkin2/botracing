@@ -101,20 +101,46 @@ type Actions = {
   setRate: (rate: PlayRate) => void;
 };
 
-// The phone opens on one chart, the pedals chart (round 3, pit-wall thread
-// 27); desktop always stacks every chart, so `view` does not touch it.
+// Compare opens on every chart stacked over the whole lap, the time diff first:
+// where the time goes is the first thing it shows (ticket 56, pit-wall thread
+// 115 #7604). One chart (the pedals chart over 2 s, `focused: 2`) stays one tap
+// away on the phone; desktop always stacks, so `view` does not touch it.
 const defaults: ComparePrefs = {
   charts: PRESETS[0].charts,
-  view: 'one',
+  view: 'stack',
   focused: 2,
   mapShown: true,
   mapMode: 'follow',
   mapZoom: 1,
   rightW: RIGHT_W_DEFAULT,
   windowMode: 'time',
-  windowStep: TIME_STEPS_S.indexOf(DEFAULT_WINDOW.time),
+  windowStep: 'lap',
   rate: 1,
 };
+
+/** Bump with a `migrate` step when a default changes: a changed default is a version, never a new storage name (that would drop his chart set, map zoom and column width). */
+export const COMPARE_PREFS_VERSION = 1;
+
+/**
+ * Saved prefs from an older version, brought up to date. From 0: the view and
+ * the window were the old defaults (One chart over 2 s), never his choice, so
+ * they take the new ones, mode and step together (`setWindowMode` resets the
+ * step); everything he did choose stays.
+ */
+export function migrateComparePrefs(
+  saved: unknown,
+  version: number,
+): Partial<ComparePrefs> {
+  const s = (saved ?? {}) as Partial<ComparePrefs>;
+  if (version < 1)
+    return {
+      ...s,
+      view: defaults.view,
+      windowMode: defaults.windowMode,
+      windowStep: defaults.windowStep,
+    };
+  return s;
+}
 
 export const useComparePrefs = create<ComparePrefs & Actions>()(
   persist(
@@ -143,6 +169,9 @@ export const useComparePrefs = create<ComparePrefs & Actions>()(
     {
       // v2: new default charts and view; older saved layouts are dropped.
       name: 'compare-prefs-v2',
+      version: COMPARE_PREFS_VERSION,
+      migrate: (saved, version) =>
+        migrateComparePrefs(saved, version) as ComparePrefs & Actions,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: s => ({
         charts: s.charts,
