@@ -604,7 +604,8 @@ function CompareView({
   );
 
   const grid = model.grid && !oneChart && (
-    <Section title={`Time per section vs ${model.tableReference.grid}`}>
+    // The phone's width holds this title on one line ("Time per section" ran past 375 at the longest reference).
+    <Section title={`Per section vs ${model.tableReference.grid}`}>
       <CornerGrid
         width={sideW}
         corners={model.grid.corners}
@@ -750,9 +751,7 @@ function CompareView({
           <Text variant='label' tone='textMuted'>
             {c.title}
           </Text>
-          <Skeleton
-            height={Math.round(oneChart ? oneChartH : stackedH(c))}
-          />
+          <Skeleton height={Math.round(oneChart ? oneChartH : stackedH(c))} />
         </View>
       ),
   );

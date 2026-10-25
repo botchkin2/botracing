@@ -204,6 +204,15 @@ const PEDALS_GAP_PX = 8;
 const STEER_BAND_PX = CHANNELS.steering.height;
 export const PEDALS_H = PEDALS_TOP_PX + PEDALS_GAP_PX + STEER_BAND_PX;
 
+/**
+ * Whether a chart's value row at the cursor says anything. A gap to the reference at 0 m is 0 for every lap by
+ * construction, so before the cursor has moved off the line the Time diff row reads nothing rather than
+ * "±0.000" under a chart that shows the opposite.
+ */
+export function readoutMeans(channel: ChannelId, cursorM: number): boolean {
+  return channel !== 'timeDiff' || cursorM > 0;
+}
+
 export function isPedalsChart(chs: ChannelId[]): boolean {
   return (
     chs.length === PEDALS_CHART.length &&

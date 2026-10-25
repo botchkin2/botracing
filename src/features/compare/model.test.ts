@@ -26,6 +26,7 @@ import {
   snapOut,
   cornerPlace,
   pedalsDomains,
+  readoutMeans,
   followPlace,
   type CompareSelection,
   clearRef,
@@ -119,6 +120,14 @@ const sel = (over: Partial<CompareSelection> = {}): CompareSelection => ({
 
 const build = (s = sel()) =>
   buildCompareModel({session, laps, traces, band: null, map, selection: s});
+
+describe('readoutMeans', () => {
+  it('a Time diff row means nothing at 0 m, where every gap is 0; the other channels always do', () => {
+    expect(readoutMeans('timeDiff', 0)).toBe(false);
+    expect(readoutMeans('timeDiff', 5)).toBe(true);
+    expect(readoutMeans('speed', 0)).toBe(true);
+  });
+});
 
 describe('overview scales fit the comparable laps', () => {
   it('a non-comparable lap off the fitted range is clipped and named, not stretched over', () => {
