@@ -28,6 +28,7 @@ jest.mock('../desktopModel', () => ({useSessionDesktopModel: () => null}));
 jest.mock('./EnergyLineRow', () => ({EnergyLineRow: () => null}));
 jest.mock('./SpreadRows', () => ({SpreadRows: () => null}));
 jest.mock('./BrakeLedger', () => ({BrakeLedger: () => null}));
+jest.mock('./ClassPaceBlock', () => ({ClassPaceBlock: () => null}));
 jest.mock('./LapTableRow', () => ({
   LapTableHeader: () => null,
   SectionFooter: () => null,

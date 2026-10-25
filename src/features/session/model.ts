@@ -52,6 +52,7 @@ import {optimumFacts} from './optimumFacts';
 import {type OptimumLine, optimumLines} from './optimumLines';
 import {lapTimeStats, segmentBasisStats, stintNumbers} from './selectionStats';
 import {energyLine, type EnergyLine} from './energyLine';
+import {type ClassPaceDoc} from '@/src/analysis/classPace';
 import {classMedianFacts} from './classMedianFact';
 import {classTable, type ClassTable} from './classTable';
 import {buildPitCard, type PitCard} from './pitCard';
@@ -246,6 +247,8 @@ export type SessionScreenModel = {
   /** Energy at the start and end of the session, one line under the facts; null without readings. */
   energy: EnergyLine | null;
   /** The fastest cars of each class, from the field; null without it or before the session is analysed with it. */
+  /** Other drivers' pace by class (the Class pace block); null without it, and for a day. */
+  classPace: ClassPaceDoc | null;
   classTable: ClassTable | null;
   /** Races with a stop only. */
   pitCard: PitCard | null;
@@ -800,6 +803,8 @@ export function buildSessionModel(
     rows,
     detail,
     tray,
+    // Every driver's pace by class from the game's results file replaces the class table where it exists (ticket 20).
+    classPace: day ? null : session.classPace,
     classTable: day
       ? null
       : classTable(session.classBests, bestLap?.timeS ?? session.bestTimeS),
