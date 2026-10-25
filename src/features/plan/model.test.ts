@@ -500,7 +500,6 @@ describe('an iRacing history: every lap has no VE', () => {
     const hasVe = !fuelOnly(history);
     expect(hasVe).toBe(false);
     expect(rulesCells(rules, hasVe).map(c => c.label)).toEqual([
-      'Max fuel',
       'Mandatory',
       'Formation',
     ]);

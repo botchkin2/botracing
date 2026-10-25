@@ -387,10 +387,8 @@ export function rulesCells(
 ): RulesCell[] {
   if (!rules) return [];
   return [
-    // no load known (VE alone): no Max fuel cell
-    ...(rules.fuelL != null
-      ? [{label: 'Max fuel', value: `${rules.fuelL} L`}]
-      : []),
+    // Max fuel is the facts line's (planChecks.ts): this block never repeats it
+    // under the same name with the load the plan uses (thread 104 #7403)
     ...(hasVe ? [{label: 'Max VE', value: `${rules.vePct} %`}] : []),
     {
       label: 'Mandatory',
