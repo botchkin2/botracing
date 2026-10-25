@@ -82,7 +82,14 @@ export const STEPS = [
     job: 'capture',
     name: 'Recovery tool tests',
     cwd: 'tools/recover',
-    cmd: 'uv run --with numpy --with pytest pytest -q',
+    cmd: 'uv run --locked --group dev pytest -q',
+    when: /^tools\/recover\//,
+  },
+  {
+    job: 'capture',
+    name: 'Recovery tool: apply guards',
+    cwd: 'tools/recover',
+    cmd: 'node --test applyField.test.cjs',
     when: /^tools\/recover\//,
   },
   {

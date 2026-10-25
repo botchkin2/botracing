@@ -10,7 +10,8 @@ A qualifying has no progress order (it ranks by best lap), so its place is the b
 (--kind, read from the XML's <Qualify>/<Race> block when not given); laps follow the XML's lap numbers (a
 qualifying's out lap has no row and ended before the replay's first tick).
 Read-only: reads the .Vcr, the surface JSON and the results XML, writes a JSON file and a report.
-Run: uv run --with numpy python -I tools/recover/vcrField.py --vcr R.Vcr --surface surf.json --xml results.xml --out field.json
+Run (from tools/recover): uv run --locked python vcrField.py --vcr R.Vcr --game session.duckdb --player <replay id> --player-best <s> --xml results.xml --out field.json
+(--game gives the centre path in the game's own axis and the alignment the field file carries; --surface is the fallback without one)
 The record layout is rumble's (pit wall thread 94 #6231): slice = float32 time + uint16 count, event header
 uint32 (driver = h&0xff, size = (h>>8)&0x1ff, type = (h>>17)&0x3f, class = h>>29), +1 byte, payload; a car state
 is class 0, type 7..16, size 65: info1 u32 @5 (bit 17 = pit), x,y,z,rot x,y,z float32 @46.
@@ -61,7 +62,7 @@ def centre_from_surface(path):
     step = 10.0
     C = [(b * step + step / 2, bn['sx'] / bn['n'], bn['sy'] / bn['n']) for b, bn in enumerate(bins) if bn['n'] > 0]
     length = float(S['length']) if 'length' in S else float(S['lengthM'])
-    return np.array(C), length
+    return np.array(C), length, None
 
 
 def centre_from_game(path):
@@ -78,6 +79,9 @@ def centre_from_game(path):
     lat, lon, ld, pl = ch('GPS Latitude'), ch('GPS Longitude'), ch('Lap Dist'), ch('Path Lateral')
     n = min(len(lat), len(ld), len(pl))
     lat, lon, ld, pl = lat[:n], lon[:n], ld[:n], pl[:n]
+    # the session clock of each of those 10 Hz samples: GPS Time runs at 100 Hz, so it is read at the same fraction
+    gt = ch('GPS Time')
+    game = {'t': gt[np.minimum((np.arange(n) * len(gt) / n).astype(int), len(gt) - 1)], 'ld': ld.copy()}
     R = 6378137.0
     x = np.radians(lon) * R * math.cos(math.radians(60))
     y = np.radians(lat - 60) * R
@@ -97,7 +101,7 @@ def centre_from_game(path):
         m = b == i
         if m.sum() >= 3:
             out.append((i * step + step / 2, float(np.median(cx[ok][m])), float(np.median(cy[ok][m]))))
-    return np.array(out), L
+    return np.array(out), L, game
 
 
 def project(C, L, x, y):
@@ -131,6 +135,22 @@ def project(C, L, x, y):
         ld[s:s + 20000] = bld
         lat[s:s + 20000] = blat
     return ld, lat
+
+
+def align_m(game_t, game_ld, ticks, player_ld, L):
+    """How far the rebuilt field sits from the game file along the lap, as tools/sessions/field.mjs `alignment` measures a
+    captured field: the median of |the player's lap distance in the field minus the game file's| at the same session
+    time, in metres, wrapping at the lap length, rounded to 0.1. None under 10 comparable samples (never a guess)."""
+    gaps = []
+    for t, d in zip(game_t, game_ld):
+        k = int(round(t / TICK_S))
+        if not 0 <= k < len(ticks) or abs(ticks[k] - t) > 0.1 or np.isnan(player_ld[k]):
+            continue
+        g = abs(float(player_ld[k]) - float(d))
+        gaps.append(min(g, L - g))
+    if len(gaps) < 10:
+        return None
+    return round(float(np.median(gaps)), 1)
 
 
 def read_xml(path):
@@ -302,7 +322,7 @@ def main():
     a = ap.parse_args()
     R = read_vcr(a.vcr)
     ids = [int(i) for i in np.unique(R['drv'])]
-    C, L = centre_from_game(a.game) if a.game else centre_from_surface(a.surface)
+    C, L, game = centre_from_game(a.game) if a.game else centre_from_surface(a.surface)
     cent = ("the player's own laps in the game file (%d points, lap length %.1f m)" % (len(C), L)) if a.game else 'the stored surface'
     drivers = read_xml(a.xml)
     kind = a.kind or read_kind(a.xml)
@@ -335,6 +355,11 @@ def main():
     rep.append('centre path from ' + cent)
     rep.append('session kind: %s' % kind)
     rep.append('cars in the replay: %s (xml drivers: %d)' % (sorted(cars), len(drivers)))
+
+    align = None
+    if game is not None and a.player in cars:
+        align = align_m(game['t'], game['ld'], ticks, cars[a.player]['ld'], L)
+    rep.append('alignment to the game file (median |lap distance, field minus game file|, the player): %s' % ('%.1f m' % align if align is not None else 'not measured (no game file, no --player, or under 10 samples)'))
 
     def crossings(ld, start_of):
         # A crossing counts only after the car has been past mid-lap since the last one: a car
@@ -452,6 +477,8 @@ def main():
 
     field = {'v': 2, 'hz': 5, 'et0': 0.0, 'tDs': [int(round(t * 10)) for t in ticks], 'cars': [], 'lapDistDm': [],
              'pathLateralDm': [], 'xDm': [], 'zDm': [], 'yawCrad': [], 'place': [], 'laps': [], 'inPits': [], 'flag': []}
+    if align is not None:
+        field['alignM'] = align  # measured against the player's own game file; applyField.cjs refuses a file without it
     for i, d in enumerate(order):
         c = cars[d]
         j = assign.get(d)

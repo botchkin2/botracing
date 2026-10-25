@@ -109,3 +109,19 @@ def test_the_xml_gives_the_kind_and_the_lap_numbers(tmp_path):
     assert v.read_kind(str(p)) == 'race'
     p.write_text(xml.replace('Qualify', 'Practice1'))
     assert v.read_kind(str(p)) == 'practice'
+
+
+def test_the_alignment_is_the_median_lap_distance_gap_at_the_same_time_and_wraps_at_the_lap():
+    L = 5800.0
+    ticks = np.arange(0.0, 100.0, 0.2)
+    player_ld = (ticks * 50.0) % L
+    game_t = np.arange(0.0, 100.0, 0.1)
+    game_ld = (game_t * 50.0 + 2.0) % L  # 2 m ahead, and the laps wrap a few samples apart
+    assert v.align_m(game_t, game_ld, ticks, player_ld, L) == 2.0
+
+
+def test_the_alignment_is_none_under_ten_comparable_samples():
+    ticks = np.arange(0.0, 100.0, 0.2)
+    player_ld = np.full(len(ticks), np.nan)
+    assert v.align_m(np.arange(0.0, 100.0, 0.1), np.zeros(1000), ticks, player_ld, 5800.0) is None
+    assert v.align_m(np.array([1.0, 2.0]), np.zeros(2), ticks, np.zeros(len(ticks)), 5800.0) is None
