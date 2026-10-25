@@ -21,6 +21,7 @@ import {createCarLabels, declutterLabels, type LabelCandidate} from './carLabels
 import {createCarKit, type CarObject} from './carMeshes';
 import {createCameraRig} from './cameraRig';
 import {setCarRotation} from './carPose';
+import {fadedNow} from './fadeRule';
 import {buildInputsScene, type InputsScene} from './inputsScene';
 import {buildRoadScene, disposeGroup} from './roadScene';
 import {setWorld} from './sceneFrame';
@@ -30,9 +31,6 @@ const FOG_NEAR_M = 260;
 const FOG_FAR_M = 1500;
 const ON_ROAD_MARGIN_M = 3;
 /** A car whose pose moves further than this in one sample has been placed (pits, a rewind), not driven. */
-/** A car is see-through once nearer the camera than the followed car less this, solid again past it plus FADE_BAND_M. */
-const FADE_IN_M = 1;
-const FADE_BAND_M = 2;
 const LABELLED_CARS = 8;
 const LABEL_RANGE_M = 120;
 const LABEL_LIFT_M = 1.6;
@@ -91,7 +89,7 @@ export function mountChase(
   let inputs: InputsScene | null = null;
   let ribbon: ChaseRibbon | null = null;
   let inputIdx = -1;
-  let state: ChaseUpdate = {sample: () => [], timeS: 0, focus: null, playing: false, rate: 1, inputIdx: -1};
+  let state: ChaseUpdate = {sample: () => [], timeS: 0, focus: null, playing: false, rate: 1, inputIdx: -1, ghosts: false};
   let clock: ChaseClock = {timeS: 0, atMs: performance.now(), playing: false, rate: 1, appS: 0};
   let dirty = true;
   let alive = true;
@@ -253,15 +251,14 @@ export function mountChase(
       state.playing,
       state.rate,
     );
-    // a car nearer the camera than the followed one would hide it: draw it see-through
+    // a car nearer the camera than the followed one would hide it, and a ghost is never solid: draw it see-through
     const meObj = [...states].find(([, s]) => s === me)?.[0];
     const meAt = meObj !== undefined ? objects.get(meObj) : undefined;
     if (meAt) {
       const reach = camera.position.distanceTo(meAt.position);
       for (const [k, o] of objects) {
         const d = camera.position.distanceTo(o.position);
-        const faded = o.userData.faded ? d < reach - FADE_IN_M + FADE_BAND_M : d < reach - FADE_IN_M;
-        kit.fade(o, k !== meObj && faded);
+        kit.fade(o, fadedNow({followed: k === meObj, ghosts: state.ghosts, wasFaded: o.userData.faded === true, distM: d, reachM: reach}));
       }
     }
     const mine = me.car.player;

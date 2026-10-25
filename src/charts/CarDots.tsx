@@ -2,7 +2,7 @@ import {useMemo} from 'react';
 import {Circle, G, Rect, Text as SvgText} from 'react-native-svg';
 
 import {type Box, placeCarLabels} from '@/src/analysis/carLabels';
-import {fonts, lapColors, useTheme} from '@/src/design';
+import {fonts, ghostOpacity, lapColors, useTheme} from '@/src/design';
 
 import {type MapPoint} from './TrackMap';
 
@@ -17,6 +17,8 @@ export type MapCar = {
   radius: number;
   state: 'running' | 'pit' | 'stopped' | 'off';
   you: boolean;
+  /** Not on the track with the player (a qualifying): drawn faint, never labelled. */
+  ghost?: boolean;
   focused: boolean;
   /** Text next to the dot (R1e); no label when unset. */
   label?: string;
@@ -85,7 +87,7 @@ export function CarDots({
         const r = c.radius;
         const label = labelBoxes.get(c.key);
         return (
-          <G key={c.key}>
+          <G key={c.key} opacity={c.ghost ? ghostOpacity : 1}>
             {label && c.label && (
               <G>
                 <Rect

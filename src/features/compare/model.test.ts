@@ -1094,6 +1094,19 @@ describe('trafficLane', () => {
       selection: sel({laps: ['a', 'b']}),
     }).trafficLane;
 
+  it('is null in a qualifying even with the field and traffic stored: no car was in tow or in traffic', () => {
+    const q = {...fieldSession, sessionType: 'Q' as const};
+    const ls = toLaps([
+      withTraffic('a', {
+        fieldLapM: 2000,
+        aheadSpans: [{fromM: 200, toM: 400, s: 3}],
+      }),
+      withTraffic('b', {}),
+    ]);
+    expect(lanes(ls)?.kind).toBe('rows');
+    expect(lanes(ls, q)).toBeNull();
+  });
+
   it('says so for a session with no field', () => {
     expect(build().trafficLane).toEqual({kind: 'empty'});
   });
@@ -1214,6 +1227,20 @@ describe('laps of another session', () => {
 
 describe('which lap owns the radar', () => {
   const at = (s: Partial<CompareSelection>) => build(sel(s)).radarLap;
+
+  it('is null in a qualifying: its other cars are not on the track with you', () => {
+    const q = {...session, sessionType: 'Q' as const};
+    const m = buildCompareModel({
+      session: q,
+      laps,
+      traces,
+      band: null,
+      map,
+      selection: sel({hl: 'b'}),
+    });
+    expect(m.radarLap).toBeNull();
+    expect(at({hl: 'b'})).not.toBeNull();
+  });
 
   it('is null with the median and nothing highlighted', () => {
     expect(at({})).toBeNull();

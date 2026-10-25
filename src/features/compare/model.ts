@@ -1,4 +1,5 @@
 import {toggle} from '@/src/state/lapSelection';
+import {carsArePhysical} from '@/src/analysis/carsArePhysical';
 import {lapLabel} from '@/src/analysis/lapNumbering';
 import {nearestSample, type NativeSamples} from '@/src/analysis/nativeSamples';
 import {lateralText} from '@/src/charts/screenLateral';
@@ -1278,7 +1279,9 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
 
   const fixed = {
     mode,
+    // The radar, its list and the traffic lane read the other cars as physical neighbours; a qualifying has none.
     radarLap:
+      carsArePhysical(session) &&
       radarOwner &&
       radarOwner.lapNumber != null &&
       !foreignTags.has(radarOwner.id)
@@ -1296,7 +1299,9 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     chips,
     grid,
     sectionTicks,
-    trafficLane: trafficLaneOf(session, lapRefs, byId, lengthM),
+    trafficLane: carsArePhysical(session)
+      ? trafficLaneOf(session, lapRefs, byId, lengthM)
+      : null,
     stepM,
     lengthM,
     refGrid: refTrace ?? null,

@@ -51,6 +51,8 @@ type ChaseProps = {
   rate: number;
   inputs: ChaseInputs | null;
   gaps: ChaseGaps | null;
+  /** The other cars are not on the track with you (a qualifying): see-through in the scene, and the tower and the HUD print no gaps. */
+  ghosts: boolean;
   tower: TowerCar[];
   trackM: number;
   clockLabel: string;
@@ -84,7 +86,7 @@ export function ChaseView(props: ChaseProps) {
 
 /** The engine, made once for the life of the view, and the element its canvas lives in. */
 function useChaseEngine(
-  {road, sample, timeS, focus, playing, rate, inputs, onPressCar, embedded}: ChaseProps,
+  {road, sample, timeS, focus, playing, rate, inputs, ghosts, onPressCar, embedded}: ChaseProps,
   cam: CamValue,
   onFree: (free: boolean) => void,
   frames: {current: ((frame: ChaseFrame) => void) | null},
@@ -130,7 +132,7 @@ function useChaseEngine(
         made.setRoad(road);
         made.setCam(Number(cam) as ChaseCamMode);
         made.setInputs(inputs?.ribbon ?? null);
-        made.update({sample, timeS, focus, playing, rate, inputIdx: inputs?.now?.idx ?? -1});
+        made.update({sample, timeS, focus, playing, rate, inputIdx: inputs?.now?.idx ?? -1, ghosts});
         // the app's WebView waits under a dark cover until this: two frames on, the first one is on the screen
         if (embedded) requestAnimationFrame(() => requestAnimationFrame(() => !dead && postReady()));
       } catch (e) {
@@ -155,8 +157,8 @@ function useChaseEngine(
     engine.current?.setInputs(ribbon);
   }, [ribbon]);
   useEffect(() => {
-    engine.current?.update({sample, timeS, focus, playing, rate, inputIdx: inputs?.now?.idx ?? -1});
-  }, [sample, timeS, focus, playing, rate, inputs]);
+    engine.current?.update({sample, timeS, focus, playing, rate, inputIdx: inputs?.now?.idx ?? -1, ghosts});
+  }, [sample, timeS, focus, playing, rate, inputs, ghosts]);
   useEffect(() => {
     engine.current?.setCam(Number(cam) as ChaseCamMode);
   }, [cam]);
@@ -173,6 +175,7 @@ function ChaseSurface({
   rate,
   inputs,
   gaps,
+  ghosts,
   tower: towerCars,
   trackM,
   clockLabel,
@@ -237,17 +240,19 @@ function ChaseSurface({
   const followed = focus ?? me?.index ?? null;
   // A desktop: the tower floats over the corner, folded by its button. A phone: a strip above the canvas, always there,
   // and a list that opens under it on a tap.
+  // Ghosts have no road distance or interval to each other: the tower is the class order, with no gap column.
+  const mode: TowerMode = ghosts ? 'order' : towerMode;
   const tower = useMemo<TowerRow[]>(
-    () => (!tight && towerShown ? towerRows(towerCars, followed, towerMode, TOWER_ROWS, trackM) : []),
-    [tight, towerShown, towerCars, followed, towerMode, trackM],
+    () => (!tight && towerShown ? towerRows(towerCars, followed, mode, TOWER_ROWS, trackM, !ghosts) : []),
+    [tight, towerShown, towerCars, followed, mode, trackM, ghosts],
   );
   const strip = useMemo<TowerRow[]>(
-    () => (tight ? towerRows(towerCars, followed, towerMode, STRIP_ROWS, trackM) : []),
-    [tight, towerCars, followed, towerMode, trackM],
+    () => (tight ? towerRows(towerCars, followed, mode, STRIP_ROWS, trackM, !ghosts) : []),
+    [tight, towerCars, followed, mode, trackM, ghosts],
   );
   const list = useMemo<TowerRow[]>(
-    () => (tight && listOpen ? towerRows(towerCars, followed, towerMode, LIST_ROWS, trackM) : []),
-    [tight, listOpen, towerCars, followed, towerMode, trackM],
+    () => (tight && listOpen ? towerRows(towerCars, followed, mode, LIST_ROWS, trackM, !ghosts) : []),
+    [tight, listOpen, towerCars, followed, mode, trackM, ghosts],
   );
   const pick = (i: number) => {
     if (i !== me?.index) onPressCar(i);
@@ -335,7 +340,7 @@ function ChaseSurface({
       </View>
       {tower.length > 0 ? (
         <View style={styles.tower}>
-          <ChaseTower rows={tower} mode={towerMode} onMode={setTowerMode} onPick={pick} tight={false} />
+          <ChaseTower rows={tower} mode={mode} onMode={ghosts ? undefined : setTowerMode} onPick={pick} tight={false} />
         </View>
       ) : null}
       {turned && !listOpen ? (
@@ -364,8 +369,8 @@ function ChaseSurface({
         <View style={[styles.list, {top: canvasTop}]}>
           <ChaseTower
             rows={list}
-            mode={towerMode}
-            onMode={setTowerMode}
+            mode={mode}
+            onMode={ghosts ? undefined : setTowerMode}
             onPick={i => {
               setListOpen(false);
               pick(i);
@@ -405,10 +410,12 @@ function ChaseSurface({
           {!tight && gaps ? (
             <View style={styles.cell}>
               <Text variant='dataStrong'>{`${gaps.classTag} P${gaps.classPlace}`}</Text>
-              <View style={styles.cell}>
-                <Text variant='dataSmall' tone='textMuted'>{`▲ ${gaps.aheadS === null ? '–' : formatGap(-gaps.aheadS, 1)}`}</Text>
-                <Text variant='dataSmall' tone='textMuted'>{`▼ ${gaps.behindS === null ? '–' : formatGap(gaps.behindS, 1)}`}</Text>
-              </View>
+              {ghosts ? null : (
+                <View style={styles.cell}>
+                  <Text variant='dataSmall' tone='textMuted'>{`▲ ${gaps.aheadS === null ? '–' : formatGap(-gaps.aheadS, 1)}`}</Text>
+                  <Text variant='dataSmall' tone='textMuted'>{`▼ ${gaps.behindS === null ? '–' : formatGap(gaps.behindS, 1)}`}</Text>
+                </View>
+              )}
             </View>
           ) : null}
           {!tight && now ? (

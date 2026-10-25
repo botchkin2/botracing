@@ -94,7 +94,7 @@ export const Leaderboard = memo(function Leaderboard({
           Car
         </Text>
         <Text variant='tableHeader' tone='textMuted' style={styles.gap}>
-          {mode === 'race' ? 'Gap' : 'Road'}
+          {mode === 'race' ? 'Gap' : mode === 'field' ? 'Road' : ''}
         </Text>
         <Text variant='tableHeader' tone='textMuted' style={styles.status}>
           Pit

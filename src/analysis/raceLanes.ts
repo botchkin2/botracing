@@ -48,6 +48,12 @@ export interface RaceLanes {
   blueS: number[];
   /** Own-class passes; `made` is a pass by the player. */
   passes: {timeS: number; made: boolean}[];
+  /**
+   * Whether the other cars are on the track with the player, so tow, battle,
+   * blue flags and passes exist. False in a qualifying (`ownLanes`): only the
+   * pit lane and the lap lines are drawn.
+   */
+  cars: boolean;
 }
 
 const EMPTY: RaceLanes = {
@@ -59,7 +65,13 @@ const EMPTY: RaceLanes = {
   battle: [],
   blueS: [],
   passes: [],
+  cars: true,
 };
+
+/** The lanes of a session whose other cars are not on the track (`carsArePhysical`): the player's own pit lane and laps only. */
+export function ownLanes(lanes: RaceLanes): RaceLanes {
+  return {...lanes, tow: [], battle: [], blueS: [], passes: [], cars: false};
+}
 
 // Signed on-road distance from a to b, in (-L/2, L/2]: positive when b is
 // ahead of a.
@@ -172,6 +184,7 @@ export function raceLanes(field: Field, clock: RaceClock): RaceLanes {
     battle: spansOf(battle, field.timeS, dtS),
     blueS: blue,
     passes,
+    cars: true,
   };
 }
 

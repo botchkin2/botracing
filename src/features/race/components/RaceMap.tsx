@@ -79,6 +79,8 @@ export type RaceChase = {
   /** The player's recorded inputs for the lap in view; null until loaded. */
   inputs: ChaseInputs | null;
   gaps: ChaseGaps | null;
+  /** The other cars are not on the track with you (a qualifying): drawn see-through, with no gaps or road distances. */
+  ghosts: boolean;
   /** The cars for the timing tower, and the track's length (for road distances). */
   tower: TowerCar[];
   trackM: number;
@@ -189,6 +191,7 @@ export function RaceMap({
             radius: (d.player ? YOU_RADIUS : RADIUS[d.slot]) * scale,
             state: d.state === 'garage' ? 'running' : d.state,
             you: d.player,
+            ghost: d.ghost,
             focused: d.focused,
             label: labels === 'pos' ? d.label : undefined,
             labelRank: d.labelRank,
@@ -253,6 +256,7 @@ export function RaceMap({
             playing={chase.playing}
             inputs={chase.inputs}
             gaps={chase.gaps}
+            ghosts={chase.ghosts}
             tower={chase.tower}
             trackM={chase.trackM}
             clockLabel={chase.clockLabel}

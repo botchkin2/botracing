@@ -41,6 +41,8 @@ export function towerRows(
   mode: TowerMode,
   span: number,
   trackM: number,
+  /** False when the other cars are not on the track with the followed car (a qualifying): rows carry no gap. */
+  withGaps: boolean,
 ): TowerRow[] {
   const me = cars.find(c => c.index === followed);
   if (!me) return [];
@@ -67,7 +69,7 @@ export function towerRows(
     classTag: c.classTag,
     color: c.color,
     model: c.model,
-    gap: c === me ? '' : gapText(c, me, mode, trackM, classRun),
+    gap: c === me || !withGaps ? '' : gapText(c, me, mode, trackM, classRun),
     followed: c === me,
   }));
 }

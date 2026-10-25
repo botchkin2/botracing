@@ -44,6 +44,7 @@ export function ChaseView({width, height, timeS, playing, rate}: {
   rate: number;
   inputs: ChaseInputs | null;
   gaps: ChaseGaps | null;
+  ghosts: boolean;
   tower: TowerCar[];
   trackM: number;
   clockLabel: string;
