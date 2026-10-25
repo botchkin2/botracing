@@ -52,5 +52,19 @@ jobs:
       - name: Build functions
         run: cd functions && npm run build
 
+      # A transient Google error ("Container import failed", "Failed to list functions") failed 2 of the last 60 deploys,
+      # and the Hosting deploy and the OTA update wait on this one, so each cost three failure emails (pit-wall ticket
+      # 48). The deploy is idempotent: it runs once more after 30 s, and says what failed first as a warning
+      # annotation, so a flake that turns frequent still shows. A second failure is red as before.
       - name: Deploy Firebase Functions
-        run: firebase deploy --only functions,firestore --project botracing-61 --non-interactive
+        run: |
+          deploy() {
+            firebase deploy --only functions,firestore --project botracing-61 --non-interactive 2>&1 | tee deploy.log
+            return "${PIPESTATUS[0]}"
+          }
+          if ! deploy; then
+            why=$(sed 's/\x1b\[[0-9;]*m//g' deploy.log | grep -m1 -E 'Error:|Could not|Failed' | cut -c1-200)
+            echo "::warning::functions deploy retried after: ${why:-unknown error}"
+            sleep 30
+            deploy
+          fi
