@@ -10,8 +10,9 @@ import {Pressable, Segment, Text} from '@/src/ui';
 
 import {ChaseNearStrip} from '@/src/features/race/components/ChaseNearStrip';
 import {ChaseTower} from '@/src/features/race/components/ChaseTower';
-import {postReady} from '@/src/features/race/useEmbedClock';
+import {inAppWebView, postPan, postReady} from '@/src/features/race/useEmbedClock';
 import {DriverInputs} from '@/src/features/race/components/DriverInputs';
+import {GEAR_UNKNOWN, tightNumberRows} from '@/src/features/race/chase/numbersRows';
 import {type TowerCar, type TowerMode, type TowerRow, towerRows} from '@/src/features/race/chase/towerRows';
 import type {ChaseCamMode, ChaseCar, ChaseEngine, ChaseGaps, ChaseInputs, ChaseSampler} from '@/src/features/race/chase/chaseTypes';
 
@@ -118,7 +119,7 @@ function useChaseEngine(
       try {
         const {mountChase} = await import('../chase/chaseEngine');
         if (dead) return;
-        made = mountChase(host, {onPick: (i: number) => pick.current(i), theme, onFree});
+        made = mountChase(host, {onPick: (i: number) => pick.current(i), theme, onFree, onPan: embedded && inAppWebView() ? postPan : undefined});
         engine.current = made;
         made.setRoad(road);
         made.setCam(Number(cam) as ChaseCamMode);
@@ -374,8 +375,27 @@ function ChaseSurface({
             <DriverInputs brakePct={now.brakePct} throttlePct={now.throttlePct} steeringPct={now.steeringPct} tight={tight} />
           ) : null}
           <View style={[styles.numbers, tight && styles.numbersTight, {backgroundColor: color.surface, borderColor: color.lineStrong}]}>
-          {gaps ? (
-            <View style={[styles.cell, tight && styles.gapsTight]}>
+          {tight
+            ? tightNumberRows({
+                place: gaps ? `${gaps.classTag} P${gaps.classPlace}` : null,
+                gear: me.player === true ? (now ? gearLabel(now.gear) : GEAR_UNKNOWN) : null,
+                speed: `${Math.round(now ? now.speedKph : me.speedKmh)}`,
+              }).map((row, r) => (
+                <View key={r} style={styles.cell}>
+                  {row.map((cell, c) => (
+                    <Text
+                      key={c}
+                      variant={cell.tone === 'strong' ? 'dataStrong' : 'dataSmall'}
+                      tone={cell.tone === 'muted' ? 'textMuted' : undefined}
+                      style={cell.minCh ? ({minWidth: `${cell.minCh}ch`, textAlign: 'right'} as object) : undefined}>
+                      {cell.text}
+                    </Text>
+                  ))}
+                </View>
+              ))
+            : null}
+          {!tight && gaps ? (
+            <View style={styles.cell}>
               <Text variant='dataStrong'>{`${gaps.classTag} P${gaps.classPlace}`}</Text>
               <View style={styles.cell}>
                 <Text variant='dataSmall' tone='textMuted'>{`▲ ${gaps.aheadS === null ? '–' : formatGap(-gaps.aheadS, 1)}`}</Text>
@@ -383,17 +403,19 @@ function ChaseSurface({
               </View>
             </View>
           ) : null}
-          {now ? (
+          {!tight && now ? (
             <Text variant='dataStrong'>
               {gearLabel(now.gear)}
             </Text>
           ) : null}
-          <View style={styles.cell}>
-            <Text variant='dataStrong'>{`${Math.round(now ? now.speedKph : me.speedKmh)}`}</Text>
-            <Text variant='dataSmall' tone='textMuted'>
-              km/h
-            </Text>
-          </View>
+          {!tight ? (
+            <View style={styles.cell}>
+              <Text variant='dataStrong'>{`${Math.round(now ? now.speedKph : me.speedKmh)}`}</Text>
+              <Text variant='dataSmall' tone='textMuted'>
+                km/h
+              </Text>
+            </View>
+          ) : null}
           {!tight && hasHeight && grade !== null ? (
             <View style={styles.cell}>
               <Text variant='dataSmall' tone='textMuted'>
@@ -459,8 +481,7 @@ const styles = StyleSheet.create({
     minHeight: 32,
     justifyContent: 'space-between',
   },
-  numbersTight: {marginLeft: 'auto', flexDirection: 'column', alignItems: 'flex-end', gap: space.xs, width: size.chaseNumbersTight, paddingVertical: space.xs},
+  // Two rows (numbersRows.ts), as wide as the wider of them: the box's left edge stays clear of the car's rear.
+  numbersTight: {marginLeft: 'auto', flexDirection: 'column', alignItems: 'flex-end', gap: 0, paddingVertical: space.xs},
   cell: {flexDirection: 'row', alignItems: 'baseline', gap: space.xs},
-  // The place on one line, the two gaps under it: the column is 128 pt wide and a gap row of seven characters must not be cut.
-  gapsTight: {flexDirection: 'column', alignItems: 'flex-end', gap: 0},
 });
