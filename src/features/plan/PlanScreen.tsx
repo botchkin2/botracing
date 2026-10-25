@@ -16,6 +16,14 @@ import {
 import {sessionHref} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
 import {EmptyState, Pressable, Skeleton, StatusBanner, Text} from '@/src/ui';
+import {
+  comboCar,
+  comboTrack,
+  defaultCombo,
+  PLAN_HISTORY_DAYS,
+  planCombos,
+  resolveCombo,
+} from '@/src/workspace/planCombo';
 
 import {ClassTimingSection} from './components/ClassTimingSection';
 import {PitPlanCard} from './components/PitPlanCard';
@@ -36,18 +44,13 @@ import {
   pickerCombos,
   planState,
   planStateTitle,
-  resolveCombo,
   showsLapCards,
 } from './planState';
 import {effectiveUnit, type Unit} from './unit';
 import {
   carChoices,
   columnWidth,
-  comboCar,
-  comboTrack,
-  defaultCombo,
   parseNumber,
-  planCombos,
   rulesCells,
   startChips,
   trackChoices,
@@ -58,9 +61,6 @@ import {useClassTiming} from './useClassTiming';
 import {usePitSlider} from './usePitSlider';
 import {useLastRaceHere, usePlanData} from './usePlanData';
 
-// Every session he has driven, for the track and car choices.
-const ALL_TIME_DAYS = 3650;
-
 /**
  * The pre-race planner (pit wall thread 35): his own green laps at a track
  * and car, for one set of event rules, as numbers. It recommends nothing.
@@ -70,14 +70,14 @@ export function PlanScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const layout = useLayout();
-  const sessions = useSessions({ageDays: ALL_TIME_DAYS});
+  const sessions = useSessions({ageDays: PLAN_HISTORY_DAYS});
   const combos = useMemo(
     () => planCombos(sessions.data?.items ?? []),
     [sessions.data],
   );
-  // A link from a session opens the plan on its track and car.
-  const {combo: comboParam} = useLocalSearchParams<{combo?: string}>();
-  const [comboKey, setComboKey] = useState<string | null>(comboParam ?? null);
+  // The track and car in force live in the URL (a link from a session names one; a pick writes it), so the desktop
+  // bar reads the same one.
+  const {combo: comboKey = null} = useLocalSearchParams<{combo?: string}>();
   // The car decides the unit (thread 99, #6684): VE where the plan has it.
   const unit: Unit = 've';
   const combo = resolveCombo(combos, comboKey, defaultCombo(combos));
@@ -237,7 +237,7 @@ export function PlanScreen() {
         car={comboCar(combo)}
         tracks={trackChoices(pickerCombos(combos, combo), combo)}
         cars={carChoices(pickerCombos(combos, combo), combo)}
-        onPick={setComboKey}>
+        onPick={key => router.setParams({combo: key})}>
         {wide ? null : rulesBlock(true)}
       </TrackCarPicker>
       {!wide && lapCards && view?.stale ? (

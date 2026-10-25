@@ -143,6 +143,7 @@ function PhoneFrame({children}: {children: ReactNode}) {
   const plan = usePlanCombo(
     tab ? id ?? null : null,
     pathname.startsWith('/track/') ? id ?? null : null,
+    null,
     false,
   );
   const go = useWorkspaceGo({

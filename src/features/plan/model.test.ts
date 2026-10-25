@@ -10,14 +10,10 @@ import {
 } from '@/src/data/sessions';
 import {carLabel} from '@/src/design';
 import {newPreset} from '@/src/state/fuelPresets';
+import {type Combo, planCombos} from '@/src/workspace/planCombo';
 
 import {
-  carChoices,
-  type Combo,
-  comboCar,
   columnWidth,
-  comboTrack,
-  defaultCombo,
   driftRowOf,
   fuelOnly,
   greenLapsOf,
@@ -26,14 +22,11 @@ import {
   historySessions,
   lastFuelOf,
   limitsOfPlan,
-  planCombos,
   parseNumber,
   planView,
   rulesCells,
   rulesFor,
   sessionLimitL,
-  startChips,
-  trackChoices,
   undrivenPlanKey,
   veRatioFor,
 } from './model';
@@ -503,36 +496,6 @@ describe('an iRacing history: every lap has no VE', () => {
       'Mandatory',
       'Formation',
     ]);
-  });
-});
-
-describe('defaultCombo', () => {
-  const combo = (key: string, comparable: number[]): Combo => ({
-    key,
-    sim: 'lmu',
-    trackId: 't',
-    track: 't',
-    label: key,
-    car: 'c',
-    sessions: comparable.map((n, i) => ({
-      ...session(`${key}${i}`, '2026-09-20T10:00:00Z'),
-      comparableCount: n,
-    })),
-  });
-
-  it('opens on the newest track and car with enough laps for a median, not one driven for a lap', () => {
-    const combos = [combo('cadillac', [1]), combo('porsche', [12, 30])];
-    expect(defaultCombo(combos)?.key).toBe('porsche');
-  });
-
-  it('counts the laps across a combo’s sessions', () => {
-    expect(defaultCombo([combo('a', [1, 1, 1])])?.key).toBe('a');
-    expect(defaultCombo([combo('a', [1]), combo('b', [2, 1])])?.key).toBe('b');
-  });
-
-  it('falls back to the newest when none has enough, and to null with none', () => {
-    expect(defaultCombo([combo('a', [1]), combo('b', [0])])?.key).toBe('a');
-    expect(defaultCombo([])).toBeNull();
   });
 });
 

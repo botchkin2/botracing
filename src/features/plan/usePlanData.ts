@@ -2,11 +2,12 @@ import {planRace, usage} from '@/src/analysis/fuelPlan';
 import {raceFactsOfPlan} from '@/src/data/sessions';
 import {planComboKey} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
+import {type Combo} from '@/src/workspace/planCombo';
 
 import {formationBurnOf} from './formation';
 import {lastRaceOf, lastRaceSessionOf} from './lastRace';
 import {pitLaneBase, pitModelOf, refuelRateFor} from './pitBase';
-import {type Combo, fuelOnly, planView, rulesFor, sessionLimitL} from './model';
+import {fuelOnly, planView, rulesFor, sessionLimitL} from './model';
 import {planChecks} from './planChecks';
 import {checksText} from './planChecksText';
 import {eventLabel} from './planEvent';

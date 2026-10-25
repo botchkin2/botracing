@@ -2,8 +2,8 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type GreenLap} from '@/src/analysis/fuelPlan';
 import {type SessionSummary} from '@/src/data/sessions';
+import {planCombos} from '@/src/workspace/planCombo';
 
-import {planCombos} from '../plan/model';
 import {lastRaceLine, planCardModel, perLapUseLine} from './planCards';
 
 const session = (

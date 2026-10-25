@@ -5,13 +5,11 @@ import {FuelScatter} from '@/src/charts';
 import {useSessions} from '@/src/data/sessions';
 import {space} from '@/src/design';
 import {Segment, Skeleton, Text} from '@/src/ui';
+import {PLAN_HISTORY_DAYS, planCombos} from '@/src/workspace/planCombo';
 
-import {planCombos} from '../model';
 import {pooledUse, thresholdOf, type UseMeasure} from '../pooledUse';
 import {usePlanData} from '../usePlanData';
 
-// Every session he has driven, like the Plan screen's.
-const ALL_TIME_DAYS = 3650;
 const SCATTER_H = 190;
 const MEASURES = [
   {value: 'fuel', label: 'Fuel'},
@@ -40,7 +38,7 @@ export function PooledUseCard({
 }) {
   const [own, setMeasure] = useState<UseMeasure>('fuel');
   const measure = asked ?? own;
-  const sessions = useSessions({ageDays: ALL_TIME_DAYS});
+  const sessions = useSessions({ageDays: PLAN_HISTORY_DAYS});
   const combo = useMemo(
     () =>
       planCombos(sessions.data?.items ?? []).find(c => c.key === planKey) ??
