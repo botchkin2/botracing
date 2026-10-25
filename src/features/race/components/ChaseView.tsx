@@ -95,9 +95,11 @@ export function ChaseView({width, height, timeS, playing, rate}: {
   useEffect(() => {
     if (!ready) return;
     post();
+    // Paused (or kept hidden), the page holds its moment: nothing drifts, so nothing is sent to wake it.
+    if (!playing) return;
     const timer = setInterval(post, RESYNC_MS);
     return () => clearInterval(timer);
-  }, [ready, post]);
+  }, [ready, playing, post]);
   useEffect(() => {
     if (state.kind !== 'ready' || ready) return;
     const timer = setTimeout(() => setState({kind: 'failed'}), READY_TIMEOUT_MS);
