@@ -132,6 +132,8 @@
 ; it can be renamed, and so can an exe that is still running. The new exe is then written to a free name.
 ; "1" once this run has moved it.
 Var BotRacingAside
+; The exe's path, set by the move for .onInstFailed (see there).
+Var BotRacingExe
 
 ; Test seam for tray-e2e.yml (desktop/scripts/e2e-exe-late.ps1), read from the installer process's environment,
 ; which a person cannot set by accident and no support step copies around: BOTRACING_TEST_PAUSE_AFTER_CHECK and
@@ -155,6 +157,7 @@ Var BotRacingAside
 ; Retry, are all there is (as before). A rename that fails is the same: logged, never an error.
 !macro BOTRACING_MOVE_EXE_ASIDE
   StrCpy $BotRacingAside ""
+  StrCpy $BotRacingExe "$INSTDIR\${MAINBINARYNAME}.exe"
   ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
     ClearErrors
     Delete "$INSTDIR\${MAINBINARYNAME}.exe.old"
@@ -175,30 +178,21 @@ Var BotRacingAside
 
 ; The install failed or was cancelled after the old exe was moved aside: put it back, so the Start with Windows
 ; entry still starts a tray. Only when this run moved it (a stale .old is never put over an exe).
+; This function is compiled before the template defines MAINBINARYNAME (this file is included at installer.nsi
+; line 36, the define is at line 53), so it never names the define: it reads the path the move stored in
+; $BotRacingExe. Named here, the define stayed literal text and the restore looked for a file that never existed.
 Function .onInstFailed
   ${If} $BotRacingAside == "1"
-    ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
-      !insertmacro BOTRACING_LOG_LINE "install failed: a partial exe is in the way, replacing it"
-    ${EndIf}
-    ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe.old"
-      !insertmacro BOTRACING_LOG_LINE "install failed: the .old is there, in [$INSTDIR]"
-    ${Else}
-      !insertmacro BOTRACING_LOG_LINE "install failed: the .old is NOT there, in [$INSTDIR]"
-    ${EndIf}
-    Delete "$INSTDIR\${MAINBINARYNAME}.exe"
-    ClearErrors
-    Rename "$INSTDIR\${MAINBINARYNAME}.exe.old" "$INSTDIR\${MAINBINARYNAME}.exe"
-    ${If} ${Errors}
-      !insertmacro BOTRACING_LOG_LINE "install failed: the rename set the error flag"
-    ${EndIf}
-    ; Success is the file being there, not the error flag: the flag was set after a rename that had worked.
-    ${IfNot} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
-      ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe.old"
-        CopyFiles /SILENT "$INSTDIR\${MAINBINARYNAME}.exe.old" "$INSTDIR\${MAINBINARYNAME}.exe"
-        Delete "$INSTDIR\${MAINBINARYNAME}.exe.old"
+    Delete "$BotRacingExe"
+    Rename "$BotRacingExe.old" "$BotRacingExe"
+    ; Success is the file being there, not the error flag.
+    ${IfNot} ${FileExists} "$BotRacingExe"
+      ${If} ${FileExists} "$BotRacingExe.old"
+        CopyFiles /SILENT "$BotRacingExe.old" "$BotRacingExe"
+        Delete "$BotRacingExe.old"
       ${EndIf}
     ${EndIf}
-    ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
+    ${If} ${FileExists} "$BotRacingExe"
       !insertmacro BOTRACING_LOG_LINE "install failed: the old exe is back"
     ${Else}
       !insertmacro BOTRACING_LOG_LINE "install failed and the old exe could not be put back"
