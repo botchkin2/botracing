@@ -15,6 +15,7 @@ const found = {
   unplaced: 0,
   coveredFrom: 7.1,
   coveredTo: 100,
+  drivers: [],
 };
 const absent = {absent: 'no results file covers the session'};
 
@@ -61,7 +62,7 @@ test('a stored session with a results file sends its input once and is marked st
     ['put', 'o1', 's1'],
     ['stale', 's1'],
   ]);
-  assert.equal(state.resultsInputs.s1, 'sent');
+  assert.deepEqual(state.resultsInputs.s1, {v: 2});
   h.calls.length = 0;
   await h.pass([cand('s1', 0)], 200 * MIN, 'r1', found);
   assert.deepEqual(h.calls, []);
@@ -76,7 +77,7 @@ test('a session closed at t whose file appears at t+10 s is found by the next ti
   assert.equal(state.resultsInputs.live1.none, true);
   // Next tick, file there now: found though 'none' was recorded before.
   assert.equal(await h.pass(c, end + 11_000, 'r1', found), 1);
-  assert.equal(state.resultsInputs.live1, 'sent');
+  assert.deepEqual(state.resultsInputs.live1, {v: 2});
 });
 
 test('no file is asked again every run inside the window, then once per tray start', async () => {
@@ -95,14 +96,67 @@ test('no file is asked again every run inside the window, then once per tray sta
   assert.equal(h.calls.filter(x => x[0] === 'find').length, 2);
   // A new tray start looks once more, and finds last week's file.
   assert.equal(await h.pass(c, late + 2 * MIN, 'r2', found), 1);
-  assert.equal(state.resultsInputs.s1, 'sent');
+  assert.deepEqual(state.resultsInputs.s1, {v: 2});
 });
 
-test('what went up with the session is left alone', async () => {
-  const state = {resultsInputs: {s1: 'with-session'}};
+test('what went up at v2, with the session or on its own, is left alone', async () => {
+  const state = {resultsInputs: {s1: {v: 2}}};
   const h = harness(state);
   await h.pass([cand('s1', 0)], 1 * MIN, 'r1', found);
   assert.deepEqual(h.calls, []);
+});
+
+test('a v1 input (the strings a tray before v2 wrote) is sent again once, with the drivers, and marked stale', async () => {
+  for (const old of ['sent', 'with-session']) {
+    const state = {resultsInputs: {s1: old}};
+    const h = harness(state);
+    assert.equal(await h.pass([cand('s1', 0)], 1 * MIN, 'r1', found), 1);
+    assert.deepEqual(h.calls, [
+      ['find', 'Me', 'Race'],
+      ['put', 'o1', 's1'],
+      ['stale', 's1'],
+    ]);
+    assert.deepEqual(state.resultsInputs.s1, {v: 2});
+    h.calls.length = 0;
+    await h.pass([cand('s1', 0)], 2 * MIN, 'r2', found);
+    assert.deepEqual(h.calls, [], 'not again');
+  }
+});
+
+test('a v1 input whose file the game no longer has keeps its v1 and is not looked for every run', async () => {
+  const state = {resultsInputs: {s1: 'sent'}};
+  const h = harness(state);
+  assert.equal(await h.pass([cand('s1', 0)], 1 * MIN, 'r1', absent), 0);
+  assert.deepEqual(h.calls, [['find', 'Me', 'Race']]);
+  assert.deepEqual(
+    state.resultsInputs.s1,
+    {v: 1, gone: true},
+    'the state says what is stored: a v1',
+  );
+  h.calls.length = 0;
+  await h.pass([cand('s1', 0)], 2 * MIN, 'r2', absent);
+  assert.deepEqual(h.calls, []);
+});
+
+test('backlogDue wakes a run for a v1 entry and not for a v2 one or a v1 whose file is gone', () => {
+  const c = [cand('s1', 0)];
+  assert.equal(
+    backlogDue({candidates: c, state: {resultsInputs: {s1: 'sent'}}, nowMs: MIN, run: 'r1'}),
+    true,
+  );
+  assert.equal(
+    backlogDue({candidates: c, state: {resultsInputs: {s1: {v: 2}}}, nowMs: MIN, run: 'r1'}),
+    false,
+  );
+  assert.equal(
+    backlogDue({
+      candidates: c,
+      state: {resultsInputs: {s1: {v: 1, gone: true}}},
+      nowMs: MIN,
+      run: 'r2',
+    }),
+    false,
+  );
 });
 
 test('candidates: game-file sessions that are stored, and live sessions grouped by id', () => {

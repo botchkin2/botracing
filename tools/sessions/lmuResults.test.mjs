@@ -1,17 +1,27 @@
 import assert from 'node:assert/strict';
-import {mkdtempSync, rmSync, utimesSync, writeFileSync} from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {join} from 'node:path';
+import {join, resolve} from 'node:path';
 import {test} from 'node:test';
 
 import {
   DELETING_RESOLUTIONS,
+  defaultResultsFolder,
+  driversOf,
   lapOfStrike,
   lapSpansOf,
   parseResults,
   resultsFor,
   strikesOf,
 } from './lmuResults.mjs';
+import {readResultsInput, resultsInput} from './resultsInput.mjs';
 
 const row = (driver, lap, res, et, pts = 0) =>
   `<TrackLimits Driver="${driver}" ID="1" Lap="${lap}" WarningPoints="${pts}" CurrentPoints="${pts}" Resolution="${res}" et="${et}">x</TrackLimits>`;
@@ -266,15 +276,21 @@ test('resultsFor picks the file by its session letter and by being the first wri
         .unplaced,
       0,
     );
-    assert.deepEqual(
-      resultsFor({
-        span: window('2026-10-15T00:12:23Z', '2026-10-15T00:58:20Z'),
-        driverName: 'Nobody',
-        sessionType: 'P',
-        folder: dir,
-      }),
-      {strikes: [], unplaced: 0, coveredFrom: null, coveredTo: null},
-    );
+    const nobody = resultsFor({
+      span: window('2026-10-15T00:12:23Z', '2026-10-15T00:58:20Z'),
+      driverName: 'Nobody',
+      sessionType: 'P',
+      folder: dir,
+    });
+    const {drivers, ...strikes} = nobody;
+    assert.deepEqual(strikes, {
+      strikes: [],
+      unplaced: 0,
+      coveredFrom: null,
+      coveredTo: null,
+    });
+    // The file's drivers still come, none of them him.
+    assert.ok(drivers.length > 0 && drivers.every(d => !d.player));
   } finally {
     rmSync(dir, {recursive: true, force: true});
   }
@@ -374,3 +390,139 @@ test('a lap with no start time (the garage out-lap of a qualifying run) is no sp
   assert.equal(r.coveredFrom, 175.02);
   assert.equal(r.strikes.length, 1);
 });
+
+// ---- driversOf: every driver of a file, for the results input v2 (ticket 20, thread 111) ----
+
+const FIXTURES = new URL('../../src/analysis/__fixtures__/', import.meta.url);
+const fixture = name =>
+  JSON.parse(readFileSync(new URL(name, FIXTURES), 'utf8')).drivers;
+
+const secs = v => (v == null ? '--.----' : String(v));
+// A results file's `<Driver>` blocks the way the game writes them, built from
+// input drivers; every one carries a name with a Steam id, a team, a car number
+// and a vehicle name, which the output must never hold.
+function xmlOf(drivers) {
+  const blocks = drivers.map(
+    (d, i) => `<Driver>
+<Name>${d.player ? 'Me' : `Rival ${i}#10${i}`}</Name>
+<VehName>Team ${i} #${i}:ELMS25</VehName>
+<CarType>${d.car}</CarType>
+<CarClass>${d.cls}</CarClass>
+<CarNumber>${i}</CarNumber>
+<TeamName>Team ${i} #${i}</TeamName>
+<isPlayer>${d.player ? 1 : 0}</isPlayer>
+<Position>${d.overall ?? ''}</Position>
+<ClassPosition>${d.pos ?? ''}</ClassPosition>
+${d.laps
+  .map(
+    (l, n) =>
+      `<Lap num="${n + 1}" p="1" et="${n * 100}" s1="${secs(l.s1)}" s2="${secs(
+        l.s2,
+      )}" s3="${secs(l.s3)}" topspeed="280.1" fcompound="0,Medium"${
+        l.pit ? ' pit="1"' : ''
+      }>${secs(l.t)}</Lap>`,
+  )
+  .join('\n')}
+<BestLapTime>100.1</BestLapTime>
+<Laps>${d.laps.length}</Laps>
+${d.status ? `<FinishStatus>${d.status}</FinishStatus>` : ''}
+</Driver>`,
+  );
+  return `<rFactorXML><RaceResults><DateTime>1792025756</DateTime>\n${blocks.join(
+    '\n',
+  )}</RaceResults></rFactorXML>`;
+}
+
+for (const name of ['classPaceQ.json', 'classPaceR.json']) {
+  test(`driversOf reads ${name}'s file back as the fixture says, through the reader, with nobody dropped and no name, team or number out`, () => {
+    const expected = fixture(name);
+    const xml = xmlOf(expected);
+    const drivers = driversOf(xml, 'Me');
+    assert.deepEqual(drivers, expected);
+    const stored = JSON.stringify(
+      resultsInput({
+        strikes: [],
+        unplaced: 0,
+        coveredFrom: null,
+        coveredTo: null,
+        drivers,
+      }),
+    );
+    const back = readResultsInput(stored);
+    assert.equal(back.drivers.length, expected.length, 'no driver dropped');
+    assert.deepEqual(back.drivers, expected);
+    assert.ok(back.drivers.every(d => d.overall != null && d.pos != null));
+    assert.equal(back.drivers.filter(d => d.player).length, 1);
+    for (const leak of [/Rival/, /Team/, /#\d/, /Me\b/, /ELMS25/, /isPlayer/])
+      assert.doesNotMatch(stored, leak);
+  });
+}
+
+test('driversOf: the player is the name that matches, never isPlayer; a deleted lap and a missing sector are null; a pit lap is flagged; no FinishStatus is null', () => {
+  const xml = `<rFactorXML><RaceResults>
+<Driver><Name>Me</Name><CarClass>GT3</CarClass><CarType>Car</CarType><isPlayer>1</isPlayer><Position>3</Position><ClassPosition>1</ClassPosition>
+<Lap num="1" p="1" et="0" s1="20.5" s2="--.----" s3="30.25" pit="1">--.----</Lap>
+<Lap num="2" p="1" et="90" s1="20.5" s2="30.1" s3="30.25">80.85</Lap>
+<FinishStatus>Finished Normally</FinishStatus></Driver>
+<Driver><Name>Other Human</Name><CarClass>GT3</CarClass><CarType>Car</CarType><isPlayer>1</isPlayer><Position>4</Position><ClassPosition>2</ClassPosition>
+<Lap num="1" p="1" et="0" s1="20.5" s2="30.1" s3="30.25">80.85</Lap></Driver>
+</RaceResults></rFactorXML>`;
+  const [me, other] = driversOf(xml, 'Me');
+  assert.equal(me.player, true);
+  assert.equal(other.player, false);
+  assert.deepEqual(me.laps, [
+    {t: null, s1: 20.5, s2: null, s3: 30.25, pit: true},
+    {t: 80.85, s1: 20.5, s2: 30.1, s3: 30.25, pit: false},
+  ]);
+  assert.deepEqual(
+    [me.overall, me.pos, me.status, other.overall, other.status],
+    [3, 1, 'Finished Normally', 4, null],
+  );
+});
+
+// His two real files, when they are on this PC (a Sebring qualifying and the race
+// of 21 October): the fixtures are trimmed copies, so here every driver of the
+// whole file goes through the writer and the reader. Skipped where the folder is
+// not, as in CI.
+for (const [resultsFile, driversInFixture] of [
+  ['2026_10_21_19_39_09-06Q1.xml', 'classPaceQ.json'],
+  ['2026_10_21_20_45_08-82R1.xml', 'classPaceR.json'],
+]) {
+  const path = resolve(defaultResultsFolder, resultsFile);
+  test(
+    `driversOf on his real ${resultsFile}: all drivers come back through the reader, overall and status on every row, no name, Steam id, team or vehicle out`,
+    {skip: !existsSync(path)},
+    () => {
+      const xml = readFileSync(path, 'utf8');
+      const blocks = xml.split('<Driver>').length - 1;
+      // The first human by isPlayer stands in for the recording's driver name.
+      const player =
+        /<Name>([^<]*)<\/Name>(?:(?!<\/Driver>)[\s\S])*?<isPlayer>1/.exec(xml);
+      assert.ok(player, 'the file has a human');
+      const stored = JSON.stringify(
+        resultsInput({
+          strikes: [],
+          unplaced: 0,
+          coveredFrom: null,
+          coveredTo: null,
+          drivers: driversOf(xml, player[1]),
+        }),
+      );
+      const back = readResultsInput(stored);
+      assert.equal(back.drivers.length, blocks, 'no driver dropped');
+      assert.ok(back.drivers.every(d => d.overall != null && d.status != null));
+      assert.ok(back.drivers.some(d => d.player));
+      for (const tag of ['Name', 'TeamName', 'VehName'])
+        for (const [, v] of xml.matchAll(
+          new RegExp(`<${tag}>([^<]+)</${tag}>`, 'g'),
+        ))
+          if (v.length > 3)
+            assert.ok(!stored.includes(v), `${tag} ${v} is not in the output`);
+      assert.doesNotMatch(stored, /#\d{3,}/);
+      // Same cars and classes as the committed trimmed copy.
+      const kept = fixture(driversInFixture);
+      for (const k of kept)
+        assert.ok(back.drivers.some(d => d.cls === k.cls && d.car === k.car));
+    },
+  );
+}
