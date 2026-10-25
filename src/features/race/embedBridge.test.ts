@@ -1,6 +1,16 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {clockMessage, clockNeedsSending, isReadyMessage, parseClockMessage, READY_MESSAGE, type SentClock} from './embedBridge';
+import {
+  clockMessage,
+  clockNeedsSending,
+  isReadyMessage,
+  PAN_MAX_DY,
+  panMessage,
+  parseClockMessage,
+  parsePanMessage,
+  READY_MESSAGE,
+  type SentClock,
+} from './embedBridge';
 
 const END = 3000;
 
@@ -65,5 +75,42 @@ describe('clockNeedsSending', () => {
   it('sends a seek while paused, and nothing when it has not moved', () => {
     expect(clockNeedsSending(at(10, 0, false), at(10, 5000, false))).toBe(false);
     expect(clockNeedsSending(at(10, 0, false), at(11, 5000, false))).toBe(true);
+  });
+});
+
+describe('parsePanMessage', () => {
+  it('reads what panMessage builds', () => {
+    expect(parsePanMessage(panMessage(12.5))).toEqual({t: 'pan', dy: 12.5});
+    expect(parsePanMessage(panMessage(-40))).toEqual({t: 'pan', dy: -40});
+    expect(parsePanMessage(panMessage(0))).toEqual({t: 'pan', dy: 0});
+  });
+  it('clamps one message to ±PAN_MAX_DY', () => {
+    expect(parsePanMessage(panMessage(1e6))?.dy).toBe(PAN_MAX_DY);
+    expect(parsePanMessage(panMessage(-1e6))?.dy).toBe(-PAN_MAX_DY);
+  });
+  it('drops everything else, quietly', () => {
+    const bad: unknown[] = [
+      undefined,
+      null,
+      7,
+      {t: 'pan', dy: 1},
+      '',
+      'not json',
+      '[]',
+      'null',
+      READY_MESSAGE,
+      '{"t":"pan"}',
+      '{"t":"pan","dy":"5"}',
+      '{"t":"pan","dy":null}',
+      '{"t":"pan","dy":1e999}',
+      '{"t":"scroll","dy":5}',
+      JSON.stringify({t: 'pan', dy: 1, pad: 'x'.repeat(80)}),
+      clockMessage(1, true, 1),
+    ];
+    for (const raw of bad) expect(parsePanMessage(raw)).toBeNull();
+  });
+  it('a pan is not a ready, and a ready is not a pan', () => {
+    expect(isReadyMessage(panMessage(3))).toBe(false);
+    expect(parsePanMessage(READY_MESSAGE)).toBeNull();
   });
 });

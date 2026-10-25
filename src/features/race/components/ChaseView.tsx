@@ -1,5 +1,5 @@
 import {useLocalSearchParams} from 'expo-router';
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {useCallback, useContext, useEffect, useRef, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 import {WebView, type WebViewMessageEvent} from 'react-native-webview';
 
@@ -13,7 +13,8 @@ import {type ChaseCar, type ChaseGaps, type ChaseInputs, type ChaseSampler} from
 
 import {type RaceRate} from '../clock';
 import {allowsNavigation, EMBED_ORIGIN, embedUrl} from '../embed3d';
-import {clockMessage, clockNeedsSending, isReadyMessage, type SentClock} from '../embedBridge';
+import {clockMessage, clockNeedsSending, isReadyMessage, parsePanMessage, type SentClock} from '../embedBridge';
+import {PageScrollContext} from '../usePageScroll';
 
 /** The app resends its clock this often, whatever else happens (the page runs its own between messages). */
 const RESYNC_MS = 1000;
@@ -102,9 +103,20 @@ export function ChaseView({width, height, timeS, playing, rate}: {
     const timer = setTimeout(() => setState({kind: 'failed'}), READY_TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, [state.kind, ready]);
-  const onMessage = useCallback((event: WebViewMessageEvent) => {
-    if (isReadyMessage(event.nativeEvent.data)) setReady(true);
-  }, []);
+  // a vertical drag in the 3D is the page's: the web page forwards it and the app scrolls its own page by it
+  const scrollPageBy = useContext(PageScrollContext);
+  const onMessage = useCallback(
+    (event: WebViewMessageEvent) => {
+      const data = event.nativeEvent.data;
+      if (isReadyMessage(data)) {
+        setReady(true);
+        return;
+      }
+      const pan = parsePanMessage(data);
+      if (pan) scrollPageBy(pan.dy);
+    },
+    [scrollPageBy],
+  );
   const retry = useCallback(() => {
     setState({kind: 'loading'});
     setReady(false);
@@ -124,9 +136,12 @@ export function ChaseView({width, height, timeS, playing, rate}: {
           onError={() => setState({kind: 'failed'})}
           onHttpError={() => setState({kind: 'failed'})}
           javaScriptEnabled
+         
           domStorageEnabled
           setSupportMultipleWindows={false}
-          // Android: a drag that starts in the 3D is the camera's; the page's ScrollView takes none of it.
+          // Android: the WebView takes every touch whole, so the 3D page tells a camera drag from a page scroll and
+          // forwards the latter (embedBridge.ts); the page's ScrollView would take any vertical move, and a diagonal
+          // camera drag with it.
           nestedScrollEnabled
           incognito
           style={{backgroundColor: color.bg}}

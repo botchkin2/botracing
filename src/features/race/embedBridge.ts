@@ -1,18 +1,49 @@
 // The messages between the Android app and the 3D page in its WebView (pit-wall thread 94, gauge #6506, spec #6325
-// item 5). One clock, the app's: it tells the page where race time is, and the page answers only that its first frame is
-// drawn. Nothing else crosses, in either direction: no token, no user data. Plain TypeScript, no imports but the rates.
+// item 5). One clock, the app's: it tells the page where race time is, and the page answers that its first frame is
+// drawn and, while a finger drags vertically in the 3D box, how far the app's page is to scroll (ticket #46). Nothing
+// else crosses, in either direction: no token, no user data. Plain TypeScript, no imports but the rates.
 
 import {RACE_RATES, type RaceRate} from './clock';
 
 /** App to page: where the race clock is. */
 export type ClockMessage = {t: 'clock'; timeS: number; playing: boolean; rate: RaceRate};
 
-/** Page to app: the first frame is drawn. The only message the page sends, and the only one the app accepts. */
+/** Page to app: the first frame is drawn. */
 export const READY_MESSAGE = '{"t":"ready"}';
 
-/** True for exactly the ready message; anything else the page sends is ignored. */
+/** True for exactly the ready message. */
 export function isReadyMessage(raw: unknown): boolean {
   return raw === READY_MESSAGE;
+}
+
+/**
+ * Page to app: a vertical drag in the 3D box is the page's to scroll (analysis/panGesture). `dy` is the finger's
+ * vertical travel in px since the last message, summed over one animation frame: down is positive, so the page
+ * scrolls by -dy. Ready and pan are the only messages the app accepts from the page; anything else is ignored.
+ */
+export type PanMessage = {t: 'pan'; dy: number};
+
+/** One message never moves the page further than this: a frame's travel is a few dozen px, a fling's first frame under a hundred. */
+export const PAN_MAX_DY = 1000;
+
+export function panMessage(dy: number): string {
+  const msg: PanMessage = {t: 'pan', dy};
+  return JSON.stringify(msg);
+}
+
+/** What the app makes of a message from the page: a pan with a finite dy (clamped to ±PAN_MAX_DY), or null. */
+export function parsePanMessage(raw: unknown): PanMessage | null {
+  if (typeof raw !== 'string' || raw.length > 60) return null;
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (typeof value !== 'object' || value === null) return null;
+  const m = value as Record<string, unknown>;
+  if (m.t !== 'pan' || typeof m.dy !== 'number' || !Number.isFinite(m.dy)) return null;
+  return {t: 'pan', dy: Math.min(Math.max(m.dy, -PAN_MAX_DY), PAN_MAX_DY)};
 }
 
 /** The text the app posts to the page. */
