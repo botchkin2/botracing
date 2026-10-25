@@ -48,30 +48,46 @@ test('killTree ends the child and its grandchild, not only the first process', a
   assert.ok(await gone(grandchild), 'its grandchild should be gone');
 });
 
-test('a process with the preload ends when its launcher is hard-killed (no handler runs)', async () => {
-  // launcher -> metro (with the preload). The launcher is killed outright.
+// launcher -> metro. The launcher is killed outright (no handler runs). `detached` puts metro outside the launcher's
+// Windows job (which would end it with the launcher), as in the leak where Metro outlived its launcher.
+async function metroAfterLauncherKilled({withPreload}) {
   const launcher = spawn(
     process.execPath,
     [
       '-e',
       `
       const {spawn} = require('node:child_process');
-      const m = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
-        stdio: 'ignore',
-        env: {...process.env, LIVE_LAUNCHER_PID: String(process.pid), NODE_OPTIONS: '--require ' + JSON.stringify(process.env.PRELOAD)},
-      });
+      const env = {...process.env, LIVE_LAUNCHER_PID: String(process.pid)};
+      if (process.env.PRELOAD) env.NODE_OPTIONS = '--require ' + JSON.stringify(process.env.PRELOAD);
+      const m = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {stdio: 'ignore', detached: true, env});
       console.log(m.pid);
       setInterval(() => {}, 1000);
     `,
     ],
     {
       stdio: ['ignore', 'pipe', 'ignore'],
-      env: {...process.env, PRELOAD: preload.split(path.sep).join('/')},
+      env: {
+        ...process.env,
+        PRELOAD: withPreload ? preload.split(path.sep).join('/') : '',
+      },
     },
   );
   const metro = await firstLine(launcher);
   assert.ok(alive(metro));
   process.kill(launcher.pid, 'SIGKILL');
+  return metro;
+}
+
+test('without the preload a Metro outside its launcher outlives it (the leak this guards)', async () => {
+  const metro = await metroAfterLauncherKilled({withPreload: false});
+  await sleep(3500);
+  const stillThere = alive(metro);
+  killTree(metro);
+  assert.ok(stillThere, 'the control Metro should still be running');
+});
+
+test('with the preload Metro ends once its launcher is gone, hard-killed or not', async () => {
+  const metro = await metroAfterLauncherKilled({withPreload: true});
   assert.ok(await gone(metro), 'Metro should end once its launcher is gone');
 });
 
