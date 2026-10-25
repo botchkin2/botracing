@@ -50,6 +50,7 @@ import {
 import {RaceTransport} from './components/RaceTransport';
 import {useEmbedClock} from './useEmbedClock';
 import {useRestWhileAway} from './useRestWhileAway';
+import {PageScrollContext, usePageScrollOwner} from './usePageScroll';
 import {RaceLanesBlock} from './components/RaceLanesBlock';
 import {
   buildRaceModel,
@@ -296,6 +297,7 @@ function RaceView({
   // In the app's WebView the app's clock is the clock (embedBridge.ts).
   useEmbedClock(clock, endS, embed3d);
   useRestWhileAway(clock);
+  const pageScroll = usePageScrollOwner();
   // Race writes the cursor back once the user has moved the clock and it has
   // rested; opening the screen never overwrites Compare's cursor.
   const touched = useRef(false);
@@ -789,8 +791,9 @@ function RaceView({
   // below at full length, the lanes after it; the transport stays under the
   // page (thread 44 #1733).
   return (
+    <PageScrollContext.Provider value={pageScroll.scrollBy}>
     <View style={styles.fill}>
-      <ScrollView style={styles.fill}>
+      <ScrollView style={styles.fill} {...pageScroll.scrollProps}>
         <View style={styles.phoneTop}>
           <View style={styles.subRow}>
             <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
@@ -823,6 +826,7 @@ function RaceView({
       </ScrollView>
       {controls}
     </View>
+    </PageScrollContext.Provider>
   );
 }
 
