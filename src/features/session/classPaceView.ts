@@ -46,6 +46,8 @@ export type ClassPaceView = {
   /** More than one class; his own first. Empty with one. */
   chips: {cls: string; label: string}[];
   selected: string;
+  /** Whether the rows carry sector cells: his own class is selected. Their heads (S1 S2 S3) are drawn only then. */
+  cells: boolean;
   /** The rows to draw, by place. */
   rows: PaceRow[];
   /** Rows left behind "All N ›". */
@@ -141,6 +143,7 @@ export function classPaceView(
     chips:
       classes.length > 1 ? classes.map(c => ({cls: c, label: labelOf(c)})) : [],
     selected: cls,
+    cells: mine,
     rows: cut.shown,
     hidden: cut.hidden,
     total: classRows.length,

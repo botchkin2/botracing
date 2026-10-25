@@ -141,9 +141,15 @@ pub fn drive<S: IrSource>(
     mut each: impl FnMut(&IrRecorder<S>),
 ) {
     use crate::capture::runner::{now_ms, STOP_SLICE};
+    let mut power = crate::capture::power::FLUSHES.register();
     while !stop.load(std::sync::atomic::Ordering::SeqCst) {
         let wait = rec.tick(now_ms());
         each(rec);
+        // A shutdown or a sleep is coming: what is held goes to the disk now (power.rs).
+        if power.due() {
+            rec.persist(now_ms());
+            power.done();
+        }
         rec.src().wait(wait.min(STOP_SLICE));
     }
 }
@@ -545,6 +551,14 @@ impl<S: IrSource> IrRecorder<S> {
             }
         }
         self.meta = meta;
+    }
+
+    /// The PC is going to sleep or shut down: the open chunk is written and waited for, the capture goes on.
+    pub fn persist(&mut self, ms: u64) {
+        if let Some(cap) = self.cap.as_mut() {
+            let written = cap.persist(ms);
+            self.chunks_written(ms, written);
+        }
     }
 
     /// Finishes the open capture on quit.

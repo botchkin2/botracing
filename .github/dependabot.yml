@@ -32,6 +32,11 @@ updates:
       - dependency-name: 'react-native-*'
       - dependency-name: '@react-native/*'
       - dependency-name: '@react-native-*/*'
+      # Pinned exactly: three is 0.x, so every minor is breaking, and @types/three
+      # changes the types the 3D tests use (0.186 failed tsc, #728).
+      # docs/MAJOR_UPGRADES.md.
+      - dependency-name: 'three'
+      - dependency-name: '@types/three'
       - dependency-name: '*'
         update-types: ['version-update:semver-major']
   - package-ecosystem: npm

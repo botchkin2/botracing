@@ -298,7 +298,7 @@ pub fn supervise(
 }
 
 /// The recorder's own log: `<capture root>/recorder.log` (the same line format as launch.log).
-fn recorder_log(root: &Path, text: &str) {
+pub fn recorder_log(root: &Path, text: &str) {
     crate::launch_log::note_file(&root.join("recorder.log"), "recorder", text);
 }
 
@@ -346,11 +346,12 @@ fn run_once(stop: &AtomicBool, line: &Mutex<Line>, root: &Path, header_dir: &Pat
         }
     };
     let size = layout.size;
+    let log_root = root.clone();
     let mut rec = match Recorder::new(layout, root, Shm { size }, CHUNK_MS) {
         Ok(rec) => rec,
         Err(why) => return Err(format!("the game's header: {why}")),
     };
-    drive(&mut rec, stop, line);
+    drive(&mut rec, stop, line, &|t| recorder_log(&log_root, t));
     Ok(())
 }
 
@@ -399,10 +400,10 @@ pub fn start_iracing(root: PathBuf) -> Handle {
 /// while it held the tray's event loop (quit.log "recorders stopped +3.8s").
 pub const STOP_SLICE: Duration = Duration::from_millis(100);
 
-/// Sleeps `d`, or less when `stop` is set meanwhile.
-pub fn sleep_unless_stopped(d: Duration, stop: &AtomicBool) {
+/// Sleeps `d`, or less when `wake` says so; looked at every STOP_SLICE.
+fn sleep_unless(d: Duration, wake: &dyn Fn() -> bool) {
     let end = std::time::Instant::now() + d;
-    while !stop.load(Ordering::SeqCst) {
+    while !wake() {
         let left = end.saturating_duration_since(std::time::Instant::now());
         if left.is_zero() {
             return;
@@ -412,11 +413,21 @@ pub fn sleep_unless_stopped(d: Duration, stop: &AtomicBool) {
 }
 
 /// The loop: tick, publish the status for the menu, sleep what the tick asked.
-pub fn drive<S: Source>(rec: &mut Recorder<S>, stop: &AtomicBool, line: &Mutex<Line>) {
+/// `log` takes what the recorder has to say for the recorder log.
+pub fn drive<S: Source>(rec: &mut Recorder<S>, stop: &AtomicBool, line: &Mutex<Line>, log: &dyn Fn(&str)) {
+    let mut power = crate::capture::power::FLUSHES.register();
     while !stop.load(Ordering::SeqCst) {
         let sleep = rec.tick(now_ms());
+        // A shutdown or a sleep is coming: what is held goes to the disk now (power.rs).
+        if power.due() {
+            rec.persist(now_ms());
+            power.done();
+        }
+        for note in rec.notes.drain(..) {
+            log(&note);
+        }
         *line.lock().unwrap() = Line::Status(rec.status.clone());
-        sleep_unless_stopped(sleep, stop);
+        sleep_unless(sleep, &|| stop.load(Ordering::SeqCst) || power.due());
     }
     rec.shutdown(now_ms());
     *line.lock().unwrap() = Line::Status(rec.status.clone());
@@ -514,7 +525,7 @@ mod tests {
         let stop = Arc::new(AtomicBool::new(false));
         let s2 = stop.clone();
         let t = std::time::Instant::now();
-        let h = std::thread::spawn(move || sleep_unless_stopped(Duration::from_secs(5), &s2));
+        let h = std::thread::spawn(move || sleep_unless(Duration::from_secs(5), &|| s2.load(Ordering::SeqCst)));
         std::thread::sleep(Duration::from_millis(50));
         stop.store(true, Ordering::SeqCst);
         h.join().unwrap();
@@ -528,7 +539,7 @@ mod tests {
         let stop = AtomicBool::new(false);
         let t = std::time::Instant::now();
         for _ in 0..10 {
-            sleep_unless_stopped(Duration::from_millis(4), &stop);
+            sleep_unless(Duration::from_millis(4), &|| stop.load(Ordering::SeqCst));
         }
         assert!(t.elapsed() < Duration::from_millis(200), "{:?}", t.elapsed());
     }

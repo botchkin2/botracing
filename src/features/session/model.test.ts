@@ -15,6 +15,7 @@ import {
   trafficPaceFacts,
 } from './model';
 import {classPaceDoc, type ResultsDriver} from '@/src/analysis/classPace';
+import {finishedText, raceResultText} from '@/src/analysis/raceResult';
 import classPaceRace from '@/src/analysis/__fixtures__/classPaceR.json';
 import {spreadColumns, varyOf} from './spreadRows';
 import {HttpError} from '@/src/data/http';
@@ -28,6 +29,15 @@ const lapRow = (m: ReturnType<typeof buildSessionModel>, label: string) =>
 
 describe('buildSessionModel', () => {
   const m = buildSessionModel(session, laps, none);
+
+  it('a classPace with only his own laps shows no block and no class median: the class table stays', () => {
+    const onlyMe = classPaceDoc(
+      classPaceRace.drivers.filter(d => d.player) as ResultsDriver[],
+    );
+    const solo = buildSessionModel({...session, classPace: onlyMe}, laps, none);
+    expect(solo.classPace).toBeNull();
+    expect(solo.facts.map(f => f.label)).not.toContain('Class median');
+  });
 
   it('a race with the results file drivers names the class median beside his, after the Median; without them it does not', () => {
     const pace = classPaceDoc(classPaceRace.drivers as ResultsDriver[]);
@@ -77,6 +87,28 @@ describe('buildSessionModel', () => {
       buildSessionModel(s, laps, none).facts.find(f => f.label === 'Result');
     expect(result({...session, finish})?.value).toBe('P4 · P2 in class');
     expect(result({...session, finish: null})).toBeUndefined();
+    // The phone head's line is the one string the Race tab header prints (finishedText): head === Race tab.
+    expect(result({...session, finish})?.line).toBe(finishedText(finish));
+    expect(finishedText(finish)).toBe('Finished P4 · P2 in class');
+  });
+
+  it('a race he left early reads in the head as the Sessions list row does, with no "Finished"', () => {
+    const finish = {
+      overall: 26,
+      inClass: 20,
+      ofOverall: 54,
+      ofClass: 20,
+      lapsDone: 20,
+      leaderLapsDone: 26,
+      classLeaderLapsDone: 23,
+      leftEarly: true,
+    };
+    const fact = buildSessionModel({...session, finish}, laps, none).facts.find(
+      f => f.label === 'Result',
+    );
+    expect(fact?.line).toBe('P20 · L20 of L23+ (left early)');
+    expect(fact?.line).toBe(raceResultText(finish));
+    expect(fact?.line).toBe(finishedText(finish));
   });
 
   it('the head and the stint line give one spread on one basis', () => {
@@ -502,6 +534,21 @@ describe('trafficPaceFacts', () => {
     expect(say("Other cars: recording doesn't match the game file")).toEqual([
       {label: 'Other cars', value: "recording doesn't match the game file"},
     ]);
+  });
+
+  it('a race whose results file gave every driver (classPace) never says the other cars were not recorded', () => {
+    const classPace = classPaceDoc(classPaceRace.drivers as ResultsDriver[]);
+    const withPace = {...session, classPace, fieldMissing: 'Other cars: not recorded'};
+    expect(trafficPaceFacts(withPace, [lap(81, null)])).toEqual([]);
+    // a classPace with only his own laps lists no other car: the line stays, no silent blank
+    const onlyMe = classPaceDoc(classPaceRace.drivers.filter(d => d.player) as ResultsDriver[]);
+    expect(
+      trafficPaceFacts({...session, classPace: onlyMe, fieldMissing: 'Other cars: not recorded'}, [lap(81, null)]),
+    ).toEqual([{label: 'Other cars', value: 'not recorded'}]);
+    // without classPace the field's own line is still said
+    expect(
+      trafficPaceFacts({...session, fieldMissing: 'Other cars: not recorded'}, [lap(81, null)]),
+    ).toEqual([{label: 'Other cars', value: 'not recorded'}]);
   });
 
   it('a session with a field never says it', () => {

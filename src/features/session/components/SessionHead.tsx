@@ -9,7 +9,7 @@ import {type Fact, factLabel} from '../model';
  * The phone's head: Best and Median large, side by side. The Median carries
  * its Spread under it, "Spread 2.35 s", the IQR of the same laps, so the first
  * screen answers how consistent the session was. Under them one line of the
- * rest ("21 laps · 14 comparable"); a race says where it finished first. Best is the session's, Median is of the
+ * rest ("21 laps · 14 comparable"; a fact with a basis keeps it, "Class median 2:05.325 · you −1.664 · 9 cars", as the desktop label does); a race says where it finished first. Best is the session's, Median is of the
  * selection and says how many laps. The desktop keeps its row of facts.
  */
 export function SessionHead({facts}: {facts: Fact[]}) {
@@ -27,7 +27,7 @@ export function SessionHead({facts}: {facts: Fact[]}) {
         ? `${f.value} laps`
         : f.label === 'Comparable'
         ? `${f.value} comparable`
-        : `${f.label} ${f.value}`,
+        : `${f.label} ${f.value}${f.basis ? ` · ${f.basis}` : ''}`,
     )
     .join(' · ');
   return (
@@ -48,7 +48,7 @@ export function SessionHead({facts}: {facts: Fact[]}) {
         ))}
       </View>
       {result ? (
-        <Text variant='dataStrong'>{`Finished ${result.value}`}</Text>
+        <Text variant='dataStrong'>{result.line ?? result.value}</Text>
       ) : null}
       {line ? (
         <Text variant='dataSmall' tone='textMuted'>

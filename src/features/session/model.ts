@@ -1,5 +1,5 @@
 import {basisOf} from '@/src/analysis/lapBasis';
-import {raceResultText} from '@/src/analysis/raceResult';
+import {finishedText, raceResultText} from '@/src/analysis/raceResult';
 import {type PooledSession} from '@/src/analysis/sectionVary';
 import {lapLabel, lapRangeLabel} from '@/src/analysis/lapNumbering';
 import {useMemo} from 'react';
@@ -53,7 +53,7 @@ import {optimumFacts} from './optimumFacts';
 import {type OptimumLine, optimumLines} from './optimumLines';
 import {lapTimeStats, segmentBasisStats, stintNumbers} from './selectionStats';
 import {energyLine, type EnergyLine} from './energyLine';
-import {type ClassPaceDoc} from '@/src/analysis/classPace';
+import {type ClassPaceDoc, hasOtherDrivers} from '@/src/analysis/classPace';
 import {classMedianFacts} from './classMedianFact';
 import {classTable, type ClassTable} from './classTable';
 import {buildPitCard, type PitCard} from './pitCard';
@@ -103,6 +103,8 @@ export type Fact = {
   value: string;
   best?: boolean;
   basis?: string;
+  /** The phone head's own line for the fact, when it reads differently from `label value` (the race result: "Finished P5 · P1 in class"). */
+  line?: string;
 };
 
 /** The label as the head prints it: "Best · session", "Median · of 13". */
@@ -336,8 +338,12 @@ export function trafficPaceFacts(
   // headers' own clean median (one answer to "clean median"), not the stored
   // whole-session value.
   const traffic = paceSplit(basisLaps);
+  // The "Other cars" line is about the 5 Hz field. A race whose results file gave every driver's laps (`classPace`)
+  // lists other cars in its Class pace block, so it never says they were not recorded (a `classPace` with only his own laps lists none, and then the line stays).
   if (traffic == null)
-    return field == null ? [otherCarsFact(session.fieldMissing)] : [];
+    return field == null && !hasOtherDrivers(session.classPace)
+      ? [otherCarsFact(session.fieldMissing)]
+      : [];
   const facts: Fact[] = [];
   const value = setText(
     traffic.clean,
@@ -737,7 +743,15 @@ export function buildSessionModel(
   const bestLap = laps.find(l => l.id === bestLapId);
   // A race says where it finished, the one line the Sessions list says (analysis/raceResultText.ts).
   const resultText = day ? null : raceResultText(session.finish);
-  const resultFact = resultText ? [{label: 'Result', value: resultText}] : [];
+  const resultFact = resultText
+    ? [
+        {
+          label: 'Result',
+          value: resultText,
+          line: finishedText(session.finish) ?? resultText,
+        },
+      ]
+    : [];
   // One answer per section to "how much does it vary": the Varies most rows, the grid's Varies row and the footer read it.
   const vary = varyOf(sectionTimes, basis, pool);
   const sections = sectionTable(
@@ -809,7 +823,9 @@ export function buildSessionModel(
     detail,
     tray,
     // Every driver's pace by class from the game's results file replaces the class table where it exists (ticket 20).
-    classPace: day ? null : session.classPace,
+    // A classPace with only his own laps has nothing to compare: the block waits for another driver, and the class table stays.
+    classPace:
+      day || !hasOtherDrivers(session.classPace) ? null : session.classPace,
     classTable: day
       ? null
       : classTable(session.classBests, bestLap?.timeS ?? session.bestTimeS),

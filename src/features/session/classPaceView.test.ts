@@ -145,6 +145,11 @@ describe('classPaceView', () => {
       ]);
   });
 
+  it('says whether the rows carry cells: his own class yes, another class no (the heads follow it)', () => {
+    expect(classPaceView(rDoc, null, false)!.cells).toBe(true);
+    expect(classPaceView(rDoc, 'LMP2_ELMS', false)!.cells).toBe(false);
+  });
+
   it('his row has no cells and does not open; another class has no cells and does not open either', () => {
     const v = classPaceView(rDoc, null, false)!;
     expect(v.rows.find(r => r.you)!.cellsS).toBeNull();
