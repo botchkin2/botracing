@@ -180,8 +180,17 @@ Function .onInstFailed
     ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
       !insertmacro BOTRACING_LOG_LINE "install failed: a partial exe is in the way, replacing it"
     ${EndIf}
+    ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe.old"
+      !insertmacro BOTRACING_LOG_LINE "install failed: the .old is there, in [$INSTDIR]"
+    ${Else}
+      !insertmacro BOTRACING_LOG_LINE "install failed: the .old is NOT there, in [$INSTDIR]"
+    ${EndIf}
     Delete "$INSTDIR\${MAINBINARYNAME}.exe"
+    ClearErrors
     Rename "$INSTDIR\${MAINBINARYNAME}.exe.old" "$INSTDIR\${MAINBINARYNAME}.exe"
+    ${If} ${Errors}
+      !insertmacro BOTRACING_LOG_LINE "install failed: the rename set the error flag"
+    ${EndIf}
     ; Success is the file being there, not the error flag: the flag was set after a rename that had worked.
     ${IfNot} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
       ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe.old"
