@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {readFileSync, readdirSync} from 'node:fs';
 import {test} from 'node:test';
 import {
   CI_ONLY,
@@ -15,6 +15,8 @@ import {
   table,
   unlisted,
 } from './check.mjs';
+import {parse as parseYaml} from 'yaml';
+
 import {workflowRuns} from './workflowRuns.mjs';
 
 const yml = readFileSync(
@@ -225,4 +227,30 @@ test('--body runs the ship-proof check on the branch diff and the body file', ()
   const without = checkBody('body.md', {git, read: () => '## What\nnothing\n'});
   assert.equal(without.ok, false);
   assert.match(without.problems[0], /no "## Proof where he uses it" section/);
+});
+
+// workflowRuns.mjs reads test.yml with a line reader, not a YAML parser, so a name GitHub cannot parse passed the drift
+// test and went red in CI (#722: "Recovery tool: apply guards", a colon in an unquoted name). Every workflow file must
+// parse as YAML, which is what GitHub does first.
+test('every workflow file parses as YAML', () => {
+  const dir = new URL('../../.github/workflows/', import.meta.url);
+  const files = readdirSync(dir).filter(f => /\.ya?ml$/.test(f));
+  assert.ok(files.length > 0);
+  for (const f of files) {
+    const doc = parseYaml(readFileSync(new URL(f, dir), 'utf8'));
+    assert.equal(typeof doc, 'object', f);
+    assert.ok(doc.jobs && Object.keys(doc.jobs).length > 0, `${f} has jobs`);
+  }
+});
+
+test('the YAML parse catches the name that broke #722', () => {
+  const bad = [
+    'jobs:',
+    '  a:',
+    '    steps:',
+    '      - name: Recovery tool: apply guards',
+    '        run: x',
+    '',
+  ].join('\n');
+  assert.throws(() => parseYaml(bad));
 });
