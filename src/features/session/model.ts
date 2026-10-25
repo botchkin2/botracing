@@ -334,7 +334,6 @@ export function trafficPaceFacts(
   session: SessionDetail,
   basisLaps: Lap[],
 ): Fact[] {
-  const {field} = session;
   // Of the basis laps, like every other median on the screen and the stint
   // headers' own clean median (one answer to "clean median"), not the stored
   // whole-session value.
