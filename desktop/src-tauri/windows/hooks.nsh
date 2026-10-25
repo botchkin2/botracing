@@ -163,7 +163,7 @@ Var BotRacingAside
     ${Else}
       ClearErrors
       Rename "$INSTDIR\${MAINBINARYNAME}.exe" "$INSTDIR\${MAINBINARYNAME}.exe.old"
-      ${If} ${Errors}
+      ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
         !insertmacro BOTRACING_LOG_LINE "exe not moved aside: the rename failed (update mode $UpdateMode)"
       ${Else}
         StrCpy $BotRacingAside "1"
@@ -181,24 +181,18 @@ Function .onInstFailed
       !insertmacro BOTRACING_LOG_LINE "install failed: a partial exe is in the way, replacing it"
     ${EndIf}
     Delete "$INSTDIR\${MAINBINARYNAME}.exe"
-    ClearErrors
     Rename "$INSTDIR\${MAINBINARYNAME}.exe.old" "$INSTDIR\${MAINBINARYNAME}.exe"
-    ${If} ${Errors}
-      ; A copy over whatever is there is the second try.
-      ClearErrors
-      CopyFiles /SILENT "$INSTDIR\${MAINBINARYNAME}.exe.old" "$INSTDIR\${MAINBINARYNAME}.exe"
-      ${If} ${Errors}
-        ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe.old"
-          !insertmacro BOTRACING_LOG_LINE "install failed and the old exe could not be put back (the .old is there)"
-        ${Else}
-          !insertmacro BOTRACING_LOG_LINE "install failed and the old exe could not be put back (the .old is gone)"
-        ${EndIf}
-      ${Else}
+    ; Success is the file being there, not the error flag: the flag was set after a rename that had worked.
+    ${IfNot} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
+      ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe.old"
+        CopyFiles /SILENT "$INSTDIR\${MAINBINARYNAME}.exe.old" "$INSTDIR\${MAINBINARYNAME}.exe"
         Delete "$INSTDIR\${MAINBINARYNAME}.exe.old"
-        !insertmacro BOTRACING_LOG_LINE "install failed: the old exe is back (copied)"
       ${EndIf}
-    ${Else}
+    ${EndIf}
+    ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
       !insertmacro BOTRACING_LOG_LINE "install failed: the old exe is back"
+    ${Else}
+      !insertmacro BOTRACING_LOG_LINE "install failed and the old exe could not be put back"
     ${EndIf}
   ${EndIf}
 FunctionEnd
