@@ -44,6 +44,8 @@ describe('raceFactsOfPlan', () => {
       tankL: 105,
       litresPerVePct: null,
       litresPerVePctStop: null,
+      setupVePct: null,
+      setupVePerLapPct: null,
     },
     laps: null,
     race,

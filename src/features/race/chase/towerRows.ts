@@ -6,27 +6,30 @@ import {roadOffsetM} from '@/src/features/race/model';
 /** What the tower needs of one car, taken from the Race screen's own car (place, class colour, model). */
 export type TowerCar = {
   index: number;
-  /** Overall place from the game's scoring. */
-  place: number;
+  /** Place in its own class, the HUD's basis (the standings' classPlace); 0 when it has none. */
+  classPlace: number;
   classKey: string;
+  /** The class's short title ("GT3"), printed beside the place. */
+  classTag: string;
   /** Class colour from the design tokens. */
   color: string;
   model: string;
   lapDistM: number;
-  /** Seconds behind the class leader; null in the garage. */
-  gapS: number | null;
+  /** Seconds to the car ahead in its class, the HUD's own interval (null on the grid, in the garage, or for a class leader). */
+  intervalS: number | null;
   inGarage: boolean;
 };
 
-/** Order: the running order by place. Near: the cars by their road distance from the followed car, ahead on top. */
+/** Order: the followed car's class by class place, so its neighbours are the HUD's P11 and P13. Near: the cars by their road distance from the followed car, ahead on top. */
 export type TowerMode = 'order' | 'near';
 
 export type TowerRow = {
   index: number;
-  place: number;
+  classPlace: number;
+  classTag: string;
   color: string;
   model: string;
-  /** Order: seconds to the followed car in its class ("−1.2" ahead), "–" across classes. Near: metres along the road ("+35 m"). "" on the followed car. */
+  /** Order: seconds to the followed car in its class ("−1.2" ahead), the sum of the standings' intervals between the two, so the next car reads what the HUD's ▲ and ▼ read. Near: metres along the road ("+35 m"). "" on the followed car. */
   gap: string;
   followed: boolean;
 };
@@ -41,11 +44,11 @@ export function towerRows(
 ): TowerRow[] {
   const me = cars.find(c => c.index === followed);
   if (!me) return [];
-  const live = cars.filter(c => !c.inGarage && c.place > 0);
+  const live = cars.filter(c => !c.inGarage && c.classPlace > 0);
   if (!live.includes(me)) return [];
   const ordered =
     mode === 'order'
-      ? [...live].sort((a, b) => a.place - b.place)
+      ? live.filter(c => c.classKey === me.classKey).sort((a, b) => a.classPlace - b.classPlace)
       : live
           .flatMap(c => {
             const d = roadOffsetM(c, me, trackM);
@@ -53,24 +56,36 @@ export function towerRows(
           })
           .sort((a, b) => b.d - a.d)
           .map(e => e.car);
+  // every car of the class by class place, a garage car too: its interval is part of the way between two cars
+  const classRun = cars.filter(c => c.classKey === me.classKey && c.classPlace > 0).sort((a, b) => a.classPlace - b.classPlace);
   const at = ordered.indexOf(me);
   const count = Math.min(span, ordered.length);
   const first = Math.max(0, Math.min(at - Math.floor(count / 2), ordered.length - count));
   return ordered.slice(first, first + count).map(c => ({
     index: c.index,
-    place: c.place,
+    classPlace: c.classPlace,
+    classTag: c.classTag,
     color: c.color,
     model: c.model,
-    gap: c === me ? '' : gapText(c, me, mode, trackM),
+    gap: c === me ? '' : gapText(c, me, mode, trackM, classRun),
     followed: c === me,
   }));
 }
 
-function gapText(c: TowerCar, me: TowerCar, mode: TowerMode, trackM: number): string {
+function gapText(c: TowerCar, me: TowerCar, mode: TowerMode, trackM: number, classRun: readonly TowerCar[]): string {
   if (mode === 'near') {
     const d = roadOffsetM(c, me, trackM);
     return d === null ? '–' : `${formatSignedWhole(d)} m`;
   }
-  if (c.classKey !== me.classKey || c.gapS === null || me.gapS === null) return '–';
-  return formatGap(c.gapS - me.gapS, 1);
+  // Order holds one class by class place: the cars between the two each add their interval to the one ahead of them.
+  const from = classRun.indexOf(c);
+  const to = classRun.indexOf(me);
+  const [first, last] = from < to ? [from + 1, to] : [to + 1, from];
+  let sumS = 0;
+  for (let i = first; i <= last; i++) {
+    const intervalS = classRun[i].intervalS;
+    if (intervalS === null) return '–';
+    sumS += intervalS;
+  }
+  return formatGap(from < to ? -sumS : sumS, 1);
 }

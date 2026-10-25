@@ -253,6 +253,28 @@ test('problems: a session without a field is a row that opens the session', () =
   ]);
 });
 
+test('problems: low disk space is a line before the disk fails; a chunk the disk refused is a line when it does', () => {
+  const refused = payload('recorder-status', '0.1.17-recording-write-error'); // a real status.json with writeError set
+  const fine = mutate(refused, 'writeError', null);
+  const low = problemsOf({sims: [{retries: {}}], recorder: fine, freeBytes: 12e9, nowMs});
+  assert.deepEqual(low.map(p => [p.kind, p.message]), [['disk-low', '12 GB free; a 24 h race records about 13 GB']]);
+  assert.deepEqual(problemsOf({sims: [{retries: {}}], recorder: fine, freeBytes: 400e9, nowMs}), []);
+  const full = problemsOf({sims: [{retries: {}}], recorder: refused, freeBytes: 0.2e9, nowMs});
+  assert.deepEqual(full.map(p => [p.kind, p.message]), [['disk-full', "can't write the capture: Access is denied. (os error 5)"]], 'the failure replaces the warning');
+});
+
+test('problems: replay copies near their cap are a line', () => {
+  const problems = problemsOf({
+    sims: [{retries: {}}],
+    recorder: null,
+    replay: {message: 'Replay copies are close to their 20 GB cap', atMs: nowMs},
+    nowMs,
+  });
+  assert.deepEqual(problems.map(p => [p.kind, p.message]), [
+    ['replay-cap', 'Replay copies are close to their 20 GB cap'],
+  ]);
+});
+
 test('problems: none when all is well; a finished sync with an old error is not a crash', () => {
   assert.deepEqual(
     problemsOf({sims: [{retries: {}}], recorder: input.recorder, nowMs}),

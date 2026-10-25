@@ -2,7 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import type {RaceFacts} from '@/src/analysis/fuelPlan';
 
-import {lastRaceLine, lastRaceOf} from './lastRace';
+import {lastRaceLine, lastRaceOf, lastRaceSessionOf} from './lastRace';
 
 const facts: RaceFacts = {
   planKey: 't|c',
@@ -112,5 +112,25 @@ describe('lastRaceLine', () => {
     ).toBe(
       'DNF at L21 of L24+ · 2 stops at L25, L49 · 4.9 L / 3 % VE left at the end of L73',
     );
+  });
+});
+
+describe('lastRaceSessionOf', () => {
+  const sessions = [
+    {id: 'newRaceNoRatio', sessionType: 'R'},
+    {id: 'practice', sessionType: 'P'},
+    {id: 'oldRace', sessionType: 'R'},
+  ];
+
+  it('is the newest race of the planned set: a newer race with no ratio is in no set and is skipped', () => {
+    expect(lastRaceSessionOf(sessions, {sessionIds: ['practice', 'oldRace']})?.id).toBe('oldRace');
+  });
+
+  it('with no event it is the newest race at the track and car', () => {
+    expect(lastRaceSessionOf(sessions, null)?.id).toBe('newRaceNoRatio');
+  });
+
+  it('is null when the set has no race', () => {
+    expect(lastRaceSessionOf(sessions, {sessionIds: ['practice']})).toBeNull();
   });
 });

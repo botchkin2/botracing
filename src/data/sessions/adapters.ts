@@ -165,6 +165,15 @@ export type SessionFuel = {
    */
   litresPerVePct: number | null;
   litresPerVePctStop: number | null;
+  /**
+   * LMU's own VE expectation from the car setup (`VM_VIRTUAL_ENERGY`, '100%
+   * (18.5 laps)'): the VE setting it was read at and the game's VE a lap at
+   * it. A second source for the VE a lap he measured, never the plan's number.
+   * Null when the setup had no such string, and on sessions synced before it
+   * was read.
+   */
+  setupVePct: number | null;
+  setupVePerLapPct: number | null;
 };
 
 function toSessionFuel(v: unknown): SessionFuel | null {
@@ -176,6 +185,8 @@ function toSessionFuel(v: unknown): SessionFuel | null {
     tankL: num(x.tankL),
     litresPerVePct: num(x.litresPerVePct),
     litresPerVePctStop: num(x.litresPerVePctStop),
+    setupVePct: num(x.setupVePct),
+    setupVePerLapPct: num(x.setupVePerLapPct),
   };
 }
 

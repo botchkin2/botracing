@@ -19,6 +19,8 @@ const rules: PlanRules = {
   formationLap: true,
   mandatoryStops: 0,
 };
+// The load of these rules, known: the planner reads it as a number or null (unknown).
+const LOAD_L = 100;
 const lap = (fuelL: number, vePct: number | null): GreenLap => ({
   fuelL,
   vePct,
@@ -60,8 +62,8 @@ describe('buildPlanCards', () => {
     expect(ve.key).toBe('ve');
     expect(ve.lapsMedian).toBeCloseTo(28.6, 1);
     expect(ve.formula).toBe('100 % ÷ 3.50 %/lap');
-    // Fuel would reach 42 laps: no warning under the bar.
-    expect(cards.tank.otherFirst).toBeNull();
+    // Fuel would reach 42 laps: VE is the limit, said in words.
+    expect(cards.tank.limit).toBe('VE runs out first: 28.6 laps (100 % ÷ 3.50 %/lap).');
   });
 
   it('asking for fuel shows the fuel bar, and says VE runs out first because it does', () => {
@@ -76,18 +78,30 @@ describe('buildPlanCards', () => {
     expect(fuel.key).toBe('fuel');
     expect(fuel.lapsMedian).toBeCloseTo(42.0, 1);
     expect(fuel.formula).toBe('100 L ÷ 2.38 L/lap');
-    expect(asked.tank.otherFirst).toBe(
+    expect(asked.tank.limit).toBe(
       'VE runs out first: 28.6 laps (100 % ÷ 3.50 %/lap).',
     );
   });
 
-  it('with VE shown, fuel is named only where it is the shorter meter', () => {
+  it('with VE shown, the limit names fuel where it is the shorter meter', () => {
     const heavy = Array.from({length: 12}, () => lap(4.2, 3.5));
     const c = buildPlanCards(planRace(rules, heavy), rules, false, RATIO, 've');
     expect(c.tank.meters[0].key).toBe('ve');
-    expect(c.tank.otherFirst).toBe(
+    expect(c.tank.limit).toBe(
       'Fuel runs out first: 23.8 laps (100 L ÷ 4.20 L/lap).',
     );
+  });
+
+  it('says the two run out together when their whole laps are equal', () => {
+    const together = buildPlanCards(
+      planRace(rules, Array.from({length: 12}, () => lap(4.3, 4.3))),
+      rules,
+      false,
+      RATIO,
+      've',
+    );
+    // 100 L / 4.3 = 23.26 laps and 100 % / 4.3 = 23.26 laps
+    expect(together.tank.limit).toBe('VE and fuel run out together: 23 laps.');
   });
 
   it('the Stops card: full tank first with its stint laps, VE per stint and the litres each stop refuels', () => {
@@ -345,8 +359,8 @@ describe('buildPlanCards', () => {
     // What the tank holds on arrival and what the remaining laps need, at p90.
     const fuelLeft = Math.max(
       0,
-      rules.fuelL -
-        Math.min(rules.fuelL, (full.stintLaps[i] + form) * fuel!.p90),
+      LOAD_L -
+        Math.min(LOAD_L, (full.stintLaps[i] + form) * fuel!.p90),
     );
     const veLeft = Math.max(
       0,
@@ -363,7 +377,7 @@ describe('buildPlanCards', () => {
     // Sized at the median use it would have been smaller (the bug parc found).
     const medianNeed = Math.max(
       remaining * fuel!.median -
-        Math.max(0, rules.fuelL - (full.stintLaps[i] + form) * fuel!.median),
+        Math.max(0, LOAD_L - (full.stintLaps[i] + form) * fuel!.median),
       (remaining * ve!.median -
         Math.max(0, rules.vePct - (full.stintLaps[i] + form) * ve!.median)) *
         RATIO,
@@ -386,7 +400,7 @@ describe('the fuel-only plan', () => {
 
   it('has one meter, fuel, and nothing to say about another', () => {
     expect(cards.tank.meters.map(m => m.key)).toEqual(['fuel']);
-    expect(cards.tank.otherFirst).toBeNull();
+    expect(cards.tank.limit).toBeNull();
   });
 
   it('has no VE per stint, and stints set by fuel', () => {
@@ -428,9 +442,9 @@ describe('the start load', () => {
 
   it('a race that fits one load reads the load to the flag in VE, litres beside, and one lap more', () => {
     expect(fits.race.startLoad).toEqual({
-      // 20 min is 12 laps, 13 at the late flag: 13 x 3.5 = 45.5 -> 46 %.
-      value: '46 % VE (46 L)',
-      hero: '46 % VE',
+      // 20 min is 12 laps, 13 at the late flag: 13 x 3.5 = 45.5, + the 1 % floor at the flag = 46.5 -> 47 %.
+      value: '47 % VE (47 L)',
+      hero: '47 % VE',
       covers: 'to finish',
     });
   });
@@ -443,8 +457,8 @@ describe('the start load', () => {
       false,
       RATIO,
     );
-    // The VE is the rounded 46 % of 86 L; 100 L would read 46 L.
-    expect(cards.race.startLoad?.value).toBe('46 % VE (39 L)');
+    // The VE is the rounded 47 % of 86 L; 100 L would read 47 L.
+    expect(cards.race.startLoad?.value).toBe('47 % VE (40 L)');
   });
 
   it('asking for fuel shows litres only', () => {

@@ -29,7 +29,6 @@
 import {
   existsSync,
   mkdirSync,
-  readdirSync,
   readFileSync,
   writeFileSync,
 } from 'node:fs';
@@ -47,7 +46,15 @@ import {replaceFile} from './replaceFile.mjs';
 import {versionKey} from './versionKey.mjs';
 import {slugId} from './analyzeFromArchive.mjs';
 import {analysisVersion, blockVersions, trackMapVersion} from './analyze.mjs';
-import {markUploaded} from './captureMarker.mjs';
+import {
+  dropSessionIds,
+  foreignMissing,
+  liveMarks,
+  markUploaded,
+  markVerified,
+  unverifiedMarks,
+} from './captureMarker.mjs';
+import {describeCapture, onTrackSpanOf} from './lmuCapture.mjs';
 import {noteNoField} from './noField.mjs';
 import {describeCheck} from './irCapture.mjs';
 import {captureExtractFor, liveExtractSessions} from './captureExtractFor.mjs';
@@ -55,7 +62,9 @@ import {resultsForSpan} from './lmuResults.mjs';
 import {backlogCandidates, uploadResultsBacklog} from './resultsBacklog.mjs';
 import {
   adoptLiveIds,
+  claimCoveredSessions,
   confirmAdoptions,
+  confirmClaims,
   coveredCopies,
   settleSupersedes,
 } from './heal.mjs';
@@ -294,6 +303,68 @@ function keepBoundaries(trackId, state) {
   writeFileSync(boundariesPath(trackId), JSON.stringify(packState(state)));
 }
 
+// Captures marked before the read-back existed or whose read-back failed,
+// and captures live laps uploaded (which the live path never marks): each
+// session is read back, so a capture that is stored stops counting down to
+// its 14-day deletion (prune.rs) and leaves Problems.
+async function verifyMarked(store) {
+  let verified = 0;
+  let failed = 0;
+  const live = (root, name, id, readBack) =>
+    Boolean(readBack?.ok) &&
+    markUploaded(root, [name], id, {check: readBack}).length > 0;
+  for (const [marks, record] of [
+    [unverifiedMarks(captureRoot), markVerified],
+    [liveMarks(captureRoot, readLiveIndex(work)), live],
+  ]) {
+    for (const {name, sessionIds} of marks) {
+      const checks = [];
+      for (const id of sessionIds) {
+        const readBack = await store.verify(null, {sessionId: id});
+        checks.push({
+          id,
+          ok: Boolean(readBack?.ok),
+          missing:
+            !readBack?.ok &&
+            String(readBack?.reason ?? '').includes('is not in the store'),
+          readBack,
+        });
+      }
+      let span = null;
+      try {
+        span = onTrackSpanOf(
+          describeCapture(resolve(captureRoot, name)).stretches,
+        );
+      } catch {
+        span = null;
+      }
+      for (const row of checks) {
+        if (!row.ok || typeof store.getSession !== 'function') continue;
+        const id = row.readBack?.sessionId || row.id;
+        const doc = await store.getSession(id);
+        row.start = doc?.startedAt ?? null;
+        row.end = doc?.endedAt ?? null;
+      }
+      const drop = foreignMissing(checks, span);
+      const dropped = new Set(
+        dropSessionIds(captureRoot, name, drop) ? drop : [],
+      );
+      if (dropped.size)
+        log(`  ${name}: dropped ${drop.join(', ')} (not this owner)`);
+      for (const row of checks) {
+        if (dropped.has(row.id)) continue;
+        if (record(captureRoot, name, row.id, row.readBack)) verified++;
+        else {
+          failed++;
+          log(`  ${name}: ${row.id} not verified: ${row.readBack.reason}`);
+        }
+      }
+    }
+  }
+  if (verified || failed)
+    log(`read back captures: ${verified} verified, ${failed} not`);
+}
+
 // Sessions uploaded before the tray kept capture extracts, whose capture is
 // still on the PC: their extract goes up once, by itself, with no analysis
 // (pit-wall thread 1 #4611, #4613). Recorded in state.extracts so a session
@@ -457,24 +528,24 @@ async function main() {
   }
   const scanned = scan(state);
   if (!check) saveState(state);
-  // A drive live laps already uploaded (syncLive.mjs) is that session: its
-  // game file adds nothing the capture lacks (STORAGE.md, Live laps).
-  // A broken-wheel capture covers nothing: its game file builds the drive.
+  // A drive live laps already uploaded still archives its game file (audit
+  // row 13). The build takes the live session's id and adds only the
+  // stretches that copy lacks. A broken-wheel capture covers nothing: its
+  // game file rebuilds the drive (adoptLiveIds).
   const liveIndex = usableLiveIndex(readLiveIndex(work), captureRoot);
-  const files = scanned.filter(f => {
-    const cover = liveCover(liveIndex, f.info);
-    if (cover)
-      log(
-        `  ${f.info.source}: live laps have it (${cover.sessionId}), skipped`,
-      );
-    return !cover;
-  });
+  const files = scanned;
   const sessions = group(files);
-  // A drive whose live capture is defective (brokenWheels.mjs) is rebuilt from
-  // its game file under the live session's id (heal.mjs, thread 74 step 1).
-  // Only while the live session still exists in the store, so a deleted live
-  // copy is never made again; without a store (local) nothing is adopted.
+  // A covered game file is built under the live session's id only while that
+  // session is still in the store. A deleted live copy is never made again
+  // (STORAGE.md). Without a store (local) nothing is claimed or adopted.
   if (remoteStore) {
+    for (const s of await confirmClaims(
+      claimCoveredSessions(sessions, liveIndex, liveCover),
+      async id => Boolean(await remoteStore.getSession(id)),
+    ))
+      log(`  ${s.hashId}: game file kept with live session ${s.id}`);
+    // A drive whose live capture is defective (brokenWheels.mjs) is rebuilt from
+    // its game file under the live session's id (heal.mjs, thread 74 step 1).
     const adopted = adoptLiveIds(
       sessions,
       readLiveIndex(work),
@@ -572,6 +643,7 @@ async function main() {
     await uploadCaptureBacklog(sessions, state, store, liveIndex);
   if (!local && !check) await keepResults(sessions, state, store, liveIndex);
   if (!local && !check) await repairIracingArchives(sessions, state, store);
+  if (!local && !check) await verifyMarked(store);
   // The watcher reads this line for the heartbeat's done/total.
   log(`to do ${todo.length}`);
   // A sync never writes a track. Boundaries and the surface are rebuilt by
@@ -802,12 +874,22 @@ async function processSession(
     lines.push(`  ${out.session.consistency.overview}`);
   }
   out.healDefect = s.healDefect ?? null;
+  out.healLack = s.healLack ?? null;
   if (local) lines.push(`  -> ${writeLocal(out)}`);
   else {
-    await store.upload(out, {log: line => lines.push(line)});
+    const sent = await store.upload(out, {log: line => lines.push(line)});
     noteNoField(work, out.session, Date.now());
-    // What the captures gave is in the store now: the tray may prune them.
-    markUploaded(captureRoot, out.capturesUsed, s.id);
+    // Read back before the tray may delete what the captures gave: an
+    // unverified session keeps them (verifyStored.mjs).
+    const readBack = await store.verify(out, {
+      skipped: sent?.skipped ?? null,
+    });
+    lines.push(
+      readBack.ok
+        ? `  read back: ${readBack.laps} laps, field ${readBack.fieldHash}`
+        : `  read back failed, captures kept: ${readBack.reason}`,
+    );
+    markUploaded(captureRoot, out.capturesUsed, s.id, {check: readBack});
   }
   return {
     track: out.track,

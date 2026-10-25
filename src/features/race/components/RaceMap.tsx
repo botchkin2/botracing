@@ -1,4 +1,4 @@
-import {useMemo} from 'react';
+import {useMemo, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {type Box} from '@/src/analysis/carLabels';
@@ -20,7 +20,8 @@ import {
 } from '@/src/ui';
 
 import {type RaceDot} from '../model';
-import {ChaseView, chaseAvailable, chaseNeedsRoad} from './ChaseView';
+import {chaseAvailable, chaseNeedsRoad} from './ChaseView';
+import {HeldChaseView} from './HeldChaseView';
 import {type TowerCar} from '@/src/features/race/chase/towerRows';
 import {type ChaseCar, type ChaseGaps, type ChaseInputs, type ChaseSampler} from '@/src/features/race/chase/chaseTypes';
 
@@ -160,8 +161,14 @@ export function RaceMap({
   const {color} = useTheme();
   const following = mode === 'follow' && follow !== null;
   // the page that draws the 3D fits the road (the phone app's WebView page does its own)
-  const chaseRoad = mode === 'chase' && chase !== null && chaseAvailable && chaseNeedsRoad ? chase.road() : null;
+  // Once the 3D has been shown it stays mounted, hidden, so Track and Follow do not rebuild it (HeldChaseView).
+  const [kept, setKept] = useState(false);
+  const chaseRoad =
+    (mode === 'chase' || kept) && chase !== null && chaseAvailable && chaseNeedsRoad ? chase.road() : null;
   const chasing = mode === 'chase' && chase !== null && chaseAvailable && (!chaseNeedsRoad || chaseRoad !== null);
+  const building = chase !== null && mode === 'chase' && chase.building;
+  const chaseShown = chasing && !building;
+  if (chaseShown && !kept) setKept(true);
   const scale = desktop ? DESKTOP_SCALE : PHONE_SCALE;
   const lines = useMemo(
     // Fits the view and is the band when there is no outline; no lap is drawn.
@@ -232,31 +239,35 @@ export function RaceMap({
           backgroundColor: color.surface,
         },
       ]}>
-      {chase && mode === 'chase' && chase.building ? (
+      {chase && kept ? (
+        <View style={chaseShown ? undefined : styles.hidden}>
+          <HeldChaseView
+            active={chaseShown}
+            width={width - 2}
+            height={height - 2}
+            road={chaseRoad}
+            cars={chase.cars}
+            sample={chase.sample}
+            timeS={chase.timeS}
+            focus={chase.focus}
+            playing={chase.playing}
+            inputs={chase.inputs}
+            gaps={chase.gaps}
+            tower={chase.tower}
+            trackM={chase.trackM}
+            clockLabel={chase.clockLabel}
+            onToggle={chase.onToggle}
+            onStep={chase.onStep}
+            onCycleRate={chase.onCycleRate}
+            rate={chase.rate}
+            onPressCar={onPressCar}
+            embedded={chase.embedded}
+            />
+        </View>
+      ) : null}
+      {building ? (
         <Skeleton height={height - 2} />
-      ) : chase && chasing ? (
-        <ChaseView
-          width={width - 2}
-          height={height - 2}
-          road={chaseRoad}
-          cars={chase.cars}
-          sample={chase.sample}
-          timeS={chase.timeS}
-          focus={chase.focus}
-          playing={chase.playing}
-          inputs={chase.inputs}
-          gaps={chase.gaps}
-          tower={chase.tower}
-          trackM={chase.trackM}
-          clockLabel={chase.clockLabel}
-          onToggle={chase.onToggle}
-          onStep={chase.onStep}
-          onCycleRate={chase.onCycleRate}
-          rate={chase.rate}
-          onPressCar={onPressCar}
-          embedded={chase.embedded}
-        />
-      ) : following ? (
+      ) : chaseShown ? null : following ? (
         <FollowMap
           width={width - 2}
           height={height - 2}
@@ -307,7 +318,7 @@ export function RaceMap({
             onChange={onMode}
           />
         ) : null}
-        {onLabels ? (
+        {onLabels && !chasing ? (
           <Segment options={LABEL_OPTIONS} value={labels} onChange={onLabels} />
         ) : null}
       </View>
@@ -354,6 +365,7 @@ function noop() {}
 
 const styles = StyleSheet.create({
   frame: {borderWidth: 1, borderRadius: radius.md, overflow: 'hidden'},
+  hidden: {display: 'none'},
   controls: {
     position: 'absolute',
     top: space.sm,

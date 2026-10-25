@@ -88,6 +88,10 @@ The `update` job, "Tray update rehearsal (N-1 to N)", builds 0.0.1 and 0.0.2 wit
 
 `functions/test/emulator/*.test.mjs` send real requests to the read API in the Firebase emulators (functions, Firestore, Auth, Storage; config `firebase.emulator.json`, a demo project, nothing reaches production). Run them with `npm run test:emulator` in `functions/`: it builds the functions, starts the emulators, seeds what each test needs and signs a user in through the Auth emulator. firebase-tools needs **Java 21+** (`JAVA_HOME`; on this PC Android Studio's `jbr` qualifies, the system JDK 17 does not). CI runs them in the `functions` job.
 
+## A 2 h full-grid race on the phone (tools/dev/longRace*)
+
+Ticket 39 (pit-wall thread 102). `longRaceField.mjs` tiles a real field in time and in cars to a synthetic one (2 h, 60 cars, JSON about 49 MB, laps never go down, places stay 1..60 and unique); `longRaceProxy.mjs` answers the API for a local app build (`EXPO_PUBLIC_API_BASE=http://localhost:8099/api`, cleartext allowed, never committed) and serves that field for one session; `longRaceEmulator.mjs` opens the race in the real app on an emulator through its link and prints the time to open (map and board on screen), the peak total PSS of the app and the WebView renderer (`dumpsys meminfo`) and any OOM or crash line in logcat. `--tab 3d` goes on to the 3D: with a local APK that sets `webviewDebuggingEnabled`, `longRaceWebView.mjs` drives the WebView page over its devtools socket, answers the page's own field request with the proxy's body (so V8 parses the same field) and prints the time to its first frame and the page's JS heap against `jsHeapSizeLimit`. `longRaceProbe.mjs` is the quick loop in a throttled headless Chrome. The runs and the verdict are in pit-wall thread 102.
+
 ## The Android app on an emulator
 
 Nothing ships to the phone without a run of the real app where it will be used. The emulator `tyre_pixel` (android-35 google_apis x86_64) runs the real app; the SDK pieces are `cmdline-tools` and `system-images;android-35;google_apis;x86_64`.

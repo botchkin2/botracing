@@ -3,6 +3,7 @@
 // cloud analysis runs with no field of its own and keeps what the session
 // points at, so a result kept on its version alone stayed what lap 1 gave.
 import assert from 'node:assert/strict';
+import {Buffer} from 'node:buffer';
 import {test} from 'node:test';
 import {gzipSync} from 'node:zlib';
 
@@ -155,6 +156,54 @@ test('a field that cannot be read keeps the stored blocks, never null over them'
   assert.equal(written.classBests, null);
   assert.ok(logs.includes('  field: unreadable, kept the stored result'));
   assert.ok(logs.includes('  field: unreadable, kept the stored classLaps'));
+});
+
+test('a marked stored field is kept and does not refill traffic, class laps, bests or the finish', async () => {
+  for (const kind of ['garbage', 'misaligned', 'doubted', 'track']) {
+    const backend = stubBackend(
+      {
+        field: {...fieldRef('bbb'), mark: {kind}, note: 'kept'},
+        result: {
+          version: FINISH_VERSION,
+          kind: 'race',
+          finish: {overall: 3, inClass: 2, lapsDone: 1},
+          fieldHash: 'bbb',
+        },
+        classLaps: {version: 1, kind: 'race'},
+        classBests: {version: 1},
+      },
+      {[fieldRef('bbb').path]: gz(lap3)},
+    );
+    const run = cloudRun();
+    run.laps = [{id: 'L1', traffic: {aheadS: 1}}];
+    run.lapWindows = [{from: 0, to: 10}];
+    const logs = [];
+    await createStore(backend).upload(run, {log: m => logs.push(m)});
+    const written = backend.docs.get('sessions/s1');
+    assert.equal(written.field.mark.kind, kind);
+    assert.equal(written.classLaps, null);
+    assert.equal(written.classBests, null);
+    assert.equal(written.result, null);
+    assert.equal(run.laps[0].traffic, null);
+    assert.deepEqual(backend.reads, []);
+    assert.ok(logs.includes('  field: marked, kept, not used'));
+  }
+});
+
+test('a smaller aside on an unmarked field still refills from that field', async () => {
+  const backend = stubBackend(
+    {
+      field: {
+        ...fieldRef('bbb'),
+        mark: {kind: 'smaller', aside: 'field/o/s1/small.json.gz'},
+        aside: 'field/o/s1/small.json.gz',
+      },
+    },
+    {[fieldRef('bbb').path]: gz(lap3)},
+  );
+  await createStore(backend).upload(cloudRun());
+  assert.equal(backend.docs.get('sessions/s1').result.finish.overall, 1);
+  assert.deepEqual(backend.reads, [fieldRef('bbb').path]);
 });
 
 test('stampField and madeFromField', () => {

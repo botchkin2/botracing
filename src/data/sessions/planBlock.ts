@@ -186,8 +186,12 @@ export function toPlanBlock(v: unknown): PlanBlock | null {
       fillLimitL: fillLimitWithinTank(num(fuel.fillLimitL), num(fuel.tankL)),
       tankL: num(fuel.tankL),
       litresPerVePct: num(fuel.litresPerVePct),
-      // Only the sessions' own doc carries the stop cross-check.
-      litresPerVePctStop: null,
+      // The litres per 1 % VE added at the stops: the plan route fills it from
+      // the session's own fuel; null where the session had no stop.
+      litresPerVePctStop: num(fuel.litresPerVePctStop),
+      // LMU's VE expectation: the plan route fills it from the session's own fuel too.
+      setupVePct: num(fuel.setupVePct),
+      setupVePerLapPct: num(fuel.setupVePerLapPct),
     },
     laps: Array.isArray(p.laps)
       ? p.laps.flatMap(l => {

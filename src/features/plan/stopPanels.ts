@@ -20,7 +20,7 @@ export type StopPanel = {
   fill: {arrive: number; set: number} | null;
   /** The stint after this stop runs dry at p90 use: the hero takes the warning tone. */
   dryAtP90: boolean;
-  /** Short facts beside the number: "fuel-limited", "no fill", "assumed fill-to". */
+  /** Short facts beside the number: "fuel-limited", "no fill", "no stop measured". */
   tags: string[];
 };
 
@@ -29,8 +29,11 @@ export type StopPanelInput = {
   /** VE for a car with Virtual Energy, litres otherwise. */
   meter: 've' | 'fuel';
   p90: {fuelL: number | null; vePct: number | null};
-  fillLimitL: number;
+  /** The most fuel he has run in the rule set: the cap of a litre setting; null when the load is not known (VE alone, no fuel check). */
+  loadL: number | null;
   fullVePct: number;
+  /** Litres one 1 % VE adds at a stop, from his own stops; null when none was measured. */
+  stopRatio: number | null;
   /** A timed race: the last stop covers the lap a late flag can add. */
   lateFlag: boolean;
   pitModel: PitModel | null;
@@ -39,30 +42,31 @@ export type StopPanelInput = {
 const whole = (v: number) => String(Math.round(v));
 
 export function stopPanels(pit: PitPlan, input: StopPanelInput): StopPanel[] {
-  const {meter, fillLimitL, fullVePct} = input;
+  const {meter, loadL, fullVePct} = input;
   const arrive = pit.stints
     .slice(0, -1)
     .map(s => (meter === 've' ? s.left.vePct : s.left.fuelL));
+  const arriveFuelL = pit.stints.slice(0, -1).map(s => s.left.fuelL);
   const targets = stopTargets({
     sim: input.sim,
     meter,
     stintLaps: pit.stints.map(s => s.laps),
     lateFlag: input.lateFlag,
     p90: input.p90,
-    fillLimitL,
+    loadL,
     fullVePct,
+    stopRatio: input.stopRatio,
     arrive,
+    arriveFuelL,
   });
-  const full = meter === 've' ? fullVePct : fillLimitL;
+  const full = meter === 've' ? fullVePct : loadL ?? 0;
   const unit = meter === 've' ? '%' : 'L';
   return targets.map((t, k) => {
     const stop = pit.stops[k];
     const tags: string[] = [];
     if (t.fuelLimited) tags.push('fuel-limited');
     if (t.noFill) tags.push('no fill');
-    // LMP2's litre setting is taken as fill-to until Botkin confirms it (#6705).
-    if (t.verb === 'set' && meter === 'fuel' && input.sim !== 'iracing')
-      tags.push('assumed fill-to');
+    if (t.unmeasured) tags.push('no stop measured');
     return {
       stop: stop.stop,
       after: `after ${lapLabel(stop.after)}`,
@@ -89,12 +93,8 @@ function valueText(t: StopTarget): string {
 /** Seconds in the pit: the lane loss and the fill the stop adds; null without a pit model. */
 function seconds(t: StopTarget, input: StopPanelInput): number | null {
   const {pitModel} = input;
-  if (!pitModel || t.added == null) return null;
-  const litres =
-    t.meter === 've' && input.fullVePct > 0
-      ? (t.added * input.fillLimitL) / input.fullVePct
-      : t.added;
-  return pitModel.baseS + litres / pitModel.refuelLPerS;
+  if (!pitModel || t.addedL == null) return null;
+  return pitModel.baseS + t.addedL / pitModel.refuelLPerS;
 }
 
 function lineOf(t: StopTarget, unit: string, s: number | null): string {

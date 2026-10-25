@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {test} from 'node:test';
 import {analyzeStored, archiveCandidates} from './analyzeStored.mjs';
+import {analysisStamp} from './versionKey.mjs';
 
 test('an archive is looked for under its own path, then under the owner key', () => {
   assert.deepEqual(
@@ -32,7 +33,11 @@ function storeOf({session, recordings, files}) {
     writeDocs: async ops => {
       for (const op of ops) {
         written.push(`${op.coll}/${op.id}`);
-        if (op.op === 'set') docs.set(`${op.coll}/${op.id}`, op.data);
+        if (op.op === 'set')
+          docs.set(`${op.coll}/${op.id}`, {
+            ...(op.merge ? docs.get(`${op.coll}/${op.id}`) : null),
+            ...op.data,
+          });
       }
     },
     sessionLapIds: async () => [],
@@ -282,4 +287,43 @@ test('the stored capture extract carries online/offline to the analysis; no extr
   assert.equal(await run(withExtract(false)), false);
   assert.equal(await run(withExtract(true)), true);
   assert.equal(await run(base), null);
+});
+
+test('a healed live drive (game-file recording, the live counter still on the session) is analysed twice and stays current', async () => {
+  const T = '2026-10-15T02:20:48.845Z';
+  const healed = {
+    ...session,
+    archiveParts: 31,
+    live: {updatedAt: T},
+    rebuilt: {at: '2026-10-18T18:42:53.765Z', replaced: 1, kept: 0},
+    analysis: {v: 0},
+  };
+  const files = new Map([
+    ['archive/botkin/lmu/s1/r1/samples.parquet', Buffer.from('S')],
+    ['archive/botkin/lmu/s1/r1/events.parquet', Buffer.from('E')],
+  ]);
+  const backend = storeOf({session: healed, recordings: [recording], files});
+  const stamp = analysisStamp(17, {});
+  for (let run = 1; run <= 2; run++) {
+    await analyzeStored({
+      backend,
+      sessionId: 's1',
+      owner: 'botkin',
+      workDir: mkdtempSync(join(tmpdir(), 'analyzeStored-healed-')),
+      analyze: () => {
+        const out = engineOut();
+        out.session.analysis = stamp;
+        out.session.recordingIds = ['r1'];
+        return out;
+      },
+    });
+    const s = backend.docs.get('sessions/s1');
+    assert.equal(s.analysis.v, stamp.v, `run ${run}: the stamp is current`);
+    assert.equal(
+      s.archiveParts,
+      undefined,
+      `run ${run}: no live count left over`,
+    );
+    // the next run reads what this one stored, as the cloud does
+  }
 });

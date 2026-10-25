@@ -99,7 +99,7 @@ export type TankCard = {
   /** The one meter in the unit shown; empty under 3 green laps. */
   meters: TankMeter[];
   /** "Fuel runs out first: 10.5 laps (84 L ÷ 7.61 L/lap)": the other meter, only when it is the shorter. */
-  otherFirst: string | null;
+  limit: string | null;
 };
 
 /** A stint's row of the Stops table. */
@@ -228,10 +228,12 @@ function loadText(
   fuelL: number | null,
   vePct: number | null,
   shown: Unit,
-  fullLoadL: number,
+  /** The full load in litres; null when it is not known (VE alone: no litres are shown). */
+  fullLoadL: number | null,
 ): string | null {
   if (shown === 'fuel') return fuelL == null ? null : `${Math.round(fuelL)} L`;
   if (vePct == null) return null;
+  if (fullLoadL == null) return `${Math.round(vePct)} % VE`;
   return `${Math.round(vePct)} % VE (${Math.round(
     (vePct * fullLoadL) / 100,
   )} L)`;
@@ -269,9 +271,10 @@ function startLoadOf(
   if (first == null || plan.atP90.stops == null || plan.atP90.stops < 1)
     return null;
   const formation = formationLaps(rules);
-  const fuelL = fuel
-    ? Math.min(rules.fuelL, (first + formation.fuel) * fuel.p90)
-    : null;
+  const fuelL =
+    fuel && rules.fuelL != null
+      ? Math.min(rules.fuelL, (first + formation.fuel) * fuel.p90)
+      : null;
   const vePct =
     ve && !fuelOnly
       ? Math.min(rules.vePct, (first + formation.ve) * ve.p90)
@@ -293,7 +296,9 @@ function tankCard(
 ): TankCard {
   const {fuel, ve} = plan.perLap;
   const meters: TankMeter[] = [];
-  if (fuel)
+  // no load known (a practice only): VE alone limits the stint, no fuel is compared (thread 104)
+  const loadKnown = rules.fuelL != null;
+  if (fuel && rules.fuelL != null)
     meters.push({
       key: 'fuel',
       lapsMedian: rules.fuelL / fuel.median,
@@ -307,23 +312,32 @@ function tankCard(
       lapsP90: rules.vePct / ve.p90,
       formula: `${pct(rules.vePct)} ÷ ${ve.median.toFixed(2)} %/lap`,
     });
-  // One unit at a time (thread 44 #1826); the other meter is named only when
-  // it would run out first, as a fact under the bar.
+  // One unit at a time (thread 44 #1826); the meter that runs out first is
+  // named in words under the bar whichever is shown (thread 104: the plan said
+  // L20 and VE ran out on L17), or both when their whole laps are equal.
   const shown = effectiveUnit(
     unit,
     meters.some(m => m.key === 've'),
   );
   const mine = meters.find(m => m.key === shown);
   const other = meters.find(m => m.key !== shown);
-  const otherFirst =
-    mine && other && other.lapsMedian < mine.lapsMedian
-      ? `${
-          other.key === 've' ? 'VE' : 'Fuel'
-        } runs out first: ${other.lapsMedian.toFixed(1)} laps (${
-          other.formula
-        }).`
-      : null;
-  return {meters: mine ? [mine] : [], otherFirst};
+  const word = (m: TankMeter) => (m.key === 've' ? 'VE' : 'Fuel');
+  let limit: string | null = null;
+  if (!loadKnown && mine) {
+    limit = `VE limits: ${mine.lapsMedian.toFixed(1)} laps (${mine.formula}).`;
+  } else if (mine && other) {
+    if (Math.floor(mine.lapsMedian) === Math.floor(other.lapsMedian))
+      limit = `VE and fuel run out together: ${Math.floor(
+        mine.lapsMedian,
+      )} laps.`;
+    else {
+      const first = other.lapsMedian < mine.lapsMedian ? other : mine;
+      limit = `${word(first)} runs out first: ${first.lapsMedian.toFixed(
+        1,
+      )} laps (${first.formula}).`;
+    }
+  }
+  return {meters: mine ? [mine] : [], limit};
 }
 
 /**
@@ -349,7 +363,7 @@ export function stopRow(
 ): StopRow {
   const formation = formationLaps(rules);
   const fuelOf = (i: number) =>
-    fuelPerLap == null
+    fuelPerLap == null || rules.fuelL == null
       ? null
       : Math.min(
           rules.fuelL,
@@ -428,6 +442,8 @@ function lateFlagNote(
     ? late.atP90.vePct == null
       ? null
       : `${(rules.vePct / (safeLaps + formation.ve)).toFixed(2)} % a lap`
+    : rules.fuelL == null
+    ? null
     : `${(rules.fuelL / (safeLaps + formation.fuel)).toFixed(2)} L a lap`;
   return atMost == null ? `${base}.` : `${base}, or at most ${atMost}.`;
 }

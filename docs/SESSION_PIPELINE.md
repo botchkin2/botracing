@@ -105,6 +105,10 @@ a gap at the end.
 - **iRacing:** `capture/ir_recorder.rs`, the same folder shape from the iRacing SDK.
 - The layout check (`capture/sanity.rs`) never drops a drive: every scoring update is one layout look, counted in `meta.json` (`layoutChecks`, `layoutDoubtful`, the first reason `layoutSuspect`; status `layoutOk: false` while the latest look doubts), and the telemetry layout looks are counted the same way (`playerChecks`, `playerDoubtful`, `playerSuspect`), for a layout fix to re-read. Counts reach the disk with each chunk flush. Only a write error (a full disk) is a refusal. The tray skips a capture only when the doubt held for most of the drive (`layoutDoubtful` over half of `layoutChecks`) or the player looks (`playerChecks`, `playerDoubtful`) did the same (`field.mjs captureDoubted`; one bad beat at a session load costs nothing, `goodRows` judges the rows): `listCaptures` and `syncLive` skip it, so its drive comes from the game file, and the session says why (`fieldMissing`, below). A car in the garage reads a negative lap distance as far back as the pit lane is long (Sebring -1079 to -1664 m), so the check counts the cars whose lap distance is garbage (non-finite or beyond 100 km) and doubts a look only when more than a quarter are, as it does for names. At the old per-car -1 km bound the 2026-10-19 Sebring practice was refused 145 times, has no capture and so no field. The field builder applies the same share rule to the rows it reads (`goodRows`).
 - **No session lacks a field silently.** Every upload stamps the session doc `fieldMissing` (null with a field): the Field screen shows it, and the heartbeat lists the sessions of the last 14 days without one as `field-missing` Problems (`noField.mjs`, the row opens the session). A drive the recorder refused stays listed as `capture-missed` for 14 days (`refusals.mjs`).
+- **The recorder restarts itself** (`capture/runner.rs supervise`): a start that fails (the game's header moved), an error or a panic ends that attempt, not the thread; it starts again after 5 s, doubling to 60 s (a run of 2 min starts the wait over), each stop logged in `<capture root>/recorder.log` and shown only on the tray's menu line, never as an alert. Both recorders (LMU, iRacing). A chunk is cut at least every 15 s (`CHUNK_MS`), so a crash, a hang or a killed tray loses at most 15 s of rows (it was 60 s): measured on the soak, 4x the chunk files (36 against 9 in 3 min), +3.6% bytes, recorder thread 0.26% of one core.
+- **A chunk the disk refuses costs that chunk, not the drive** (it was a refusal that dropped the capture): the recorder goes on, counts it in meta.json (`writeFailures`, `lastWriteError`, written with the next chunk that reaches the disk), shows `writeError` in status.json and the heartbeat's `disk-full` Problems line, and keeps the refused chunk's rows in memory, offering them to the disk again with each later chunk for 60 s (`store.rs RETAIN_MS`); rows still refused after that are counted (`lostChunks`, `lostPlayerRows`, `lostSessionRows`, `lostFieldRows`). A capture dropped holding rows (a panic that unwinds, a refusal) hands them to its writer first. A gap of over 15 s between two polls (the PC slept) is counted in meta.json (`gaps`, `longestGapMs`). `disk-low` is a Problems line under 15 GB free (the recorder writes about 0.5 GB an hour, a 24 h race about 12.4 GB).
+- **A replay is copied only when that capture's recorder logged a loss** (`writeFailures`, `lostChunks`, `lostPlayerRows`, `lostSessionRows`, `lostFieldRows`, `gaps`, `lastWriteError`, or a `recorder stopped` line in `recorder.log` during the capture). The copy is always a real copy, taken once the file has stopped changing. It lives in `lap-uploader/replays/<capture>/`, outside the capture root: the tray prune treats every folder there as a capture and would delete it after 14 days. It is removed when that capture is read back with its field, or after 30 days. A 20 GB cap never removes an unverified copy; near the cap, or over it, is a `replay-cap` Problems line. A copy that fails three times stops and raises the same line. The game's replay is never deleted (`tools/sessions/replaySafety.mjs`, thread 100 #6847, #7181).
+- **iRacing keeps the field while he is off the track** (the garage, a tow, a menu, a replay, spectating): only his own telemetry rows stop (`offTrackTicks` counts them); the field and session rows go on. A racing car that reads CarIdxLapDistPct -1 is recorded with that value (the reader, `irField.mjs`, takes rows from 0 up), and a sim that stops giving the variable does not empty the field (`fieldRowsWithoutLapDist`).
 - A new capture folder starts on each game session; a reset to the garage splits the stretch inside it.
 - **What the capture holds that the game file does not:** every other car (the field) and the damage series. **What only the game file holds:** the car setup's fill limit (LMU `VM_FUEL_LEVEL`). LMU has no real GPS in either source: its `.duckdb` and the capture both give world position projected onto LMU's fake origin at 60° N, 0° (`src/analysis/geo.ts` LMU_FAKE_ORIGIN; sidepod #5369), and the app georeferences both the same way.
 
@@ -188,6 +192,8 @@ length, event, kept values.
 
 ## Analysis
 
+**Standing rule (Botkin, 2026-10-24: "do not re-analyze my session"):** the cloud analyses a session only when he opens that session. Nothing analyses from a list, a day or the plan, and nothing backfills: `useSession` (`src/data/sessions/queries.ts`) is the only caller of `analyzeOnce`, and `analysisOnlyOnOpen.test.ts` fails if another one appears. A rules bump (`analysisVersion`, a block key) makes a stored session read stale; it shows as stored until he opens it, and the open analyses it once. The day view (`?set=day`) reads its members' stored laps as they are.
+
 One engine: `tools/sessions/analyzeFromArchive.mjs` turns a session's archive
 plus its inputs into the session doc, lap docs, traces, slices, band and field
 file. It runs in Cloud Run (`functions/src/engine.ts` loads it) and on the PC.
@@ -241,7 +247,14 @@ HTTP from the tray, the same calls in the cloud).
   lists (md5), recording docs, the session doc merged. No lap docs, no
   analysis; what the last analysis wrote stays until the next one.
 - **`keepNewerLive`**: a cloud write never moves `live` or `archiveParts`
-  backwards; a lap that landed during the run leaves the session stale.
+  backwards; a lap that landed during the run leaves the session stale. A lap
+  counts as landed only when the stored live stamp moved since the analysis
+  read the session (a tray upload writes stamp and count in one batch); a
+  higher stored count under the same stamp is a counter that drifted from the
+  recordings (the heal replaces them) and is dropped, and the heal's own write
+  never takes it (thread 103). A cloud analysis writes no recording docs: they
+  are stored, unchanged, and a copy read at its start must not overwrite a
+  part or an event the tray wrote meanwhile.
 
 **What `upload` keeps from the stored doc when its run lacked an input**
 (`store.mjs` 387-499): the field and the class laps, bests and result made

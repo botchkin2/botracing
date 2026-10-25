@@ -21,6 +21,9 @@ export type UploaderProblemKind =
   | 'capture-missed'
   | 'capture-suspect'
   | 'field-missing'
+  | 'disk-low'
+  | 'disk-full'
+  | 'replay-cap'
   | 'uploader-stopped'
   | 'file-unreadable'
   | 'not-seen';
@@ -111,6 +114,9 @@ const PROBLEM_KINDS: readonly UploaderProblemKind[] = [
   'capture-missed',
   'capture-suspect',
   'field-missing',
+  'disk-low',
+  'disk-full',
+  'replay-cap',
   'uploader-stopped',
   'file-unreadable',
   'not-seen',

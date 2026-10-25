@@ -37,8 +37,9 @@ const input: StopPanelInput = {
   sim: 'lmu',
   meter: 've',
   p90: {fuelL: 3.6, vePct: 5.21},
-  fillLimitL: 75,
+  loadL: 75,
   fullVePct: 100,
+  stopRatio: 0.75,
   lateFlag: true,
   pitModel: {baseS: 25, refuelLPerS: 3.4},
 };
@@ -46,25 +47,25 @@ const input: StopPanelInput = {
 describe('stopPanels', () => {
   it('names the stop, the level to set and how it gets there', () => {
     const [p] = stopPanels(pit(), input);
-    // 11 laps + the late flag's at 5.21 %: 62.5 -> 63 %.
+    // 11 laps + the late flag's at 5.21 % = 62.5, and the 1 % floor at the flag: 63.5 -> 64 %.
     expect(p).toMatchObject({
       stop: 1,
       after: 'after L19',
-      value: 'Set VE 63 %',
+      value: 'Set VE 64 %',
       tags: [],
       dryAtP90: false,
     });
-    // Arrives on 4.6 %, adds 58.4 %: 43.8 L at 3.4 L/s plus 25 s of lane.
-    expect(p.line).toBe('arrive 5 % · +58 % · 38 s');
+    // Arrives on 4.6 %, adds 59.4 %: 44.6 L at 3.4 L/s plus 25 s of lane.
+    expect(p.line).toBe('arrive 5 % · +59 % · 38 s');
     expect(p.fill?.arrive).toBeCloseTo(0.046);
-    expect(p.fill?.set).toBeCloseTo(0.63);
+    expect(p.fill?.set).toBeCloseTo(0.64);
   });
 
   it('moves with the slider: an earlier stop leaves more laps, so a higher level', () => {
     const [p] = stopPanels(pit(17), {...input, pitModel: null});
-    // 13 + 1 laps at 5.21 %: 72.9 -> 73 %.
-    expect(p.value).toBe('Set VE 73 %');
-    expect(p.line).toBe('arrive 5 % · +68 %');
+    // 13 + 1 laps at 5.21 % and the floor: 73.9 -> 74 %.
+    expect(p.value).toBe('Set VE 74 %');
+    expect(p.line).toBe('arrive 5 % · +69 %');
   });
 
   it('a stop past its safe end at p90 takes the warning tone', () => {
@@ -73,13 +74,20 @@ describe('stopPanels', () => {
   });
 
   it('says fuel-limited when fuel runs out first', () => {
-    const [p] = stopPanels(pit(), {...input, p90: {fuelL: 4.4, vePct: 5.21}});
-    // 12 laps x 4.4 L = 52.8 L of 75 L: 71 % of the scale, over 63 % of VE.
-    expect(p.value).toBe('Set VE 71 %');
+    const [p] = stopPanels(pit(), {...input, p90: {fuelL: 4.6, vePct: 5.21}});
+    // 12 laps x 4.6 L = 55.2 L, 8 L left, 0.75 L a %: 4.6 + 62.9 = 67.5 -> 68 %, over 64 % of VE.
+    expect(p.value).toBe('Set VE 68 %');
     expect(p.tags).toEqual(['fuel-limited']);
   });
 
-  it('a fuel-only car sets litres, assumed fill-to; iRacing adds an amount', () => {
+  it('with no stop measured it shows the VE level only and says so, with no litres or seconds', () => {
+    const [p] = stopPanels(pit(), {...input, stopRatio: null});
+    expect(p.value).toBe('Set VE 64 %');
+    expect(p.tags).toEqual(['no stop measured']);
+    expect(p.line).toBe('arrive 5 % · +59 %');
+  });
+
+  it('a fuel-only car sets litres, no label; iRacing adds an amount', () => {
     const fuel = {
       ...input,
       meter: 'fuel' as const,
@@ -88,7 +96,7 @@ describe('stopPanels', () => {
     const [lmp2] = stopPanels(pit(), fuel);
     // 12 x 3.6 = 43.2 -> 44 L.
     expect(lmp2.value).toBe('Set fuel 44 L');
-    expect(lmp2.tags).toEqual(['assumed fill-to']);
+    expect(lmp2.tags).toEqual([]);
     const [ir] = stopPanels(pit(), {...fuel, sim: 'iracing'});
     // 43.2 L less the 8 L left: add 36 L.
     expect(ir.value).toBe('Add 36 L');

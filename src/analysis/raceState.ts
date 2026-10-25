@@ -12,10 +12,13 @@ import {classOfCar} from './fieldClasses';
 import {raceStartSteps} from './raceClock';
 import {trackLengthSteps} from './classLaps';
 import {ABSENT, type Field, type FieldCar, updateAt} from './field';
+import {steadyPlace} from './placeBlips';
 import {runSteps, type Steps} from './steps';
 
 // Handoff R1d.
 export const STOPPED_KMH = 5;
+/** The longest blip in the game's place that is taken out: 3 updates, 0.6 s at 5 Hz (placeBlips.ts, thread 109). */
+export const PLACE_BLIP_TICKS = 3;
 export const STOPPED_FOR_S = 2;
 /**
  * Off the road when no measured edge exists: the old fixed rule (7.5 m).
@@ -81,6 +84,8 @@ export interface RacePrep {
   slowRun: Int32Array[];
   /** Pit entries so far. */
   pits: Int16Array[];
+  /** The game's overall place with its blips taken out (steadyPlace): what class places and the printed place go by. The field's own place is untouched. */
+  placeSteady: Int16Array[];
   /** First update the car is on the map; the length of the field if never. */
   firstSeen: Int32Array;
   /** The measured road's edges per stepM bin of lap distance, or null (fixed rule). */
@@ -190,6 +195,7 @@ export function* prepareRaceSteps(
   const speedKmh: Float32Array[] = [];
   const slowRun: Int32Array[] = [];
   const pits: Int16Array[] = [];
+  const placeSteady: Int16Array[] = [];
   const firstSeen = new Int32Array(field.cars.length).fill(n);
   const startU = yield* raceStartUpdateSteps(field, 3, trackM);
   for (let i = 0; i < field.cars.length; i++) {
@@ -238,6 +244,7 @@ export function* prepareRaceSteps(
     speedKmh.push(speed);
     slowRun.push(slow);
     pits.push(pit);
+    placeSteady.push(steadyPlace(c.place, PLACE_BLIP_TICKS));
   }
   return {
     field,
@@ -247,6 +254,7 @@ export function* prepareRaceSteps(
     speedKmh,
     slowRun,
     pits,
+    placeSteady,
     firstSeen,
     edges,
   };
@@ -435,7 +443,7 @@ export function carsAt(
       lapDistM: state === 'garage' ? NaN : blend ? lapBlend(c.lapDistM[lo], c.lapDistM[hi], f, prep.trackM) : c.lapDistM[u],
       speedKmh: Number.isNaN(prep.speedKmh[i][u]) ? 0 : prep.speedKmh[i][u],
       state,
-      place: c.place[u],
+      place: prep.placeSteady[i][u],
       classPlace: st.classPlace[i],
       lapsDone: c.lapsDone[u],
       pits: prep.pits[i][u],
@@ -487,7 +495,7 @@ function standingsAt(prep: RacePrep, u: number): Standings {
     byClass.set(key, list);
   });
   for (const list of byClass.values()) {
-    list.sort((a, b) => field.cars[a].place[u] - field.cars[b].place[u]);
+    list.sort((a, b) => prep.placeSteady[a][u] - prep.placeSteady[b][u]);
     list.forEach((i, k) => {
       out.classPlace[i] = k + 1;
       if (k === 0) {

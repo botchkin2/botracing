@@ -150,7 +150,7 @@ describe('sorting', () => {
         stint: 1,
         stop: false,
         ticked: true,
-        cells: [{timeS: 5, deltaS: null, unit: 0, best: false}],
+        cells: [{timeS: 5, deltaS: null, unit: 0, best: false, off: false}],
       },
       {
         lapId: 'B',
@@ -158,7 +158,7 @@ describe('sorting', () => {
         stint: 1,
         stop: false,
         ticked: true,
-        cells: [{timeS: 5, deltaS: null, unit: 0, best: false}],
+        cells: [{timeS: 5, deltaS: null, unit: 0, best: false, off: false}],
       },
     ];
     const out = sortRows(rows, {kind: 'column', index: 0, dir: 'desc'});

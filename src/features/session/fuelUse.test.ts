@@ -26,6 +26,8 @@ const session = (
     tankL: 75,
     litresPerVePct: 0.68,
     litresPerVePctStop: null,
+    setupVePct: null,
+    setupVePerLapPct: null,
   },
   ...over,
 });
@@ -239,6 +241,8 @@ describe('buildFuelUse', () => {
           tankL: 75,
           litresPerVePct: null,
           litresPerVePctStop: null,
+          setupVePct: null,
+          setupVePerLapPct: null,
         },
       }),
       stintOf(1, [2.4, 2.41, 2.39, 2.4]),

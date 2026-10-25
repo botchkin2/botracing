@@ -154,7 +154,19 @@ const iso = ms => (ms != null ? new Date(ms).toISOString() : null);
 // problem that is fixed is gone from the next beat. Newest first, at most 10;
 // messages scrubbed like lastError and cut to 120 characters.
 // sims: each sim's watcher state ({lastError, retryAtMs, retries}).
-export function problemsOf({sims, recorder, refusals = [], noField = {}, nowMs}) {
+// Free space under which a Problems line says so: the recorder writes about 8.6 MB a minute (the recorder soak,
+// pit wall thread 100), 0.5 GB an hour, so a 24 h race is about 12.4 GB; 15 GB leaves it room.
+export const DISK_LOW_BYTES = 15e9;
+
+export function problemsOf({
+  sims,
+  recorder,
+  refusals = [],
+  noField = {},
+  freeBytes = null,
+  replay = null,
+  nowMs,
+}) {
   const out = [];
   const message = m => redact(scrub(m)).slice(0, PROBLEM_MESSAGE_MAX);
   for (const st of sims) {
@@ -209,6 +221,28 @@ export function problemsOf({sims, recorder, refusals = [], noField = {}, nowMs})
         message: 'Drive not recorded',
         count: r.count,
       });
+  // The disk, before and when it fails (audit M3): the recorder keeps going when a chunk cannot be
+  // written (status.json writeError), and the line says so.
+  if (recorder?.writeError)
+    out.push({
+      kind: 'disk-full',
+      at: rec?.updatedAt ?? null,
+      message: message(String(recorder.writeError)),
+    });
+  else if (freeBytes != null && freeBytes < DISK_LOW_BYTES)
+    out.push({
+      kind: 'disk-low',
+      at: iso(nowMs),
+      message: message(`${(freeBytes / 1e9).toFixed(0)} GB free; a 24 h race records about 13 GB`),
+    });
+  // The replay safety copies are near, or over, their cap (replaySafety.mjs).
+  // Unverified copies are kept either way; the line is the only signal.
+  if (replay?.message)
+    out.push({
+      kind: 'replay-cap',
+      at: iso(replay.atMs ?? nowMs),
+      message: message(replay.message),
+    });
   // A session uploaded without a field, from the last two weeks (noField.mjs):
   // its row opens the session, whose Field screen says why.
   for (const [sessionId, e] of Object.entries(noField))

@@ -27,7 +27,7 @@ import {useLapTraceLoad} from '@/src/data/traces';
 import {shortTrackName} from '@/src/design';
 
 import {type ChaseWorld, chaseWorldSteps, SLICE_BUDGET_MS, yieldToLoop} from './chaseWorld';
-import {raceGate} from './raceGate';
+import {raceGate, raceScreenField} from './raceGate';
 
 const SESSION_TITLE = {R: 'Race', Q: 'Qualifying', P: 'Practice'} as const;
 // Same 5 m grid as Compare, so the line and the laps agree.
@@ -54,6 +54,8 @@ export type RaceData =
   | {
       kind: 'ready';
       title: string;
+      /** One line when the field was kept and flagged. */
+      note: string | null;
       mode: RaceMode;
       prep: RacePrep;
       /** The player's lap and distance at a race time, and back; shared with Compare. */
@@ -92,7 +94,8 @@ export function useRaceData(sessionId: string): RaceData {
   const map = useTrackMap(session.data?.trackId);
   const surface = useTrackSurface(session.data?.trackId);
   const detail = session.data;
-  const hash = detail?.field?.hash ?? null;
+  const screenField = raceScreenField(detail);
+  const hash = screenField.hash;
   const field = useField(sessionId, hash);
   const band = useSessionBand(sessionId);
   // A track with no map of its own (iRacing's) still has the lap's length.
@@ -249,7 +252,11 @@ export function useRaceData(sessionId: string): RaceData {
     SESSION_TITLE[detail.sessionType]
   }`;
   if (gate === 'no-field')
-    return {kind: 'no-field', title, why: detail.fieldMissing};
+    return {
+      kind: 'no-field',
+      title,
+      why: screenField.why ?? null,
+    };
   if (gate === 'field-error')
     return {
       kind: 'field-error',
@@ -269,6 +276,7 @@ export function useRaceData(sessionId: string): RaceData {
   return {
     kind: 'ready',
     title,
+    note: detail.field?.note ?? null,
     mode: detail.sessionType === 'R' ? 'race' : 'field',
     prep,
     clock,

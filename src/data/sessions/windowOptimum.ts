@@ -114,6 +114,22 @@ export function windowTimesOf(lap: Lap, frame: Frame): (number | null)[] {
   });
 }
 
+/** Per window: true where the lap's time there is left out for being off track (not for the pit lane). */
+export function windowOffsOf(lap: Lap, frame: Frame): boolean[] {
+  return frame.boundaries.windows.map(w => {
+    if (w.kind === 'start-straight') {
+      const f = lap.startStraight;
+      return (
+        f != null && f.segTimeS != null && windowExclusion(f) === 'off-track'
+      );
+    }
+    const i = w.section == null ? undefined : frame.sectionIndex.get(w.section);
+    const facts = i == null ? null : lap.sections[i];
+    if (!facts?.window || facts.segTimeS == null) return false;
+    return windowExclusion({...facts, pit: facts.window.pit}) === 'off-track';
+  });
+}
+
 /**
  * A lap's time in each map section, by section number, under the one rule
  * every table uses (windowTimesOf): null where the window does not count

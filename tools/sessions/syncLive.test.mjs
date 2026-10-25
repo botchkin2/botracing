@@ -70,16 +70,20 @@ test('each lap writes only its own part; ids stay the same as laps arrive', asyn
   assert.match(b.files[4].dest, /^archive\/lmu\/[0-9a-f]+\/[0-9a-f]+\/samples\.002\.parquet$/);
 });
 
-test('a capture the recorder marked suspect sends nothing; its drive comes from the game file', async () => {
+test('a capture the recorder marked suspect is still sent, and its field is marked', async () => {
   const work = mkdtempSync(join(tmpdir(), 'syncLive-'));
   const dir = mkdtempSync(join(tmpdir(), 'cap-'));
   writeFileSync(join(dir, 'meta.json'), JSON.stringify({layoutSuspect: '8 of 8 cars: lap distance', layoutDoubtful: 80, layoutChecks: 100}));
   const store = memoryStore();
   const capture = fakeCapture(3);
-  const r = await syncLive({captureDir: dir, ownerId: 'o', work, store, capture});
-  assert.deepEqual(r, {sessions: 0});
-  assert.equal(store.outs.length, 0);
-  assert.deepEqual(capture.written, []);
+  const r = await syncLive({
+    captureDir: dir, ownerId: 'o', work, store, capture,
+    makeInputs: () => ({field: {path: 'field/o/s/h.json.gz', hash: 'h', cars: 8}, fieldText: '{}', fieldReason: null, extract: null}),
+  });
+  assert.equal(r.sessions, 1);
+  assert.equal(store.outs.length, 1);
+  assert.equal(store.outs[0].field.mark.kind, 'doubted');
+  assert.deepEqual(capture.written, [0, 1, 2]);
 });
 
 test('a capture with no finished lap uploads nothing', async () => {

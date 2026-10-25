@@ -1,10 +1,11 @@
 // The page side of the Android app's WebView 3D (embedBridge.ts): the app's race clock arrives as validated messages and
-// is applied to this page's clock; the page answers once, when its first frame is drawn. Only inside the WebView
-// (`embed=3d` and `window.ReactNativeWebView`); in any other browser this does nothing.
+// is applied to this page's clock; the page answers once, when its first frame is drawn, and forwards a vertical drag
+// as page scroll (`postPan`). Only inside the WebView (`embed=3d` and `window.ReactNativeWebView`); in any other
+// browser this does nothing.
 
 import {useEffect} from 'react';
 
-import {parseClockMessage, READY_MESSAGE} from './embedBridge';
+import {panMessage, parseClockMessage, READY_MESSAGE} from './embedBridge';
 import {type RaceTimer} from './useRaceClock';
 
 type NativeBridge = {postMessage: (message: string) => void};
@@ -17,9 +18,14 @@ const bridge = (): NativeBridge | null => {
 /** True inside the app's WebView. */
 export const inAppWebView = (): boolean => bridge() !== null;
 
-/** Tell the app the 3D's first frame is drawn (the only message the page sends). */
+/** Tell the app the 3D's first frame is drawn. */
 export function postReady(): void {
   bridge()?.postMessage(READY_MESSAGE);
+}
+
+/** Tell the app how far the finger travelled down since the last message: the app scrolls its page by the opposite. */
+export function postPan(dy: number): void {
+  bridge()?.postMessage(panMessage(dy));
 }
 
 export function useEmbedClock(clock: RaceTimer, endS: number, enabled: boolean): void {

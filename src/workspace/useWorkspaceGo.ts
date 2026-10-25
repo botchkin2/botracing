@@ -109,7 +109,7 @@ export function useWorkspaceGo({
       case 'compare':
         return router.navigate(compareHref(target.sessionId, sel));
       case 'race':
-        return router.navigate(raceHref(target.sessionId, sel));
+        return router.dismissTo(raceHref(target.sessionId, sel));
       case 'corner':
         return router.navigate(cornerHref(target.sessionId, cornerN, sel));
     }

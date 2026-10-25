@@ -24,7 +24,7 @@ export function StartLoad({
   veText: string;
   fuelText: string;
   /** The full load, shown as the blank's placeholder. */
-  full: {fuelL: number; vePct: number};
+  full: {fuelL: number | null; vePct: number};
   chips: {ve: StartChip | null; fuel: StartChip | null};
   onVe: (text: string) => void;
   onFuel: (text: string) => void;
@@ -47,7 +47,7 @@ export function StartLoad({
           onChange={onFuel}
           unit='L'
           decimal
-          placeholder={String(full.fuelL)}
+          placeholder={full.fuelL == null ? '' : String(full.fuelL)}
         />
       </View>
       <View style={styles.chips}>

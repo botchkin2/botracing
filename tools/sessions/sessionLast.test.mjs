@@ -261,3 +261,63 @@ test('a newer live stamp from the upload itself is written', async () => {
   await createStore(backendOver(docs)).upload(out);
   assert.equal(docs.get('sessions/s1').live.updatedAt, '2026-10-14T01:15:57Z');
 });
+
+// Pit-wall thread 103: finished live races stayed stale for good.
+test('a healed drive analysed twice leaves its stamp current (the live counter no longer describes its recordings)', async () => {
+  const T = '2026-10-15T02:20:48.845Z';
+  // The stored doc after the heal: game-file recordings (no live parts), the
+  // live count of 31 still on the session, stamp stale.
+  const docs = new Map([
+    ['sessions/s1', {analysis: {v: 0}, recordingIds: ['r1'], archiveParts: 31, live: {updatedAt: T}, rebuilt: {at: 'x', replaced: 1, kept: 0}}],
+  ]);
+  const backend = backendOver(docs);
+  for (let run = 0; run < 2; run++) {
+    const out = outFor();
+    out.session.recordingIds = ['r1'];
+    // what analyzeStored hands over for a recording with no live parts: no
+    // count, the stamp it read at its start
+    out.session.live = {updatedAt: T};
+    await createStore(backend).upload(out);
+    const s = docs.get('sessions/s1');
+    assert.equal(s.analysis.v, 17, `run ${run + 1}: the stamp stays current`);
+    assert.equal(s.archiveParts, undefined, 'the drifted count is gone');
+  }
+});
+
+test('a lap that lands during the analysis still leaves it stale (the live stamp moved)', async () => {
+  const docs = new Map([
+    ['sessions/s1', {analysis: {v: 1}, recordingIds: ['r1'], archiveParts: 29, live: {updatedAt: '2026-10-21T01:42:33.000Z'}}],
+  ]);
+  const backend = backendOver(docs);
+  const writeDocs = backend.writeDocs;
+  backend.writeDocs = async (ops, w) => {
+    await writeDocs(ops, w);
+    if (ops.some(op => op.coll === 'laps'))
+      docs.set('sessions/s1', {...docs.get('sessions/s1'), archiveParts: 30, live: {updatedAt: '2026-10-21T01:46:52.307Z'}});
+  };
+  const out = outFor();
+  out.session.recordingIds = ['r1'];
+  out.session.archiveParts = 29;
+  out.session.live = {updatedAt: '2026-10-21T01:42:33.000Z'};
+  await createStore(backend).upload(out);
+  const s = docs.get('sessions/s1');
+  assert.equal(s.archiveParts, 30);
+  assert.equal(s.analysis.v, 0);
+});
+
+test('an analysis of stored recordings writes no recording at all (a part or an event the tray wrote meanwhile stays)', async () => {
+  const backend = backendOver(new Map());
+  const writes = [];
+  const writeDocs = backend.writeDocs;
+  backend.writeDocs = async (ops, w) => {
+    writes.push(...ops);
+    await writeDocs(ops, w);
+  };
+  const out = outFor();
+  out.recordings = [{id: 'r1', ownerId: 'o', sessionId: 's1', archive: {parts: [{samples: 'a', events: 'b'}]}, track: 'T'}];
+  out.session.recordingIds = ['r1'];
+  out.recordingsAreStored = true;
+  await createStore(backend).upload(out);
+  assert.equal(writes.some(op => op.coll === 'recordings'), false);
+  assert.ok(writes.some(op => op.coll === 'sessions'));
+});

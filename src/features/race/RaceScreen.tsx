@@ -7,7 +7,7 @@ import {type LaneZoom, raceLanes} from '@/src/analysis/raceLanes';
 import {lapPath} from '@/src/analysis/inputsPath';
 import {carsAt} from '@/src/analysis/raceState';
 import {fieldClasses} from '@/src/analysis/fieldClasses';
-import {carLapsOf} from '@/src/analysis/carLaps';
+import {carLapsOf, currentLapIndex} from '@/src/analysis/carLaps';
 import {updateAt} from '@/src/analysis/field';
 import {RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
 import {type GridTrace, traceCovers} from '@/src/analysis/resample';
@@ -49,6 +49,8 @@ import {
 } from './components/RaceMap';
 import {RaceTransport} from './components/RaceTransport';
 import {useEmbedClock} from './useEmbedClock';
+import {useRestWhileAway} from './useRestWhileAway';
+import {PageScrollContext, usePageScrollOwner} from './usePageScroll';
 import {RaceLanesBlock} from './components/RaceLanesBlock';
 import {
   buildRaceModel,
@@ -64,18 +66,15 @@ import {
   type SelectionPatch,
 } from './selectionClock';
 import {followCar, followViewFor} from './followTarget';
+import {phone3dHeight} from './phone3dHeight';
 import {markPitLane} from './pitLaneState';
 import {useRaceClock} from './useRaceClock';
 import {type RaceData, useRaceData} from './useRaceData';
 
 // Handoff R1a: map 358 x 260 on the phone, R1b: 1020 x 520 in a 1060 column.
 const PHONE_MAP_H = 260;
-/** The 3D view on a phone: this share of the screen's height, within these bounds. */
-const PHONE_3D_SHARE = 0.58;
-/** Under the mode and label rows (two 32 pt controls) in the map's top-left corner. */
-const CHIP_UNDER_CONTROLS_M = space.sm + 32 + space.xs + 32 + space.sm;
-const PHONE_3D_MIN_H = 360;
-const PHONE_3D_MAX_H = 560;
+/** In 3D the focus chip shares the mode row's line, at the right: what is left of a phone's width after the mode control. */
+const CHIP_3D_MAX_W = 150;
 // R1a / R1b: the radar inset over the map, top right.
 const RADAR_PHONE = {width: 72, height: 108};
 const RADAR_DESKTOP = {width: 150, height: 226};
@@ -172,6 +171,11 @@ function RaceShell({
         </Text>
       </View>
       {!layout.isDesktop && <SessionNav sessionId={sessionId} />}
+      {data.kind === 'ready' && data.note ? (
+        <Text tone='textMuted' style={{paddingHorizontal: space.md, paddingBottom: space.sm}}>
+          {data.note}
+        </Text>
+      ) : null}
       {data.kind === 'ready' ? (
         <RaceView
           data={data}
@@ -292,6 +296,8 @@ function RaceView({
   const clock = useRaceClock(endS, openAt, mapMode === 'chase' && chaseAvailable ? prep.field.hz : 0);
   // In the app's WebView the app's clock is the clock (embedBridge.ts).
   useEmbedClock(clock, endS, embed3d);
+  const onTop = useRestWhileAway(clock);
+  const pageScroll = usePageScrollOwner();
   // Race writes the cursor back once the user has moved the clock and it has
   // rested; opening the screen never overwrites Compare's cursor.
   const touched = useRef(false);
@@ -300,7 +306,7 @@ function RaceView({
     latest.current = {selection, onSelectionChange};
   });
   useEffect(() => {
-    if (clock.playing || !touched.current) return;
+    if (!onTop || clock.playing || !touched.current) return;
     const timer = setTimeout(() => {
       const place = data.clock.playerAt(clock.timeS);
       if (!place) return;
@@ -308,7 +314,7 @@ function RaceView({
       write(selectionFor(place, sel, data.laps));
     }, SETTLE_MS);
     return () => clearTimeout(timer);
-  }, [clock.playing, clock.timeS, data.clock, data.laps]);
+  }, [onTop, clock.playing, clock.timeS, data.clock, data.laps]);
   const scrub = (timeS: number) => {
     touched.current = true;
     clock.setTimeS(timeS);
@@ -371,17 +377,24 @@ function RaceView({
   );
   // The focused car's laps from the whole field, once per car picked; no
   // laps (or no car) means no panel.
+  const focusLaps = useMemo(
+    () => (focus === null ? [] : carLapsOf(prep.field, focus)),
+    [focus, prep.field],
+  );
+  // The panel follows the replay: only the row number changes the view, not every tick of the clock.
+  const currentLap = currentLapIndex(focusLaps, shownS);
   const carLaps = useMemo(() => {
     if (focus === null) return null;
     const car = sampleCars.find(c => c.index === focus);
     if (!car) return null;
     const view = carLapsView(
-      carLapsOf(prep.field, focus),
+      focusLaps,
       classes.of(car.classKey).title,
+      currentLap,
     );
     return view ? {index: focus, view} : null;
     // sampleCars only supplies the class, which never changes for a car.
-  }, [focus, prep.field, classes]);
+  }, [focus, focusLaps, classes, currentLap]);
   const dots = useMemo(
     () =>
       buildRaceModel({cars, filter, focus, mode, trackM: prep.trackM, classes})
@@ -422,7 +435,7 @@ function RaceView({
   const mapH = desktop
     ? mapBox.height
     : phone3d
-    ? Math.round(Math.min(PHONE_3D_MAX_H, Math.max(PHONE_3D_MIN_H, layout.height * PHONE_3D_SHARE)))
+    ? phone3dHeight(layout.height)
     : PHONE_MAP_H;
   // Follow chases the focused car, else you; a file without headings (before
   // v2) or a car off the map has nothing to chase, so the switch is hidden.
@@ -484,9 +497,9 @@ function RaceView({
     // inside it the trace can still be another pass over the same distance: R1 6's lap 0 holds the formation lap there
     // (105 km/h, gear 2) where the car is doing 225 on the race lap, so the car's own speed must agree
     if (!traceAgrees(trace.speedKph[i], player.speedKmh)) return null;
-    return {idx: i, throttlePct: trace.throttlePct[i], brakePct: trace.brakePct[i], steeringPct: trace.steeringPct[i], gear: trace.gear[i], speedKph: trace.speedKph[i]};
+    return {idx: i, anchorM: place.distanceM, throttlePct: trace.throttlePct[i], brakePct: trace.brakePct[i], steeringPct: trace.steeringPct[i], gear: trace.gear[i], speedKph: trace.speedKph[i]};
   }, [trace, place, loaded, ribbon, player]);
-  const inputs = ribbon ? {ribbon, now: inputsNow} : null;
+  const inputs = ribbon && trace ? {ribbon, now: inputsNow, trace} : null;
   // The followed car's class place and the gaps to the car ahead and behind in its class (the standings' own intervals).
   const chaseGaps = useMemo<ChaseGaps | null>(() => {
     const me = cars.find(c => c.index === focus) ?? cars.find(c => c.player);
@@ -513,6 +526,7 @@ function RaceView({
         headingRad: c.headingRad,
         speedKmh: Number.isFinite(c.speedKmh) ? c.speedKmh : 0,
         carClass: c.carClass,
+        vehicle: c.vehicle,
         color: classColor(color, classes.of(c.classKey).slot),
         player: c.player,
         lapDistM: c.lapDistM,
@@ -533,15 +547,17 @@ function RaceView({
     () =>
       cars.map(c => ({
         index: c.index,
-        place: c.place,
+        classPlace: c.classPlace,
         classKey: c.classKey,
+        classTag: classes.of(c.classKey).title,
         color: classColor(color, classes.of(c.classKey).slot),
         model: displayModel(c.vehicle),
         lapDistM: c.lapDistM,
-        gapS: c.gapS,
+        // a grid has no gap, as in the HUD (gapSeconds)
+        intervalS: shownS < startS ? null : c.intervalS,
         inGarage: c.state === 'garage',
       })),
-    [cars, color, classes],
+    [cars, color, classes, shownS, startS],
   );
   const chase = useMemo<RaceChase | null>(
     () =>
@@ -628,8 +644,8 @@ function RaceView({
           onPress={() => setFocus(null)}
           style={[
             styles.chip,
-            // in 3D the bottom edge is the camera chips: the focus sits under the two control rows instead
-            phone3d && {top: CHIP_UNDER_CONTROLS_M, bottom: undefined},
+            // in 3D the bottom edge is the camera chips: the focus sits on the mode row, at the right
+            phone3d && {top: space.sm, left: undefined, right: space.sm, bottom: undefined, maxWidth: CHIP_3D_MAX_W},
             {borderColor: color.accent, backgroundColor: color.surfaceRaised},
           ]}>
           <Text
@@ -782,24 +798,27 @@ function RaceView({
   // below at full length, the lanes after it; the transport stays under the
   // page (thread 44 #1733).
   return (
+    <PageScrollContext.Provider value={pageScroll.scrollBy}>
     <View style={styles.fill}>
-      <ScrollView style={styles.fill}>
+      <ScrollView style={styles.fill} {...pageScroll.scrollProps}>
         <View style={styles.phoneTop}>
           <View style={styles.subRow}>
             <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
               {sub}
             </Text>
-            <Pressable
-              accessibilityRole='button'
-              accessibilityState={{expanded: keyOpen}}
-              accessibilityLabel='Key'
-              onPress={() => setKeyOpen(o => !o)}
-              hitSlop={space.md}
-              style={styles.keyToggle}>
-              <Text variant='dataSmall' tone='accentInk'>
-                {keyOpen ? 'Key ▴' : 'Key ▾'}
-              </Text>
-            </Pressable>
+            {phone3d ? null : (
+              <Pressable
+                accessibilityRole='button'
+                accessibilityState={{expanded: keyOpen}}
+                accessibilityLabel='Key'
+                onPress={() => setKeyOpen(o => !o)}
+                hitSlop={space.md}
+                style={styles.keyToggle}>
+                <Text variant='dataSmall' tone='accentInk'>
+                  {keyOpen ? 'Key ▴' : 'Key ▾'}
+                </Text>
+              </Pressable>
+            )}
           </View>
           {roadLine ? (
             <Text variant='dataSmall' tone='textSecondary'>
@@ -807,13 +826,14 @@ function RaceView({
             </Text>
           ) : null}
           {map}
-          {keyOpen ? <RaceLegend classes={rows.classes} /> : null}
+          {keyOpen && !phone3d ? <RaceLegend classes={rows.classes} /> : null}
         </View>
         {boardPaged}
         <View style={styles.phoneLanes}>{lanesBlock}</View>
       </ScrollView>
       {controls}
     </View>
+    </PageScrollContext.Provider>
   );
 }
 

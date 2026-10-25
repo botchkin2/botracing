@@ -1,15 +1,27 @@
 // The number he puts in the pit menu at each stop (pit-wall thread 99, row
 // PLN, design #6684). LMU fills TO a level: the VE target is what the car
 // leaves with, and a target under what it arrives with adds nothing (relative
-// refuelling went in Patch 2, Mar 2024). Fuel follows VE on the event's scale:
-// X % VE loads X % of the fill limit. A car without VE (LMP2) sets litres the
-// same way (assumed fill-to until Botkin confirms). iRacing adds an amount.
+// refuelling went in Patch 2, Mar 2024). Fuel follows VE at the litres each
+// 1 % VE adds at a stop (his setup's fuel ratio, measured from his own stops:
+// not the fill limit over 100, which is 0.75 against 0.61 L a % at Sebring).
+// A car without VE (LMP2) sets litres the same way. iRacing adds an amount.
 //
 // The level covers the laps from this stop to the next one (or to the flag,
 // plus the lap a timed race's late flag can add) at the p90 use, the plan's
-// own margin; it never depends on what the car arrives with. Rounded up to a
+// own margin. VE covers it from the VE use; fuel covers it from what the car
+// arrives with plus what the stop adds at the stop ratio, and the level is the
+// higher of the two. Rounded up to a
 // whole %: LMU's pit menu steps VE by 1 % (Botkin, thread 99 #6705), and by
 // whole litres for a fuel-only car. Pure.
+
+/**
+ * A fixed floor of VE the last stop leaves at the flag, in the "Set VE"
+ * number itself: running out of VE is a 100 s stop-and-go (LMU's results
+ * files: "Exceeded energy allowance limit", thread 104), and a percent is
+ * under a litre of fuel. It stacks on the p90 use and the late-flag lap the
+ * level is already sized for, and the level still caps at a full load.
+ */
+export const FLAG_RESERVE_VE = 1;
 
 export type StopTarget = {
   /** What the number is in: VE % for a VE car, litres otherwise. */
@@ -22,6 +34,10 @@ export type StopTarget = {
   arrive: number | null;
   /** What the stop puts in, in `meter`: the level less the arrival, never below 0. */
   added: number | null;
+  /** The litres the stop puts in; null for a VE stop whose litres per % were never measured. */
+  addedL: number | null;
+  /** A VE stop with no measured stop ratio: the level is VE only and the litres are not known. */
+  unmeasured: boolean;
   /** Fuel runs out before VE over the laps after the stop, so the level is sized from fuel. */
   fuelLimited: boolean;
   /** The car arrives at or above the level: the game adds nothing. */
@@ -37,41 +53,54 @@ export type StopTargetInput = {
   lateFlag: boolean;
   /** Use per lap at p90; the meter's own must be there. */
   p90: {fuelL: number | null; vePct: number | null};
-  /** The most fuel the event lets the car take: what 100 % VE loads. */
-  fillLimitL: number;
+  /** The most fuel he has run in the rule set: the cap of a litre setting. Null when the load is not known: VE alone sizes the level and no fuel is checked. */
+  loadL: number | null;
   /** A full VE load, % (100 unless the event caps it). */
   fullVePct: number;
+  /** Litres one 1 % VE adds at a stop (his own stops); null when no stop was measured. */
+  stopRatio: number | null;
   /** What the car arrives with at each stop, in `meter`; null where not known. */
   arrive: readonly (number | null)[];
+  /** What the car arrives with at each stop in litres; null where not known. */
+  arriveFuelL: readonly (number | null)[];
 };
 
 /** One target per stop, in stop order; none without the meter's p90 use. */
 export function stopTargets(input: StopTargetInput): StopTarget[] {
-  const {meter, stintLaps, p90, fillLimitL, fullVePct} = input;
+  const {meter, stintLaps, p90, loadL, fullVePct, stopRatio} = input;
   const verb = input.sim === 'iracing' ? 'add' : 'set';
   const out: StopTarget[] = [];
   for (let k = 0; k + 1 < stintLaps.length; k++) {
     const last = k + 2 === stintLaps.length;
     const lapsAfter = stintLaps[k + 1] + (last && input.lateFlag ? 1 : 0);
     const arrive = input.arrive[k] ?? null;
+    const arriveFuelL = input.arriveFuelL[k] ?? null;
     let need: number;
     let cap: number;
     let fuelLimited = false;
     if (meter === 've') {
       if (p90.vePct == null) return [];
-      const veNeed = lapsAfter * p90.vePct;
-      // The fuel those laps burn, on the VE scale: X % loads X % of the limit.
+      const veNeed = lapsAfter * p90.vePct + (last ? FLAG_RESERVE_VE : 0);
+      // The level that puts in the litres the laps burn over what is left:
+      // the arrival plus the shortfall over the litres one % adds here.
       const fuelNeed =
-        p90.fuelL == null || !(fillLimitL > 0)
+        loadL == null ||
+        p90.fuelL == null ||
+        stopRatio == null ||
+        !(stopRatio > 0) ||
+        arrive == null ||
+        arriveFuelL == null
           ? 0
-          : ((lapsAfter * p90.fuelL) / fillLimitL) * fullVePct;
-      fuelLimited = fuelNeed > veNeed;
+          : arrive + (lapsAfter * p90.fuelL - arriveFuelL) / stopRatio;
+      // Within one step of the pit menu the two ratios (the track's and the
+      // stops') are noise, not a limiter: the level still takes the higher.
+      fuelLimited = fuelNeed - veNeed >= 1;
       need = Math.max(veNeed, fuelNeed);
       cap = fullVePct;
     } else {
-      if (p90.fuelL == null) return [];
+      if (p90.fuelL == null || loadL == null) return [];
       need = lapsAfter * p90.fuelL;
-      cap = fillLimitL;
+      cap = loadL;
     }
     if (verb === 'add') {
       // iRacing: the litres to put in over what is left, within the tank.
@@ -83,6 +112,8 @@ export function stopTargets(input: StopTargetInput): StopTarget[] {
         value,
         arrive,
         added: value,
+        addedL: value,
+        unmeasured: false,
         fuelLimited,
         noFill: value <= 0,
       });
@@ -90,12 +121,21 @@ export function stopTargets(input: StopTargetInput): StopTarget[] {
     }
     const level = Math.min(cap, wholeUp(need));
     const noFill = arrive != null && arrive >= level;
+    const added = arrive == null ? null : Math.max(0, level - arrive);
     out.push({
       meter,
       verb,
       value: level,
       arrive,
-      added: arrive == null ? null : Math.max(0, level - arrive),
+      added,
+      // VE adds litres at the stop ratio, a litre setting is the litres
+      addedL:
+        meter === 'fuel'
+          ? added
+          : added == null || stopRatio == null
+          ? null
+          : added * stopRatio,
+      unmeasured: meter === 've' && stopRatio == null,
       fuelLimited,
       noFill,
     });

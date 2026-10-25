@@ -62,18 +62,14 @@ export async function syncLive({
   log = () => {},
   makeInputs = liveInputs,
 }) {
-  // A capture the recorder doubted (layoutSuspect) sends nothing: its drive
-  // comes from the game file.
-  let marked = null;
+  // A capture the recorder doubted is still sent (audit row 3). The field
+  // carries the mark; the laps are the drive.
+  let doubted = null;
   try {
     const meta = JSON.parse(readFileSync(join(captureDir, 'meta.json'), 'utf8'));
-    if (captureDoubted(meta)) marked = meta.layoutSuspect ?? meta.playerSuspect;
+    if (captureDoubted(meta)) doubted = meta.layoutSuspect ?? meta.playerSuspect ?? 'doubted';
   } catch {
     // No meta to read: the adapter's own read reports it.
-  }
-  if (marked) {
-    log(`live: ${basename(captureDir)} is marked suspect (${marked}), not sent`);
-    return {sessions: 0};
   }
   const {stretches} = capture.describeCapture(captureDir);
   const files = stretches
@@ -133,6 +129,14 @@ export async function syncLive({
         fieldReason: e.message,
         extract: null,
       };
+    }
+    if (doubted && inputs.field && !inputs.field.mark) {
+      inputs.field = {
+        ...inputs.field,
+        mark: {kind: 'doubted'},
+        note: 'Other cars: recording doubted',
+      };
+      log(`live: ${session.id} field marked doubted (${doubted})`);
     }
     if (!inputs.field)
       log(`live: ${session.id} field: none (${inputs.fieldReason})`);

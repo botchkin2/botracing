@@ -29,6 +29,7 @@ import {TrackCarPicker} from './components/TrackCarPicker';
 import {LoadTableCard} from './components/PlanCards';
 import {RaceCardView} from './components/RaceCardView';
 import {PerLapStripView} from './components/PerLapStripView';
+import {PlanChecksView} from './components/PlanChecksView';
 import {SavingCardView} from './components/SavingCardView';
 import {lastRaceLine} from './lastRace';
 import {
@@ -41,6 +42,7 @@ import {
 import {effectiveUnit, type Unit} from './unit';
 import {
   carChoices,
+  columnWidth,
   comboCar,
   comboTrack,
   defaultCombo,
@@ -98,11 +100,11 @@ export function PlanScreen() {
   // one until another is picked (thread 44 #1983).
   const [eventPick, setEventPick] = useState<{
     key: string;
-    week: string;
+    event: string;
   } | null>(null);
-  const eventWeek =
-    eventPick && eventPick.key === combo?.key ? eventPick.week : null;
-  const data = usePlanData(combo, unit, start, eventWeek);
+  const eventKey =
+    eventPick && eventPick.key === combo?.key ? eventPick.event : null;
+  const data = usePlanData(combo, unit, start, eventKey);
   const slider = usePitSlider(data, combo?.key ?? '', combo?.sim ?? 'lmu');
   const chosen = useMemo(
     () =>
@@ -121,10 +123,8 @@ export function PlanScreen() {
   const meter = slider.meter;
   const perLap = useMemo(
     () =>
-      plan && rules
-        ? perLapStrip(plan, rules.rules, meter, hist.ratio?.perPctL ?? null)
-        : null,
-    [plan, rules, meter, hist.ratio],
+      plan ? perLapStrip(plan, meter) : null,
+    [plan, meter],
   );
   const saving = useMemo(
     () =>
@@ -196,14 +196,14 @@ export function PlanScreen() {
     lastFillLimitL: lastFuel?.fillLimitL ?? null,
     lastVeRatio: measured.find(m => m.ratio != null)?.ratio ?? null,
     events: limits.events.map(e => ({
-      week: e.week,
+      key: e.key,
       label: eventLabel(e, eventLoadL(e)),
-      selected: preset == null && e.week === limits.event?.week,
+      selected: preset == null && e.key === limits.event?.key,
     })),
-    onEvent: (week: string) => {
+    onEvent: (event: string) => {
       select(null);
       setDraft(null);
-      if (combo) setEventPick({key: combo.key, week});
+      if (combo) setEventPick({key: combo.key, event});
     },
     onSelect: (id: string | null) => {
       select(id);
@@ -217,7 +217,6 @@ export function PlanScreen() {
       cells={rulesCells(
         rules?.rules ?? null,
         hasVe,
-        hist.ratio?.perPctL ?? null,
         data.formation,
       )}
       sheet={ruleSheet}
@@ -381,6 +380,7 @@ export function PlanScreen() {
               ].filter((n): n is string => n != null)}
             />
           ) : null}
+          {data.checks ? <PlanChecksView text={data.checks} /> : null}
           {data.cards ? (
             <PlanCard title='Race'>
               <RaceCardView card={data.cards.race} />
@@ -393,6 +393,7 @@ export function PlanScreen() {
               panels={slider.panels}
               strip={slider.strip}
               stripLabel={slider.stripLabel}
+              limit={data.cards.tank.limit}
               unit={effectiveUnit(unit, hasVe)}
               wide={wide}
               onStop={slider.setStop}
@@ -446,7 +447,7 @@ export function PlanScreen() {
         styles.page,
         {paddingTop: insets.top, paddingBottom: insets.bottom + space.xxl},
       ]}>
-      <View style={[styles.column, {width}]}>
+      <View style={[styles.column, {width: columnWidth(width, size.gutter)}]}>
         <View style={styles.head}>
           <Text variant='display'>Plan</Text>
         </View>

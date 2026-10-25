@@ -132,6 +132,13 @@
         }
       },
       {
+        "source": "/api/fuel-presets",
+        "function": {
+          "functionId": "fuelPresetsApi",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/auth/handoff",
         "function": {
           "functionId": "handoffApi",
