@@ -117,8 +117,10 @@ export function overtakesOf(
  * 7: the lap length is where the cars wrap (median), not the longest lap
  * distance any car reports: a car parked in the pits read 4662 m at Road
  * Atlanta against a 4080 m lap and bent every gap (classLaps v4, canard #4166).
+ * 8: a qualifying has no traffic block (carsArePhysical), so a stored one is
+ * read stale and re-analysed on open.
  */
-export const TRAFFIC_VERSION = 7;
+export const TRAFFIC_VERSION = 8;
 
 // `blueFlagS` is seconds with a faster-class car this many seconds behind on
 // the road (tools/sessions/fieldTags.mjs, evidence in its comment).

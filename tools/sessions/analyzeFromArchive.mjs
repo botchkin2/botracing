@@ -40,7 +40,7 @@ export function productsFromField(field, meta, sessionType, lapWindows) {
     return {traffic: null, classLaps: null, classBests: null, result: null};
   }
   return {
-    traffic: lapTraffic(field, lapWindows),
+    traffic: lapTraffic(field, lapWindows, sessionType),
     classLaps: classLapsDoc(field, sessionType),
     classBests: classBestsDoc(field, sessionType),
     result: finishDoc(field, sessionType),
