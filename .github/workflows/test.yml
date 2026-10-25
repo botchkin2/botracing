@@ -128,6 +128,10 @@ jobs:
       - name: Recorder tests
         working-directory: tools/capture
         run: uv run --locked --group dev pytest -q
+      # The replay recovery (tools/recover, pit-wall thread 95): matching, places and laps, on numbers from the dry runs.
+      - name: Recovery tool tests
+        working-directory: tools/recover
+        run: uv run --with numpy --with pytest pytest -q
   # The tray (Rust) and its release scripts had no CI: auth.rs and the
   # updater ran only by hand. Windows, because the tray is a Windows app.
   desktop:

@@ -79,6 +79,13 @@ export const STEPS = [
     when: /^tools\/capture\//,
   },
   {
+    job: 'capture',
+    name: 'Recovery tool tests',
+    cwd: 'tools/recover',
+    cmd: 'uv run --with numpy --with pytest pytest -q',
+    when: /^tools\/recover\//,
+  },
+  {
     job: 'desktop',
     name: 'Tray tests',
     cwd: 'desktop',

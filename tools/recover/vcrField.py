@@ -162,6 +162,132 @@ def read_kind(path):
     return 'practice' if re.search(r'<Practice[0-9]*>', s) else 'race'
 
 
+def match_cars(cars, drivers):
+    """Which XML driver each replay car is, from lap-end times alone. `cars[d]` needs 'cross' (the car's line crossings) and
+    'cross_x' (the same on the XML's clock: after the timing-line offset). Returns (assign, scores, how): replay car ->
+    driver index, the fraction of the driver's lap ends the car's crossings hit, and the pass that took the pair."""
+    scores = {}
+    for d, c in cars.items():
+        for j, dr in enumerate(drivers):
+            xs = np.array(dr['ends'])
+            if len(xs) == 0 or len(c['cross']) == 0:
+                continue
+            hit = sum(bool(np.any(np.abs(c['cross_x'] - x) < 0.4)) for x in xs)
+            scores[(d, j)] = hit / len(xs)
+    used = set()
+    assign = {}
+    def margin_ok(d, j, s):
+        # the pair must stand clear of every other pairing of that car and of that driver
+        other = [v for (dd, jj), v in scores.items() if (dd == d) != (jj == j) and v > 0]
+        return all(s - v >= 0.15 for v in other)
+
+    for (d, j), s in sorted(scores.items(), key=lambda kv: -kv[1]):
+        if d in assign or j in used or s < 0.6 or not margin_ok(d, j, s):
+            continue
+        assign[d] = j
+        used.add(j)
+    how = {d: 'clear' for d in assign}
+
+    def left():
+        return ([d for d in cars if d not in assign],
+                [j for j in range(len(drivers)) if j not in used and len(drivers[j]['ends']) > 0])
+
+    # pass 1b, among what is left: two cars running together (the same laps to a tenth) pass the fraction test for
+    # each other's driver, so the clear pass leaves both. Counted in lap ends instead: a pair with at least 2 shared
+    # ends that has 2 more than any other pairing of that car or that driver is taken, then the rest is judged again
+    # without it (the second car's pair has nothing left to be confused with).
+    def shared(d, j):
+        return sum(bool(np.any(np.abs(cars[d]['cross_x'] - x) < 0.4)) for x in drivers[j]['ends'])
+
+    progress = True
+    while progress:
+        progress = False
+        lc, lj = left()
+        cnt = {(d, j): shared(d, j) for d in lc for j in lj}
+        for (d, j), n in sorted(cnt.items(), key=lambda kv: -kv[1]):
+            if n < 2:
+                break
+            other = [v for (dd, jj), v in cnt.items() if (dd == d) != (jj == j)]
+            if n - max(other, default=0) >= 2:
+                assign[d] = j
+                used.add(j)
+                scores[(d, j)] = n / len(drivers[j]['ends'])
+                how[d] = 'among the rest, by lap ends shared'
+                progress = True
+                break
+    # pass 1c: a car and a driver that share one lap end (to 0.25 s, after the offset) and no other pairing of either
+    # does: the pit-lane crossings the line-distance wrap misses leave a car with one clean pair
+    lc, lj = left()
+    hits = {}
+    for d in lc:
+        for j in lj:
+            n = sum(bool(np.any(np.abs(cars[d]['cross_x'] - x) < 0.25)) for x in drivers[j]['ends'])
+            if n >= 1:
+                hits[(d, j)] = n
+    for (d, j), n in sorted(hits.items()):
+        if sum(1 for (dd, jj) in hits if dd == d) == 1 and sum(1 for (dd, jj) in hits if jj == j) == 1:
+            assign[d] = j
+            used.add(j)
+            scores[(d, j)] = n / len(drivers[j]['ends'])
+            how[d] = 'one lap end only'
+    # second pass: what is left, matched on the number of lap ends only when exactly one car and one driver have it
+    left_c = [d for d in cars if d not in assign]
+    left_j = [j for j in range(len(drivers)) if j not in used and len(drivers[j]['ends']) > 0]
+    for d in left_c:
+        n = len(cars[d]['cross'])
+        same_j = [j for j in left_j if len(drivers[j]['ends']) == n]
+        same_c = [e for e in left_c if len(cars[e]['cross']) == n]
+        if len(same_j) == 1 and len(same_c) == 1:
+            assign[d] = same_j[0]
+            used.add(same_j[0])
+            scores[(d, same_j[0])] = 0.0
+            how[d] = 'by lap count'
+    # third pass: a car whose line crossings include the driver's first lap end, when exactly one such car and one such driver are left
+    left_c = [d for d in cars if d not in assign]
+    left_j = [j for j in range(len(drivers)) if j not in used and len(drivers[j]['ends']) > 0]
+    for d in left_c:
+        cand = [j for j in left_j if np.any(np.abs(cars[d]['cross_x'] - drivers[j]['ends'][0]) < 0.5)]
+        cands_c = [e for e in left_c if any(np.any(np.abs(cars[e]['cross_x'] - drivers[j]['ends'][0]) < 0.5) for j in cand)]
+        if len(cand) == 1 and len(cands_c) == 1:
+            assign[d] = cand[0]
+            used.add(cand[0])
+            scores[(d, cand[0])] = -1.0  # reported as matched on the first lap end only
+            how[d] = 'first lap end'
+    return assign, scores, how
+
+
+def laps_completed(nums, ends, ticks):
+    """Laps completed at each tick, as the game counts them: the lap number at each end. A qualifying's out lap has
+    no row (it ended before the replay's first tick), so the first row's number is 2 and one lap was already done."""
+    done = nums[0] - 1 if len(nums) else 0
+    return done + np.searchsorted(ends, ticks, side='right')
+
+
+def best_laps_so_far(order, assign, drivers, ticks):
+    """For each car (rows, in `order`) and tick, the best timed lap it has finished by then; 1e9 before its first."""
+    bestnow = np.full((len(order), len(ticks)), 1e9)
+    for i, d in enumerate(order):
+        j = assign.get(d)
+        if j is None:
+            continue
+        for end, lt in zip(drivers[j]['ends'], drivers[j]['laps']):
+            if lt > 0:
+                m = ticks >= end
+                bestnow[i, m] = np.minimum(bestnow[i, m], lt)
+    return bestnow
+
+
+def rank_places(kind, prog, bestnow):
+    """Place per car (rows) and tick, 1 = first. A race ranks by progress on track. A qualifying (and a practice)
+    ranks by best lap, never by progress: the best timed lap so far, a car with none yet after the ones that have, by
+    progress."""
+    place = np.zeros(prog.shape, dtype=int)
+    for k in range(prog.shape[1]):
+        r = np.argsort(-prog[:, k]) if kind == 'race' else np.lexsort((-prog[:, k], bestnow[:, k]))
+        place[r, k] = np.arange(1, prog.shape[0] + 1)
+    return place
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--vcr', required=True)
@@ -267,61 +393,19 @@ def main():
         rep.append('timing-line offset: none measured (the player has fewer than %d line crossings), offset 0' % (need - 1))
     for c in cars.values():
         c['cross_x'] = c['cross'] + delta
-    scores = {}
-    for d, c in cars.items():
-        for j, dr in enumerate(drivers):
-            xs = np.array(dr['ends'])
-            if len(xs) == 0 or len(c['cross']) == 0:
-                continue
-            hit = sum(bool(np.any(np.abs(c['cross_x'] - x) < 0.4)) for x in xs)
-            scores[(d, j)] = hit / len(xs)
-    used = set()
-    assign = {}
-    def margin_ok(d, j, s):
-        # the pair must stand clear of every other pairing of that car and of that driver
-        other = [v for (dd, jj), v in scores.items() if (dd == d) != (jj == j) and v > 0]
-        return all(s - v >= 0.15 for v in other)
-
-    for (d, j), s in sorted(scores.items(), key=lambda kv: -kv[1]):
-        if d in assign or j in used or s < 0.6 or not margin_ok(d, j, s):
-            continue
-        assign[d] = j
-        used.add(j)
-    # second pass: what is left, matched on the number of lap ends only when exactly one car and one driver have it
-    left_c = [d for d in cars if d not in assign]
-    left_j = [j for j in range(len(drivers)) if j not in used and len(drivers[j]['ends']) > 0]
-    for d in left_c:
-        n = len(cars[d]['cross'])
-        same_j = [j for j in left_j if len(drivers[j]['ends']) == n]
-        same_c = [e for e in left_c if len(cars[e]['cross']) == n]
-        if len(same_j) == 1 and len(same_c) == 1:
-            assign[d] = same_j[0]
-            used.add(same_j[0])
-            scores[(d, same_j[0])] = 0.0
-    # third pass: a car whose line crossings include the driver's first lap end, when exactly one such car and one such driver are left
-    left_c = [d for d in cars if d not in assign]
-    left_j = [j for j in range(len(drivers)) if j not in used and len(drivers[j]['ends']) > 0]
-    for d in left_c:
-        cand = [j for j in left_j if np.any(np.abs(cars[d]['cross_x'] - drivers[j]['ends'][0]) < 0.5)]
-        cands_c = [e for e in left_c if any(np.any(np.abs(cars[e]['cross_x'] - drivers[j]['ends'][0]) < 0.5) for j in cand)]
-        if len(cand) == 1 and len(cands_c) == 1:
-            assign[d] = cand[0]
-            used.add(cand[0])
-            scores[(d, cand[0])] = -1.0  # reported as matched on the first lap end only
+    assign, scores, how = match_cars(cars, drivers)
+    used = set(assign.values())
     rep.append("matched by lap-end times (at least 60%% of the driver's lap ends within 0.4 s of one of the car's line crossings (after the timing-line offset), and at least 0.15 clear of every other pairing of that car or driver): %d of %d cars" % (len(assign), len(cars)))
     for d in sorted(cars):
         j = assign.get(d)
         if j is None:
             rep.append('  replay %2d -> UNMATCHED' % d)
         else:
-            rep.append('  replay %2d -> %s | %s | %s | best %.3f | matched %.2f' % (d, drivers[j]['name'], drivers[j]['cls'], drivers[j]['model'], drivers[j]['best'], scores[(d, j)]))
+            rep.append('  replay %2d -> %s | %s | %s | best %.3f | matched %.2f%s' % (d, drivers[j]['name'], drivers[j]['cls'], drivers[j]['model'], drivers[j]['best'], scores[(d, j)], '' if how.get(d, 'clear') == 'clear' else ' (' + how[d] + ')'))
     for d, c in cars.items():
         j = assign.get(d)
         ends = np.array(drivers[j]['ends']) if j is not None else c['cross']
-        # laps completed, as the game counts them: the lap number at each end. A qualifying's out lap has no row
-        # (it ended before the replay's first tick), so the first row's number is 2 and one lap was already done.
-        done = (drivers[j]['nums'][0] - 1 if drivers[j]['nums'] else 0) if j is not None else 0
-        c['laps'] = done + np.searchsorted(ends, ticks, side='right')
+        c['laps'] = laps_completed(drivers[j]['nums'] if j is not None else [], ends, ticks)
     unidentified = [d for d in cars if d not in assign]
     for d in unidentified:
         rep.append('NOT IN THE FIELD: replay car %d has no matching driver (%d line crossings); the xml drivers left without a car: %s' % (d, len(cars[d]['cross']), [drivers[j]['name'] + ' (' + str(drivers[j]['lapsXml']) + ' laps)' for j in range(len(drivers)) if j not in used]))
@@ -336,26 +420,7 @@ def main():
         done = ticks >= fin
         # a finisher's rank is fixed at the flag: more laps first, then the earlier finish
         prog[i, done] = cars[d]['laps'][done] * L + (L - 1.0) - fin * 1e-3
-    place = np.zeros(prog.shape, dtype=int)
-    if kind == 'race':
-        for k in range(nT):
-            r = np.argsort(-prog[:, k])
-            place[r, k] = np.arange(1, len(order) + 1)
-    else:
-        # A qualifying (and a practice) ranks by best lap, never by progress on track: at each moment the best
-        # timed lap so far, a car with none yet after the ones that have, by progress.
-        bestnow = np.full(prog.shape, 1e9)
-        for i, d in enumerate(order):
-            j = assign.get(d)
-            if j is None:
-                continue
-            for end, lt in zip(drivers[j]['ends'], drivers[j]['laps']):
-                if lt > 0:
-                    m = ticks >= end
-                    bestnow[i, m] = np.minimum(bestnow[i, m], lt)
-        for k in range(nT):
-            r = np.lexsort((-prog[:, k], bestnow[:, k]))
-            place[r, k] = np.arange(1, len(order) + 1)
+    place = rank_places(kind, prog, best_laps_so_far(order, assign, drivers, ticks) if kind != 'race' else None)
     final = {d: int(place[i, -1]) for i, d in enumerate(order)}
     rep.append('final order from the replay (%s) vs the xml Position, laps vs the xml Laps:' % ('progress at the last tick' if kind == 'race' else 'best lap so far; the xml position is ranked among the matched cars only'))
     xml_rank = {}
