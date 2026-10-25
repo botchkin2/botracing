@@ -36,7 +36,11 @@ export type ResultsDriver = {
   player: boolean;
   cls: string;
   car: string;
+  /** The place in his class (the file's ClassPosition). */
   pos: number | null;
+  /** The place among all cars (the file's Position) and the file's FinishStatus: the game's own classification, read by `finishFromResults`. Absent in an input written before they were added. */
+  overall?: number | null;
+  status?: string | null;
   laps: ResultsLap[];
 };
 

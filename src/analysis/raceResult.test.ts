@@ -1,9 +1,13 @@
 import {describe, expect, it} from '@jest/globals';
 
+import race from './__fixtures__/classPaceR.json';
+import {type ResultsDriver} from './classPace';
 import {
   FINISH_VERSION,
   finishCurrent,
   finishDoc,
+  finishDocFromResults,
+  finishFromResults,
   finishPosition,
   type ResultField,
   raceResultText,
@@ -155,6 +159,7 @@ describe('finishDoc', () => {
         version: FINISH_VERSION,
         kind: 'other',
         finish: null,
+        source: 'field',
       });
   });
 
@@ -200,5 +205,75 @@ describe('raceResultText', () => {
     expect(raceResultText({...left, classLeaderLapsDone: null})).toBe(
       'P20 · L20 (left early)',
     );
+  });
+});
+
+// His real race, Sebring 2026-10-21 (20_45_08-82R1), cut to him and a few cars:
+// the game's file gives Position 5 and ClassPosition 1 (GT3), Finished Normally.
+describe('finishFromResults: the game own classification', () => {
+  const drivers = race.drivers as ResultsDriver[];
+
+  it('is the file overall and class place, as the head says it: P5 · P1 in class', () => {
+    const finish = finishFromResults(drivers)!;
+    expect(finish).toMatchObject({overall: 5, inClass: 1, leftEarly: false});
+    expect(raceResultText(finish)).toBe('P5 · P1 in class');
+    // the classified counts are the drivers the input lists (this fixture is cut to 7)
+    expect(finish.ofOverall).toBe(7);
+    expect(finish.ofClass).toBe(4);
+  });
+
+  it('counts his laps and the leaders: the class leader laps are the GT3 ones, not the faster class', () => {
+    const finish = finishFromResults(drivers)!;
+    expect(finish.lapsDone).toBe(30);
+    expect(finish.leaderLapsDone).toBe(33);
+    expect(finish.classLeaderLapsDone).toBe(30);
+  });
+
+  it('a status other than "Finished Normally" is left early, and reads as the list reads a left-early race', () => {
+    for (const status of ['DNF', 'DQ', 'None']) {
+      const left = finishFromResults(
+        drivers.map(d => (d.player ? {...d, status} : d)),
+      )!;
+      expect(left.leftEarly).toBe(true);
+      expect(raceResultText(left)).toBe('P1 · L30 of L30+ (left early)');
+    }
+  });
+
+  it('is null without his row, without his overall place (an input from before it), or with no drivers', () => {
+    expect(finishFromResults(null)).toBeNull();
+    expect(finishFromResults([])).toBeNull();
+    expect(finishFromResults(drivers.filter(d => !d.player))).toBeNull();
+    expect(
+      finishFromResults(
+        drivers.map(d => (d.player ? {...d, overall: undefined} : d)),
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('finishDocFromResults: the stored result of a race', () => {
+  const drivers = race.drivers as ResultsDriver[];
+
+  it('is the version, the race kind, the file finish and its source; none for practice or qualifying', () => {
+    expect(finishDocFromResults(drivers, 'Race')).toEqual({
+      version: FINISH_VERSION,
+      kind: 'race',
+      finish: finishFromResults(drivers),
+      source: 'results',
+    });
+    expect(finishDocFromResults(drivers, 'Practice')).toBeNull();
+    expect(finishDocFromResults(drivers, 'Qualify')).toBeNull();
+  });
+
+  it('is null when the file cannot place him, so the field result stands, unchanged', () => {
+    expect(finishDocFromResults(null, 'Race')).toBeNull();
+    expect(finishDoc(field, 'Race')).toMatchObject({
+      kind: 'race',
+      source: 'field',
+      finish: {overall: 2, inClass: 1},
+    });
+    // a result of either source is kept under the same version and kind
+    const fromFile = finishDocFromResults(drivers, 'Race');
+    expect(finishCurrent(fromFile as never, 'Race')).toBe(true);
   });
 });

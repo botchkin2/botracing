@@ -61,6 +61,8 @@ test('a v1 input still gives its strikes and has no drivers; a v2 input gives bo
       cls: 'GT3',
       car: 'Porsche 911 GT3 R LMGT3',
       pos: 3,
+      overall: 5,
+      status: 'Finished Normally',
       laps: [
         {t: null, s1: null, s2: null, s3: null, pit: false},
         {t: 128.5963, s1: 48.6845, s2: 34.2366, s3: 45.6752, pit: true},
@@ -85,7 +87,8 @@ test('a v2 input with no drivers, or drivers that are not the stored shape, keep
       drivers: [ok, {cls: 7}, null, {cls: 'GT3', car: 'x', laps: 'no'}],
     }),
   );
-  assert.deepEqual(mixed.drivers, [ok]);
+  // The game's overall place and FinishStatus are null when the input has none (written before they were added).
+  assert.deepEqual(mixed.drivers, [{...ok, overall: null, status: null}]);
   // A time the file lacks, or that is not a number, reads null, never 0.
   const odd = readResultsInput(
     JSON.stringify({

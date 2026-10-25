@@ -13,6 +13,7 @@
 // whether the race was finished is read from the leader: if the leader crossed
 // the line after the player's last crossing, the player left early.
 
+import type {ResultsDriver} from './classPace.ts';
 import {ABSENT, type Field} from './field.ts';
 import {lapLabel} from './lapNumbering.ts';
 
@@ -66,6 +67,8 @@ export interface FinishDoc {
   version: number;
   kind: 'race' | 'other';
   finish: FinishPosition | null;
+  /** Where the place came from: the game's results file (its own classification, the referee) or the recorded field. Absent on a doc written before the file was read. */
+  source?: 'results' | 'field';
 }
 
 const kindOf = (sessionType: string): FinishDoc['kind'] =>
@@ -155,7 +158,46 @@ export function finishDoc(field: ResultField, sessionType: string): FinishDoc {
     version: FINISH_VERSION,
     kind,
     finish: kind === 'race' ? finishPosition(field) : null,
+    source: 'field',
   };
+}
+
+/** The game's own finish for a race from the results input's drivers (v2): his overall and class place, the classified counts, his laps and the leaders', and whether he left early (a FinishStatus other than "Finished Normally"). Null without his row or his overall place. */
+export function finishFromResults(
+  drivers: readonly ResultsDriver[] | null | undefined,
+): FinishPosition | null {
+  const me = drivers?.find(d => d.player);
+  if (!drivers || !me || me.overall == null || me.pos == null) return null;
+  const lapsOf = (d: ResultsDriver) => d.laps.length;
+  const mine = drivers.filter(d => d.cls === me.cls);
+  return {
+    overall: me.overall,
+    inClass: me.pos,
+    ofOverall: drivers.length,
+    ofClass: mine.length,
+    lapsDone: lapsOf(me),
+    leaderLapsDone: Math.max(...drivers.map(lapsOf)),
+    classLeaderLapsDone: me.cls.trim() ? Math.max(...mine.map(lapsOf)) : null,
+    leftEarly: me.status != null && me.status !== 'Finished Normally',
+  };
+}
+
+/**
+ * The race's stored `result` from the game's results file, or null outside a
+ * race and when the file cannot place him (an input from before `overall`
+ * existed, a v1 input): then the field's `finishDoc` stands. The file first:
+ * it is the game's own classification (thread 111 #7739, #7740). No
+ * FINISH_VERSION bump: a session gets this when its v2 input arrives.
+ */
+export function finishDocFromResults(
+  drivers: readonly ResultsDriver[] | null | undefined,
+  sessionType: string,
+): FinishDoc | null {
+  if (kindOf(sessionType) !== 'race') return null;
+  const finish = finishFromResults(drivers);
+  return finish
+    ? {version: FINISH_VERSION, kind: 'race', finish, source: 'results'}
+    : null;
 }
 
 /** Whether a stored `result` can be kept: this version of the rule, for this kind of session. */

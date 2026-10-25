@@ -670,6 +670,10 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
       lap.traffic = traffic[k];
     });
   }
+  // The game's own classification first: a race whose results input has the
+  // drivers takes its finishing place from the file, whatever the field gave
+  // above (one stored `result`, read by the list and the head alike).
+  if (out.resultsFinish) session.result = out.resultsFinish;
   // What only the capture gave, kept when it is gone (keepCapture.mjs): the
   // race length, and the visits read from the car's damage.
   const keptBlocks = [];
