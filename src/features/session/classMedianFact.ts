@@ -20,7 +20,7 @@ export function classMedianFacts(session: {
     {
       label: 'Class median',
       value: formatLapTime(m.classS),
-      basis: `you ${formatGap(m.youS - m.classS)} · ${m.cars} cars`,
+      basis: `you ${formatGap(m.deltaS)} · ${m.cars} cars`,
     },
   ];
 }

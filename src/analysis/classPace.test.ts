@@ -240,6 +240,7 @@ describe('medianVsClass', () => {
       cls: 'GT3',
       youS: 100,
       classS: 99,
+      deltaS: 1,
       cars: 3,
     });
   });

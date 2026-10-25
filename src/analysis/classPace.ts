@@ -157,6 +157,8 @@ export type MedianVsClass = {
   /** His median lap and the class's: the median of the other drivers' own medians. */
   youS: number;
   classS: number;
+  /** His minus the class's, + where he is slower: the one signed number, so no screen subtracts. */
+  deltaS: number;
   /** How many other drivers' medians the class's is over. */
   cars: number;
 };
@@ -173,5 +175,11 @@ export function medianVsClass(doc: ClassPaceDoc | null): MedianVsClass | null {
   );
   const classS = median(others.map(d => d.median));
   if (classS == null) return null;
-  return {cls: you.cls, youS: you.median, classS, cars: others.length};
+  return {
+    cls: you.cls,
+    youS: you.median,
+    classS,
+    deltaS: you.median - classS,
+    cars: others.length,
+  };
 }
