@@ -54,6 +54,7 @@ import {type OptimumLine, optimumLines} from './optimumLines';
 import {lapTimeStats, segmentBasisStats, stintNumbers} from './selectionStats';
 import {energyLine, type EnergyLine} from './energyLine';
 import {type ClassPaceDoc, hasOtherDrivers} from '@/src/analysis/classPace';
+import {otherCarsState} from '@/src/analysis/otherCars';
 import {classMedianFacts} from './classMedianFact';
 import {classTable, type ClassTable} from './classTable';
 import {buildPitCard, type PitCard} from './pitCard';
@@ -338,10 +339,10 @@ export function trafficPaceFacts(
   // headers' own clean median (one answer to "clean median"), not the stored
   // whole-session value.
   const traffic = paceSplit(basisLaps);
-  // The "Other cars" line is about the 5 Hz field. A race whose results file gave every driver's laps (`classPace`)
-  // lists other cars in its Class pace block, so it never says they were not recorded (a `classPace` with only his own laps lists none, and then the line stays).
+  // The "Other cars" line is for a session with nothing recorded about them: one with the results file's drivers
+  // lists them in its Class pace block, and one with a field replays them (otherCarsState, shared with the Race tab).
   if (traffic == null)
-    return field == null && !hasOtherDrivers(session.classPace)
+    return otherCarsState(session).kind === 'none'
       ? [otherCarsFact(session.fieldMissing)]
       : [];
   const facts: Fact[] = [];

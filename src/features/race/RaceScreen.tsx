@@ -90,6 +90,8 @@ const WIDE_MIN_MAP_W = 560;
 const BOARD_BELOW_H = 260;
 
 const NO_FIELD_TITLE = 'No field data for this session';
+/** The game's results file listed the other drivers, but no positions on the track were recorded (otherCarsState). */
+const NO_REPLAY_TITLE = "No replay: other cars' positions were not recorded";
 const NO_LAP_TITLE = 'No timed lap to draw the track';
 const NO_LINE_TITLE = 'No track line in this session';
 const LINE_ERROR_TEXT = 'Could not load the lap that draws the track';
@@ -210,17 +212,25 @@ function Notice({data}: {data: Exclude<RaceData, {kind: 'ready'}>}) {
     data.kind === 'no-lap' ||
     data.kind === 'no-line'
   ) {
+    const noReplay = data.kind === 'no-field' && data.others.kind === 'drivers';
     return (
       <View style={styles.center}>
+        {data.kind === 'no-field' && data.result ? (
+          <Text variant='dataStrong'>{data.result}</Text>
+        ) : null}
         <EmptyState
           title={
             data.kind === 'no-lap'
               ? NO_LAP_TITLE
               : data.kind === 'no-line'
               ? NO_LINE_TITLE
+              : noReplay
+              ? NO_REPLAY_TITLE
               : NO_FIELD_TITLE
           }
-          body={data.kind === 'no-field' ? data.why ?? undefined : undefined}
+          body={
+            data.kind === 'no-field' && !noReplay ? data.why ?? undefined : undefined
+          }
         />
       </View>
     );

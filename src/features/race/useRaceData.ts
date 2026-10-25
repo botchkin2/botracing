@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from 'react';
 
 import {carsArePhysical} from '@/src/analysis/carsArePhysical';
+import {otherCarsState, type OtherCarsState} from '@/src/analysis/otherCars';
 import {finishedText} from '@/src/analysis/raceResult';
 import {placeFieldOnLine} from '@/src/analysis/fieldOnLine';
 import {SURFACE_STEP_M} from '@/src/analysis/trackSurface';
@@ -38,6 +39,14 @@ const GRID_STEP_M = 5;
 // Every 10th player sample is plenty for a median over a lap-long line.
 const MATCH_STEP = 10;
 
+/** A race's result line, the Session head's own (`finishedText`): the Race tab prints it with a field or without one. */
+function resultLineOf(detail: {
+  sessionType: string;
+  finish: Parameters<typeof finishedText>[0];
+}): string | null {
+  return detail.sessionType === 'R' ? finishedText(detail.finish) : null;
+}
+
 /** A race ranks its cars; practice shows the road around the player; a qualifying has no cars on the track with it (`carsArePhysical`). */
 export function raceModeOf(session: {sim: string; sessionType: string}): RaceMode {
   if (session.sessionType === 'R') return 'race';
@@ -48,7 +57,15 @@ export type RaceData =
   | {kind: 'loading'}
   | {kind: 'error'; message: string}
   /** The session predates the recorder, or it was not joined. */
-  | {kind: 'no-field'; title: string; why: string | null}
+  | {
+      kind: 'no-field';
+      title: string;
+      why: string | null;
+      /** What the session has about other cars: with the results file's drivers the screen says no replay, not no data (analysis/otherCars.ts). */
+      others: OtherCarsState;
+      /** The head's own result line, with or without a field (finishedText). */
+      result: string | null;
+    }
   /** No timed lap: no racing line to put the cars on. */
   | {kind: 'no-lap'; title: string}
   /** A best lap whose trace has no GPS or no length to grid on. */
@@ -264,6 +281,8 @@ export function useRaceData(sessionId: string): RaceData {
       kind: 'no-field',
       title,
       why: screenField.why ?? null,
+      others: otherCarsState(detail),
+      result: resultLineOf(detail),
     };
   if (gate === 'field-error')
     return {
@@ -286,7 +305,7 @@ export function useRaceData(sessionId: string): RaceData {
     title,
     note: detail.field?.note ?? null,
     mode: raceModeOf(detail),
-    result: detail.sessionType === 'R' ? finishedText(detail.finish) : null,
+    result: resultLineOf(detail),
     prep,
     clock,
     laps: (laps.data ?? []).map(l => ({

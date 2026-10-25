@@ -14,6 +14,7 @@ import {
   sessionScreenModelOf,
   trafficPaceFacts,
 } from './model';
+import {otherCarsState} from '@/src/analysis/otherCars';
 import {classPaceDoc, type ResultsDriver} from '@/src/analysis/classPace';
 import {finishedText, raceResultText} from '@/src/analysis/raceResult';
 import classPaceRace from '@/src/analysis/__fixtures__/classPaceR.json';
@@ -534,6 +535,19 @@ describe('trafficPaceFacts', () => {
     expect(say("Other cars: recording doesn't match the game file")).toEqual([
       {label: 'Other cars', value: "recording doesn't match the game file"},
     ]);
+  });
+
+  it('the head says "Other cars" exactly when the shared state is none (the Race tab reads the same state)', () => {
+    const everyone = classPaceDoc(classPaceRace.drivers as ResultsDriver[]);
+    const cases = [
+      {...session, field, classPace: null},
+      {...session, field: null, classPace: everyone},
+      {...session, field: null, classPace: null},
+    ];
+    for (const c of cases)
+      expect(trafficPaceFacts(c, [lap(81, null)]).length > 0).toBe(
+        otherCarsState(c).kind === 'none',
+      );
   });
 
   it('a race whose results file gave every driver (classPace) never says the other cars were not recorded', () => {
