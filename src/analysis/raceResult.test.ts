@@ -1,13 +1,15 @@
 import {describe, expect, it} from '@jest/globals';
 
 import race from './__fixtures__/classPaceR.json';
+import snapshotDaytona from './__fixtures__/classPaceSnapshotDaytona.json';
+import snapshotRoadAtlanta from './__fixtures__/classPaceSnapshotRoadAtlanta.json';
 import {type ResultsDriver} from './classPace';
 import {
   FINISH_VERSION,
   finishCurrent,
   finishDoc,
-  finishDocFromResults,
   finishFromResults,
+  finishOf,
   finishPosition,
   type ResultField,
   raceResultText,
@@ -251,29 +253,58 @@ describe('finishFromResults: the game own classification', () => {
   });
 });
 
-describe('finishDocFromResults: the stored result of a race', () => {
+describe('finishOf: the one rule, in one place', () => {
   const drivers = race.drivers as ResultsDriver[];
+  const fromField = finishDoc(field, 'Race');
+  const choose = (d: ResultsDriver[] | null, sessionType = 'Race') =>
+    finishOf({drivers: d, sessionType, field: fromField});
 
-  it('is the version, the race kind, the file finish and its source; none for practice or qualifying', () => {
-    expect(finishDocFromResults(drivers, 'Race')).toEqual({
+  it('a race with finishers takes the file: the version, the race kind, its finish and its source', () => {
+    expect(choose(drivers)).toEqual({
       version: FINISH_VERSION,
       kind: 'race',
       finish: finishFromResults(drivers),
       source: 'results',
     });
-    expect(finishDocFromResults(drivers, 'Practice')).toBeNull();
-    expect(finishDocFromResults(drivers, 'Qualify')).toBeNull();
+    // Sebring Oct 21: P5 · P1 in class, over the field's P2 · P1
+    expect(raceResultText(choose(drivers)!.finish)).toBe('P5 · P1 in class');
+    // a result of either source is kept under the same version and kind
+    expect(finishCurrent(choose(drivers) as never, 'Race')).toBe(true);
   });
 
-  it('is null when the file cannot place him, so the field result stands, unchanged', () => {
-    expect(finishDocFromResults(null, 'Race')).toBeNull();
-    expect(finishDoc(field, 'Race')).toMatchObject({
-      kind: 'race',
-      source: 'field',
-      finish: {overall: 2, inClass: 1},
-    });
-    // a result of either source is kept under the same version and kind
-    const fromFile = finishDocFromResults(drivers, 'Race');
-    expect(finishCurrent(fromFile as never, 'Race')).toBe(true);
+  it('a race nobody finished is a snapshot, not a classification: the field stands (Daytona 2026-09-29)', () => {
+    const daytona = snapshotDaytona.drivers as ResultsDriver[];
+    expect(daytona.some(d => d.status === 'Finished Normally')).toBe(false);
+    expect(choose(daytona)).toBe(fromField);
+  });
+
+  it('and on another of his 52 snapshot files: the field stands (Road Atlanta 2026-10-01, he DNF, the rest None)', () => {
+    const atlanta = snapshotRoadAtlanta.drivers as ResultsDriver[];
+    expect(atlanta.some(d => d.status === 'Finished Normally')).toBe(false);
+    expect(choose(atlanta)).toBe(fromField);
+  });
+
+  it('finishers present and he DNF: left early, from the file', () => {
+    const dnf = drivers.map(d => (d.player ? {...d, status: 'DNF'} : d));
+    const doc = choose(dnf)!;
+    expect(doc.source).toBe('results');
+    expect(doc.finish!.leftEarly).toBe(true);
+    expect(raceResultText(doc.finish)).toBe('P1 · L30 of L30+ (left early)');
+  });
+
+  it('no file, a v1 input, an input from before overall, or no row of his: the field stands, unchanged', () => {
+    expect(choose(null)).toBe(fromField);
+    expect(choose([])).toBe(fromField);
+    expect(choose(drivers.filter(d => !d.player))).toBe(fromField);
+    const old = drivers.map(d => ({...d, overall: undefined}));
+    expect(choose(old)).toBe(fromField);
+    expect(
+      finishOf({drivers: null, sessionType: 'Race', field: null}),
+    ).toBeNull();
+  });
+
+  it('practice and qualifying have no result from the file', () => {
+    expect(choose(drivers, 'Practice')).toBe(fromField);
+    expect(choose(drivers, 'Qualify')).toBe(fromField);
   });
 });

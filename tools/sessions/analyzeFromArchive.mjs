@@ -20,10 +20,7 @@ import {
 } from './cornerSlices.mjs';
 import {classBestsDoc, classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {classPaceDoc} from '../../src/analysis/classPace.ts';
-import {
-  finishDoc,
-  finishDocFromResults,
-} from '../../src/analysis/raceResult.ts';
+import {finishDoc} from '../../src/analysis/raceResult.ts';
 import {fieldFeedsDerived} from './field.mjs';
 import {paceFieldsOf, paceSetOf} from '../../src/analysis/paceSet.ts';
 import {carLabel} from '../../src/design/carModels.ts';
@@ -423,9 +420,9 @@ export function analyzeFromArchive({
 
   return {
     session,
-    // The race's result from the game's results file when its input has the drivers
-    // (raceResult.ts finishDocFromResults); store.mjs puts it over the field's.
-    resultsFinish: finishDocFromResults(results?.drivers, first.sessionType),
+    // Every driver of the game's results file, when its input has them: store.mjs
+    // chooses the race's result between the file and the field (raceResult.ts finishOf).
+    resultsDrivers: results?.drivers ?? null,
     laps,
     lapWindows,
     band: a.band,

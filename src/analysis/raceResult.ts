@@ -182,22 +182,37 @@ export function finishFromResults(
   };
 }
 
+/** The game's FinishStatus of a driver it classified. */
+const FINISHED = 'Finished Normally';
+
 /**
- * The race's stored `result` from the game's results file, or null outside a
- * race and when the file cannot place him (an input from before `overall`
- * existed, a v1 input): then the field's `finishDoc` stands. The file first:
- * it is the game's own classification (thread 111 #7739, #7740). No
- * FINISH_VERSION bump: a session gets this when its v2 input arrives.
+ * The race's stored `result`: the game's results file's when it classified the
+ * race, else the field's as it stood (null with neither). The one rule, in one
+ * place (thread 111 #7739, #7765, #7771; store.mjs calls it once):
+ *  - the file is a classification only if the game classified someone, a driver
+ *    whose FinishStatus is "Finished Normally". Of his 125 race files 52 have none:
+ *    snapshots the game wrote when he left (Daytona 2026-09-29: 61 of 62 "None"),
+ *    not the referee's verdict, so the field's result stands there; the other 73
+ *    have finishers and no grey zone, and take the file's;
+ *  - and the file must be able to place him (an input from before `overall` existed,
+ *    a v1 input, no row of his: the field's stands).
+ * No FINISH_VERSION bump: a session gets the file's finish when its v2 input arrives.
  */
-export function finishDocFromResults(
-  drivers: readonly ResultsDriver[] | null | undefined,
-  sessionType: string,
-): FinishDoc | null {
-  if (kindOf(sessionType) !== 'race') return null;
-  const finish = finishFromResults(drivers);
-  return finish
-    ? {version: FINISH_VERSION, kind: 'race', finish, source: 'results'}
-    : null;
+export function finishOf(input: {
+  drivers: readonly ResultsDriver[] | null | undefined;
+  sessionType: string;
+  field: FinishDoc | null;
+}): FinishDoc | null {
+  const {drivers, sessionType} = input;
+  if (
+    kindOf(sessionType) === 'race' &&
+    drivers?.some(d => d.status === FINISHED)
+  ) {
+    const finish = finishFromResults(drivers);
+    if (finish)
+      return {version: FINISH_VERSION, kind: 'race', finish, source: 'results'};
+  }
+  return input.field;
 }
 
 /** Whether a stored `result` can be kept: this version of the rule, for this kind of session. */

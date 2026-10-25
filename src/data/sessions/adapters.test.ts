@@ -1,7 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {classPaceDoc, type ResultsDriver} from '@/src/analysis/classPace';
-import {finishDocFromResults, raceResultText} from '@/src/analysis/raceResult';
+import {finishOf, raceResultText} from '@/src/analysis/raceResult';
 import race from '@/src/analysis/__fixtures__/classPaceR.json';
 
 import {
@@ -699,7 +699,7 @@ describe('classPace (ticket 20)', () => {
 
 describe('one stored result: the Sessions list row and the race head print the same place (ticket 20, thread 111 #7740)', () => {
   const drivers = race.drivers as ResultsDriver[];
-  const result = finishDocFromResults(drivers, 'Race');
+  const result = finishOf({drivers, sessionType: 'Race', field: null});
   const served = {...raw, sessionType: 'Race', result};
 
   it('a result written from the game file reads P5 · P1 in class on his real race, in the list and in the head', () => {

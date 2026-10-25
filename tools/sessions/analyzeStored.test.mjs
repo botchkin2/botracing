@@ -301,31 +301,39 @@ test("a v2 results input reaches the analysis with every driver's laps, which be
   assert.equal(blockVersions.classPace, doc.v);
 });
 
-test("a race's result is the game's file's when the analysis has it, else the field's, one stored doc", async () => {
-  const {finishDocFromResults} = await import(
-    '../../src/analysis/raceResult.ts'
-  );
-  const drivers = JSON.parse(
-    readFileSync(
-      new URL(
-        '../../src/analysis/__fixtures__/classPaceR.json',
-        import.meta.url,
+test("a race's result is the game's file's when it classified the race, else the field's, one stored doc", async () => {
+  const fixture = name =>
+    JSON.parse(
+      readFileSync(
+        new URL(
+          `../../src/analysis/__fixtures__/${name}.json`,
+          import.meta.url,
+        ),
+        'utf8',
       ),
-      'utf8',
-    ),
-  ).drivers;
-  const fromFile = finishDocFromResults(drivers, 'Race');
+    ).drivers;
+  const finished = fixture('classPaceR');
+  const snapshot = fixture('classPaceSnapshotDaytona');
   const fromField = {
-    version: fromFile.version,
+    version: 4,
     kind: 'race',
-    finish: {...fromFile.finish, overall: 4, inClass: 2},
+    finish: {
+      overall: 4,
+      inClass: 2,
+      ofOverall: 7,
+      ofClass: 4,
+      lapsDone: 30,
+      leaderLapsDone: 33,
+      classLeaderLapsDone: 30,
+      leftEarly: false,
+    },
     source: 'field',
   };
   const files = new Map([
     ['archive/botkin/lmu/s1/r1/samples.parquet', Buffer.from('S')],
     ['archive/botkin/lmu/s1/r1/events.parquet', Buffer.from('E')],
   ]);
-  const run = async resultsFinish => {
+  const run = async resultsDrivers => {
     const backend = storeOf({session, recordings: [recording], files});
     await analyzeStored({
       backend,
@@ -335,15 +343,18 @@ test("a race's result is the game's file's when the analysis has it, else the fi
       analyze: () => {
         const out = engineOut();
         out.session.result = fromField;
-        return {...out, resultsFinish};
+        return {...out, resultsDrivers};
       },
     });
     return backend.docs.get('sessions/s1').result;
   };
   // The file's finish (P5 · P1 in class on his real race) goes over the field's P4 · P2.
-  assert.deepEqual(await run(fromFile), fromFile);
+  const fromFile = await run(finished);
   assert.equal(fromFile.source, 'results');
-  // With no finish from the file (no v2 input, or one from before overall) the field's stands.
+  assert.equal(fromFile.finish.overall, 5);
+  assert.equal(fromFile.finish.inClass, 1);
+  // A snapshot file (nobody finished: Daytona 2026-09-29), no v2 input, or one from before overall: the field's stands.
+  assert.deepEqual(await run(snapshot), fromField);
   assert.deepEqual(await run(null), fromField);
 });
 
