@@ -1,6 +1,7 @@
 import {
   type ClassPaceDoc,
   type DriverPace,
+  sectorGapS,
   topVsYou,
 } from '@/src/analysis/classPace';
 import {classOfCar} from '@/src/analysis/fieldClasses';
@@ -105,11 +106,8 @@ export function classPaceView(
   const inClass = doc.drivers.filter(d => d.cls === cls).sort(byPlace);
   const classRows = inClass.map((d, i): PaceRow => {
     const compare = mine && you !== undefined && !d.you && d.median !== null;
-    const delta = (s: 0 | 1 | 2): number | null => {
-      const m = you?.sectors[s].median ?? null;
-      const t = d.sectors[s].median;
-      return m === null || t === null ? null : m - t;
-    };
+    const delta = (s: 0 | 1 | 2): number | null =>
+      you ? sectorGapS(you, d, s) : null;
     return {
       key: `${cls}:${i}`,
       pos: d.pos === null ? '' : String(d.pos),

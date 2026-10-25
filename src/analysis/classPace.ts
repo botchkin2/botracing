@@ -120,6 +120,22 @@ export function classPaceDoc(
 export const classPaceCurrent = (doc: {v?: number} | null | undefined) =>
   doc?.v === CLASS_PACE_VERSION;
 
+/**
+ * His median of a sector minus a driver's, seconds: + where he is slower. The one
+ * place "which way round" is written: the top line takes the median of these over
+ * the top cars, and each row's cells are these (thread 111 #7656, #7670). Null
+ * when either has no median there.
+ */
+export function sectorGapS(
+  you: DriverPace,
+  other: DriverPace,
+  sector: 0 | 1 | 2,
+): number | null {
+  const mine = you.sectors[sector].median;
+  const theirs = other.sectors[sector].median;
+  return mine === null || theirs === null ? null : mine - theirs;
+}
+
 export type TopVsYou = {
   cls: string;
   /** How many cars the comparison is over: up to TOP_CARS, fewer in a small class. */
@@ -140,11 +156,8 @@ export function topVsYou(doc: ClassPaceDoc | null): TopVsYou | null {
     .filter(d => !d.you && d.cls === you.cls)
     .slice(0, TOP_CARS);
   if (others.length === 0) return null;
-  const sector = (i: 0 | 1 | 2): number | null => {
-    const mine = you.sectors[i].median;
-    const theirs = median(others.map(d => d.sectors[i].median));
-    return mine == null || theirs == null ? null : mine - theirs;
-  };
+  const sector = (i: 0 | 1 | 2): number | null =>
+    median(others.map(d => sectorGapS(you, d, i)));
   return {
     cls: you.cls,
     cars: others.length,

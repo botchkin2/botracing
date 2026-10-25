@@ -2,6 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import qualifying from './__fixtures__/classPaceQ.json';
 import race from './__fixtures__/classPaceR.json';
+import {median} from './setStats';
 import {
   CLASS_PACE_VERSION,
   type ClassPaceDoc,
@@ -12,6 +13,7 @@ import {
   type ResultsDriver,
   type ResultsLap,
   TOP_CARS,
+  sectorGapS,
   topVsYou,
 } from './classPace';
 
@@ -270,5 +272,42 @@ describe('classPaceCurrent', () => {
     expect(classPaceCurrent({v: CLASS_PACE_VERSION})).toBe(true);
     expect(classPaceCurrent({v: CLASS_PACE_VERSION + 1})).toBe(false);
     expect(classPaceCurrent(null)).toBe(false);
+  });
+});
+
+describe('sectorGapS: the one place the sign is written', () => {
+  const doc = classPaceDoc([
+    driver({player: true, times: [100, 100, 100]}),
+    driver({times: [98, 98, 98]}),
+    driver({times: [102, 102, 102]}),
+    driver({times: [100, 101]}),
+  ])!;
+  const [you, fast, slow, few] = [
+    doc.drivers.find(d => d.you)!,
+    doc.drivers.find(d => d.best === 98)!,
+    doc.drivers.find(d => d.best === 102)!,
+    doc.drivers.find(d => d.laps === 2)!,
+  ];
+
+  it('is his median minus theirs: + where he is slower than the driver, − where faster', () => {
+    expect(sectorGapS(you, fast, 0)).toBeCloseTo(100 * 0.4 - 98 * 0.4, 6);
+    expect(sectorGapS(you, slow, 2)).toBeCloseTo(100 * 0.3 - 102 * 0.3, 6);
+    expect(sectorGapS(you, fast, 0)!).toBeGreaterThan(0);
+    expect(sectorGapS(you, slow, 0)!).toBeLessThan(0);
+  });
+
+  it('is null where either side has no median (under 3 valid laps)', () => {
+    expect(sectorGapS(you, few, 1)).toBeNull();
+    expect(sectorGapS(few, you, 1)).toBeNull();
+  });
+
+  it('is what the top line is made of: its sector is the median of these over the top cars', () => {
+    const top = topVsYou(doc)!;
+    expect(top.cars).toBe(3);
+    // the cars with a median: 98 and 102 (the 2-lap car has none), so the median of +0.8 and -0.8
+    expect(top.sectorsS[0]).toBeCloseTo(
+      median([sectorGapS(you, fast, 0), sectorGapS(you, slow, 0)])!,
+      9,
+    );
   });
 });
