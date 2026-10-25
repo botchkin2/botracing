@@ -19,7 +19,7 @@ const drivers = Array.from({length: 60}, (_, i) => ({
   cls: i % 3 ? 'GT3' : 'LMP2_ELMS',
   car: 'Porsche 911 GT3 R LMGT3',
   pos: i + 1,
-  laps: Array.from({length: 60}, (_, k) =>
+  laps: Array.from({length: 60}, (_lap, k) =>
     k % 10 === 0
       ? {t: null, s1: null, s2: null, s3: null, pit: true}
       : lap(105 + i * 0.1 + Math.sin(k) * 0.4, k),
