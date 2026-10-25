@@ -1,6 +1,7 @@
 import {StyleSheet, View} from 'react-native';
 
 import {
+  type ColorTokens,
   cornerCell,
   formatCornerGap,
   radius,
@@ -22,6 +23,22 @@ export type CornerCellValue = number | {absent: 'off' | 'none'};
 
 /** A cell with no time, for a caller that does not know the reason. */
 export const NO_TIME: CornerCellValue = {absent: 'none'};
+
+/** How one cell reads: its fill and text colours, its words, and whether a wheels-off outline marks it. */
+export function cornerCellLook(
+  d: CornerCellValue,
+  color: ColorTokens,
+): {bg: string; fg: string; text: string; off: boolean} {
+  if (typeof d === 'number')
+    return {...cornerCell(d), text: formatCornerGap(d), off: false};
+  const off = d.absent === 'off';
+  return {
+    bg: color.surfaceRaised,
+    fg: off ? color.textSecondary : color.textFaint,
+    text: off ? 'off' : '—',
+    off,
+  };
+}
 
 export type CornerGridRow = {
   key: string;
@@ -124,16 +141,13 @@ export function CornerCells({
   return (
     <>
       {cells.map((d, i) => {
-        const gap = typeof d === 'number' ? d : null;
-        const off = typeof d !== 'number' && d.absent === 'off';
-        const c = gap == null ? null : cornerCell(gap);
-        const text = gap != null ? formatCornerGap(gap) : off ? 'off' : '—';
+        const {bg, fg, text, off} = cornerCellLook(d, color);
         const style = [
           styles.cell,
           {
             width: cellW,
             marginLeft: GAP,
-            backgroundColor: c?.bg ?? color.surfaceRaised,
+            backgroundColor: bg,
             borderColor: i === openIndex ? color.text : 'transparent',
           },
           off && {borderColor: color.textMuted, borderStyle: 'dashed' as const},
@@ -141,11 +155,7 @@ export function CornerCells({
         // A wheels-off cell always draws a mark; the others only where the number fits.
         const body =
           showValue || off ? (
-            <Text
-              variant='dataSmall'
-              style={{
-                color: c?.fg ?? (off ? color.textSecondary : color.textFaint),
-              }}>
+            <Text variant='dataSmall' style={{color: fg}}>
               {off && !showValue ? '×' : text}
             </Text>
           ) : null;

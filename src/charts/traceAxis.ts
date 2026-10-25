@@ -12,8 +12,10 @@ import {
   EDGE_PT,
   thinLabels,
   labelBox,
+  textWidth,
   tickPad,
 } from './labelBox';
+import {shortSectionName} from '@/src/analysis/turnNames';
 
 /** The y range is drawn this far in from the plot's top and bottom without y ticks. */
 export const Y_PAD = 3;
@@ -71,6 +73,42 @@ export function xTickBaseline(plotHeight: number, fontSize: number): number {
 /** A mark's label (apex, sector) hangs under the plot's top edge. */
 export function markBaseline(fontSize: number): number {
   return baselineUnder(0, fontSize);
+}
+
+/** A section's start on the lap: where its tick stands and what it is called. */
+export interface SectionTick {
+  m: number;
+  /** The section's name as every screen writes it ("T2–4"). */
+  label: string;
+}
+
+/**
+ * The labels under a lap-wide plot at each section's start: the name as
+ * written where it fits before the next section's tick, else the shortest name
+ * (`shortSectionName`), else none (the line stays). `xOf` is the chart's one
+ * distance-to-x mapping, so a time window and a distance window label alike.
+ */
+export function sectionTickLabels(
+  ticks: readonly SectionTick[],
+  xOf: (m: number) => number,
+  width: number,
+  fontSize: number,
+): {x: number; text: string}[] {
+  const at = ticks
+    .map(t => ({label: t.label, x: xOf(t.m)}))
+    .filter(t => t.x >= 0 && t.x < width)
+    .sort((a, b) => a.x - b.x);
+  const out: {x: number; text: string}[] = [];
+  at.forEach((t, i) => {
+    const room = (i + 1 < at.length ? at[i + 1].x : width - EDGE_PT) - t.x - 2;
+    const text = [t.label, shortSectionName(t.label)].find(
+      s =>
+        textWidth(s, fontSize) <= room &&
+        fitsRight(s, t.x + 2, width, fontSize),
+    );
+    if (text) out.push({x: t.x, text});
+  });
+  return out;
 }
 
 /** True when a start-anchored label at x fits before the right edge. */

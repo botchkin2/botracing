@@ -20,7 +20,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Line} from 'react-native-svg';
 
 import {panCursor} from '@/src/analysis/window';
-import {CornerGrid, NO_TIME, TrackStrip} from '@/src/charts';
+import {CornerGrid, TrackStrip} from '@/src/charts';
 import {useField} from '@/src/data/field';
 import {
   type DefaultSession,
@@ -97,6 +97,9 @@ const DESKTOP_MAP_H = 220;
 // Traces are the point on desktop (livery's spec, thread 24 #254).
 const DESKTOP_CHART_SCALE = 1.4;
 const ONE_CHART_H = 330;
+// The phone's Time diff, over the whole lap, is the answer Compare opens on: tall enough to read nine laps
+// (62 pt was a strip). Desktop already draws every chart 1.4 times the handoff height.
+const PHONE_TIME_DIFF_H = 120;
 // Landscape phone: the one chart takes what the window leaves under the charts
 // bar and chart tabs, above the one-row transport and bottom bar, never less
 // than this.
@@ -609,7 +612,7 @@ function CompareView({
         rows={model.grid.rows.map(r => ({
           key: r.key,
           label: r.label,
-          cells: r.cells.map(c => c ?? NO_TIME),
+          cells: r.cells,
           color:
             r.selIndex == null
               ? undefined
@@ -632,6 +635,7 @@ function CompareView({
     stepM: model.stepM,
     windowM: model.windowM,
     timeAxis: model.timeAxis,
+    sectionTicks: model.sectionTicks,
     cursorM,
     lapStyle,
     onScrub: windowed ? undefined : onCursor,
@@ -639,6 +643,10 @@ function CompareView({
     onPanStart: () => setPlaying(false),
   });
   const heightScale = layout.isDesktop ? DESKTOP_CHART_SCALE : 1;
+  const stackedH = (c: (typeof model.charts)[number]) =>
+    !layout.isDesktop && c.channels.length === 1 && c.channels[0] === 'timeDiff'
+      ? PHONE_TIME_DIFF_H
+      : c.height * heightScale;
   const oneChartH = layout.isLandscapePhone
     ? Math.max(
         ONE_CHART_LANDSCAPE_MIN_H,
@@ -743,7 +751,7 @@ function CompareView({
             {c.title}
           </Text>
           <Skeleton
-            height={Math.round(oneChart ? oneChartH : c.height * heightScale)}
+            height={Math.round(oneChart ? oneChartH : stackedH(c))}
           />
         </View>
       ),
@@ -771,7 +779,7 @@ function CompareView({
     : oneChart
     ? focusedChart && phoneChart(focusedChart, oneChartH, true)
     : model.charts.map((c, i) =>
-        phoneChart(c, c.height * heightScale, i === model.charts.length - 1),
+        phoneChart(c, stackedH(c), i === model.charts.length - 1),
       );
 
   const spanLabel =

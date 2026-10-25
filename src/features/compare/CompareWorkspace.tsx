@@ -3,10 +3,8 @@ import {ScrollView, StyleSheet, View} from 'react-native';
 import Svg, {Path, Rect} from 'react-native-svg';
 
 import {type Field} from '@/src/analysis/field';
-import {TraceChart} from '@/src/charts';
+import {cornerCellLook, TraceChart} from '@/src/charts';
 import {
-  cornerCell,
-  formatCornerGap,
   formatDistance,
   radius,
   space,
@@ -352,6 +350,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
               stepM={model.stepM}
               windowM={model.windowM}
               timeAxis={model.timeAxis}
+              sectionTicks={model.sectionTicks}
               cursorM={p.cursorM}
               lapStyle={lapStyle}
               onScrub={p.windowed ? undefined : p.onCursor}
@@ -515,20 +514,21 @@ export function CompareWorkspace(p: WorkspaceProps) {
                   </Text>
                 </Pressable>
                 {model.grid!.rows.map(r => {
-                  const d = r.cells[i];
-                  const c = d == null ? null : cornerCell(d);
+                  const look = cornerCellLook(r.cells[i], color);
                   return (
                     <View
                       key={r.key}
                       style={[
                         styles.gridCell,
                         styles.cell,
-                        {backgroundColor: c?.bg ?? color.surfaceRaised},
+                        {backgroundColor: look.bg},
+                        look.off && {
+                          borderColor: color.textMuted,
+                          borderStyle: 'dashed',
+                        },
                       ]}>
-                      <Text
-                        variant='dataSmall'
-                        style={{color: c?.fg ?? color.textFaint}}>
-                        {d == null ? '—' : formatCornerGap(d)}
+                      <Text variant='dataSmall' style={{color: look.fg}}>
+                        {look.text}
                       </Text>
                     </View>
                   );

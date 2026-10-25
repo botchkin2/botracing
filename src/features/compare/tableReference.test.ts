@@ -264,7 +264,7 @@ describe('Compare tables against the checked set', () => {
     });
     expect(m.tableReference.grid).toBe('median of 3 checked laps');
     const row = m.grid!.rows.find(r => r.lapId === 'x')!;
-    expect(row.cells).toEqual([null, null]);
+    expect(row.cells).toEqual([{absent: 'none'}, {absent: 'none'}]);
     expect(m.grid!.rows.find(r => r.lapId === 'a')!.cells).toEqual([-1, 0]);
     // The chip delta is a lap time, which does not depend on the cut.
     expect(m.chips.find(c => c.lapId === 'x')!.delta).toBe('+38.500');
