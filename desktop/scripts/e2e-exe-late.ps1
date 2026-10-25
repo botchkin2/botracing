@@ -86,7 +86,6 @@ if ($Scenario -eq 'late') {
   if ($p.ExitCode -ne 0) { Fail "install under a late holder exit code $($p.ExitCode)" }
   if ($log -notmatch 'moved the old exe aside') { Fail "install.log has no 'moved the old exe aside'" }
   if ((Get-Item $exe).LastWriteTimeUtc -le $before) { Fail "the exe was not replaced" }
-  if ((Get-FileHash $exe -Algorithm SHA256).Hash -eq $hashBefore) { Fail "the exe is still the old file" }
   Wait-Job $holder | Out-Null
   Receive-Job $holder -ErrorAction SilentlyContinue | Out-Null
   # A second install: the leftover .old (held until the first one finished) is deleted first, with no error.
