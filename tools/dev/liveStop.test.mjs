@@ -34,7 +34,9 @@ const TREE = `
   setInterval(() => {}, 1000);
 `;
 const firstLine = child =>
-  new Promise(resolve => child.stdout.once('data', d => resolve(Number(String(d).trim()))));
+  new Promise(resolve =>
+    child.stdout.once('data', d => resolve(Number(String(d).trim()))),
+  );
 
 test('killTree ends the child and its grandchild, not only the first process', async () => {
   const child = spawn(process.execPath, ['-e', TREE], {
