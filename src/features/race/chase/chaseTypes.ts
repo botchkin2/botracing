@@ -1,6 +1,7 @@
 // What the chase view and its engine take and give. The engine is web-only (three.js), loaded lazily by ChaseView.web.tsx.
 
 import type {ChaseRoad} from '@/src/analysis/chaseRoad';
+import type {InputTrace} from './chaseInputsAt';
 
 /** The app's design tokens the scene uses, resolved to colour strings by the caller. */
 export interface ChaseTheme {
@@ -89,6 +90,8 @@ export type ChaseRibbon = {
 export type ChaseNow = {
   /** Index into the ribbon: where the player is on this lap. */
   idx: number;
+  /** The lap distance (the field's 5 Hz update) these values were matched at; the HUD's per-frame inputs stay near it. */
+  anchorM: number;
   throttlePct: number;
   brakePct: number;
   steeringPct: number;
@@ -96,4 +99,4 @@ export type ChaseNow = {
   speedKph: number;
 };
 
-export type ChaseInputs = {ribbon: ChaseRibbon; now: ChaseNow | null};
+export type ChaseInputs = {ribbon: ChaseRibbon; now: ChaseNow | null; trace: InputTrace};

@@ -497,9 +497,9 @@ function RaceView({
     // inside it the trace can still be another pass over the same distance: R1 6's lap 0 holds the formation lap there
     // (105 km/h, gear 2) where the car is doing 225 on the race lap, so the car's own speed must agree
     if (!traceAgrees(trace.speedKph[i], player.speedKmh)) return null;
-    return {idx: i, throttlePct: trace.throttlePct[i], brakePct: trace.brakePct[i], steeringPct: trace.steeringPct[i], gear: trace.gear[i], speedKph: trace.speedKph[i]};
+    return {idx: i, anchorM: place.distanceM, throttlePct: trace.throttlePct[i], brakePct: trace.brakePct[i], steeringPct: trace.steeringPct[i], gear: trace.gear[i], speedKph: trace.speedKph[i]};
   }, [trace, place, loaded, ribbon, player]);
-  const inputs = ribbon ? {ribbon, now: inputsNow} : null;
+  const inputs = ribbon && trace ? {ribbon, now: inputsNow, trace} : null;
   // The followed car's class place and the gaps to the car ahead and behind in its class (the standings' own intervals).
   const chaseGaps = useMemo<ChaseGaps | null>(() => {
     const me = cars.find(c => c.index === focus) ?? cars.find(c => c.player);
