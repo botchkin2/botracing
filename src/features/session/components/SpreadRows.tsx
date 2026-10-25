@@ -5,21 +5,20 @@ import {hitBox, radius, size, space, useTheme} from '@/src/design';
 import {cornerHref} from '@/src/nav/routes';
 import {Pressable, Text} from '@/src/ui';
 
-import {type SpreadRow} from '../spreadRows';
+import {type SpreadBlock} from '../spreadRows';
 
 /**
- * Where the set scatters: the sections holding the most lap-to-lap spread,
- * biggest first, a bar and a percent each (analysis/spreadShare.ts). A row
- * opens Corner on that section, keeping the lap selection. No words: the bar
- * is the answer.
+ * The sections he varies most in, in seconds (analysis/sectionVary.ts): a section he left with wheels off on many
+ * laps first, saying so, then the rest by their IQR, a bar and seconds each. A row opens Corner on that section,
+ * keeping the lap selection. The line under it says which laps the numbers are of.
  */
 export function SpreadRows({
-  rows,
+  block,
   sessionId,
   laps,
   set = null,
 }: {
-  rows: SpreadRow[];
+  block: SpreadBlock;
   sessionId: string;
   /** The ticked laps, carried to Corner. */
   laps: string[];
@@ -28,17 +27,19 @@ export function SpreadRows({
 }) {
   const {color} = useTheme();
   const router = useRouter();
-  if (rows.length === 0) return null;
+  if (block.rows.length === 0 && block.line == null) return null;
   return (
     <View style={styles.block}>
       <Text variant='label' tone='textMuted'>
-        Spread
+        Varies most
       </Text>
-      {rows.map(r => (
+      {block.rows.map(r => (
         <Pressable
           key={r.head}
           accessibilityRole='link'
-          accessibilityLabel={`${r.head} ${r.pct} of the spread`}
+          accessibilityLabel={[r.head, r.offs, r.seconds]
+            .filter(Boolean)
+            .join(' ')}
           disabled={r.corner == null}
           onPress={() => {
             if (r.corner != null)
@@ -50,22 +51,38 @@ export function SpreadRows({
           <Text variant='dataStrong' style={styles.head} numberOfLines={1}>
             {r.head}
           </Text>
-          <View style={[styles.track, {backgroundColor: color.surfaceRaised}]}>
+          {r.offs != null ? (
+            <Text
+              variant='data'
+              tone='textSecondary'
+              style={styles.offs}
+              numberOfLines={1}>
+              {r.offs}
+            </Text>
+          ) : (
             <View
-              style={[
-                styles.bar,
-                {
-                  width: `${r.frac * 100}%`,
-                  backgroundColor: color.textSecondary,
-                },
-              ]}
-            />
-          </View>
-          <Text variant='data' tone='textSecondary' style={styles.pct}>
-            {r.pct}
+              style={[styles.track, {backgroundColor: color.surfaceRaised}]}>
+              <View
+                style={[
+                  styles.bar,
+                  {
+                    width: `${r.frac * 100}%`,
+                    backgroundColor: color.textSecondary,
+                  },
+                ]}
+              />
+            </View>
+          )}
+          <Text variant='data' tone='textSecondary' style={styles.seconds}>
+            {r.seconds ?? ''}
           </Text>
         </Pressable>
       ))}
+      {block.line != null ? (
+        <Text variant='dataSmall' tone='textMuted' style={styles.line}>
+          {block.line}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -79,7 +96,9 @@ const styles = StyleSheet.create({
     gap: space.md,
   },
   head: {width: size.spreadHead},
+  offs: {flex: 1},
   track: {flex: 1, height: size.spreadBar, borderRadius: radius.xs},
   bar: {height: size.spreadBar, borderRadius: radius.xs},
-  pct: {width: size.spreadPct, textAlign: 'right'},
+  seconds: {width: size.spreadPct, textAlign: 'right'},
+  line: {marginTop: space.xs},
 });

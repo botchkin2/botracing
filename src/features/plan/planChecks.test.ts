@@ -248,27 +248,8 @@ describe('planChecks', () => {
       expect(c.maxFuelL).toEqual({value: 117, state: 'one-source'});
     });
 
-    it('collapses the triple, and 682524ed + 9b96efed, to one run each', () => {
-      const runs = collapseTwins([
-        ...triple(),
-        run('682524ed', '2026-10-14T00:25:05Z', {trackCar: 'silverstone|911'}),
-        run('9b96efed', '2026-10-14T00:25:50Z', {trackCar: 'silverstone|911'}),
-      ]);
-      expect(runs.map(r => r.ids)).toEqual([
-        ['32c9d386', '7e812df9', 'c7ae92b3'],
-        ['682524ed', '9b96efed'],
-      ]);
-    });
-
-    it('sessions a minute and a half apart, or of another car, are separate runs', () => {
-      const runs = collapseTwins([
-        run('a', '2026-10-15T01:09:00Z'),
-        run('b', '2026-10-15T01:10:30Z'),
-        run('c', '2026-10-15T01:09:10Z', {trackCar: 'sebring|other'}),
-      ]);
-      expect(runs).toHaveLength(3);
-    });
-
+    // Which sessions are one run (the triple, 682524ed + 9b96efed, the 60 s window) is tested with the rule, in
+    // src/analysis/twinRuns.test.ts.
     it("the merged run takes the game file's setup over the capture's", () => {
       const [merged] = collapseTwins([
         run('live', '2026-10-17T00:13:00Z', {tankL: 117, fuelPerLapL: 2.82}),

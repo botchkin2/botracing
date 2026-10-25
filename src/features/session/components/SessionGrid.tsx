@@ -52,7 +52,7 @@ export function SessionGrid({
         <View style={[styles.lap, {width: LAP_W}]}>
           <Text variant='label'>Lap</Text>
           <Text variant='dataSmall' tone='textMuted'>
-            {`IQR of ${grid.basisCount}`}
+            {`Varies · ${grid.basisCount} laps`}
           </Text>
         </View>
         <LinkedHScroll link={link}>
@@ -146,7 +146,11 @@ function GridLapRow({
                 },
               ]}>
               <Text variant='dataSmall' tone={c.best ? 'best' : 'text'}>
-                {c.deltaS == null ? '—' : formatGap(c.deltaS, 3)}
+                {c.deltaS == null
+                  ? c.off
+                    ? 'off'
+                    : '—'
+                  : formatGap(c.deltaS, 3)}
               </Text>
             </View>
           ))}

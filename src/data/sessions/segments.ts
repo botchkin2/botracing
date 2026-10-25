@@ -13,7 +13,7 @@ import {sectionNameOf} from '@/src/analysis/turnNames';
 import {isCompound} from './corners';
 
 import type {Lap, TrackMapData} from './adapters';
-import {frameOf, isCurrent, windowTimesOf} from './windowOptimum';
+import {frameOf, isCurrent, windowOffsOf, windowTimesOf} from './windowOptimum';
 
 const START_LABEL = 'S/F';
 
@@ -45,6 +45,7 @@ export function turnSegmentTimes(
       stint: lap.stint,
       comparable: lap.comparable,
       timesS: windowTimesOf(lap, frame),
+      offs: windowOffsOf(lap, frame),
       stop: lap.pitStop != null,
       label: lapLabel(lap.lapNo),
     });

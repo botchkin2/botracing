@@ -50,7 +50,7 @@ function render() {
     facts: [],
     energy: null,
     optimum: [],
-    spread: [],
+    spread: {rows: [], line: null},
     brake: [],
     rows: [],
     sections: null,

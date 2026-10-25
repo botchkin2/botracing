@@ -1,4 +1,5 @@
 import {basisOf} from '@/src/analysis/lapBasis';
+import {type PooledSession} from '@/src/analysis/sectionVary';
 import {lapLabel, lapRangeLabel} from '@/src/analysis/lapNumbering';
 import {useMemo} from 'react';
 
@@ -25,7 +26,9 @@ import {
   trackCorners,
   type TrackMapData,
   useSession,
+  needsPool,
   useSessionLaps,
+  useSpreadPool,
   useTrackMap,
 } from '@/src/data/sessions';
 import {
@@ -62,7 +65,7 @@ import {
 } from './trafficFacts';
 import {isCompound} from '@/src/data/sessions/corners';
 import {type BrakeRow, brakeLedger} from './brakeLedger';
-import {type SpreadRow, spreadRows} from './spreadRows';
+import {type SpreadBlock, spreadRows} from './spreadRows';
 import {MIN_COMPARISON_LAPS} from '@/src/analysis/setStats';
 
 // Session screen view model (handoff §2). buildSessionModel is pure: session,
@@ -225,8 +228,8 @@ export type SessionScreenModel = {
   optimumLines: OptimumLine[];
   /** Null while no lap has sections or sector times. */
   sections: SectionTable | null;
-  /** The sections that hold the most of the set's lap-to-lap spread; empty under 10 laps (spreadRows.ts). */
-  spread: SpreadRow[];
+  /** The sections he varies most in, in seconds, and the laps line under them (spreadRows.ts). */
+  spread: SpreadBlock;
   /** The loosest braking zones: where each lap began to brake against the median; empty under 10 laps (brakeLedger.ts). */
   brake: BrakeRow[];
   /** The game's sector columns (S1..Sn) when laps carry sector times; none otherwise. */
@@ -410,7 +413,8 @@ function cellsOf(
     return times.segments.map((_, i) => {
       const t = lap?.timesS[i] ?? null;
       return {
-        value: t == null ? dash : t.toFixed(digits),
+        // A window left out for wheels off says so; any other blank stays a dash.
+        value: t != null ? t.toFixed(digits) : lap?.offs?.[i] ? 'off' : dash,
         best: basis.has(lapId) && t != null && t === stats[i].bestS,
       };
     });
@@ -497,6 +501,8 @@ export function buildSessionModel(
    * the pit review) are not set facts and are left out.
    */
   day: DaySet | null = null,
+  /** Earlier sessions of this track and car, lent to a session with too few laps for a spread (data/sessions/spreadPool.ts). */
+  pool: PooledSession[] = [],
 ): SessionScreenModel {
   // Every median, gap, bar and stint line, the head's Median included, is of
   // the basis laps (the ticked ones): one answer to "the median" on the screen
@@ -735,7 +741,7 @@ export function buildSessionModel(
     optimum: optimumFacts([...stintLines.values()], stintCount),
     optimumLines: optimumLines([...stintLines.values()], stintCount),
     sections,
-    spread: spreadRows(sectionTimes, basis, sections),
+    spread: spreadRows(sectionTimes, basis, sections, pool),
     brake: brakeLedger(laps, basis, bySections ? map : null),
     chart,
     noComparable,
@@ -833,6 +839,12 @@ export function useSessionScreenModel(id: string, selection: Selection) {
   // Only the optimal lap needs the map; the screen draws without it.
   const map = useTrackMap(session.data?.trackId);
   const sectionMode = useSectionMode();
+  // A session short of laps borrows its earlier ones for the spread; nothing is fetched otherwise.
+  const pool = useSpreadPool(
+    session.data ?? null,
+    map.data ?? null,
+    sectionMode === 'turns' && laps.data != null && needsPool(laps.data),
+  );
   return useMemo(
     () =>
       sessionScreenModelOf({
@@ -841,8 +853,10 @@ export function useSessionScreenModel(id: string, selection: Selection) {
         map: map.data ?? null,
         selection,
         sectionMode,
+        pool,
       }),
     [
+      pool,
       session.data,
       laps.data,
       map.data,
@@ -870,6 +884,7 @@ export function sessionScreenModelOf({
   sectionMode,
   now = new Date(),
   answeredAt,
+  pool = [],
 }: {
   session: QueryLike & {data?: SessionDetail};
   laps: QueryLike & {data?: Lap[]};
@@ -878,6 +893,7 @@ export function sessionScreenModelOf({
   sectionMode: SectionMode;
   now?: Date;
   answeredAt?: number;
+  pool?: PooledSession[];
 }) {
   const read = queryState([session, laps], answeredAt);
   if (read.kind === 'error')
@@ -894,6 +910,8 @@ export function sessionScreenModelOf({
       selection,
       map,
       sectionMode,
+      null,
+      pool,
     ),
   };
 }

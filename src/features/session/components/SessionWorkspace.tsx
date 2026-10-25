@@ -192,9 +192,9 @@ export function SessionWorkspace({
                     </View>
                   </>
                 ) : null}
-                {model.spread.length > 0 ? (
+                {model.spread.rows.length > 0 || model.spread.line != null ? (
                   <SpreadRows
-                    rows={model.spread}
+                    block={model.spread}
                     sessionId={sessionId}
                     laps={selection.laps}
                     set={day ? 'day' : null}
