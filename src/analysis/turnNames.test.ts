@@ -2,6 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {
   sectionHeaderOf,
+  shortSectionName,
   turnBadgeOf,
   turnOfPart,
   turnTitleOf,
@@ -30,5 +31,16 @@ describe('turn names', () => {
   it('a Corner title keeps the phase word', () => {
     expect(turnTitleOf('T7')).toBe('Turn 7');
     expect(turnTitleOf('T7 entry')).toBe('Turn 7 entry');
+  });
+});
+
+describe('shortSectionName', () => {
+  it("is a section's first corner: T2–4 is 2, T10A–T12 is 10A, T13 is 13, S/F is SF", () => {
+    expect(['T2–4', 'T10A–T12', 'T13', 'S/F'].map(shortSectionName)).toEqual([
+      '2',
+      '10A',
+      '13',
+      'SF',
+    ]);
   });
 });

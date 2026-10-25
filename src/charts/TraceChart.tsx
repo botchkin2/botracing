@@ -16,6 +16,8 @@ import {
   labelledTicks,
   markBaseline,
   plotPad,
+  type SectionTick,
+  sectionTickLabels,
   seriesTickBaseline,
   xTickBaseline,
   yLine,
@@ -107,6 +109,7 @@ export function TraceChart({
   hoverM,
   frameM,
   timeAxis,
+  sectionTicks,
 }: {
   width: number;
   /** Plot height; the distance axis adds AXIS_H under it. */
@@ -151,6 +154,12 @@ export function TraceChart({
   frameM?: [number, number];
   /** Time mode: x is the reference's elapsed time across windowS. */
   timeAxis?: {ref: TimedGrid; windowS: [number, number]} | null;
+  /**
+   * The lap's sections at their starts: the x axis is labelled by section, a
+   * line at each start, instead of by metres ("meters into the track don't
+   * mean much to me", Botkin, D34).
+   */
+  sectionTicks?: SectionTick[];
 }) {
   const {color} = useTheme();
   const [startM, endM] = windowM;
@@ -327,10 +336,15 @@ export function TraceChart({
       if (m >= 0) out.push(m);
     return out;
   };
-  const gridMs = linesAt(step);
+  const sectionLabels = sectionTicks
+    ? sectionTickLabels(sectionTicks, xOfM, width, TICK_PT)
+    : null;
+  const gridMs = sectionTicks
+    ? sectionTicks.map(t => t.m).filter(m => m >= startM && m <= endM)
+    : linesAt(step);
   const minorStep = minorStepM(step, (step / spanM) * width);
   const minorMs =
-    minorStep == null
+    minorStep == null || sectionTicks
       ? []
       : linesAt(minorStep).filter(
           m => Math.abs(((m - origin) / step) % 1) > 1e-6,
@@ -433,18 +447,29 @@ export function TraceChart({
                 stroke={color.grid}
                 strokeWidth={1}
               />
-              {fitsRight(tickLabel(m), gx + 2, width, TICK_PT) && (
-                <ChartLabel
-                  x={gx + 2}
-                  y={xTickBaseline(height, TICK_PT)}
-                  fill={color.textFaint}
-                  fontSize={TICK_PT}>
-                  {tickLabel(m)}
-                </ChartLabel>
-              )}
+              {!sectionLabels &&
+                fitsRight(tickLabel(m), gx + 2, width, TICK_PT) && (
+                  <ChartLabel
+                    x={gx + 2}
+                    y={xTickBaseline(height, TICK_PT)}
+                    fill={color.textFaint}
+                    fontSize={TICK_PT}>
+                    {tickLabel(m)}
+                  </ChartLabel>
+                )}
             </G>
           );
         })}
+        {sectionLabels?.map(l => (
+          <ChartLabel
+            key={`s${l.x}`}
+            x={l.x + 2}
+            y={xTickBaseline(height, TICK_PT)}
+            fill={color.textFaint}
+            fontSize={TICK_PT}>
+            {l.text}
+          </ChartLabel>
+        ))}
         {marks.map((mk, i) => {
           const mx = xOfM(mk.m);
           return (

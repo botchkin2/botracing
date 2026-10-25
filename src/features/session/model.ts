@@ -1,4 +1,5 @@
 import {basisOf} from '@/src/analysis/lapBasis';
+import {raceResultText} from '@/src/analysis/raceResult';
 import {type PooledSession} from '@/src/analysis/sectionVary';
 import {lapLabel, lapRangeLabel} from '@/src/analysis/lapNumbering';
 import {useMemo} from 'react';
@@ -730,6 +731,9 @@ export function buildSessionModel(
     : null;
 
   const bestLap = laps.find(l => l.id === bestLapId);
+  // A race says where it finished, the one line the Sessions list says (analysis/raceResultText.ts).
+  const resultText = day ? null : raceResultText(session.finish);
+  const resultFact = resultText ? [{label: 'Result', value: resultText}] : [];
   // One answer per section to "how much does it vary": the Varies most rows, the grid's Varies row and the footer read it.
   const vary = varyOf(sectionTimes, basis, pool);
   const sections = sectionTable(
@@ -768,6 +772,7 @@ export function buildSessionModel(
       .filter(Boolean)
       .join(' · '),
     facts: [
+      ...resultFact,
       {label: 'Laps', value: String(laps.length)},
       {label: 'Comparable', value: String(comparable.length)},
       {

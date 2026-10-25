@@ -2,7 +2,16 @@ import {medianBasisOf} from '@/src/analysis/medianBasis';
 import {describe, expect, it} from '@jest/globals';
 
 import {type RawTrace, resampleTrace} from '@/src/analysis/resample';
-import {type Lap, referenceDefaultLapIds} from '@/src/data/sessions';
+import {
+  type Lap,
+  referenceDefaultLapIds,
+  turnSegmentTimes,
+} from '@/src/data/sessions';
+import {
+  lap as spreadLap,
+  map as spreadMap,
+  seg as spreadSeg,
+} from '@/src/data/sessions/__fixtures__/spreadSet';
 import {lapColors, lapStroke} from '@/src/design';
 // Adapters are internal to data/; tests reach them to build real shapes.
 import {
@@ -17,6 +26,7 @@ import {
   snapOut,
   cornerPlace,
   pedalsDomains,
+  readoutMeans,
   followPlace,
   type CompareSelection,
   clearRef,
@@ -110,6 +120,14 @@ const sel = (over: Partial<CompareSelection> = {}): CompareSelection => ({
 
 const build = (s = sel()) =>
   buildCompareModel({session, laps, traces, band: null, map, selection: s});
+
+describe('readoutMeans', () => {
+  it('a Time diff row means nothing at 0 m, where every gap is 0; the other channels always do', () => {
+    expect(readoutMeans('timeDiff', 0)).toBe(false);
+    expect(readoutMeans('timeDiff', 5)).toBe(true);
+    expect(readoutMeans('speed', 0)).toBe(true);
+  });
+});
 
 describe('overview scales fit the comparable laps', () => {
   it('a non-comparable lap off the fitted range is clipped and named, not stretched over', () => {
@@ -244,7 +262,9 @@ describe('buildCompareModel', () => {
     expect(g.corners).toEqual([1, 2]);
     // L3 is the fastest of the checked laps: L1 and L2 are read against it.
     expect(g.rows.map(r => r.label)).toEqual(['L1', 'L2']);
-    expect(g.rows.map(r => r.cells.map(c => Number(c!.toFixed(2))))).toEqual([
+    expect(
+      g.rows.map(r => r.cells.map(c => Number((c as number).toFixed(2)))),
+    ).toEqual([
       [0.05, 0.05],
       [0.35, 0.15],
     ]);
@@ -1272,5 +1292,63 @@ describe('openingCursorM (grid section-head hand-off)', () => {
   });
   it('starts at the lap start with no cursor and no section', () => {
     expect(openingCursorM(null, null, entry)).toBe(0);
+  });
+});
+
+describe("the section axis and the grid read the Session's sections", () => {
+  // Three laps on the spreadSet layout (a start straight and two sections); lap b left the first
+  // section with wheels off, lap c has no time there at all (no window facts).
+  const raw = (id: string, over: Record<string, unknown> = {}) => ({
+    ...spreadLap(Number(id.slice(1))),
+    id,
+    lapNumber: Number(id.slice(1)) + 1,
+    ...over,
+  });
+  const set = toLaps([
+    raw('l0'),
+    raw('l1', {
+      corners: [
+        {...spreadSeg(40.4, 150, 600), offTrackSec: 4},
+        spreadSeg(55.4, 600, 1000),
+      ],
+    }),
+    raw('l2', {
+      corners: [
+        {...spreadSeg(40.1, 150, 600), segTime: null},
+        spreadSeg(55.8, 600, 1000),
+      ],
+    }),
+  ]);
+  const track = spreadMap();
+  const model = buildCompareModel({
+    session,
+    laps: set,
+    traces: new Map(),
+    band: null,
+    map: track,
+    selection: {
+      laps: ['l0', 'l1', 'l2'],
+      ref: 'l0',
+      hl: null,
+      corner: null,
+      cursorM: 0,
+    },
+  });
+
+  it('the x axis ticks are the Session table heads at their start distances', () => {
+    const segs = turnSegmentTimes(set, track)!;
+    expect(model.sectionTicks).toEqual(
+      segs.segments.map(s => ({m: s.range?.fromM ?? 0, label: s.label})),
+    );
+    expect(model.sectionTicks.map(t => t.m)).toEqual([0, 150, 600]);
+  });
+
+  it('a lap that left a section with wheels off reads off there; a lap with no time reads none', () => {
+    const rows = model.grid!.rows;
+    const cell = (label: string, i: number) =>
+      rows.find(r => r.lapId === label)!.cells[i];
+    expect(cell('l1', 0)).toEqual({absent: 'off'});
+    expect(cell('l2', 0)).toEqual({absent: 'none'});
+    expect(typeof cell('l1', 1)).toBe('number');
   });
 });
