@@ -13,6 +13,7 @@
 // whether the race was finished is read from the leader: if the leader crossed
 // the line after the player's last crossing, the player left early.
 
+import {ABSENT, type Field} from './field.ts';
 import {lapLabel} from './lapNumbering.ts';
 
 /** The encoded field file, only the columns this reads. */
@@ -83,6 +84,21 @@ function lastCrossing(laps: (number | null)[]): number {
     prev = v;
   });
   return at;
+}
+
+/**
+ * The update of the player's last line crossing in a decoded field, by the
+ * same rule `finishPosition` reads the result at (so the Race list at that
+ * moment is the head's Result); null without a player, a crossing or a place
+ * then.
+ */
+export function finishUpdateOf(field: Field): number | null {
+  const me = field.cars.find(c => c.player);
+  if (!me) return null;
+  const u = lastCrossing(
+    Array.from(me.lapsDone, v => (v === ABSENT ? null : v)),
+  );
+  return u >= 0 && me.place[u] !== ABSENT ? u : null;
 }
 
 /** A car's laps at an update: its last reading at or before it, 0 before any. */

@@ -5,6 +5,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {type LaneZoom, raceLanes} from '@/src/analysis/raceLanes';
 import {lapPath} from '@/src/analysis/inputsPath';
+import {finishUpdateOf} from '@/src/analysis/raceResult';
 import {carsAt} from '@/src/analysis/raceState';
 import {fieldClasses} from '@/src/analysis/fieldClasses';
 import {carLapsOf, currentLapIndex} from '@/src/analysis/carLaps';
@@ -287,10 +288,19 @@ function RaceView({
   const {prep, placer, line, outlineUse} = data;
   const times = prep.field.timeS;
   const endS = times.length > 0 ? times[times.length - 1] : 0;
-  // Opens on Compare's cursor when the URL has one.
-  const [openAt] = useState(
-    () => raceTimeFor(selection, data.laps, data.clock) ?? 0,
-  );
+  // Opens on Compare's cursor when the URL has one; a race with a result opens at his finish, the list
+  // showing the place the Session head says (analysis/raceResult.ts finishUpdateOf); else at the start.
+  const [open] = useState(() => {
+    const cursorS = raceTimeFor(selection, data.laps, data.clock);
+    if (cursorS != null) return {timeS: cursorS, atFinish: false};
+    const u = mode === 'race' ? finishUpdateOf(prep.field) : null;
+    return u == null
+      ? {timeS: 0, atFinish: false}
+      : {timeS: prep.field.timeS[u], atFinish: true};
+  });
+  const openAt = open.timeS;
+  // Play from the opening finish goes back to the start; once he has played or scrubbed it is an ordinary Play.
+  const playFromFinish = useRef(open.atFinish);
   // in 3D React sees the clock at the field's own rate: the engine draws from its own clock every frame
   const [mapMode, setMapMode] = useState<MapMode>(embed3d ? 'chase' : 'track');
   const clock = useRaceClock(endS, openAt, mapMode === 'chase' && chaseAvailable ? prep.field.hz : 0);
@@ -317,10 +327,13 @@ function RaceView({
   }, [onTop, clock.playing, clock.timeS, data.clock, data.laps]);
   const scrub = (timeS: number) => {
     touched.current = true;
+    playFromFinish.current = false;
     clock.setTimeS(timeS);
   };
   const toggle = () => {
     touched.current = true;
+    if (playFromFinish.current && clock.timeS === openAt) clock.setTimeS(0);
+    playFromFinish.current = false;
     clock.toggle();
   };
   // Built once per field, like the clock: it walks every update and car.
