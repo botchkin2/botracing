@@ -29,7 +29,7 @@ import {useWorkspaceGo} from './useWorkspaceGo';
 export function DesktopChrome() {
   const pathname = usePathname();
   const router = useRouter();
-  const {id, laps, ref, hl, set, n, c} = useGlobalSearchParams<{
+  const {id, laps, ref, hl, set, n, c, combo} = useGlobalSearchParams<{
     id?: string;
     laps?: string;
     ref?: string;
@@ -37,6 +37,7 @@ export function DesktopChrome() {
     set?: string;
     n?: string;
     c?: string;
+    combo?: string;
   }>();
   const {scheme} = useTheme();
   const {isWide} = useLayout();
@@ -66,6 +67,7 @@ export function DesktopChrome() {
   const plan = usePlanCombo(
     sessionId,
     pathname.startsWith('/track/') ? id ?? null : null,
+    pathname === '/plan' ? combo ?? null : null,
     true,
   );
   const go = useWorkspaceGo({

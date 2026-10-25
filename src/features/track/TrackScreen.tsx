@@ -5,6 +5,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {radius, size, space, useLayout, useTheme} from '@/src/design';
 import {cornerHref, sessionHref, trackHref, tracksHref} from '@/src/nav/routes';
 import {OfflineLine, Pressable, Text} from '@/src/ui';
+import {type Combo} from '@/src/workspace/planCombo';
 
 import {AboutBlock} from './components/AboutBlock';
 import {CornerList} from './components/CornerList';
@@ -16,7 +17,6 @@ import {PlanBlock} from './components/PlanBlock';
 import {ProgressionCard} from './components/ProgressionCard';
 import {TrackMapPanel} from './components/TrackMapPanel';
 import {type MapPart} from './mapLoad';
-import {type Combo} from '../plan/model';
 
 import {type TrackModel} from './model';
 import {useTrackModel} from './useTrackModel';

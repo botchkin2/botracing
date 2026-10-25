@@ -1,7 +1,7 @@
 import {type GreenLap} from '@/src/analysis/fuelPlan';
 import {formatDate} from '@/src/design';
+import {type Combo} from '@/src/workspace/planCombo';
 
-import {type Combo} from '../plan/model';
 import {median} from '@/src/analysis/setStats';
 import {MIN_GREEN_LAPS} from '@/src/analysis/fuelPlan';
 

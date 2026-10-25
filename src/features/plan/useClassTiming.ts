@@ -1,14 +1,12 @@
 import {useMemo} from 'react';
 
 import {useSessions} from '@/src/data/sessions';
+import {type Combo, PLAN_HISTORY_DAYS} from '@/src/workspace/planCombo';
 
 import {classTiming} from './classTiming';
 import {classPaceInput} from './classPaceInput';
-import {type Combo} from './model';
 import {type usePlanData} from './usePlanData';
 
-// Every session he has driven, like the Plan screen's.
-const ALL_TIME_DAYS = 3650;
 
 /**
  * Class pace for the Plan's track: every race and practice there in the same
@@ -23,7 +21,7 @@ export function useClassTiming(
   /** The pit-lap slider's stops and finish, in place of the plan's own. */
   chosen: {raceLaps: number; stopsAfter: number[]} | null = null,
 ) {
-  const sessions = useSessions({ageDays: ALL_TIME_DAYS});
+  const sessions = useSessions({ageDays: PLAN_HISTORY_DAYS});
   const {plan, greenLaps, hist} = data;
   return useMemo(
     () =>

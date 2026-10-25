@@ -10,8 +10,8 @@ import {formatDayMonth} from '@/src/design/format';
 import {radius, size, space, type as typeScale, useTheme} from '@/src/design';
 import {sessionDayHref, sessionHref} from '@/src/nav/routes';
 import {Chip, Pressable, Skeleton, Text} from '@/src/ui';
+import {type Combo} from '@/src/workspace/planCombo';
 
-import {type Combo} from '../../plan/model';
 import {usePlanRows} from '../../plan/usePlanHistory';
 import {
   dotLine,

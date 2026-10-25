@@ -1,13 +1,12 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {type Combo} from './model';
+import {type Combo, undrivenCombo} from '@/src/workspace/planCombo';
+
 import {
   pickerCombos,
   planState,
   planStateTitle,
-  resolveCombo,
   showsLapCards,
-  undrivenCombo,
 } from './planState';
 
 const driven = (key: string): Combo => ({
@@ -18,41 +17,6 @@ const driven = (key: string): Combo => ({
   label: 'Sebring · A',
   car: 'A',
   sessions: [{id: 's'} as Combo['sessions'][number]],
-});
-
-describe('undrivenCombo', () => {
-  it('reads an LMU key', () => {
-    const c = undrivenCombo('Spa|Ferrari 499P');
-    expect(c).toMatchObject({sim: 'lmu', trackId: 'Spa', car: 'Ferrari 499P'});
-    expect(c?.sessions).toEqual([]);
-  });
-  it('reads a sim prefix', () => {
-    expect(undrivenCombo('iracing:Spa|Car')).toMatchObject({
-      sim: 'iracing',
-      trackId: 'Spa',
-    });
-  });
-  it('rejects a key that is not track|car', () => {
-    expect(undrivenCombo('Spa')).toBeNull();
-    expect(undrivenCombo('|Car')).toBeNull();
-    expect(undrivenCombo('Spa|')).toBeNull();
-  });
-});
-
-describe('resolveCombo', () => {
-  const a = driven('T1|A');
-  it('finds a driven combo', () => {
-    expect(resolveCombo([a], 'T1|A', null)).toBe(a);
-  });
-  it('opens an empty combo for a key he never drove, not the default', () => {
-    const c = resolveCombo([a], 'T9|B', a);
-    expect(c?.trackId).toBe('T9');
-    expect(c?.sessions).toEqual([]);
-  });
-  it('uses the default with no key, and for a malformed key', () => {
-    expect(resolveCombo([a], null, a)).toBe(a);
-    expect(resolveCombo([a], 'junk', a)).toBe(a);
-  });
 });
 
 describe('pickerCombos', () => {
