@@ -17,6 +17,12 @@
 // and its strikes are unplaced. Our lapNumber is num - 1 (the 0-based `Lap` of
 // a strike row).
 //
+// Every driver's laps and classification (ticket 20, thread 111): per `<Driver>`
+// block its CarClass, CarType, Position (overall place), ClassPosition,
+// FinishStatus and its laps (`driversOf`). Of 125 race files 52 have no
+// FinishStatus "Finished Normally" on any driver: snapshots written when he left,
+// not a classification, so the reader (analysis/raceResult.ts finishOf) decides.
+//
 // "Our driver" is matched by name from the recording (the game file's
 // DriverName, the capture's playerName), never by the file's isPlayer, which
 // marks every human in an online session. Names are never stored.
@@ -110,6 +116,48 @@ export function lapSpansOf(xml, driverName) {
           : null,
     }))
     .filter(l => Number.isFinite(l.start));
+}
+
+const numberOrNull = v => {
+  const n = Number(v);
+  return v != null && v !== '' && Number.isFinite(n) ? n : null;
+};
+
+/**
+ * Every driver of a results file as the results input carries them (v2,
+ * resultsInput.mjs): `player` (the one matched by name, never by isPlayer), the
+ * class, the car, the class place `pos`, the overall place and the game's
+ * FinishStatus, and each lap's time, sectors and whether it is a pit lap. A time
+ * the file reads `--.----` (a deleted lap) is null. No names, numbers or teams
+ * leave this function: the only name read is compared with `driverName`.
+ */
+export function driversOf(xml, driverName) {
+  return xml
+    .split('<Driver>')
+    .slice(1)
+    .map(block => {
+      const body = block.split('</Driver>')[0];
+      return {
+        player: decode(text(body, 'Name')) === driverName,
+        cls: decode(text(body, 'CarClass')),
+        car: decode(text(body, 'CarType')),
+        pos: numberOrNull(text(body, 'ClassPosition')),
+        overall: numberOrNull(text(body, 'Position')),
+        status: decode(text(body, 'FinishStatus')) || null,
+        laps: [...body.matchAll(/<Lap num="\d+"([^>]*)>([^<]*)<\/Lap>/g)].map(
+          m => {
+            const a = attrsOf(m[1]);
+            return {
+              t: numberOrNull(m[2]),
+              s1: numberOrNull(a.s1),
+              s2: numberOrNull(a.s2),
+              s3: numberOrNull(a.s3),
+              pit: a.pit === '1',
+            };
+          },
+        ),
+      };
+    });
 }
 
 /** The lap a strike's `et` falls in, or null: after his laps, in the last lap, or in none (a re-report). */
@@ -261,5 +309,8 @@ export function resultsFor({
     best = {written, xml};
   }
   if (!best) return {absent: 'no results file covers the session'};
-  return strikesOf(best.xml, driverName);
+  return {
+    ...strikesOf(best.xml, driverName),
+    drivers: driversOf(best.xml, driverName),
+  };
 }

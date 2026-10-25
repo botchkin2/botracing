@@ -3,9 +3,10 @@
 // same job as captureExtract.mjs; pit-wall thread 70, design #5521 point 2):
 //
 //   gs://BUCKET/inputs/{ownerId}/{sessionId}/results.json.gz
-//   {v: 1, strikes: [{et, points, outcome, ruling}], unplaced: n, coveredFrom, coveredTo}
+//   {v: 2, strikes: [{et, points, outcome, ruling}], unplaced: n, coveredFrom, coveredTo, drivers}
 //
-// A few hundred bytes. Absent when the PC has no results file for the session.
+// A few hundred bytes of strikes, and the drivers: ~13 KB for 60 cars, gzipped far less.
+// Absent when the PC has no results file for the session.
 //
 // v2 (ticket 20, thread 111) adds `drivers`: every driver's laps for the class
 // pace (src/analysis/classPace.ts), [{player, cls, car, pos, overall, status,
@@ -14,10 +15,12 @@
 // result reads (analysis/raceResult.ts finishFromResults), t and the sectors null where the file reads `--.----`. No names,
 // no numbers, no other driver's strikes. The reader takes both versions, so a
 // session whose input is v1 keeps its track-limit strikes (a reader that refused
-// v2 would lose them silently on the next open); the writer moves to 2 with the
-// tray that writes `drivers`.
+// v2 would lose them silently on the next open). The writer (lmuResults.mjs
+// `driversOf`) writes 2; a stored v1 input is re-sent once by the backlog
+// (resultsBacklog.mjs). It ships only after a functions deploy carrying the v2
+// reader is live: #774's.
 
-export const RESULTS_INPUT_VERSION = 1;
+export const RESULTS_INPUT_VERSION = 2;
 
 /** The versions the reader takes. */
 const READABLE_VERSIONS = [1, 2];
@@ -34,6 +37,7 @@ export function resultsInput(found) {
     unplaced: found.unplaced,
     coveredFrom: found.coveredFrom,
     coveredTo: found.coveredTo,
+    drivers: found.drivers,
   };
 }
 

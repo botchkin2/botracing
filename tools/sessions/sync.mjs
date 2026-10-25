@@ -59,6 +59,7 @@ import {noteNoField} from './noField.mjs';
 import {describeCheck} from './irCapture.mjs';
 import {captureExtractFor, liveExtractSessions} from './captureExtractFor.mjs';
 import {resultsForSpan} from './lmuResults.mjs';
+import {RESULTS_INPUT_VERSION} from './resultsInput.mjs';
 import {backlogCandidates, uploadResultsBacklog} from './resultsBacklog.mjs';
 import {
   adoptLiveIds,
@@ -773,7 +774,7 @@ async function runPool(
           // file; otherwise the backlog looks again (resultsBacklog.mjs).
           if (r.resultsSent) {
             state.resultsInputs ??= {};
-            state.resultsInputs[s.id] = 'with-session';
+            state.resultsInputs[s.id] = {v: RESULTS_INPUT_VERSION};
           }
           saveState(state);
         }

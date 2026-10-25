@@ -6,22 +6,29 @@
 // when the session ends, so a live session's last run, or a game-file sync
 // minutes before the file, finds none).
 //
-// state.resultsInputs[id]: 'sent', 'with-session' (it went up with the session
-// itself), or {none: true, atMs, run} (no file for it). A session with no file
-// is looked for again every run until RETRY_WINDOW_MS after it ended, then once
-// per tray start (`run`), because the file can land later than any window and
-// is on the PC for weeks.
+// state.resultsInputs[id]: {v} (the version of the input that is up, with the
+// session itself or on its own), {v: 1, gone: true} (a v1 input is up and the
+// game no longer has its file: nothing to add), or {none: true, atMs, run} (no
+// file for it). A session with no file is looked for again every run until
+// RETRY_WINDOW_MS after it ended, then once per tray start (`run`), because the
+// file can land later than any window and is on the PC for weeks.
+//
+// The strings 'sent' and 'with-session' are what a tray before v2 wrote: a v1
+// input (strikes only). They are looked at once more, so the drivers go up
+// (ticket 20); the file may be gone by now, and then the session keeps its v1
+// ({v: 1, gone: true}, never looked for again).
 import {existsSync, readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 
 import {sessionTypeOf} from './lmuCapture.mjs';
-import {resultsInput} from './resultsInput.mjs';
+import {RESULTS_INPUT_VERSION, resultsInput} from './resultsInput.mjs';
 
 export const RETRY_WINDOW_MS = 30 * 60_000;
 
 const wantsLook = (entry, endMs, nowMs, run) => {
-  if (!entry) return true;
-  if (!entry.none) return false;
+  if (!entry || typeof entry === 'string') return true;
+  if (entry.gone) return false;
+  if (!entry.none) return !(entry.v >= RESULTS_INPUT_VERSION);
   return nowMs - endMs <= RETRY_WINDOW_MS || entry.run !== run;
 };
 
@@ -137,10 +144,14 @@ export async function uploadResultsBacklog({
       await store.markStale(c.id, ownerId);
       sent++;
     }
-    // Saved per session, so a run stopped mid-backlog resumes where it was.
+    // Saved per session, so a run stopped mid-backlog resumes where it was. A v1
+    // input already up whose file is gone stays as it is, looked at for good.
+    const had = state.resultsInputs[c.id];
     state.resultsInputs[c.id] = input
-      ? 'sent'
-      : {none: true, atMs: nowMs, run};
+      ? {v: input.v}
+      : typeof had === 'string'
+        ? {v: 1, gone: true}
+        : {none: true, atMs: nowMs, run};
     saveState();
   }
   if (sent) log(`game results kept for ${sent} stored session(s)`);
