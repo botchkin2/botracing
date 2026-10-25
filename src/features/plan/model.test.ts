@@ -129,7 +129,7 @@ describe('veRatioFor', () => {
     key: 'wedR',
     sessionIds: ['wedR'],
     newestAt: '2026-10-22T16:39:00Z',
-    ratio: {perPctL: 0.625, from: {startedAt: '2026-10-22T16:39:00Z', sessionType: 'R'}},
+    ratio: {perPctL: 0.625, from: {id: 'wedR', startedAt: '2026-10-22T16:39:00Z', sessionType: 'R'}},
     fromPracticeOnly: false,
     stopRatio: 0.609,
     mostRunL: 73,

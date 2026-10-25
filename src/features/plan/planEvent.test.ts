@@ -70,8 +70,8 @@ describe('events by rule set', () => {
   const sess = (id: string, startedAt: string, series: string | null = null) =>
     ({id, startedAt, series} as SessionSummary);
   const rs = ruleSetsOf([
-    {id: 'wedR', startedAt: '2026-10-22T16:39:00Z', sessionType: 'R', ratio: 0.625, stopRatio: 0.609, fillLimitL: 73, startL: 73},
-    {id: 'tueR', startedAt: '2026-10-21T16:40:00Z', sessionType: 'R', ratio: 0.835, stopRatio: null, fillLimitL: 85, startL: 85},
+    {id: 'wedR', startedAt: '2026-10-22T16:39:00Z', sessionType: 'R', ratio: 0.625, stopRatio: 0.609, fillLimitL: 73, tankL: 73, startL: 73, online: null, setupVePct: null, setupVePerLapPct: null},
+    {id: 'tueR', startedAt: '2026-10-21T16:40:00Z', sessionType: 'R', ratio: 0.835, stopRatio: null, fillLimitL: 85, tankL: 117, startL: 85, online: null, setupVePct: null, setupVePerLapPct: null},
   ]);
 
   it('lists the rule sets newest first, the series name from any session, and says where the rules come from', () => {

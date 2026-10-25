@@ -18,7 +18,14 @@ export type RuleSession = {
   /** The same from what the stops added: his setup's fuel ratio; null without a stop. */
   stopRatio: number | null;
   fillLimitL: number | null;
+  /** The setup's `VM_FUEL_LEVEL.maxValue`: the event's limit when it caps the fill, else the car's tank. */
+  tankL: number | null;
   startL: number | null;
+  /** Played online (true) or offline (false); null when the capture did not say. */
+  online: boolean | null;
+  /** LMU's own VE setting in the setup, and its VE a lap at it (`fuel.setupVePerLapPct`); null without the setup. */
+  setupVePct: number | null;
+  setupVePerLapPct: number | null;
 };
 
 export type RuleSet = {
@@ -29,7 +36,7 @@ export type RuleSet = {
   /** The newest session's start. */
   newestAt: string;
   /** The ratio to plan with and the session it comes from. */
-  ratio: {perPctL: number; from: {startedAt: string; sessionType: SessionType}};
+  ratio: {perPctL: number; from: {id: string; startedAt: string; sessionType: SessionType}};
   /** No race or qualifying in the set: the ratio is a practice's and may differ from the race's. */
   fromPracticeOnly: boolean;
   /** The litres per 1 % VE a stop adds (the newest stop measured in the set); null with none. */
@@ -83,7 +90,7 @@ function setOf(g: RuleSession[]): RuleSet {
     newestAt: newest.startedAt,
     ratio: {
       perPctL: first.ratio as number,
-      from: {startedAt: first.startedAt, sessionType: first.sessionType},
+      from: {id: first.id, startedAt: first.startedAt, sessionType: first.sessionType},
     },
     fromPracticeOnly: source == null,
     stopRatio: stop?.stopRatio ?? null,

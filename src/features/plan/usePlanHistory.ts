@@ -85,7 +85,11 @@ export function usePlanLimits(
               ratio: f.litresPerVePct,
               stopRatio: f.litresPerVePctStop,
               fillLimitL: f.fillLimitL,
+              tankL: f.tankL,
               startL: f.startL,
+              online: s.online,
+              setupVePct: f.setupVePct,
+              setupVePerLapPct: f.setupVePerLapPct,
             },
           ]
         : [];
