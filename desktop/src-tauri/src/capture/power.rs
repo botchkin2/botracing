@@ -118,6 +118,9 @@ mod window {
     use super::{FLUSHES, WAIT};
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows_sys::Win32::System::Threading::{
+        GetCurrentProcess, GetPriorityClass, SetPriorityClass, ABOVE_NORMAL_PRIORITY_CLASS,
+    };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, RegisterClassW, TranslateMessage,
         MSG, PBT_APMSUSPEND, WM_ENDSESSION, WM_POWERBROADCAST, WM_QUERYENDSESSION, WNDCLASSW,
@@ -129,26 +132,42 @@ mod window {
         text.encode_utf16().chain(std::iter::once(0)).collect()
     }
 
+    /// Asks the recorders to write what they hold, with the process above normal while they do. The
+    /// recorder and its chunk writer run below the game (win.rs lower_priority), and a game or a VR
+    /// compositor that keeps every core busy would starve them past the wait: a test with 32 busy
+    /// threads did, every time.
+    fn flush_now() {
+        // SAFETY: the pseudo handle of this process is always valid.
+        let (process, before) = unsafe { (GetCurrentProcess(), GetPriorityClass(GetCurrentProcess())) };
+        // SAFETY: as above; a class this call cannot set leaves the process as it was.
+        unsafe { SetPriorityClass(process, ABOVE_NORMAL_PRIORITY_CLASS) };
+        FLUSHES.request(WAIT);
+        if before != 0 {
+            // SAFETY: as above; `before` is the class the process had.
+            unsafe { SetPriorityClass(process, before) };
+        }
+    }
+
     /// Windows calls this on the window's thread, and waits for the answer.
     unsafe extern "system" fn handle(hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         match message {
             // The PC is about to go down, if no other program objects: write what is held now, and answer
             // yes (TRUE) whatever happens, so this program never holds a shutdown.
             WM_QUERYENDSESSION => {
-                FLUSHES.request(WAIT);
+                flush_now();
                 1
             }
             // The shutdown is going ahead (wparam TRUE) or was called off (FALSE): whatever came in since the
             // query is written too.
             WM_ENDSESSION => {
                 if wparam != 0 {
-                    FLUSHES.request(WAIT);
+                    flush_now();
                 }
                 0
             }
             WM_POWERBROADCAST => {
                 if wparam as u32 == PBT_APMSUSPEND {
-                    FLUSHES.request(WAIT);
+                    flush_now();
                 }
                 1
             }
