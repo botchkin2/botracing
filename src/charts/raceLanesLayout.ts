@@ -98,8 +98,10 @@ export function lanesLayout({
     battle: lanes.battle,
   } as Partial<Record<LaneKey, Span[]>>;
 
+  // Without the other cars on track (a qualifying) only the pit lane is a lane.
+  const keys = lanes.cars ? LANE_ORDER : LANE_ORDER.slice(0, 1);
   return {
-    rows: LANE_ORDER.map((key, i) => ({
+    rows: keys.map((key, i) => ({
       key,
       label: LANE_LABEL[key],
       y: i * laneHeight,
@@ -118,6 +120,6 @@ export function lanesLayout({
         x: xOf(l.timeS),
         label: l.lap % lapLabelEvery === 0 ? lapLabel(l.lap) : null,
       })),
-    height: LANE_ORDER.length * laneHeight,
+    height: keys.length * laneHeight,
   };
 }

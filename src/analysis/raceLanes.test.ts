@@ -1,7 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import type {Field, FieldCar} from './field';
-import {laneWindow, lapLabelEvery, raceLanes} from './raceLanes';
+import {laneWindow, lapLabelEvery, ownLanes, raceLanes} from './raceLanes';
 import type {RaceClock} from './raceClock';
 
 const DT = 0.2;
@@ -230,5 +230,25 @@ describe('lap starts', () => {
     ]);
     // A gap across the missing lap is two laps long: no median from one gap.
     expect(lanes.typicalLapS).toBeNull();
+  });
+
+  it('a session whose cars are not on track keeps the pit lane and the laps, and no tow, battle, blue flag or pass', () => {
+    const f = field(20, [
+      me({pit: u => u >= 5 && u < 10}),
+      {lapDistM: u => 100 + u * V * DT + 20, lane: 1.5},
+      far,
+    ]);
+    const all = raceLanes(f, clock);
+    expect(all.cars).toBe(true);
+    expect(all.tow.length).toBeGreaterThan(0);
+    const own = ownLanes(all);
+    expect(own.cars).toBe(false);
+    expect(own.tow).toEqual([]);
+    expect(own.battle).toEqual([]);
+    expect(own.blueS).toEqual([]);
+    expect(own.passes).toEqual([]);
+    expect(own.pit).toEqual(all.pit);
+    expect(own.lapStarts).toEqual(all.lapStarts);
+    expect(own.durationS).toBe(all.durationS);
   });
 });
