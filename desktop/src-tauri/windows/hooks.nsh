@@ -177,11 +177,26 @@ Var BotRacingAside
 ; entry still starts a tray. Only when this run moved it (a stale .old is never put over an exe).
 Function .onInstFailed
   ${If} $BotRacingAside == "1"
+    ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
+      !insertmacro BOTRACING_LOG_LINE "install failed: a partial exe is in the way, replacing it"
+    ${EndIf}
     Delete "$INSTDIR\${MAINBINARYNAME}.exe"
     ClearErrors
     Rename "$INSTDIR\${MAINBINARYNAME}.exe.old" "$INSTDIR\${MAINBINARYNAME}.exe"
     ${If} ${Errors}
-      !insertmacro BOTRACING_LOG_LINE "install failed and the old exe could not be put back"
+      ; A copy over whatever is there is the second try.
+      ClearErrors
+      CopyFiles /SILENT "$INSTDIR\${MAINBINARYNAME}.exe.old" "$INSTDIR\${MAINBINARYNAME}.exe"
+      ${If} ${Errors}
+        ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe.old"
+          !insertmacro BOTRACING_LOG_LINE "install failed and the old exe could not be put back (the .old is there)"
+        ${Else}
+          !insertmacro BOTRACING_LOG_LINE "install failed and the old exe could not be put back (the .old is gone)"
+        ${EndIf}
+      ${Else}
+        Delete "$INSTDIR\${MAINBINARYNAME}.exe.old"
+        !insertmacro BOTRACING_LOG_LINE "install failed: the old exe is back (copied)"
+      ${EndIf}
     ${Else}
       !insertmacro BOTRACING_LOG_LINE "install failed: the old exe is back"
     ${EndIf}
