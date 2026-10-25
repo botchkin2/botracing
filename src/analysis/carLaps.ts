@@ -16,6 +16,9 @@ export interface CarLap {
   /** Seconds; null when the car left the field during the lap, so it cannot be timed. */
   timeS: number | null;
   pit: CarLapPit | null;
+  /** The field-time bounds of the lap (the line crossings); null on a row the counter shows was driven but the walk never saw. */
+  startS: number | null;
+  endS: number | null;
 }
 
 /**
@@ -56,14 +59,37 @@ export function carLapsOf(field: Field, carIndex: number): CarLap[] {
     const before = out.length > 0 ? out[out.length - 1].lapNumber : null;
     if (lapNumber !== null && before !== null)
       for (let n = before + 1; n < lapNumber; n++)
-        out.push({lapNumber: n, timeS: null, pit: null});
+        out.push({lapNumber: n, timeS: null, pit: null, startS: null, endS: null});
     let pit: CarLapPit | null = null;
     if (l.pit || l.startInPit || l.endInPit) {
       if (l.endInPit && !l.startInPit) pit = 'in';
       else if (l.startInPit && !l.endInPit) pit = 'out';
       else pit = 'pit';
     }
-    out.push({lapNumber, timeS: l.gap ? null : l.endT - l.startT, pit});
+    out.push({
+      lapNumber,
+      timeS: l.gap ? null : l.endT - l.startT,
+      pit,
+      startS: l.startT,
+      endS: l.endT,
+    });
   }
   return out;
+}
+
+/**
+ * The row of `laps` the car is on at race time `timeS`: the last lap that began at or before it; once that lap's
+ * crossing has passed, the row after it (a lap the walk could not see, or the next timed one), and after the last lap
+ * the last row (the car's final lap is driven but never closed by a crossing). -1 before the first lap began.
+ */
+export function currentLapIndex(laps: readonly CarLap[], timeS: number): number {
+  let began = -1;
+  for (let i = 0; i < laps.length; i++) {
+    const startS = laps[i].startS;
+    if (startS !== null && startS <= timeS) began = i;
+  }
+  if (began < 0) return -1;
+  const endS = laps[began].endS;
+  if (endS === null || timeS < endS) return began;
+  return Math.min(began + 1, laps.length - 1);
 }
