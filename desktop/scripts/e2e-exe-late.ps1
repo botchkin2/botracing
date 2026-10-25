@@ -7,10 +7,10 @@
 #   ./desktop/scripts/e2e-exe-late.ps1 -Installer <N setup.exe> -Scenario late|abort
 #
 # late:  a holder opens the exe (sharing Read and Delete, like a scanner) once the installer has logged that the exe
-#        was free and is paused by its test seam (install-test.ini pause_after_check). The install must finish, the
+#        was free and is paused by its test seam (env BOTRACING_TEST_PAUSE_AFTER_CHECK, hooks.nsh). The install must finish, the
 #        exe be replaced, and install.log say the old one was moved aside. A second install must then delete the
 #        leftover .old without an error.
-# abort: the installer fails on purpose after the move (install-test.ini fail_after_move). The old exe must be back,
+# abort: the installer fails on purpose after the move (env BOTRACING_TEST_FAIL_AFTER_MOVE). The old exe must be back,
 #        unchanged, and start.
 #
 # Exits 1 with "EXE LATE E2E FAILED: ..." on any miss.
@@ -25,7 +25,6 @@ $data = Join-Path $env:LOCALAPPDATA $app
 $exe = Join-Path $data "botracing.exe"
 $old = "$exe.old"
 $installLog = Join-Path $data "install.log"
-$ini = Join-Path $data "install-test.ini"
 $trace = Join-Path $env:RUNNER_TEMP "exe-late-holder.log"
 function Fail($message) {
   Write-Host "EXE LATE E2E FAILED ($Scenario): $message"
@@ -42,7 +41,8 @@ function QuitTrays {
 }
 
 # A clean slate: an install to update, no tray, no leftovers from an earlier scenario.
-Remove-Item $ini, $old, $trace -ErrorAction SilentlyContinue
+Remove-Item $old, $trace -ErrorAction SilentlyContinue
+Remove-Item Env:BOTRACING_TEST_PAUSE_AFTER_CHECK, Env:BOTRACING_TEST_FAIL_AFTER_MOVE -ErrorAction SilentlyContinue
 $p = Start-Process -FilePath $Installer -ArgumentList "/S" -Wait -PassThru
 if ($p.ExitCode -ne 0) { Fail "first install exit code $($p.ExitCode)" }
 if (-not (Test-Path $exe)) { Fail "no $exe after the first install" }
@@ -53,13 +53,13 @@ $before = [datetime]::new(2000, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)
 $hashBefore = (Get-FileHash $exe -Algorithm SHA256).Hash
 
 if ($Scenario -eq 'late') {
-  Set-Content $ini "[test]`r`npause_after_check=5000"
+  $env:BOTRACING_TEST_PAUSE_AFTER_CHECK = "5000"
   # Hold the exe (read sharing only, delete allowed) once the installer is paused after its checks.
   $holder = Start-Job -ArgumentList $exe, $installLog, $trace -ScriptBlock {
     param($path, $log, $trace)
     $mark = { param($what) Add-Content $trace "$((Get-Date).ToString('HH:mm:ss.fff')) $what" }
     $deadline = (Get-Date).AddSeconds(90)
-    while (-not ((Test-Path $log) -and (Select-String -Path $log -Pattern 'test seam pause_after_check' -Quiet)) -and (Get-Date) -lt $deadline) {
+    while (-not ((Test-Path $log) -and (Select-String -Path $log -Pattern 'test seam PAUSE_AFTER_CHECK' -Quiet)) -and (Get-Date) -lt $deadline) {
       Start-Sleep -Milliseconds 50
     }
     & $mark 'paused seen'
@@ -70,12 +70,13 @@ if ($Scenario -eq 'late') {
     & $mark 'released'
   }
 } else {
-  Set-Content $ini "[test]`r`nfail_after_move=1"
+  $env:BOTRACING_TEST_FAIL_AFTER_MOVE = "1"
 }
 
 $t0 = Get-Date
 $p = Start-Process -FilePath $Installer -ArgumentList "/S" -Wait -PassThru
-$secs = ((Get-Date) - $t0).TotalSeconds
+Remove-Item Env:BOTRACING_TEST_PAUSE_AFTER_CHECK, Env:BOTRACING_TEST_FAIL_AFTER_MOVE -ErrorAction SilentlyContinue
+$secs =((Get-Date) - $t0).TotalSeconds
 Write-Host "installer exit code $($p.ExitCode) after $([math]::Round($secs, 1)) s"
 if (-not (Test-Path $installLog)) { Fail "no install.log" }
 $log = Get-Content $installLog -Raw
@@ -89,7 +90,6 @@ if ($Scenario -eq 'late') {
   Wait-Job $holder | Out-Null
   Receive-Job $holder -ErrorAction SilentlyContinue | Out-Null
   # A second install: the leftover .old (held until the first one finished) is deleted first, with no error.
-  Remove-Item $ini -ErrorAction SilentlyContinue
   QuitTrays
   $p2 = Start-Process -FilePath $Installer -ArgumentList "/S" -Wait -PassThru
   if ($p2.ExitCode -ne 0) { Fail "second install exit code $($p2.ExitCode)" }
@@ -102,7 +102,6 @@ if ($Scenario -eq 'late') {
   if (-not (Test-Path $exe)) { Fail "no $exe after the failed install: the Start with Windows entry would start nothing" }
   if ((Get-FileHash $exe -Algorithm SHA256).Hash -ne $hashBefore) { Fail "the exe after the failed install is not the old one" }
   # It starts: the old tray is up for a few seconds, then quits.
-  Remove-Item $ini -ErrorAction SilentlyContinue
   Start-Process -FilePath $exe | Out-Null
   $deadline = (Get-Date).AddSeconds(20)
   while (-not (Trays) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }

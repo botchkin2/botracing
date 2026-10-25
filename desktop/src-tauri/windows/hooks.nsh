@@ -133,17 +133,18 @@
 ; "1" once this run has moved it.
 Var BotRacingAside
 
-; Test seam for tray-e2e.yml (desktop/scripts/e2e-exe-lock.ps1): ${BOTRACING_DATA}\install-test.ini with
-; [test] pause_after_check and pause_after_move (ms), fail_after_move (1). The tray never writes this file;
-; without it these do nothing.
+; Test seam for tray-e2e.yml (desktop/scripts/e2e-exe-late.ps1), read from the installer process's environment,
+; which a person cannot set by accident and no support step copies around: BOTRACING_TEST_PAUSE_AFTER_CHECK and
+; BOTRACING_TEST_PAUSE_AFTER_MOVE (ms to sleep), BOTRACING_TEST_FAIL_AFTER_MOVE (1: abort the install). It only
+; adds a pause or an abort at those points; it never skips a check or a wait. Unset, these do nothing.
 !macro BOTRACING_TEST_SEAM KEY
   Push $0
-  ReadINIStr $0 "${BOTRACING_DATA}\install-test.ini" "test" "${KEY}"
+  ReadEnvStr $0 "BOTRACING_TEST_${KEY}"
   ${If} $0 != ""
     !insertmacro BOTRACING_LOG_LINE "test seam ${KEY}=$0"
-    StrCmp "${KEY}" "fail_after_move" 0 +3
+    StrCmp "${KEY}" "FAIL_AFTER_MOVE" 0 +3
       Pop $0
-      Abort "install-test: fail_after_move"
+      Abort "test seam: FAIL_AFTER_MOVE"
     Sleep $0
   ${EndIf}
   Pop $0
@@ -236,10 +237,10 @@ FunctionEnd
     !insertmacro BOTRACING_WAIT_TRAY_GONE
   ${EndIf}
   !insertmacro BOTRACING_LOG_LINE "exe free (update mode $UpdateMode)"
-  !insertmacro BOTRACING_TEST_SEAM "pause_after_check"
+  !insertmacro BOTRACING_TEST_SEAM "PAUSE_AFTER_CHECK"
   !insertmacro BOTRACING_MOVE_EXE_ASIDE
-  !insertmacro BOTRACING_TEST_SEAM "pause_after_move"
-  !insertmacro BOTRACING_TEST_SEAM "fail_after_move"
+  !insertmacro BOTRACING_TEST_SEAM "PAUSE_AFTER_MOVE"
+  !insertmacro BOTRACING_TEST_SEAM "FAIL_AFTER_MOVE"
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
