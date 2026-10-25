@@ -6,15 +6,13 @@ import {useSessions} from '@/src/data/sessions';
 import {size, space, useTheme} from '@/src/design';
 import {type PitCard} from '@/src/features/session/pitCard';
 import {Text} from '@/src/ui';
+import {PLAN_HISTORY_DAYS, planCombos} from '@/src/workspace/planCombo';
 
 import {formationBurnOf} from '../formation';
-import {planCombos} from '../model';
 import {buildPlanHalf, type PlanHalf} from '../planHalf';
 import {raceRules} from '../planVsRace';
 import {usePlanHistory, usePlanLimits} from '../usePlanHistory';
 
-// Every session he has driven, like the Plan screen's.
-const ALL_TIME_DAYS = 3650;
 
 /**
  * "Plan vs what happened", the lower half of the Pit stops card (round 5 item
@@ -22,7 +20,7 @@ const ALL_TIME_DAYS = 3650;
  * hooks, from the sessions before this race only, so the two never disagree.
  */
 export function PitPlanHalf({card, facts}: {card: PitCard; facts: RaceFacts}) {
-  const sessions = useSessions({ageDays: ALL_TIME_DAYS});
+  const sessions = useSessions({ageDays: PLAN_HISTORY_DAYS});
   // The track+car's sessions strictly before this race started.
   const prior = useMemo(() => {
     const combo = planCombos(sessions.data?.items ?? []).find(

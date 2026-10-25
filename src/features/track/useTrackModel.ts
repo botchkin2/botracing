@@ -5,14 +5,17 @@ import {useLapTraceLoad} from '@/src/data/traces';
 import {layoutsOf, trackInfo} from '@/src/data/tracks';
 import {queryState, readFailure} from '@/src/data/queryState';
 import {formatOffline} from '@/src/design';
+import {
+  type Combo,
+  PLAN_HISTORY_DAYS,
+  planCombos,
+} from '@/src/workspace/planCombo';
 
-import {type Combo, planCombos, undrivenPlanKey} from '../plan/model';
+import {undrivenPlanKey} from '../plan/model';
 
 import {buildTrackModel, referenceSession, type TrackModel} from './model';
 import {type MapPart, mapLoadOf} from './mapLoad';
 
-// Every session ever driven here, not the Sessions list's recent window.
-const ALL_TIME_DAYS = 3650;
 const GRID_STEP_M = 5;
 
 export type TrackScreenState =
@@ -44,12 +47,12 @@ export function useTrackModel(
   selectedCorner: number | null,
 ): TrackScreenState {
   const info = trackInfo(trackId);
-  const sessions = useSessions({trackId, ageDays: ALL_TIME_DAYS});
+  const sessions = useSessions({trackId, ageDays: PLAN_HISTORY_DAYS});
   // Every track, for the car an undriven track's Plan opens with: only asked
   // once this track turns out to have no session of his.
   const undriven =
     sessions.data != null && planCombos(sessions.data.items).length === 0;
-  const everywhere = useSessions({ageDays: ALL_TIME_DAYS}, undriven);
+  const everywhere = useSessions({ageDays: PLAN_HISTORY_DAYS}, undriven);
   const ref = sessions.data ? referenceSession(sessions.data.items) : null;
   const map = useTrackMap(trackId);
   const surface = useTrackSurface(trackId);

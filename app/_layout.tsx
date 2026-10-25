@@ -36,7 +36,7 @@ import {BottomBar, WorkingLine} from '@/src/ui';
 import {queryClient} from '@/src/utils/queryClient';
 import {DesktopChrome} from '@/src/workspace/DesktopChrome';
 import {UpdateBanner} from '@/src/workspace/UpdateBanner';
-import {usePlanCombo} from '@/src/features/plan/usePlanCombo';
+import {usePlanCombo} from '@/src/workspace/usePlanCombo';
 import {useWorkspaceGo} from '@/src/workspace/useWorkspaceGo';
 
 holdSplashForUpdate();
@@ -111,7 +111,7 @@ function Navigation() {
         ) : (
           <>
             <UpdateBanner restart={restart} />
-            {isDesktop && <DesktopChrome usePlanCombo={usePlanCombo} />}
+            {isDesktop && <DesktopChrome />}
             <View style={styles.root}>
               {isDesktop ? stack : <PhoneFrame>{stack}</PhoneFrame>}
             </View>

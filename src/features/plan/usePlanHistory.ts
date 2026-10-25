@@ -9,9 +9,9 @@ import {
   usePlanSessions,
 } from '@/src/data/sessions';
 import {type FuelPreset} from '@/src/state/fuelPresets';
+import {type Combo} from '@/src/workspace/planCombo';
 
 import {
-  type Combo,
   greenLapsOf,
   eventLoad,
   lastFuelOf,
