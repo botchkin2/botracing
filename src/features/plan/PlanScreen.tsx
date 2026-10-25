@@ -41,6 +41,7 @@ import {
 import {effectiveUnit, type Unit} from './unit';
 import {
   carChoices,
+  columnWidth,
   comboCar,
   comboTrack,
   defaultCombo,
@@ -447,7 +448,7 @@ export function PlanScreen() {
         styles.page,
         {paddingTop: insets.top, paddingBottom: insets.bottom + space.xxl},
       ]}>
-      <View style={[styles.column, {width}]}>
+      <View style={[styles.column, {width: columnWidth(width, size.gutter)}]}>
         <View style={styles.head}>
           <Text variant='display'>Plan</Text>
         </View>

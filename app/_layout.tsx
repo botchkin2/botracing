@@ -17,6 +17,7 @@ import {
 } from 'react-native-safe-area-context';
 import '@/src/setup/reanimated';
 import {holdSplashForUpdate, startOtaUpdates} from '@/src/setup/ota';
+import {usePresetSync} from '@/src/features/plan/usePresetSync';
 
 import {AuthGate, startAuthSession, trayRestart} from '@/src/auth';
 import {
@@ -47,6 +48,8 @@ export default function RootLayout() {
   useEffect(() => startAuthSession(), []);
   // Fetch an OTA update on launch (splash held) and on each return to the app.
   useEffect(() => startOtaUpdates(), []);
+  // Keep his fuel presets level with his account (they follow him between devices).
+  usePresetSync();
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>

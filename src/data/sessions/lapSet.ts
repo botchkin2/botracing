@@ -1,10 +1,8 @@
-import {useQueryClient} from '@tanstack/react-query';
-import {useCallback, useEffect, useMemo} from 'react';
+import {useCallback, useMemo} from 'react';
 
 import {sittingOf} from '@/src/analysis/sitting';
 
 import {type Lap, type SessionDetail} from './adapters';
-import {analyzeDeps, analyzeOnce} from './analysisOnOpen';
 import {dayLapIds, dayUsesSections, mergeDayLaps} from './daySet';
 import {
   useSession,
@@ -104,17 +102,17 @@ export type DayState =
  * The sitting a session is in, as a LapSet, when `wanted` (the URL says
  * `?set=day`) or only to know whether there is one (`wanted` false: the ids,
  * for the toggle). The day is computed from the members' stored laps as they
- * are (daySet.ts reads section times only under identical boundary stamps); a
- * member made under other rules is analysed again through the existing
- * analysis-on-open path, one at a time, to bring it current, and the view does
- * not wait for it (chord #6021, gauge #6019).
+ * are (daySet.ts reads section times only under identical boundary stamps).
+ * Nothing here analyses: a member made under other rules shows as it is stored
+ * until he opens that session, which analyses it (useSession, analysisOnOpen.ts).
+ * Botkin, 2026-10-24: "do not re-analyze my session"; the cloud analyses a
+ * session only when he opens that session, never from a list or a day.
  */
 export function useDaySet(
   sessionId: string,
   trackId: string | undefined,
   wanted: boolean,
 ): DayState & {ids: string[]; retry: () => void} {
-  const client = useQueryClient();
   const list = useSessions({trackId}, trackId != null);
   const ids = useMemo(() => {
     const items = list.data?.items ?? [];
@@ -136,23 +134,6 @@ export function useDaySet(
   const load = wanted ? ids : [];
   const details = useSessionsDetail(load);
   const lapsOf = useSessionsLaps(load);
-  const stale = details.details
-    .filter(d => d?.stale)
-    .map(d => (d as SessionDetail).id);
-  const staleKey = stale.join(',');
-  // One cloud analysis at a time: a day can hold five stale sessions.
-  useEffect(() => {
-    let live = true;
-    void (async () => {
-      for (const id of staleKey ? staleKey.split(',') : []) {
-        if (!live) return;
-        await analyzeOnce(id, analyzeDeps(client));
-      }
-    })();
-    return () => {
-      live = false;
-    };
-  }, [staleKey, client]);
   // The query results are new arrays every render; the day is rebuilt only
   // when a member's detail or laps are new data (the merge and the slow rule
   // run over the whole day).

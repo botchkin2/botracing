@@ -52,6 +52,7 @@ export const PROBLEM_KINDS = [
   'field-missing',
   'disk-low',
   'disk-full',
+  'replay-cap',
   'uploader-stopped',
   'file-unreadable',
 ];
