@@ -19,6 +19,7 @@ import {
   SLICE_FORMAT,
 } from './cornerSlices.mjs';
 import {classBestsDoc, classLapsDoc} from '../../src/analysis/classLaps.ts';
+import {classPaceDoc} from '../../src/analysis/classPace.ts';
 import {finishDoc} from '../../src/analysis/raceResult.ts';
 import {fieldFeedsDerived} from './field.mjs';
 import {paceFieldsOf, paceSetOf} from '../../src/analysis/paceSet.ts';
@@ -84,8 +85,8 @@ const tyresDefect = info => info?.defects?.includes('mergedWheels') ?? false;
  * @param {object|null} input.damage     the car's damage series, null without one
  * @param {{minutes: number}|null} input.raceLength
  * @param {boolean|null} [input.online] LMU: played online (the capture's game mode, gameMode.mjs); null where unknown
- * @param {{strikes: object[], unplaced: number, deletedLaps: number[]}|null} input.results
- *   the game's track-limit rulings for the player (resultsInput.mjs), null without its results file
+ * @param {{strikes: object[], unplaced: number, deletedLaps: number[], drivers?: object[]}|null} input.results
+ *   the game's track-limit rulings for the player and, from a v2 input, every driver's laps (resultsInput.mjs), null without its results file
  * @param {{series: string|null, eventId: string|null}} input.event
  * @param {(lite: {t: Float64Array, lapDist: Float64Array}[]) => {field: object|null, meta?: object, reason?: string}} input.fieldFor
  *   the field around the player, given each loaded recording's clock and lap distance
@@ -317,6 +318,10 @@ export function analyzeFromArchive({
     // could not be placed on a lap of his, and how many laps the results file and
     // the lap time disagree on; absent without a results file.
     trackLimits: results ? trackLimitsOf(a.laps, results) : undefined,
+    // Every driver's pace by class, from the results file's laps for all of them
+    // (results input v2; src/analysis/classPace.ts); null without them. Its own
+    // field of the full doc, never in a list.
+    classPace: classPaceDoc(results?.drivers),
     series: event.series,
     eventId: event.eventId,
     online,

@@ -1,7 +1,11 @@
 import {describe, expect, it} from '@jest/globals';
 
+import {classPaceDoc, type ResultsDriver} from '@/src/analysis/classPace';
+import race from '@/src/analysis/__fixtures__/classPaceR.json';
+
 import {
   toClassLaps,
+  toClassPace,
   toFinishPlace,
   toLaps,
   toSessionDetail,
@@ -656,5 +660,38 @@ describe('toLaps lap numbers (pit-wall thread 99, row FML)', () => {
   it('practice and qualifying keep their place in driving order', () => {
     expect(counted('Practice', 'lmu', [3, 4, 5])).toEqual([1, 2, 3]);
     expect(counted('Qualify', 'iracing', [0, 1])).toEqual([1, 2]);
+  });
+});
+
+describe('classPace (ticket 20)', () => {
+  const stored = classPaceDoc(race.drivers as ResultsDriver[]);
+
+  it('reads back what analysis wrote, from a real race, through the stored JSON', () => {
+    expect(stored).not.toBeNull();
+    expect(toClassPace(JSON.parse(JSON.stringify(stored)))).toEqual(stored);
+  });
+
+  it('is null without the block, with another version of the rules, or with no driver', () => {
+    expect(toClassPace(undefined)).toBeNull();
+    expect(toClassPace(null)).toBeNull();
+    expect(toClassPace({...stored, v: (stored?.v ?? 0) + 1})).toBeNull();
+    expect(toClassPace({v: stored?.v, drivers: []})).toBeNull();
+    expect(toClassPace({v: stored?.v, drivers: 'x'})).toBeNull();
+  });
+
+  it('leaves out a driver that is not the stored shape and keeps the others', () => {
+    const [a] = stored!.drivers;
+    const out = toClassPace({
+      v: stored!.v,
+      drivers: [a, {cls: 3}, {...a, sectors: [a.sectors[0]]}, null],
+    });
+    expect(out?.drivers).toEqual([a]);
+  });
+
+  it('a session served with the block carries it on the detail, and without it carries null', () => {
+    expect(toSessionDetail({...raw, classPace: stored}).classPace).toEqual(
+      stored,
+    );
+    expect(toSessionDetail(raw).classPace).toBeNull();
   });
 });
