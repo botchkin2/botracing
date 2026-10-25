@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
+import {mirrorLocalhost} from './loopbackMirror.mjs';
 import {parseSlot, resolveSlot} from './liveSlots.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -29,6 +30,13 @@ if (found instanceof Error) fail(found);
 console.log(
   `live-${slot}: ${found.claimed ? 'claimed' : 'unclaimed, main checkout'}: serving ${found.dir} on port ${found.port}`,
 );
+// Metro binds [::1] only, which adb reverse (it dials 127.0.0.1) cannot reach: answer on 127.0.0.1 too, in this
+// process, so an emulator proof needs no forwarder run by hand (tools/dev/loopbackMirror.mjs).
+const mirror = await mirrorLocalhost({port: found.port});
+if (mirror)
+  console.log(
+    `live-${slot}: also on 127.0.0.1:${found.port} (adb reverse tcp:${found.port} tcp:${found.port})`,
+  );
 const child = spawn(
   process.execPath,
   // --localhost: Metro listens on loopback only. Without it, it binds every
