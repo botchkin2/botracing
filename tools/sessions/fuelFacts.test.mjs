@@ -203,45 +203,89 @@ test("laps left at the median, per lap and per stop, from the lap's own stint", 
 });
 
 test('the fill limit and tank come from the CarSetup, null when it is empty', () => {
+  const NO_VE = {setupVePct: null, setupVePerLapPct: null};
   const setup = level => JSON.stringify({VM_FUEL_LEVEL: level});
   // Road Atlanta: the event caps the fill at the tank (real setup, 2026-09-26).
   assert.deepEqual(fuelSetup(setup({stringValue: '0.75', maxValue: 75})), {
     fillLimitL: 75,
     tankL: 75,
+    ...NO_VE,
   });
   // Silverstone, the Proton (start fuel 89.0 L): a 115 L tank, 89 L to fill.
   // A fraction of the tank would say 102 L.
   assert.deepEqual(fuelSetup(setup({stringValue: '0.89', maxValue: 115})), {
     fillLimitL: 89,
     tankL: 115,
+    ...NO_VE,
   });
   // Daytona, the Manthey (start fuel 100 L): a 117 L tank, 100 L to fill.
   assert.deepEqual(fuelSetup(setup({stringValue: '1.00', maxValue: 117})), {
     fillLimitL: 100,
     tankL: 117,
+    ...NO_VE,
   });
   // Sarthe: 84 L to fill, a 117 L tank.
   assert.deepEqual(fuelSetup(setup({stringValue: '0.84', maxValue: 117})), {
     fillLimitL: 84,
     tankL: 117,
+    ...NO_VE,
   });
   // The 2026-09-29 Daytona Manthey files: empty strings.
   assert.deepEqual(fuelSetup(setup({stringValue: '', maxValue: 117})), {
     fillLimitL: null,
     tankL: 117,
+    ...NO_VE,
   });
   // Daytona LMP2 (2026-09-30, start fuel 75.0 L): gallons, and maxValue 71 is a
   // slider step count. 1980 L and a 71 L tank would be wrong.
   assert.deepEqual(
     fuelSetup(setup({stringValue: '19.8gal (0.0 laps)', maxValue: 71})),
-    {fillLimitL: 75, tankL: null},
+    {fillLimitL: 75, tankL: null, ...NO_VE},
   );
   assert.deepEqual(fuelSetup(setup({stringValue: 'N/A', maxValue: 1})), {
     fillLimitL: null,
     tankL: null,
+    ...NO_VE,
   });
-  assert.deepEqual(fuelSetup('not json'), {fillLimitL: null, tankL: null});
-  assert.deepEqual(fuelSetup(undefined), {fillLimitL: null, tankL: null});
+  assert.deepEqual(fuelSetup('not json'), {fillLimitL: null, tankL: null, ...NO_VE});
+  assert.deepEqual(fuelSetup(undefined), {fillLimitL: null, tankL: null, ...NO_VE});
+});
+
+test('LMU VE expectation is read from VM_VIRTUAL_ENERGY, null in any other form', () => {
+  const setup = text =>
+    JSON.stringify({
+      VM_FUEL_LEVEL: {stringValue: '0.73', maxValue: 73},
+      VM_VIRTUAL_ENERGY: {stringValue: text, value: 100},
+    });
+  const of = text => {
+    const {setupVePct, setupVePerLapPct} = fuelSetup(setup(text));
+    return [setupVePct, setupVePerLapPct];
+  };
+  // Real strings: Sebring Wed 10-22, and the 20 % setting (thread 104 #7391).
+  assert.deepEqual(of('100% (18.5 laps)'), [100, 5.41]);
+  assert.deepEqual(of('20% (5.3 laps)'), [20, 3.77]);
+  assert.deepEqual(of('100% (29.8 laps)'), [100, 3.36]);
+  assert.deepEqual(of(''), [null, null]);
+  assert.deepEqual(of('100% (0.0 laps)'), [null, null]);
+  assert.deepEqual(of('100%'), [null, null]);
+  assert.deepEqual(of('19.8gal (0.0 laps)'), [null, null]);
+  // The fuel limits beside it are unchanged.
+  assert.deepEqual(fuelSetup(setup('100% (18.5 laps)')).fillLimitL, 73);
+  // The LMP2 gallon form keeps its litres and has no VE expectation.
+  assert.deepEqual(
+    fuelSetup(
+      JSON.stringify({
+        VM_FUEL_LEVEL: {stringValue: '19.8gal (0.0 laps)', maxValue: 71},
+        VM_VIRTUAL_ENERGY: {stringValue: '0% (0.0 laps)', value: 0},
+      }),
+    ),
+    {fillLimitL: 75, tankL: null, setupVePct: null, setupVePerLapPct: null},
+  );
+  // No VM_VIRTUAL_ENERGY at all.
+  assert.deepEqual(
+    fuelSetup(JSON.stringify({VM_FUEL_LEVEL: {stringValue: '0.75', maxValue: 75}})),
+    {fillLimitL: 75, tankL: 75, setupVePct: null, setupVePerLapPct: null},
+  );
 });
 
 test('a channel counts as none only when it never leaves 0', () => {

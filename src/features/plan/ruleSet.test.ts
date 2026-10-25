@@ -14,7 +14,11 @@ const s = (
   ratio: 0.5,
   stopRatio: null,
   fillLimitL: null,
+  tankL: null,
   startL: null,
+  online: null,
+  setupVePct: null,
+  setupVePerLapPct: null,
   ...over,
 });
 
@@ -41,7 +45,7 @@ describe('ruleSetsOf', () => {
     const [, tue] = ruleSetsOf(week);
     expect(tue.sessionIds).toEqual(['wedP', 'tueR', 'tueQ']);
     // the newest race or qualifying of the set, not the practice's 0.839
-    expect(tue.ratio).toEqual({perPctL: 0.835, from: {startedAt: '2026-10-21T00:40:00Z', sessionType: 'R'}});
+    expect(tue.ratio).toEqual({perPctL: 0.835, from: {id: 'tueR', startedAt: '2026-10-21T00:40:00Z', sessionType: 'R', online: null}});
     expect(tue.fromPracticeOnly).toBe(false);
     expect(tue.mostRunL).toBe(85);
   });

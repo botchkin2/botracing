@@ -44,6 +44,8 @@
   "startL": 23.65,
   "fillLimitL": 55,
   "tankL": 110,
+  "setupVePct": null,
+  "setupVePerLapPct": null,
   "litresPerVePct": null,
   "litresPerVePctStop": null
  },

@@ -26,6 +26,8 @@ describe('a real LMU race through the plan block', () => {
       tankL: 117,
       litresPerVePct: 0.968,
       litresPerVePctStop: null,
+      setupVePct: null,
+      setupVePerLapPct: null,
     });
     expect(block.race?.stops).toEqual([]);
   });
