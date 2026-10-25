@@ -4,7 +4,7 @@
 // (pit-wall thread 44 #1910, parc #1920). The uploader (tools/sessions/sync.mjs)
 // computes it once per session and stores it as the session doc's `result`, so
 // the Sessions list never downloads a field. Plain TypeScript with erasable
-// syntax only, no imports: Node runs it.
+// syntax only, importing only other analysis files by their `.ts` name: Node runs it.
 //
 // Not the last update the player is in the field: a driver who goes back to
 // the garage or the pits after the flag is scored behind everyone, so the last
@@ -12,6 +12,8 @@
 // laps counter's last step up). The field has no chequered-flag column, so
 // whether the race was finished is read from the leader: if the leader crossed
 // the line after the player's last crossing, the player left early.
+
+import {lapLabel} from './lapNumbering.ts';
 
 /** The encoded field file, only the columns this reads. */
 export interface ResultField {
@@ -148,4 +150,25 @@ export function finishCurrent(
   return (
     stored?.version === FINISH_VERSION && stored.kind === kindOf(sessionType)
   );
+}
+
+/**
+ * The result on a race row and in a race's head. A race the player left early gives the class place
+ * with the class leader's laps as a floor, 'P20 GT3 · L20 of L23+' (the same
+ * label as the Plan's last-race line: a floor that counts the formation step);
+ * the class is left out when it has no name, and 'of L…+' when the class
+ * leader's laps are not known.
+ */
+export function raceResultText(finish: FinishPosition | null): string | null {
+  if (!finish) return null;
+  if (!finish.leftEarly)
+    return `P${finish.overall} · P${finish.inClass} in class`;
+  const place = `P${finish.inClass}`;
+  const laps =
+    finish.classLeaderLapsDone != null
+      ? `${lapLabel(finish.lapsDone)} of ${lapLabel(
+          finish.classLeaderLapsDone,
+        )}+`
+      : lapLabel(finish.lapsDone);
+  return `${place} · ${laps} (left early)`;
 }

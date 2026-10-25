@@ -9,7 +9,7 @@ import {type Fact, factLabel} from '../model';
  * The phone's head: Best and Median large, side by side. The Median carries
  * its Spread under it, "Spread 2.35 s", the IQR of the same laps, so the first
  * screen answers how consistent the session was. Under them one line of the
- * rest ("21 laps · 14 comparable"). Best is the session's, Median is of the
+ * rest ("21 laps · 14 comparable"); a race says where it finished first. Best is the session's, Median is of the
  * selection and says how many laps. The desktop keeps its row of facts.
  */
 export function SessionHead({facts}: {facts: Fact[]}) {
@@ -17,7 +17,10 @@ export function SessionHead({facts}: {facts: Fact[]}) {
     .map(label => facts.find(f => f.label === label))
     .filter((f): f is Fact => f != null);
   const spread = facts.find(f => f.label === 'Spread');
-  const rest = facts.filter(f => !hero.includes(f) && f !== spread);
+  const result = facts.find(f => f.label === 'Result');
+  const rest = facts.filter(
+    f => !hero.includes(f) && f !== spread && f !== result,
+  );
   const line = rest
     .map(f =>
       f.label === 'Laps'
@@ -44,6 +47,9 @@ export function SessionHead({facts}: {facts: Fact[]}) {
           </View>
         ))}
       </View>
+      {result ? (
+        <Text variant='dataStrong'>{`Finished ${result.value}`}</Text>
+      ) : null}
       {line ? (
         <Text variant='dataSmall' tone='textMuted'>
           {line}

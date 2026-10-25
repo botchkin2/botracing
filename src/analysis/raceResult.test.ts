@@ -6,6 +6,7 @@ import {
   finishDoc,
   finishPosition,
   type ResultField,
+  raceResultText,
 } from './raceResult';
 
 // Six updates, four cars. The player (GT3) crosses the line at updates 1, 2
@@ -165,5 +166,39 @@ describe('finishDoc', () => {
       finishCurrent({...doc, version: FINISH_VERSION - 1} as never, 'Race'),
     ).toBe(false);
     expect(finishCurrent(null, 'Race')).toBe(false);
+  });
+});
+
+const placed = {
+  overall: 3,
+  inClass: 1,
+  ofOverall: 58,
+  ofClass: 14,
+  lapsDone: 20,
+  leaderLapsDone: 21,
+  classLeaderLapsDone: 21,
+  leftEarly: false,
+};
+
+describe('raceResultText', () => {
+  it('reads the overall place and the class place, and nothing without a result', () => {
+    expect(raceResultText(placed)).toBe('P3 · P1 in class');
+    expect(raceResultText(null)).toBeNull();
+  });
+
+  it('says "left early" with the class place and the class leader laps', () => {
+    const left = {
+      ...placed,
+      overall: 26,
+      inClass: 20,
+      lapsDone: 20,
+      classLeaderLapsDone: 21,
+      leftEarly: true,
+    };
+    // The class is already on the row, so the result line leaves it out.
+    expect(raceResultText(left)).toBe('P20 · L20 of L21+ (left early)');
+    expect(raceResultText({...left, classLeaderLapsDone: null})).toBe(
+      'P20 · L20 (left early)',
+    );
   });
 });
