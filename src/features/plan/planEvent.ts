@@ -73,7 +73,7 @@ export function rulesSource(rules: RuleSet): string {
 }
 
 /**
- * "One Stint Sprint · Rules from your offline practice, Oct 26" for a rule
+ * "Rules from your offline practice, Oct 26 · One Stint Sprint" for a rule
  * set (its date tells two sets apart; its max fuel is the Plan's own fact
  * line), or for a car with no VE "100 L · One Stint Sprint · week of 09-29";
  * the load and the series only when known. The load leads there: on a phone
@@ -82,9 +82,10 @@ export function rulesSource(rules: RuleSet): string {
  */
 export function eventLabel(e: PlanEvent, loadL: number | null): string {
   return [
+    e.rules ? rulesSource(e.rules) : null,
     e.rules || loadL == null ? null : `${Math.round(loadL * 10) / 10} L`,
     e.series,
-    e.rules ? rulesSource(e.rules) : `week of ${e.key.slice(5)}`,
+    e.rules ? null : `week of ${e.key.slice(5)}`,
   ]
     .filter(Boolean)
     .join(' · ');

@@ -35,8 +35,12 @@ export function RulesBlock({
   const chip = (
     <Chip
       label={
-        'Rules: ' +
-        (sheet.preset ? sheet.preset.name : eventText ?? 'No limits')
+        sheet.preset
+          ? `Rules: ${sheet.preset.name}`
+          : // a rule set's text already says "Rules from your …"
+          eventText?.startsWith('Rules')
+          ? eventText
+          : `Rules: ${eventText ?? 'No limits'}`
       }
       // The chevron stays when a long label is cut: it says the chip opens.
       trailing={<Text tone='textFaint'>▾</Text>}

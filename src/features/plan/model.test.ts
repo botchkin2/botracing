@@ -499,7 +499,7 @@ describe('an iRacing history: every lap has no VE', () => {
     const history = Array.from({length: 5}, lap);
     const hasVe = !fuelOnly(history);
     expect(hasVe).toBe(false);
-    expect(rulesCells(rules, hasVe, null).map(c => c.label)).toEqual([
+    expect(rulesCells(rules, hasVe).map(c => c.label)).toEqual([
       'Max fuel',
       'Mandatory',
       'Formation',
@@ -742,7 +742,7 @@ describe('under a rule set the tank is never the load (thread 104)', () => {
     expect(view.rulesLine).toBe('Rules from your practice, Oct 21');
     expect(view.rulesLine).not.toMatch(/117|83\.9|167|125/);
     // no Max fuel cell, no litres anywhere in the rules cells
-    expect(rulesCells(rules.rules, true, 0.839).map(c => c.label)).not.toContain('Max fuel');
+    expect(rulesCells(rules.rules, true).map(c => c.label)).not.toContain('Max fuel');
   });
 
   it('a fuel-only car (no ratio, so no VE allowance) with no load still needs fuel', () => {

@@ -38,11 +38,6 @@ export function PlanChecksView({text}: {text: ChecksText}) {
 
 const styles = StyleSheet.create({
   box: {gap: space.xs},
-  facts: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    columnGap: space.lg,
-    rowGap: space.xxs,
-  },
+  facts: {gap: space.xxs},
   fact: {flexDirection: 'row', alignItems: 'baseline', columnGap: space.md},
 });

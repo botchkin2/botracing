@@ -217,7 +217,6 @@ export function PlanScreen() {
       cells={rulesCells(
         rules?.rules ?? null,
         hasVe,
-        hist.ratio?.perPctL ?? null,
         data.formation,
       )}
       sheet={ruleSheet}

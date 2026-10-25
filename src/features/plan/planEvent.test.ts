@@ -80,7 +80,7 @@ describe('events by rule set', () => {
       ['wedR', ['wedR'], 'ELMS Super 60'],
       ['tueR', ['tueR'], null],
     ]);
-    expect(eventLabel(events[0], 73)).toBe('ELMS Super 60 · Rules from your race, Oct 22');
+    expect(eventLabel(events[0], 73)).toBe('Rules from your race, Oct 22 · ELMS Super 60');
     expect(rulesSource(rs[1])).toBe('Rules from your race, Oct 21');
     // a week of a car with no VE has no rule set: its load leads
     expect(eventLabel({key: '2026-09-29', sessionIds: [], series: null, rules: null}, 100)).toBe('100 L · week of 09-29');

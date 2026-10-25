@@ -382,8 +382,6 @@ export type RulesCell = {label: string; value: string};
 export function rulesCells(
   rules: PlanRules | null,
   hasVe: boolean,
-  /** Litres one % of VE is worth; null without VE. */
-  ratioPerPctL: number | null,
   /** What the formation lap burns, measured or estimated (`formation.ts`); unset reads "1 lap". */
   formation: FormationBurn | null = null,
 ): RulesCell[] {
@@ -394,9 +392,6 @@ export function rulesCells(
       ? [{label: 'Max fuel', value: `${rules.fuelL} L`}]
       : []),
     ...(hasVe ? [{label: 'Max VE', value: `${rules.vePct} %`}] : []),
-    ...(hasVe && ratioPerPctL != null
-      ? [{label: '1 % VE', value: `${ratioPerPctL.toFixed(2)} L`}]
-      : []),
     {
       label: 'Mandatory',
       value: `${rules.mandatoryStops} ${
@@ -600,7 +595,7 @@ export function planView(
     lastRatio: number | null;
     /** The fill limits of the history sessions that have a ratio, for the note. */
     ratioLoadsL: number[];
-    /** The event the plan is for ("One Stint Sprint · Rules from your race, Oct 21"); null for a preset or no event. */
+    /** The event the plan is for ("Rules from your race, Oct 21 · One Stint Sprint"); null for a preset or no event. */
     eventText?: string | null;
     /** The event is a rule set: its load is its own, so the car's tank (117 L from a live capture) is not printed beside it. */
     ruleSet?: boolean;
