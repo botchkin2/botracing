@@ -4,6 +4,7 @@ import Svg, {Line, Rect} from 'react-native-svg';
 
 import {type NativeSamples} from '@/src/analysis/nativeSamples';
 import {type TraceSeries, TraceChart} from '@/src/charts';
+import type {SectionTick} from '@/src/charts/traceAxis';
 import {screenLateralOnce, screenValuesOnce} from '@/src/charts/screenLateral';
 import {closeBox, dash, space, useTheme} from '@/src/design';
 import {
@@ -21,6 +22,7 @@ import {
   type ChartTimeAxis,
   type ChartValueRow,
   drawRank,
+  readoutMeans,
   STEER_TICKS,
 } from '../model';
 
@@ -61,6 +63,7 @@ export function ChartBlock({
   editor,
   plotFirst,
   overlay,
+  sectionTicks,
 }: {
   chart: ChartModel;
   width: number;
@@ -70,6 +73,8 @@ export function ChartBlock({
   stepM: number;
   windowM: [number, number];
   timeAxis?: ChartTimeAxis;
+  /** The lap's sections at their starts: the x axis names them (the Session table's heads). */
+  sectionTicks?: SectionTick[];
   cursorM: number;
   lapStyle: LapStyle;
   onScrub?: (m: number) => void;
@@ -134,9 +139,15 @@ export function ChartBlock({
   const [pillsOpen, setPillsOpen] = useState(false);
   const valuesOf = (row: ChartValueRow) =>
     hoverValues?.[row.channel] ?? row.values;
+  const noGapYet = (row: ChartValueRow) =>
+    !readoutMeans(row.channel, cursorM) && !hoverValues?.[row.channel];
   const valueTexts = (row: ChartValueRow) => (
     <View style={styles.values}>
-      {valuesOf(row).map(v => (
+      {noGapYet(row) ? (
+        // One blank line keeps the row's height, so nothing jumps when the cursor moves.
+        <Text variant='dataStrong'>{' '}</Text>
+      ) : null}
+      {(noGapYet(row) ? [] : valuesOf(row)).map(v => (
         <Text
           key={v.lapId}
           variant='dataStrong'
@@ -259,6 +270,7 @@ export function ChartBlock({
         onPanStart={onPanStart}
         hoverM={hoverM}
         onHover={onHover}
+        sectionTicks={sectionTicks}
       />
       {overlay}
     </View>

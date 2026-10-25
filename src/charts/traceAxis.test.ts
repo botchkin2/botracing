@@ -10,6 +10,7 @@ import {
 import {overviewScale} from '@/src/features/compare/overviewScale';
 
 import {insideFrame, labelBox} from './labelBox';
+import {sectionTickLabels} from './traceAxis';
 import {lapBarsPlot} from './lapBarsPlot';
 import {
   AXIS_H,
@@ -124,5 +125,30 @@ describe('Laps bars: the ±range ticks are unmoved', () => {
           expect(at).toEqual({x: 2, baseline: base});
         }
       }
+  });
+});
+
+describe('sectionTickLabels', () => {
+  const ticks = [
+    {m: 0, label: 'S/F'},
+    {m: 150, label: 'T2–4'},
+    {m: 200, label: 'T5'},
+    {m: 600, label: 'T13'},
+  ];
+  const texts = (xOf: (m: number) => number, width: number) =>
+    sectionTickLabels(ticks, xOf, width, 9.5).map(l => l.text);
+
+  test('names each section at its start as written, where it fits before the next', () => {
+    expect(texts(m => m, 700)).toEqual(['S/F', 'T2–4', 'T5', 'T13']);
+  });
+
+  test('falls back to the shortest name where the written one does not fit, and to none where not even that fits', () => {
+    // 0.1 pt a metre on 100 pt: S/F has 13 pt (SF fits), T2–4 has 3 pt (nothing fits), T5 has 38 pt.
+    expect(texts(m => m * 0.1, 100)).toEqual(['SF', 'T5', 'T13']);
+  });
+
+  test('never labels past the right edge', () => {
+    const out = sectionTickLabels([{m: 90, label: 'T13'}], m => m, 100, 9.5);
+    expect(out).toEqual([]);
   });
 });

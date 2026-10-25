@@ -5,6 +5,7 @@ import {
   type ChartSet,
   clampRightW,
   FOLLOW_SPANS_M,
+  migrateComparePrefs,
   moveChart,
   removeChart,
   stepWindow,
@@ -14,6 +15,41 @@ import {
 } from './comparePrefs';
 
 const charts: ChartSet = [['timeDiff'], ['speed'], ['throttle', 'brake']];
+
+describe('saved prefs from before the stack default', () => {
+  it('a v0 blob gets Stack over the whole lap and keeps what he chose', () => {
+    const saved = {
+      charts: [['speed']],
+      view: 'one',
+      focused: 2,
+      mapZoom: 3,
+      rightW: 400,
+      windowMode: 'distance',
+      windowStep: 1,
+      rate: 2,
+    };
+    expect(migrateComparePrefs(saved, 0)).toEqual({
+      ...saved,
+      view: 'stack',
+      windowMode: 'time',
+      windowStep: 'lap',
+    });
+  });
+
+  it('a current blob is left as it is', () => {
+    const saved = {view: 'one', windowMode: 'time', windowStep: 1};
+    expect(migrateComparePrefs(saved, 1)).toEqual(saved);
+  });
+
+  it('new installs open on Stack over the whole lap', () => {
+    const s = useComparePrefs.getState();
+    expect([s.view, s.windowMode, s.windowStep]).toEqual([
+      'stack',
+      'time',
+      'lap',
+    ]);
+  });
+});
 
 describe('chart set edits', () => {
   it('overlays up to 3 channels, then refuses', () => {

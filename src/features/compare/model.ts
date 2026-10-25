@@ -34,7 +34,10 @@ import {
   type TrackMapData,
   openingLapIds,
   trackCorners,
+  turnSegmentTimes,
 } from '@/src/data/sessions';
+import type {CornerCellValue} from '@/src/charts/CornerGrid';
+import type {SectionTick} from '@/src/charts/traceAxis';
 import {
   formatDistance,
   formatGap,
@@ -202,6 +205,15 @@ const PEDALS_GAP_PX = 8;
 const STEER_BAND_PX = CHANNELS.steering.height;
 export const PEDALS_H = PEDALS_TOP_PX + PEDALS_GAP_PX + STEER_BAND_PX;
 
+/**
+ * Whether a chart's value row at the cursor says anything. A gap to the reference at 0 m is 0 for every lap by
+ * construction, so before the cursor has moved off the line the Time diff row reads nothing rather than
+ * "±0.000" under a chart that shows the opposite.
+ */
+export function readoutMeans(channel: ChannelId, cursorM: number): boolean {
+  return channel !== 'timeDiff' || cursorM > 0;
+}
+
 export function isPedalsChart(chs: ChannelId[]): boolean {
   return (
     chs.length === PEDALS_CHART.length &&
@@ -305,7 +317,7 @@ export type CornerGridModel = {
     label: string;
     lapId: string | null;
     selIndex: number | null;
-    cells: (number | null)[];
+    cells: CornerCellValue[];
   }[];
 };
 
@@ -404,6 +416,8 @@ export type CompareModel = {
     distance: string;
   };
   grid: CornerGridModel | null;
+  /** Where each of the Session's sections starts on the lap and what it is called: the charts' x axis. */
+  sectionTicks: SectionTick[];
   charts: ChartModel[];
   /** The car-ahead lane under the last chart; null when there is nothing true to draw (round 7, 2C). */
   trafficLane: TrafficLaneModel | null;
@@ -1098,13 +1112,26 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
       byWindow ? byWindow.get(n) ?? null : lap.sections[i]?.segTimeS ?? null;
   };
   const refTimes = ref ? sectionTimesOf(ref) : null;
-  const diffRow = (lap: Lap) => {
+  // The Session's own sections: where each starts (the charts' x axis) and which laps left one with
+  // wheels off, so a cell with no gap says off, never a silent blank (ticket 44, 56).
+  const segs = map ? turnSegmentTimes([...byId.values()], map) : null;
+  const sectionTicks: SectionTick[] = (segs?.segments ?? []).map(s => ({
+    m: s.range?.fromM ?? 0,
+    label: s.label,
+  }));
+  const segLaps = new Map((segs?.laps ?? []).map(l => [l.id, l]));
+  const wentOff = (lap: Lap, n: number): boolean => {
+    const at = segs?.segments.findIndex(s => s.section === n) ?? -1;
+    return at >= 0 && segLaps.get(lap.id)?.offs?.[at] === true;
+  };
+  const diffRow = (lap: Lap): CornerCellValue[] => {
     const timeOf = sectionTimesOf(lap);
     return corners.map((n, i) => {
       const a = timeOf(n, i);
       const b =
         table.kind === 'lap' ? refTimes?.(n, i) ?? null : table.sectionS.get(n);
-      return a == null || b == null ? null : a - b;
+      if (a == null) return {absent: wentOff(lap, n) ? 'off' : 'none'};
+      return b == null ? {absent: 'none'} : a - b;
     });
   };
   let gridRows: CornerGridModel['rows'] = [];
@@ -1139,11 +1166,14 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
           label: 'MED',
           lapId: null,
           selIndex: null,
-          cells: corners.map((_, i) =>
-            median(
-              all.map(row => row[i]).filter((v): v is number => v != null),
-            ),
-          ),
+          cells: corners.map((_, i): CornerCellValue => {
+            const m = median(
+              all
+                .map(row => row[i])
+                .filter((v): v is number => typeof v === 'number'),
+            );
+            return m ?? {absent: 'none'};
+          }),
         },
         ...others
           .filter(r => r.highlighted)
@@ -1268,6 +1298,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     },
     chips,
     grid,
+    sectionTicks,
     trafficLane: carsArePhysical(session)
       ? trafficLaneOf(session, lapRefs, byId, lengthM)
       : null,

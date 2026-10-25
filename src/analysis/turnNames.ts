@@ -30,6 +30,18 @@ export function sectionNameOf(
   return sectionHeaderOf(cs.map(c => c.official ?? `T${c.n}`));
 }
 
+/**
+ * A section's name at its shortest, for a label with room for three characters:
+ * its first corner alone ("T2–4" is "2", "T10A–T12" is "10A", "S/F" is "SF"), the
+ * way the map numbers a turn. Every screen's narrow label reads this.
+ */
+export function shortSectionName(name: string): string {
+  return name
+    .split(/[–-]/)[0]
+    .replace(/^T(?=\d)/, '')
+    .replace('/', '');
+}
+
 /** A map badge: the turn's number on the bare part only; a phase part has none, so a turn never shows two. */
 export function turnBadgeOf(label: string): string {
   return PHASE.test(label) ? '' : label.replace(/^T/, '');

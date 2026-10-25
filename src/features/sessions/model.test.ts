@@ -5,7 +5,6 @@ import {
   buildSessionsModel,
   DEFAULT_SORT,
   nextSort,
-  raceResultText,
   type SessionRow,
   sessionsModelOf,
   sortRows,
@@ -228,22 +227,6 @@ describe('finishing position', () => {
     expect(withIt.table.place).toBe(3);
     expect(without.resultText).toBeNull();
     expect(without.table.place).toBeNull();
-  });
-
-  it('says "left early" with the class place and the class leader laps', () => {
-    const left = {
-      ...finish,
-      overall: 26,
-      inClass: 20,
-      lapsDone: 20,
-      classLeaderLapsDone: 21,
-      leftEarly: true,
-    };
-    // The class is already on the row, so the result line leaves it out.
-    expect(raceResultText(left)).toBe('P20 · L20 of L21+ (left early)');
-    expect(raceResultText({...left, classLeaderLapsDone: null})).toBe(
-      'P20 · L20 (left early)',
-    );
   });
 
   it('never mixes the overall place with the overall leader laps', () => {

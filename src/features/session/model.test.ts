@@ -62,6 +62,23 @@ describe('buildSessionModel', () => {
     ]);
   });
 
+  it('a race with a result says where it finished; a race without one, and a day, say nothing', () => {
+    const finish = {
+      overall: 4,
+      inClass: 2,
+      ofOverall: 20,
+      ofClass: 8,
+      lapsDone: 22,
+      leaderLapsDone: 22,
+      classLeaderLapsDone: 22,
+      leftEarly: false,
+    };
+    const result = (s: typeof session) =>
+      buildSessionModel(s, laps, none).facts.find(f => f.label === 'Result');
+    expect(result({...session, finish})?.value).toBe('P4 · P2 in class');
+    expect(result({...session, finish: null})).toBeUndefined();
+  });
+
   it('the head and the stint line give one spread on one basis', () => {
     // One stint, so the head's laps and the stint line's laps are the same sixteen.
     const one = {...session, stints: session.stints.slice(0, 1)};
