@@ -336,8 +336,12 @@ export function trafficPaceFacts(
   // headers' own clean median (one answer to "clean median"), not the stored
   // whole-session value.
   const traffic = paceSplit(basisLaps);
+  // The "Other cars" line is about the 5 Hz field. A race whose results file gave every driver's laps (`classPace`)
+  // lists other cars in its Class pace block, so it never says they were not recorded.
   if (traffic == null)
-    return field == null ? [otherCarsFact(session.fieldMissing)] : [];
+    return field == null && session.classPace == null
+      ? [otherCarsFact(session.fieldMissing)]
+      : [];
   const facts: Fact[] = [];
   const value = setText(
     traffic.clean,

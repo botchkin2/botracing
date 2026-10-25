@@ -8,6 +8,7 @@ import {
   hitBox,
   radius,
   space,
+  useLayout,
   useTheme,
 } from '@/src/design';
 import {Pressable, Segment, Text} from '@/src/ui';
@@ -25,18 +26,30 @@ import {classPaceView, type PaceRow, SECTOR_HEADS} from '../classPaceView';
 const POS_W = 24;
 const TIME_W = 62;
 const CELL_W = 18;
+// On a desktop the cell has room for its seconds (livery #7653).
+const CELL_W_WIDE = 46;
 const CELL_H = 18;
+const cellW = (wide: boolean) => (wide ? CELL_W_WIDE : CELL_W);
+const cellsW = (wide: boolean) => cellW(wide) * 3 + 4;
 const ROW_H = 44;
 
 const timeText = (s: number | null) => (s === null ? '—' : formatLapTime(s));
 
-function Cell({deltaS}: {deltaS: number | null}) {
+function Cell({deltaS, wide}: {deltaS: number | null; wide: boolean}) {
   const {color} = useTheme();
   const c = deltaS === null ? null : cornerCell(deltaS);
   return (
     <View
-      style={[styles.cell, {backgroundColor: c ? c.bg : color.surfaceRaised}]}
-    />
+      style={[
+        styles.cell,
+        {width: cellW(wide), backgroundColor: c ? c.bg : color.surfaceRaised},
+      ]}>
+      {wide && c && deltaS !== null ? (
+        <Text variant='axis' style={[styles.cellText, {color: c.fg}]}>
+          {formatGap(deltaS, 2)}
+        </Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -104,10 +117,12 @@ function Detail({row}: {row: PaceRow}) {
 function Row({
   row,
   open,
+  wide,
   onPress,
 }: {
   row: PaceRow;
   open: boolean;
+  wide: boolean;
   onPress: () => void;
 }) {
   const {color} = useTheme();
@@ -131,13 +146,13 @@ function Row({
         {timeText(row.medianS)}
       </Text>
       {row.cellsS ? (
-        <View style={styles.cells}>
+        <View style={[styles.cells, {width: cellsW(wide)}]}>
           {row.cellsS.map((c, i) => (
-            <Cell key={SECTOR_HEADS[i]} deltaS={c} />
+            <Cell key={SECTOR_HEADS[i]} deltaS={c} wide={wide} />
           ))}
         </View>
       ) : (
-        <View style={styles.cells} />
+        <View style={[styles.cells, {width: cellsW(wide)}]} />
       )}
     </View>
   );
@@ -169,6 +184,7 @@ export function ClassPaceBlock({doc}: {doc: ClassPaceDoc}) {
   const [all, setAll] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const {color} = useTheme();
+  const wide = useLayout().isDesktop;
   const view = classPaceView(doc, selected, all);
   if (!view) return null;
   const pick = (cls: string) => {
@@ -178,8 +194,9 @@ export function ClassPaceBlock({doc}: {doc: ClassPaceDoc}) {
   };
   return (
     <View style={styles.block}>
+      {/* Its basis named once, over every Best and Median of the block, his included (livery #7716): the head's own Median is the lap selection's. */}
       <Text variant='label' tone='textMuted'>
-        Class pace
+        Class pace · all timed laps
       </Text>
       {view.topLine ? (
         <View style={styles.top}>
@@ -213,16 +230,18 @@ export function ClassPaceBlock({doc}: {doc: ClassPaceDoc}) {
         <Text variant='label' tone='textMuted' style={styles.time}>
           Median
         </Text>
-        <View style={styles.cells}>
-          {SECTOR_HEADS.map(h => (
-            <Text
-              key={h}
-              variant='axis'
-              tone='textFaint'
-              style={styles.cellHead}>
-              {h.slice(1)}
-            </Text>
-          ))}
+        <View style={[styles.cells, {width: cellsW(wide)}]}>
+          {view.cells
+            ? SECTOR_HEADS.map(h => (
+                <Text
+                  key={h}
+                  variant='axis'
+                  tone='textFaint'
+                  style={[styles.cellHead, {width: cellW(wide)}]}>
+                  {h}
+                </Text>
+              ))
+            : null}
         </View>
       </View>
       {view.rows.map(row => (
@@ -230,6 +249,7 @@ export function ClassPaceBlock({doc}: {doc: ClassPaceDoc}) {
           key={row.key}
           row={row}
           open={open === row.key}
+          wide={wide}
           onPress={() => setOpen(open === row.key ? null : row.key)}
         />
       ))}
@@ -275,9 +295,15 @@ const styles = StyleSheet.create({
   pos: {width: POS_W, textAlign: 'right'},
   car: {flex: 1},
   time: {width: TIME_W, textAlign: 'right'},
-  cells: {flexDirection: 'row', gap: 2, width: CELL_W * 3 + 4},
-  cell: {width: CELL_W, height: CELL_H, borderRadius: 2},
-  cellHead: {width: CELL_W, textAlign: 'center'},
+  cells: {flexDirection: 'row', gap: 2},
+  cell: {
+    height: CELL_H,
+    borderRadius: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cellText: {textAlign: 'center'},
+  cellHead: {textAlign: 'center'},
   detail: {paddingBottom: space.sm, paddingLeft: POS_W + space.xs},
   detailRow: {flexDirection: 'row', gap: space.xs},
   detailLabel: {width: 52},

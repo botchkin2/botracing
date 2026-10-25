@@ -504,6 +504,16 @@ describe('trafficPaceFacts', () => {
     ]);
   });
 
+  it('a race whose results file gave every driver (classPace) never says the other cars were not recorded', () => {
+    const classPace = classPaceDoc(classPaceRace.drivers as ResultsDriver[]);
+    const withPace = {...session, classPace, fieldMissing: 'Other cars: not recorded'};
+    expect(trafficPaceFacts(withPace, [lap(81, null)])).toEqual([]);
+    // without classPace the field's own line is still said
+    expect(
+      trafficPaceFacts({...session, fieldMissing: 'Other cars: not recorded'}, [lap(81, null)]),
+    ).toEqual([{label: 'Other cars', value: 'not recorded'}]);
+  });
+
   it('a session with a field never says it', () => {
     expect(
       trafficPaceFacts(
