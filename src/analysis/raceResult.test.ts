@@ -321,6 +321,16 @@ describe('finishedText: the line both headers print', () => {
       `Finished ${raceResultText(doc.finish)}`,
     );
     expect(finishedText(null)).toBeNull();
+    // a race he left early reads as the Sessions list row does: no "Finished"
+    const left = {
+      ...doc.finish!,
+      leftEarly: true,
+      inClass: 20,
+      lapsDone: 20,
+      classLeaderLapsDone: 23,
+    };
+    expect(finishedText(left)).toBe('P20 · L20 of L23+ (left early)');
+    expect(finishedText(left)).toBe(raceResultText(left));
   });
 
   it('a penalty: the header says the file place while the field still has him where the road had him; both stay what they are', () => {

@@ -226,13 +226,15 @@ export function finishCurrent(
 }
 
 /**
- * The race's result as a line a header prints: "Finished P5 · P1 in class". The Session
- * head and the Race tab's header both print this one string (livery #7757), so the
- * two never say two places for him.
+ * The race's result as a line a header prints: "Finished P5 · P1 in class", or the
+ * list row's words for a race he left early. The Session head's line and the Race
+ * tab's header are both this one string (livery #7757, chassis #7777), so the two
+ * never say two places for him.
  */
 export function finishedText(finish: FinishPosition | null): string | null {
   const text = raceResultText(finish);
-  return text ? `Finished ${text}` : null;
+  // A race he left early reads as the Sessions list row does, with no "Finished" (livery #7778).
+  return text && finish && !finish.leftEarly ? `Finished ${text}` : text;
 }
 
 /**

@@ -1,5 +1,5 @@
 import {basisOf} from '@/src/analysis/lapBasis';
-import {raceResultText} from '@/src/analysis/raceResult';
+import {finishedText, raceResultText} from '@/src/analysis/raceResult';
 import {type PooledSession} from '@/src/analysis/sectionVary';
 import {lapLabel, lapRangeLabel} from '@/src/analysis/lapNumbering';
 import {useMemo} from 'react';
@@ -103,6 +103,8 @@ export type Fact = {
   value: string;
   best?: boolean;
   basis?: string;
+  /** The phone head's own line for the fact, when it reads differently from `label value` (the race result: "Finished P5 · P1 in class"). */
+  line?: string;
 };
 
 /** The label as the head prints it: "Best · session", "Median · of 13". */
@@ -741,7 +743,15 @@ export function buildSessionModel(
   const bestLap = laps.find(l => l.id === bestLapId);
   // A race says where it finished, the one line the Sessions list says (analysis/raceResultText.ts).
   const resultText = day ? null : raceResultText(session.finish);
-  const resultFact = resultText ? [{label: 'Result', value: resultText}] : [];
+  const resultFact = resultText
+    ? [
+        {
+          label: 'Result',
+          value: resultText,
+          line: finishedText(session.finish) ?? resultText,
+        },
+      ]
+    : [];
   // One answer per section to "how much does it vary": the Varies most rows, the grid's Varies row and the footer read it.
   const vary = varyOf(sectionTimes, basis, pool);
   const sections = sectionTable(

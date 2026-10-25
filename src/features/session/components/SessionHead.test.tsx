@@ -56,7 +56,7 @@ describe('SessionHead', () => {
     expect(t).toContain('Median · of 3');
   });
 
-  it('prints the same "Finished …" line as the Race tab header (one string from raceResult.ts)', () => {
+  it('prints the result fact own line, the string the Race tab header prints', () => {
     const finish = {
       overall: 5,
       inClass: 1,
@@ -71,9 +71,14 @@ describe('SessionHead', () => {
       mount([
         {label: 'Best', value: '2:02.700', basis: 'session'},
         {label: 'Median', value: '2:03.487', basis: 'of 25'},
-        {label: 'Result', value: raceResultText(finish)!},
+        {
+          label: 'Result',
+          value: raceResultText(finish)!,
+          line: finishedText(finish)!,
+        },
       ]),
     );
+    expect(t).toContain('Finished P5 · P1 in class');
     expect(t).toContain(finishedText(finish));
   });
 });
