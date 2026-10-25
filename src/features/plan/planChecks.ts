@@ -5,14 +5,13 @@
 // uses its own number either way. The offline line says whether an offline
 // practice's rules have met an online session yet. Pure.
 import {usage} from '@/src/analysis/fuelPlan';
+import {groupTwins} from '@/src/analysis/twinRuns';
 import type {PlanBlock, SessionSummary, SessionType} from '@/src/data/sessions';
 
 import type {RuleSession, RuleSet} from './ruleSet';
 
 export type CheckState = 'checked' | 'one-source' | 'disagrees';
 
-/** Two docs of one run (the tray's live capture and LMU's .duckdb) start within this many seconds of each other. */
-export const TWIN_WINDOW_S = 60;
 /** Max fuel: str × 100 and maxValue are whole litres, so equal within half a litre. */
 export const MAX_FUEL_EQUAL_L = 0.5;
 /** Litres a lap vs his other runs here (any rules): within 4 % (15 pairs, thread 104 #7393). */
@@ -86,20 +85,7 @@ export type PlanChecks = {
  * capture's `tankL` is the car's own tank, the game file's is the event's.
  */
 export function collapseTwins(sessions: CheckRun[]): Run[] {
-  const byStart = [...sessions].sort((a, b) =>
-    a.startedAt.localeCompare(b.startedAt),
-  );
-  const groups: CheckRun[][] = [];
-  for (const s of byStart) {
-    const g = groups.find(
-      x =>
-        x[0].trackCar === s.trackCar &&
-        Math.abs(Date.parse(s.startedAt) - Date.parse(x[0].startedAt)) <=
-          TWIN_WINDOW_S * 1000,
-    );
-    if (g) g.push(s);
-    else groups.push([s]);
-  }
+  const groups = groupTwins(sessions);
   return groups
     .map(g => ({ids: g.map(s => s.id), run: mergeTwins(g)}))
     .sort((a, b) => b.run.startedAt.localeCompare(a.run.startedAt));

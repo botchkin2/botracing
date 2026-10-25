@@ -710,13 +710,13 @@ describe('a day cut at different corner windows', () => {
   it('has section numbers when every member shares the windows', () => {
     const m = build(true);
     expect(m.sections).not.toBeNull();
-    expect(m.spread.length).toBeGreaterThan(0);
+    expect(m.spread.rows.length).toBeGreaterThan(0);
   });
 
   it('is lap times only otherwise: no section table, spread or optimum', () => {
     const m = build(false);
     expect(m.sections).toBeNull();
-    expect(m.spread).toEqual([]);
+    expect(m.spread).toEqual({rows: [], line: null});
     expect(build(true).optimumLines.length).toBeGreaterThan(0);
     expect(m.optimumLines).toEqual([]);
     expect(m.rows.some(r => r.kind === 'lap' && r.sections.length > 0)).toBe(

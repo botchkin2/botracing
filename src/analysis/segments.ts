@@ -30,6 +30,8 @@ export interface SegmentLap {
   stop?: boolean;
   /** The lap as the tables name it: "L5". */
   label?: string;
+  /** Per segment: true where the window was left out for being off track (wheels off), not for the pit lane; absent reads as none. */
+  offs?: boolean[];
 }
 
 export interface SegmentTimes {
