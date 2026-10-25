@@ -536,6 +536,13 @@ fn main() {
                 .collect();
             let menu = Menu::with_items(app, &refs)?;
 
+            // A shutdown or a sleep finds the recorders' open chunks on disk (power.rs).
+            #[cfg(windows)]
+            if profile::is_default() {
+                let root = capture::runner::capture_root();
+                capture::power::start(move |t| capture::runner::recorder_log(&root, t));
+            }
+
             // The recorder is local and independent of sign-in and of pausing
             // uploads. A walkthrough profile does not record, and
             // BOTRACING_RECORDER=0 turns it off.

@@ -40,6 +40,11 @@ const SUSPECT_ACCEL: f64 = 200.0;
 /// How long after a line crossing the lap's chunk is cut (seconds, player
 /// clock): past the new lap's first frames and the next 5 Hz scoring row.
 const LAP_CUT_AFTER_S: f64 = 1.0;
+/// A crossing waits for its cut and no player frame has come for this long (wall clock): the player left
+/// the track or the game paused right after the line, so the clock the cut waits for will not move. The
+/// cut is made then. Sebring 2026-10-21: the player left realtime 0.04 s after the line and that lap
+/// reached the app 3 min 54 s late, when the capture closed (pit-wall thread 100 #7441).
+const LAP_CUT_QUIET_MS: u64 = 1_000;
 
 /// What the recorder is doing: the same fields as the Python recorder's
 /// status.json, for the uploader's heartbeat. `session_dir` is the capture's
@@ -142,6 +147,12 @@ pub struct Recorder<S: Source> {
     laps_pending: usize,
     /// When (player clock) the chunk that holds the last crossing is cut.
     cut_due: Option<f64>,
+    /// When (wall clock) the last player frame was added, and how many came since the last crossing:
+    /// tells a quiet stream from a slow one, and whether the new lap's frames are in the cut.
+    last_frame_ms: Option<u64>,
+    frames_since_crossing: u64,
+    /// Lines for the recorder's log (`<capture root>/recorder.log`), taken by the loop that owns the log.
+    pub notes: Vec<String>,
     pub status: Status,
     status_written: Option<u64>,
     recounted: Option<u64>,
@@ -179,6 +190,9 @@ impl<S: Source> Recorder<S> {
             last_lap: None,
             laps_pending: 0,
             cut_due: None,
+            last_frame_ms: None,
+            frames_since_crossing: 0,
+            notes: Vec::new(),
             status,
             status_written: None,
             recounted: None,
@@ -227,6 +241,8 @@ impl<S: Source> Recorder<S> {
                 self.last_lap = None;
                 self.laps_pending = 0;
                 self.cut_due = None;
+                self.last_frame_ms = None;
+                self.frames_since_crossing = 0;
                 self.player_ok = None;
                 self.last_player_look = None;
                 self.prev_motion = None;
@@ -334,6 +350,7 @@ impl<S: Source> Recorder<S> {
 
         if self.capture.is_some() {
             self.player(now);
+            self.cut_quiet_lap(now);
         }
         if let Some(capture) = self.capture.as_mut() {
             // A due chunk goes to the writer thread; either way, what the writer
@@ -356,6 +373,15 @@ impl<S: Source> Recorder<S> {
             self.set(now, |_| {});
         }
         IDLE
+    }
+
+    /// The PC is going to sleep or shut down: the open chunk is written and waited for, the capture goes on
+    /// (a shutdown that does not happen after all leaves it recording).
+    pub fn persist(&mut self, now: u64) {
+        if let Some(capture) = self.capture.as_mut() {
+            let written = capture.persist(now);
+            self.chunks_written(now, written);
+        }
     }
 
     /// The tray is quitting: finish the open chunk and mark the capture ended.
@@ -538,6 +564,7 @@ impl<S: Source> Recorder<S> {
             let lap = i32_at(&sample.raw, self.probe.t_lap);
             if self.last_lap.is_some_and(|prev| prev != lap) {
                 self.cut_due = Some(sample.et + LAP_CUT_AFTER_S);
+                self.frames_since_crossing = 0;
             }
             self.last_lap = Some(lap);
             let cut = if self.cut_due.is_some_and(|due| sample.et >= due) {
@@ -554,6 +581,8 @@ impl<S: Source> Recorder<S> {
                 capture.count("playerFrames", 1);
                 capture.count("missedFrames", missed);
                 capture.add_player(&sample.raw, now);
+                self.last_frame_ms = Some(now);
+                self.frames_since_crossing += 1;
             }
             if let Some(written) = cut {
                 self.chunks_written(now, written);
@@ -565,6 +594,28 @@ impl<S: Source> Recorder<S> {
         } else {
             self.status.dropped_pct = pct;
         }
+    }
+
+    /// The cut `player` makes waits for the next player frame past the due time. When the frames stop right
+    /// after a crossing (the player left the track, the game paused) none comes, so the chunk with the lap
+    /// in it would wait for the timed flush, which never says a lap ended. The cut is made here instead,
+    /// from the wall clock, with whatever frames of the new lap are in.
+    fn cut_quiet_lap(&mut self, now: u64) {
+        let quiet = self.last_frame_ms.is_some_and(|at| now.saturating_sub(at) >= LAP_CUT_QUIET_MS);
+        if self.cut_due.is_none() || !quiet {
+            return;
+        }
+        self.cut_due = None;
+        let Some(capture) = self.capture.as_mut() else { return };
+        let written = capture.flush(now);
+        if written.is_ok() {
+            self.laps_pending += 1;
+        }
+        self.notes.push(format!(
+            "lap cut with the stream quiet for {} ms: {} frame(s) of the new lap are in the chunk",
+            LAP_CUT_QUIET_MS, self.frames_since_crossing
+        ));
+        self.chunks_written(now, written);
     }
 
     /// What the writer finished: bytes counted, lastChunkAt (and lastLapAt
@@ -1245,11 +1296,252 @@ mod tests {
         let folder = rig.folders().remove(0);
         assert!(rig.root.join(&folder).join("player-0000.parquet").is_file());
         assert_eq!(rig.status_file()["lastLapAt"], rec.status.last_lap_at.clone().unwrap());
+        assert!(rec.notes.is_empty(), "frames kept coming, so the quiet cut had nothing to do: {:?}", rec.notes);
         rec.shutdown(5_000);
         // Two chunks: the lap that ended plus a second of the next (4 frames),
         // then the rest.
         assert_eq!(rig.meta(&folder)["chunks"], 2);
         assert_eq!(rig.meta(&folder)["playerFrames"], 5);
+    }
+
+    /// The frames stop `quiet_ms` after a line crossing, by `stop` (the player leaves the track, or the
+    /// game pauses with its clock frozen), and the lap's chunk must still reach the disk and say so.
+    fn lap_cut_when_the_stream_goes_quiet(tag: &str, stop: impl Fn(&Rig)) {
+        let (rig, mut rec) = Rig::new(tag);
+        let lap = |n: i32| rig.put(rig.telem("mLapNumber"), &n.to_le_bytes());
+        // Sebring 2026-10-21, 6194e3bb: the counter went 14 to 15 at et 4852.76 and the player left the
+        // track 0.04 s later, so the player clock never reached the cut time (crossing + 1 s).
+        rig.field("Sebring International Raceway", 1, 4852.60);
+        lap(14);
+        rig.player("Sebring International Raceway", 4852.73);
+        rec.tick(1_000);
+        rig.player("Sebring International Raceway", 4852.74);
+        rec.tick(1_010);
+        lap(15);
+        rig.player("Sebring International Raceway", 4852.76);
+        rec.tick(1_020);
+        rig.player("Sebring International Raceway", 4852.78);
+        rec.tick(1_030);
+        stop(&rig);
+        rec.tick(1_040);
+        rec.tick(1_900);
+        assert_eq!(rec.status.last_lap_at, None, "the stream has not been quiet for a second yet");
+        assert!(rec.notes.is_empty());
+        rec.tick(2_100);
+        assert!(rec.capture.as_ref().unwrap().player_rows() == 0, "the chunk with the lap was handed to the writer");
+        let waited = std::time::Instant::now();
+        for i in 0..2_000 {
+            if rec.status.last_lap_at.is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            rec.tick(2_101 + i);
+        }
+        assert!(rec.status.last_lap_at.is_some(), "the lap-end chunk never reached the disk ({:?})", waited.elapsed());
+        assert_eq!(rec.notes.len(), 1, "{:?}", rec.notes);
+        assert!(rec.notes[0].contains("2 frame(s) of the new lap"), "{:?}", rec.notes);
+        let folder = rig.folders().remove(0);
+        assert!(rig.root.join(&folder).join("player-0000.parquet").is_file());
+        assert_eq!(rig.status_file()["lastLapAt"], rec.status.last_lap_at.clone().unwrap());
+        // One cut per crossing: the quiet goes on and nothing more is cut.
+        rec.tick(9_000);
+        assert_eq!(rec.notes.len(), 1);
+    }
+
+    /// A column of a recorded chunk as numbers (booleans as 0/1), whatever width the recorder stored it in.
+    fn recorded_column(path: &std::path::Path, name: &str) -> Vec<f64> {
+        use arrow_array::{Array, BooleanArray, Float32Array, Float64Array, Int32Array, Int64Array};
+        use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+        let file = std::fs::File::open(path).unwrap();
+        let mut out = Vec::new();
+        for batch in ParquetRecordBatchReaderBuilder::try_new(file).unwrap().build().unwrap() {
+            let batch = batch.unwrap();
+            let column = batch.column_by_name(name).unwrap_or_else(|| panic!("{name} in {path:?}"));
+            let any = column.as_any();
+            for i in 0..column.len() {
+                out.push(if let Some(a) = any.downcast_ref::<Float64Array>() {
+                    a.value(i)
+                } else if let Some(a) = any.downcast_ref::<Float32Array>() {
+                    a.value(i) as f64
+                } else if let Some(a) = any.downcast_ref::<Int64Array>() {
+                    a.value(i) as f64
+                } else if let Some(a) = any.downcast_ref::<Int32Array>() {
+                    a.value(i) as f64
+                } else if let Some(a) = any.downcast_ref::<BooleanArray>() {
+                    a.value(i) as u8 as f64
+                } else {
+                    panic!("{name}: a column type this replay does not read: {:?}", column.data_type())
+                });
+            }
+        }
+        out
+    }
+
+    /// The last chunk of a real capture (Sebring 2026-10-21, 6194e3bb: `LAP_REPLAY_CAPTURE` is its folder
+    /// in `%LOCALAPPDATA%\\lap-capture`) played into the recorder at its own times: the player rows with
+    /// their clock and lap number, the scoring rows' mInRealtime between them. In that chunk the counter
+    /// goes 14 to 15 and the player leaves the track 0.04 s later. Prints when the lap's chunk was on disk.
+    #[test]
+    #[ignore = "needs LAP_REPLAY_CAPTURE: the folder of capture 2026-10-21T23-58-49Z_sebring-international-raceway_1"]
+    fn the_real_end_of_a_capture_gets_its_lap_cut_when_the_frames_stop() {
+        let folder = PathBuf::from(std::env::var("LAP_REPLAY_CAPTURE").expect("set LAP_REPLAY_CAPTURE"));
+        let last = (0..)
+            .take_while(|i| folder.join(format!("player-{i:04}.parquet")).is_file())
+            .last()
+            .expect("a player chunk");
+        let (player, session) = (
+            folder.join(format!("player-{last:04}.parquet")),
+            folder.join(format!("session-{last:04}.parquet")),
+        );
+        let (wall, et, lap) = (
+            recorded_column(&player, "wall_ms"),
+            recorded_column(&player, "mElapsedTime"),
+            recorded_column(&player, "mLapNumber"),
+        );
+        let (session_wall, realtime) = (recorded_column(&session, "wall_ms"), recorded_column(&session, "mInRealtime"));
+        let crossing = (1..lap.len()).find(|&i| lap[i] != lap[i - 1]).expect("a lap change in the chunk");
+        assert_eq!(crossing, lap.len() - 2, "the counter changes in the chunk's last two frames");
+
+        let (rig, mut rec) = Rig::new("real-end");
+        let track = "Sebring International Raceway";
+        rig.field(track, 1, et[0]);
+        let mut seen = 0;
+        for i in 0..wall.len() {
+            while seen < session_wall.len() && session_wall[seen] <= wall[i] {
+                rig.realtime(realtime[seen] != 0.0);
+                seen += 1;
+            }
+            rig.put(rig.telem("mLapNumber"), &(lap[i] as i32).to_le_bytes());
+            rig.player(track, et[i]);
+            rec.tick(wall[i] as u64);
+        }
+        // The rest of the session rows: the player is out of realtime from here on.
+        while seen < session_wall.len() {
+            rig.realtime(realtime[seen] != 0.0);
+            seen += 1;
+        }
+        assert_eq!(rec.status.last_lap_at, None, "nothing has cut the chunk yet (the next timed flush is {} ms away)", 60_000);
+        let crossed_at = wall[crossing] as u64;
+        let mut cut_at = None;
+        for ms in (wall[wall.len() - 1] as u64..crossed_at + 5_000).step_by(10) {
+            rec.tick(ms);
+            if cut_at.is_none() && !rec.notes.is_empty() {
+                cut_at = Some(ms);
+            }
+        }
+        let cut_at = cut_at.expect("the lap was never cut");
+        let waited = std::time::Instant::now();
+        while rec.status.last_lap_at.is_none() && waited.elapsed() < std::time::Duration::from_secs(5) {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            rec.tick(crossed_at + 6_000);
+        }
+        eprintln!(
+            "lap {} to {} at et {}; last player frame {} ms after the line; cut {} ms after the line; {:?}",
+            lap[crossing - 1],
+            lap[crossing],
+            et[crossing],
+            wall[wall.len() - 1] as u64 - crossed_at,
+            cut_at - crossed_at,
+            rec.notes
+        );
+        assert!(rec.status.last_lap_at.is_some(), "the lap-end chunk reached the disk");
+        assert!(cut_at - crossed_at < 2_000, "cut {} ms after the line", cut_at - crossed_at);
+    }
+
+    #[test]
+    fn a_crossing_just_before_the_player_leaves_the_track_is_cut_when_the_frames_stop() {
+        lap_cut_when_the_stream_goes_quiet("lapquiet-realtime", |rig| rig.realtime(false));
+    }
+
+    #[test]
+    fn a_crossing_just_before_the_game_pauses_is_cut_when_the_frames_stop() {
+        // Paused: the player clock is frozen, so no new frame comes (player returns on an unchanged clock).
+        lap_cut_when_the_stream_goes_quiet("lapquiet-paused", |rig| {
+            rig.player("Sebring International Raceway", 4852.78);
+        });
+    }
+
+    /// A recorder on a thread of its own, running the real loop, holding one player row in an open chunk
+    /// (a timed flush is a minute away). Returns when the loop is polling.
+    #[cfg(windows)]
+    fn recorder_holding_a_row(tag: &str) -> (PathBuf, Arc<std::sync::atomic::AtomicBool>, std::thread::JoinHandle<()>) {
+        use crate::capture::runner::{drive, now_ms, Line};
+        use std::sync::atomic::AtomicBool;
+        let stop = Arc::new(AtomicBool::new(false));
+        let line = Arc::new(std::sync::Mutex::new(Line::Starting));
+        let (sent, root) = std::sync::mpsc::channel();
+        let (tag, stop_t, line_t) = (tag.to_string(), stop.clone(), line.clone());
+        let join = std::thread::spawn(move || {
+            let (rig, mut rec) = Rig::new(&tag);
+            rig.field("Road Atlanta", 10, 5.0);
+            rig.player("Road Atlanta", 5.0);
+            rec.tick(now_ms());
+            sent.send(rig.root.clone()).unwrap();
+            drive(&mut rec, &stop_t, &line_t, &|_| {});
+            let _ = std::fs::remove_dir_all(&rig.root);
+        });
+        let root = root.recv().unwrap();
+        // The loop writes its status after it has registered with the power watcher.
+        let waited = std::time::Instant::now();
+        while !matches!(*line.lock().unwrap(), Line::Status(_)) {
+            assert!(waited.elapsed() < std::time::Duration::from_secs(10), "the loop never polled");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        (root, stop, join)
+    }
+
+    #[cfg(windows)]
+    fn chunk_on_disk(root: &std::path::Path) -> bool {
+        std::fs::read_dir(root)
+            .map(|dirs| dirs.flatten().any(|d| d.path().join("player-0000.parquet").is_file()))
+            .unwrap_or(false)
+    }
+
+    /// The real window, the real messages Windows sends, the real recorder loop. The answer comes back only
+    /// after the chunk is on disk, and to a shutdown query it is yes.
+    #[cfg(windows)]
+    #[test]
+    fn windows_telling_of_a_shutdown_or_a_sleep_writes_the_open_chunk_before_it_answers() {
+        use crate::capture::power;
+        use std::sync::atomic::Ordering;
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            FindWindowW, SendMessageW, PBT_APMSUSPEND, WM_ENDSESSION, WM_POWERBROADCAST, WM_QUERYENDSESSION,
+        };
+        power::start(|why| eprintln!("{why}"));
+        let class = power::wide(power::CLASS);
+        let waited = std::time::Instant::now();
+        let hwnd = loop {
+            // SAFETY: a valid NUL-terminated class name; null title.
+            let found = unsafe { FindWindowW(class.as_ptr(), std::ptr::null()) };
+            if !found.is_null() {
+                break found;
+            }
+            assert!(waited.elapsed() < std::time::Duration::from_secs(5), "the power window was never made");
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        };
+        let mut running = Vec::new();
+        let mut answer = |tag: &str, message: u32, wparam: usize| -> (isize, bool) {
+            let (root, stop, join) = recorder_holding_a_row(tag);
+            assert!(!chunk_on_disk(&root), "{tag}: nothing is written before the message");
+            // SAFETY: the window is ours; SendMessageW returns after its handler has.
+            let answered = unsafe { SendMessageW(hwnd, message, wparam, 0) };
+            let written = chunk_on_disk(&root);
+            running.push((stop, join));
+            (answered, written)
+        };
+        let (answered, written) = answer("power-query", WM_QUERYENDSESSION, 0);
+        assert_eq!(answered, 1, "a shutdown is never held up");
+        assert!(written, "the shutdown query found the chunk on disk");
+        let (_, written) = answer("power-suspend", WM_POWERBROADCAST, PBT_APMSUSPEND as usize);
+        assert!(written, "the sleep found the chunk on disk");
+        let (_, written) = answer("power-end", WM_ENDSESSION, 1);
+        assert!(written, "the shutdown going ahead found the chunk on disk");
+        let (_, written) = answer("power-called-off", WM_ENDSESSION, 0);
+        assert!(!written, "a shutdown called off writes nothing early");
+        for (stop, join) in running {
+            stop.store(true, Ordering::SeqCst);
+            join.join().unwrap();
+        }
     }
 
     #[test]

@@ -117,6 +117,32 @@ test('a gated step runs only when a changed file is on its line; ungated steps a
   assert.ok(stepsFor(null).every(s => s.skip == null));
 });
 
+test('the tray release tests run when the uploader, the session tools or the analysis it bundles change', () => {
+  const releaseScripts = changed =>
+    stepsFor(changed).find(s => s.name === 'Release script tests').skip;
+  for (const file of [
+    'tools/sessions/lmu.mjs',
+    'tools/uploader/watch.mjs',
+    'src/analysis/lapSet.ts',
+    'desktop/scripts/stage-resources.mjs',
+  ])
+    assert.equal(releaseScripts([file]), null, file);
+  assert.ok(releaseScripts(['src/features/plan/x.ts']), 'an app-only change skips them');
+  // The Rust tests stay on desktop/: nothing under tools/ is compiled into the tray.
+  assert.ok(stepsFor(['tools/sessions/lmu.mjs']).find(s => s.name === 'Tray tests').skip);
+});
+
+test('--all runs every gated step, also at a release head where the diff is empty', () => {
+  const atReleaseHead = [];
+  assert.ok(stepsFor(atReleaseHead).some(s => s.skip === 'nothing there changed'));
+  assert.ok(stepsFor(atReleaseHead, null, true).every(s => s.skip == null));
+  // --only still narrows it
+  assert.deepEqual(
+    stepsFor(atReleaseHead, 'tray tests', true).filter(s => !s.skip).map(s => s.name),
+    ['Tray tests'],
+  );
+});
+
 test('--only keeps the steps whose job or name matches', () => {
   const types = stepsFor(null, 'types').filter(s => !s.skip);
   assert.deepEqual(types.map(s => s.job), ['app', 'functions']);
