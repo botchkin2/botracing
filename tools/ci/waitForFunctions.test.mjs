@@ -5,6 +5,8 @@ import {
   COMPARE_FILE_CAP,
   FUNCTIONS_PATHS,
   decide,
+  followSuperseded,
+  listRunsFor,
   touchesFunctions,
   waitForFunctions,
 } from './waitForFunctions.mjs';
@@ -130,4 +132,121 @@ test('fails if the functions run never finishes', async () => {
   });
   assert.equal(result.ok, false);
   assert.match(result.reason, /did not finish/);
+});
+
+// A queued run is cancelled when a newer one queues in the same concurrency group:
+// a superseded run follows a later run on main that contains its commit.
+const sha = (id, s) => ({...run(id, 'completed', s), sha: `sha${id}`});
+const containsAll = () => true;
+
+test('followSuperseded: A cancelled and B (a later run containing A) succeeded is green', () => {
+  const runs = [sha(1, 'cancelled')];
+  const later = [sha(1, 'cancelled'), sha(2, 'success')];
+  assert.equal(decide(followSuperseded(runs, later, containsAll)), 'ok');
+});
+
+test('followSuperseded: A cancelled and B failed is red; B still running keeps waiting', () => {
+  const runs = [sha(1, 'cancelled')];
+  assert.equal(
+    decide(followSuperseded(runs, [sha(2, 'failure')], containsAll)),
+    'failed',
+  );
+  assert.equal(
+    decide(followSuperseded(runs, [run(2, 'in_progress')], containsAll)),
+    'wait',
+  );
+});
+
+test('followSuperseded: A cancelled alone (stopped by hand) is red', () => {
+  assert.equal(
+    decide(
+      followSuperseded(
+        [sha(1, 'cancelled')],
+        [sha(1, 'cancelled')],
+        containsAll,
+      ),
+    ),
+    'failed',
+  );
+});
+
+test('followSuperseded: a later run that does not contain A is ignored; one cancelled again follows on', () => {
+  const runs = [sha(1, 'cancelled')];
+  const later = [sha(2, 'success')];
+  assert.equal(decide(followSuperseded(runs, later, () => false)), 'failed');
+  assert.equal(
+    decide(
+      followSuperseded(
+        runs,
+        [sha(2, 'cancelled'), sha(3, 'success')],
+        containsAll,
+      ),
+    ),
+    'ok',
+  );
+  // a run that is not cancelled is left alone
+  const ok = [sha(1, 'success')];
+  assert.deepEqual(followSuperseded(ok, [sha(2, 'failure')], containsAll), ok);
+});
+
+test('listRunsFor asks for the later runs and the compare only when the newest run of the commit was cancelled', () => {
+  const calls = [];
+  const gh = (...args) => {
+    calls.push(args.slice(0, 2).join(' '));
+    if (args[0] === 'api')
+      return [args[1].endsWith('...shaB') ? 'ahead' : 'diverged'];
+    if (args.includes('--commit'))
+      return [
+        {
+          databaseId: 1,
+          status: 'completed',
+          conclusion: 'cancelled',
+          headSha: 'shaA',
+        },
+      ];
+    return [
+      {
+        databaseId: 2,
+        status: 'completed',
+        conclusion: 'success',
+        headSha: 'shaB',
+      },
+      {
+        databaseId: 3,
+        status: 'completed',
+        conclusion: 'success',
+        headSha: 'shaC',
+      },
+    ];
+  };
+  const runs = listRunsFor({gh, repo: 'o/r', workflow: 'w.yml', sha: 'shaA'});
+  assert.deepEqual(
+    runs.map(r => r.id),
+    [1, 2],
+  );
+  assert.deepEqual(calls, [
+    'run list',
+    'run list',
+    'api repos/o/r/compare/shaA...shaB',
+    'api repos/o/r/compare/shaA...shaC',
+  ]);
+  const plain = [];
+  const ok = listRunsFor({
+    gh: (...args) => {
+      plain.push(args[0]);
+      return [
+        {
+          databaseId: 1,
+          status: 'completed',
+          conclusion: 'success',
+          headSha: 'shaA',
+        },
+      ];
+    },
+    repo: 'o/r',
+    workflow: 'w.yml',
+    sha: 'shaA',
+  });
+  assert.equal(ok.length, 1);
+  assert.deepEqual(plain, ['run']);
 });
