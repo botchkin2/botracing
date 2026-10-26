@@ -52,22 +52,27 @@ export function decide(runs) {
  * queued run when a newer one queues behind the one that is running. The newer
  * run deploys main as it is then, which contains this commit, so the waiters
  * follow it: `laterRuns` are the workflow's runs on main, and the ones after
- * the cancelled run join the list, where `decide` takes the newest. A run
- * cancelled with nothing after it (stopped by hand) stays 'failed'.
+ * the cancelled run whose commit CONTAINS this one (`contains(headSha)`, by
+ * compare, not assumed) join the list, where `decide` takes the newest. A run
+ * cancelled with no containing run after it (stopped by hand) stays 'failed'.
  */
-export function followSuperseded(runs, laterRuns) {
+export function followSuperseded(runs, laterRuns, contains) {
   if (runs.length === 0) return runs;
   const newest = [...runs].sort((a, b) => b.id - a.id)[0];
   if (newest.status !== 'completed' || newest.conclusion !== 'cancelled')
     return runs;
-  return [...runs, ...laterRuns.filter(r => r.id > newest.id)];
+  return [
+    ...runs,
+    ...laterRuns.filter(r => r.id > newest.id && contains(r.sha)),
+  ];
 }
 
-const RUN_FIELDS = 'databaseId,status,conclusion';
+const RUN_FIELDS = 'databaseId,status,conclusion,headSha';
 const asRun = r => ({
   id: r.databaseId,
   status: r.status,
   conclusion: r.conclusion,
+  sha: r.headSha,
 });
 
 /** The runs a waiter decides on for one workflow at one commit (`gh` runs the CLI and parses its JSON). */
@@ -100,7 +105,24 @@ export function listRunsFor({gh, repo, workflow, sha}) {
     '--json',
     RUN_FIELDS,
   ).map(asRun);
-  return followSuperseded(mine, onMain);
+  // `later` is ahead of or identical to `sha`: it has this commit in its history.
+  const contained = new Map();
+  const contains = later => {
+    if (!contained.has(later))
+      contained.set(
+        later,
+        ['ahead', 'identical'].includes(
+          gh(
+            'api',
+            `repos/${repo}/compare/${sha}...${later}`,
+            '--jq',
+            '[.status]',
+          )[0],
+        ),
+      );
+    return contained.get(later);
+  };
+  return followSuperseded(mine, onMain, contains);
 }
 
 // listRuns() -> [{id, status, conclusion}] for the functions workflow at this
