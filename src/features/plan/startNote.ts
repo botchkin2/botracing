@@ -1,8 +1,8 @@
 // What the plan assumes the car starts the race with, said on screen with its
-// basis (pit-wall thread 104 #7941/#7945): "Start 87 %" when he typed it,
-// "Start 100 % (not set)" when the plan is on a full load. No start is read
+// basis (pit-wall thread 104 #7941/#7945/#7952): "Your start 87 %" when he typed it,
+// "Your start 100 % (not set)" when the plan is on a full load. No start is read
 // from a session's setup: a qualifying's 16-28 % is worse than a full load
-// (telemetry #7946), so the default is never silent and never guessed.
+// (telemetry #7942), so the default is never silent and never guessed.
 export type StartInput = {vePct: number | null; fuelL: number | null};
 
 /** A typed number as it reads: whole when whole, else one decimal ("87", "62.5"). */
@@ -19,11 +19,20 @@ export function startNote(
   hasVe: boolean,
 ): string {
   const parts: string[] = [];
-  if (hasVe && typed.vePct != null) parts.push(`${shown(typed.vePct)} %`);
+  // A VE car's plan runs on its VE: the part says "(not set)" whenever he has
+  // not typed one, even when he typed litres (telemetry #7954).
+  if (hasVe)
+    parts.push(
+      typed.vePct != null
+        ? `${shown(typed.vePct)} %`
+        : `${shown(full.vePct)} % (not set)`,
+    );
   if (typed.fuelL != null) parts.push(`${shown(typed.fuelL)} L`);
-  if (parts.length > 0) return `Start ${parts.join(' · ')}`;
-  if (hasVe) return `Start ${shown(full.vePct)} % (not set)`;
-  return full.fuelL == null
-    ? 'Start full load (not set)'
-    : `Start ${shown(full.fuelL)} L (not set)`;
+  else if (!hasVe)
+    parts.push(
+      full.fuelL == null
+        ? 'full load (not set)'
+        : `${shown(full.fuelL)} L (not set)`,
+    );
+  return `Your start ${parts.join(' · ')}`;
 }

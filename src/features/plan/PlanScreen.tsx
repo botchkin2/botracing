@@ -228,8 +228,9 @@ export function PlanScreen() {
   // The phone has one purpose, how many stops and when for the next race
   // (Botkin, pit-wall thread 54 #2533): the chips (track, car, rules), the
   // length, then the Race card and the Pit plan. The units switch, the last
-  // race, the start load, the per-tank, class timing and per-lap cards are
-  // desktop. Desktop (D6a) gives the rules their own block with its numbers
+  // race, the start fields, the per-tank, class timing and per-lap cards are
+  // desktop; the phone has the one field that sets the start, in the Race
+  // card (thread 104 #7952). Desktop (D6a) gives the rules their own block with its numbers
   // under the length.
   const setup = !combo ? null : (
     <>
@@ -394,6 +395,23 @@ export function PlanScreen() {
                         hasVe,
                       )
                     : null
+                }
+                startField={
+                  !wide && rules ? (
+                    <StartLoad
+                      compact
+                      hasVe={hasVe}
+                      veText={startText.ve}
+                      fuelText={startText.fuel}
+                      full={{
+                        fuelL: rules.rules.fuelL,
+                        vePct: rules.rules.vePct,
+                      }}
+                      chips={{ve: null, fuel: null}}
+                      onVe={ve => setStartTyped({...startText, ve})}
+                      onFuel={fuel => setStartTyped({...startText, fuel})}
+                    />
+                  ) : null
                 }
               />
             </PlanCard>

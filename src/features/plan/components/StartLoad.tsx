@@ -19,6 +19,7 @@ export function StartLoad({
   chips,
   onVe,
   onFuel,
+  compact = false,
 }: {
   hasVe: boolean;
   veText: string;
@@ -28,7 +29,28 @@ export function StartLoad({
   chips: {ve: StartChip | null; fuel: StartChip | null};
   onVe: (text: string) => void;
   onFuel: (text: string) => void;
+  /** The phone: the one field that sets the start (VE, else litres), no chips and no note (thread 104 #7952). */
+  compact?: boolean;
 }) {
+  if (compact)
+    return hasVe ? (
+      <NumberField
+        label='Your start VE'
+        value={veText}
+        onChange={onVe}
+        unit='%'
+        placeholder={String(full.vePct)}
+      />
+    ) : (
+      <NumberField
+        label='Your start fuel'
+        value={fuelText}
+        onChange={onFuel}
+        unit='L'
+        decimal
+        placeholder={full.fuelL == null ? '' : String(full.fuelL)}
+      />
+    );
   return (
     <View style={styles.box}>
       <View style={styles.fields}>

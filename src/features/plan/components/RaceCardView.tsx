@@ -1,3 +1,4 @@
+import {type ReactNode} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {space} from '@/src/design';
@@ -14,10 +15,13 @@ import {FactTile, TileRow} from './FactTile';
 export function RaceCardView({
   card,
   startNote,
+  startField,
 }: {
   card: RaceCard;
   /** What the plan assumes the car starts with, and whether he set it (`startNote.ts`). */
   startNote: string | null;
+  /** The phone's one control that sets it. */
+  startField?: ReactNode;
 }) {
   return (
     <View style={styles.box}>
@@ -26,6 +30,7 @@ export function RaceCardView({
           {startNote}
         </Text>
       ) : null}
+      {startField}
       <TileRow>
         <FactTile
           label='Laps'
@@ -43,7 +48,7 @@ export function RaceCardView({
         />
         {card.startLoad ? (
           <FactTile
-            label='Start'
+            label='Start with'
             value={card.startLoad.hero}
             sub={card.startLoad.covers}
           />
