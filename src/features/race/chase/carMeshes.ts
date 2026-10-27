@@ -18,7 +18,7 @@ import {
   type ClassShape,
   type Station,
 } from './carShapes';
-import {stepOfName, tintColor} from './carTint';
+import {modelPaint} from './carPaint';
 
 const TICK_OF_LENGTH = 0.3;
 /** The ring's diameter is about a car's length (chord, thread 83 #6151). */
@@ -318,7 +318,7 @@ const FADED_OPACITY = 0.18;
  * nothing outlives the engine.
  */
 export interface CarKit {
-  /** `vehicle` is the car's model (the field's own string): it picks the body family and the edge tint. */
+  /** `vehicle` is the car's model (the field's own string): it picks the body family and the edge colour. */
   make(
     carClass: string,
     color: string,
@@ -335,6 +335,8 @@ export function createCarKit(colors: {
   bg: string;
   edge: string;
   mark: string;
+  /** Every class's colour: a model's edge colour turns away from the nearest other class (carPaint). */
+  classes: string[];
 }): CarKit {
   const classes = new Map<string, ClassKit>();
   const sets = new Map<string, MaterialSets>();
@@ -358,16 +360,22 @@ export function createCarKit(colors: {
   /** One colour's materials, as a solid set and a see-through one. */
   const setsFor = (
     color: string,
-    step: number,
+    model: number,
     player: boolean,
   ): MaterialSets => {
-    const key = `${color}|${step}|${player ? 1 : 0}`;
+    const key = `${color}|${model}|${player ? 1 : 0}`;
     const cached = sets.get(key);
     if (cached) return cached;
     const paint = new THREE.Color(color);
     const edge = player
       ? new THREE.Color(colors.edge)
-      : new THREE.Color(tintColor(color, step));
+      : new THREE.Color(
+          modelPaint(
+            color,
+            colors.classes.filter(c => c !== color),
+            model,
+          ),
+        );
     const cabinEdge = player ? edge : paint;
     const build = (faded: boolean): MaterialSet => {
       const see = faded
@@ -413,10 +421,8 @@ export function createCarKit(colors: {
   return {
     make(carClass, color, player, vehicle = null) {
       const k = kitFor(carClass, vehicle);
-      // the model channel: the body edges lightened by the model's step inside its family (carTint)
-      const known = shapeFor(vehicle, carClass);
-      const step = known.key.includes(':') ? known.tint : stepOfName(vehicle);
-      const set = setsFor(color, step, player);
+      // the model channel: the body edges take the model's colour in its class (carPaint)
+      const set = setsFor(color, shapeFor(vehicle, carClass).paint, player);
       const group = new THREE.Group() as CarObject;
       const parts: CarObject['userData']['parts'] = [];
       const add = (o: THREE.Mesh | THREE.Line, part: Part) => {

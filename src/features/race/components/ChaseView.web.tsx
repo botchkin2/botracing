@@ -117,6 +117,7 @@ function useChaseEngine(
       accent: color.accent,
       good: color.faster,
       bad: color.slower,
+      classes: [color.class1, color.class2, color.class3],
     }),
     [color],
   );

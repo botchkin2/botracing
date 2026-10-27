@@ -17,6 +17,8 @@ export interface ChaseTheme {
   accent: string;
   good: string;
   bad: string;
+  /** The class colours (the map key's), so a model's colour can turn away from the nearest other class. */
+  classes: string[];
 }
 
 /** 1 Chase, 2 High, 3 TV, 4 Heli. */

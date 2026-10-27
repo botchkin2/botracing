@@ -97,7 +97,12 @@ export function mountChase(
   const states = new Map<number, CarState>();
   const objects = new Map<number, CarObject>();
   const rig = createCameraRig(camera, () => ix);
-  const kit = createCarKit({bg: T.bg, edge: T.text, mark: T.text});
+  const kit = createCarKit({
+    bg: T.bg,
+    edge: T.text,
+    mark: T.text,
+    classes: T.classes,
+  });
   // a key light high and to one side, a weak fill: a body's top, flanks and tail come out in three tones and the road's
   // slopes shade; nothing glows
   scene.add(new THREE.HemisphereLight(0xffffff, new THREE.Color(T.bg), 0.45));

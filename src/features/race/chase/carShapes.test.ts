@@ -8,7 +8,7 @@ import {
   shapeFor,
   type Family,
 } from './carShapes';
-import {TINT_STEPS} from './carTint';
+import {PAINTS} from './carPaint';
 
 // the `vehicle` strings a real LMU race field carries (seat-test's Road Atlanta race, 54 cars), class as the field gives it
 const FIELD: [string, string, Family][] = [
@@ -51,10 +51,22 @@ describe('car families', () => {
     }
     expect(shapeFor('x', 'Unknown class').key).toBe('GT3');
   });
-  it('a model keeps its tint step in every session: the step is its place in the family list, unique inside a family', () => {
+  it('a model keeps its colour in every session: its place in the family list, unique inside a family and across the class where it can be', () => {
     for (const family of Object.keys(KNOWN) as Family[]) {
-      expect(KNOWN[family].length).toBeLessThanOrEqual(TINT_STEPS);
+      expect(KNOWN[family].length).toBeLessThanOrEqual(PAINTS);
     }
+    // the colour index is stable: the families of a class continue one another, so only a class's seventh model onward repeats
+    const paintOf = (cls: string, v: string | null) => shapeFor(v, cls).paint;
+    expect(paintOf('Hyper', 'Ferrari 499P')).toBe(0);
+    expect(paintOf('Hyper', 'Peugeot 9x8')).toBe(1);
+    expect(paintOf('GT3', 'BMW M4 LMGT3')).toBe(0);
+    expect(paintOf('GT3', 'McLaren 720S LMGT3 Evo')).toBe(5);
+    const gt3 = FIELD.filter(([c]) => c === 'GT3').map(([c, v]) => paintOf(c, v));
+    for (const p of gt3) expect(p).toBeGreaterThanOrEqual(0);
+    for (const p of gt3) expect(p).toBeLessThan(PAINTS);
+    // a model nothing placed gets a stable colour from its name, in range
+    expect(paintOf('GT3', 'Some New Car')).toBe(paintOf('GT3', 'some new car'));
+    expect(paintOf('GT3', null)).toBe(0);
     const seen = new Map<string, string>();
     for (const [cls, vehicle] of FIELD) {
       const fam = familyOf(vehicle, cls)!;

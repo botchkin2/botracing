@@ -8,6 +8,7 @@ import {
   shellOf,
   tickSegment,
 } from './carMeshes';
+import {modelPaint} from './carPaint';
 
 // The engine places a car with rotation.set(0, heading, 0) in the three.js frame (x east, y up, z = -north).
 const placed = (local: {x: number; z: number}, heading: number) => {
@@ -19,7 +20,12 @@ const placed = (local: {x: number; z: number}, heading: number) => {
   return {x: p.x, y: -p.z}; // back to the world frame: x east, y north
 };
 
-const COLORS = {bg: '#0c0d11', edge: '#ffffff', mark: '#fea92f'};
+const COLORS = {
+  bg: '#0c0d11',
+  edge: '#ffffff',
+  mark: '#fea92f',
+  classes: ['#e64343', '#4697e4', '#f68443'],
+};
 
 /** Every material a car draws with, in draw order. */
 const materialsOf = (car: THREE.Object3D) => {
@@ -193,7 +199,12 @@ describe('the halo shell', () => {
 
 describe('car kit', () => {
   it('fades a car see-through and back, every material', () => {
-    const kit = createCarKit({bg: '#000000', edge: '#ffffff', mark: '#ffffff'});
+    const kit = createCarKit({
+      bg: '#000000',
+      edge: '#ffffff',
+      mark: '#ffffff',
+      classes: [],
+    });
     const car = kit.make('LMP2', '#3366ff', true);
     kit.fade(car, true);
     expect(
@@ -326,13 +337,19 @@ describe('car families in the kit', () => {
     );
     kit.dispose();
   });
-  it('the body edges carry the model step, the fill the class colour, and the followed car keeps its light edges', () => {
+  it('the body edges carry the model colour, the fill the class colour, and the followed car keeps its light edges', () => {
     const kit = createCarKit(colors);
-    const first = kit.make('Hyper', '#3366ff', false, 'Ferrari 499P'); // step 0 of lmh
-    const second = kit.make('Hyper', '#3366ff', false, 'Peugeot 9x8'); // step 1 of lmh
-    expect(bodyEdgeColor(first)).toBe('3366ff');
+    const first = kit.make('Hyper', '#e64343', false, 'Ferrari 499P'); // colour 0 of Hyper
+    const second = kit.make('Hyper', '#e64343', false, 'Peugeot 9x8'); // colour 1 of Hyper
+    expect(bodyEdgeColor(first)).toBe('e64343');
+    expect(bodyEdgeColor(second)).toBe(
+      modelPaint('#e64343', ['#4697e4', '#f68443'], 1).slice(1),
+    );
     expect(bodyEdgeColor(second)).not.toBe(bodyEdgeColor(first));
-    const mine = kit.make('Hyper', '#3366ff', true, 'Peugeot 9x8');
+    // the same model in the same class colour is the same colour, whatever else is in the field
+    const again = kit.make('Hyper', '#e64343', false, 'Peugeot 9x8');
+    expect(bodyEdgeColor(again)).toBe(bodyEdgeColor(second));
+    const mine = kit.make('Hyper', '#e64343', true, 'Peugeot 9x8');
     expect(bodyEdgeColor(mine)).toBe('ffffff');
     const fill = (car: THREE.Object3D) =>
       (

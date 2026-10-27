@@ -6,6 +6,8 @@
 // beyond it (pit-wall thread 94 #6866-#6868). An unknown model keeps the class hull.
 // Plain TypeScript, no three.js: the stations are numbers and carMeshes lofts them.
 
+import {PAINTS, stepOfName} from './carPaint';
+
 /** Class footprints (length x width, metres): the class nominal, the data carries no model dimensions. */
 export const SIZE: Record<string, [number, number]> = {
   Hyper: [5.0, 2.0],
@@ -141,9 +143,9 @@ const VARIANTS: Record<Family, Variant> = {
 };
 
 /**
- * The known models, in the order that gives each its tint step inside its family (carTint). A pattern is matched on the
- * lower-cased `vehicle` the field carries (`Ferrari 499P`, `Porsche 911 GT3 R LMGT3`, ...); the order is fixed so a
- * model keeps its step in every session.
+ * The known models, in the order that gives each its place in the family (and, with FAMILY_FIRST, its colour in the
+ * class, carPaint). A pattern is matched on the lower-cased `vehicle` the field carries (`Ferrari 499P`,
+ * `Porsche 911 GT3 R LMGT3`, ...); the order is fixed so a model keeps its colour in every session.
  */
 export const KNOWN: Record<Family, RegExp[]> = {
   lmh: [/499p/, /9x8/, /tr010|gr010/, /valkyrie/, /glickenhaus|007/],
@@ -164,6 +166,18 @@ export const KNOWN: Record<Family, RegExp[]> = {
   ],
   'gt3-mid': [/720s|mclaren/, /296/, /corvette|z06/],
   'gt3-rear': [/911/],
+};
+
+/**
+ * Where each family's models start in their class's run of colours (carPaint's PAINTS of them, wrapping): the families
+ * of a class continue one another, so two models share a colour only across families, which differ in body.
+ */
+const FAMILY_FIRST: Record<Family, number> = {
+  lmh: 0,
+  lmdh: 5,
+  'gt3-front': 0,
+  'gt3-mid': 5,
+  'gt3-rear': 8,
 };
 
 const FAMILY_CLASS: Record<Family, string> = {
@@ -220,21 +234,23 @@ function scaled(shape: ClassShape, v: Variant): ClassShape {
 }
 
 /**
- * The shape to draw for a car: the class hull, or its family's variant. `key` names it for the kit's cache and `tint`
- * is the model's step inside its family (0 for a model with none). An unknown class uses GT3's, as before.
+ * The shape to draw for a car: the class hull, or its family's variant. `key` names it for the kit's cache and `paint`
+ * is the model's colour index in its class (carPaint; a model no family knows gets a stable one from its name). An
+ * unknown class uses GT3's, as before.
  */
 export function shapeFor(
   vehicle: string | null,
   carClass: string,
-): {key: string; shape: ClassShape; footprint: [number, number]; tint: number} {
+): {key: string; shape: ClassShape; footprint: [number, number]; paint: number} {
   const cls = SHAPES[carClass] ? carClass : 'GT3';
   const footprint = SIZE[cls];
   const fam = familyOf(vehicle, cls);
-  if (!fam) return {key: cls, shape: SHAPES[cls], footprint, tint: 0};
+  if (!fam)
+    return {key: cls, shape: SHAPES[cls], footprint, paint: stepOfName(vehicle)};
   return {
     key: `${cls}:${fam.family}`,
     shape: scaled(SHAPES[cls], VARIANTS[fam.family]),
     footprint,
-    tint: fam.slot,
+    paint: (FAMILY_FIRST[fam.family] + fam.slot) % PAINTS,
   };
 }
