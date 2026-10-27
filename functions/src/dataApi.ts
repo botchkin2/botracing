@@ -24,6 +24,7 @@ import {
   trackMapById,
   trackSurfaceById,
 } from './sessionStore';
+import {accountFlags} from './accountFlags';
 import {Unauthorized, resolveOwner} from './ownerAccess';
 import {parsePlanQuery} from './planQuery';
 import {traceDelivery} from './traceCore';
@@ -88,12 +89,14 @@ const handle: Handler = async (req, res) => {
   // or bad token is a 401.
   res.set('Vary', 'Authorization, Origin');
   let owner: string;
+  let uid = '';
   try {
     owner = await resolveOwner(
       {
-        verifyToken: async idToken => ({
-          uid: (await admin.auth().verifyIdToken(idToken)).uid,
-        }),
+        verifyToken: async idToken => {
+          uid = (await admin.auth().verifyIdToken(idToken)).uid;
+          return {uid};
+        },
         readOwnerKey: async uid => {
           const key = (await admin.firestore().doc(`users/${uid}`).get()).get(
             'ownerKey',
@@ -111,6 +114,14 @@ const handle: Handler = async (req, res) => {
     throw error;
   }
   try {
+    // What this account may see, from its own users doc (accountFlags.ts):
+    // the app hides "Send a note" unless the API says so, so no uid is in the
+    // public bundle (pit-wall thread 112 #7908).
+    if (/\/me$/.test(path)) {
+      const doc = await admin.firestore().doc(`users/${uid}`).get();
+      res.status(200).json(accountFlags(doc.data()));
+      return;
+    }
     // API v2, shaped for the redesigned screens (Sessions, Session, Compare,
     // Corner). Straight from the store, no legacy lap shape.
     if (/\/uploaders$/.test(path)) {
