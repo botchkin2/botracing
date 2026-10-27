@@ -68,6 +68,7 @@ import {
 } from './selectionClock';
 import {followCar, followViewFor} from './followTarget';
 import {phone3dHeight} from './phone3dHeight';
+import {phone3dOn, phoneKeyShown} from './phoneKey';
 import {markPitLane} from './pitLaneState';
 import {useRaceClock} from './useRaceClock';
 import {type RaceData, useRaceData} from './useRaceData';
@@ -359,8 +360,6 @@ function RaceView({
   const [zoom, setZoom] = useState<LaneZoom>('l10');
   const [focus, setFocus] = useState<number | null>(null);
   const [wanted, setWanted] = useState<ClassFilter | null>(null);
-  // Phone: the legend is folded away until asked for.
-  const [keyOpen, setKeyOpen] = useState(false);
   // R1e: per view; the design's third mode (car number) needs numbers the
   // field upload does not carry.
   const [labels, setLabels] = useState<LabelMode>('pos');
@@ -457,7 +456,12 @@ function RaceView({
   const [columnW, setColumnW] = useState(0);
   const [mapBox, setMapBox] = useState({width: 0, height: 0});
   const mapW = desktop ? mapBox.width : layout.contentWidth;
-  const phone3d = !desktop && mapMode === 'chase' && chaseAvailable && data.chase !== null;
+  const phone3d = phone3dOn({
+    desktop,
+    mapMode,
+    chaseAvailable,
+    hasChase: data.chase !== null,
+  });
   const mapH = desktop
     ? mapBox.height
     : phone3d
@@ -841,19 +845,6 @@ function RaceView({
             <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
               {sub}
             </Text>
-            {phone3d ? null : (
-              <Pressable
-                accessibilityRole='button'
-                accessibilityState={{expanded: keyOpen}}
-                accessibilityLabel='Key'
-                onPress={() => setKeyOpen(o => !o)}
-                hitSlop={space.md}
-                style={styles.keyToggle}>
-                <Text variant='dataSmall' tone='accentInk'>
-                  {keyOpen ? 'Key ▴' : 'Key ▾'}
-                </Text>
-              </Pressable>
-            )}
           </View>
           {data.result ? (
             <Text variant='dataStrong'>{data.result}</Text>
@@ -864,7 +855,9 @@ function RaceView({
             </Text>
           ) : null}
           {map}
-          {keyOpen && !phone3d ? <RaceLegend classes={rows.classes} /> : null}
+          {phoneKeyShown(phone3d) ? (
+            <RaceLegend classes={rows.classes} />
+          ) : null}
         </View>
         {boardPaged}
         <View style={styles.phoneLanes}>{lanesBlock}</View>
@@ -925,10 +918,4 @@ const styles = StyleSheet.create({
   matchNote: {marginTop: space.xs},
   subRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   flexFill: {flex: 1},
-  keyToggle: {
-    minWidth: size.hit,
-    minHeight: size.hit,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });
