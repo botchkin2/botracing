@@ -42,6 +42,18 @@ describe('toSessionSummary', () => {
     expect(s.track).toBe('Daytona International Speedway');
     expect(s.car).toBe('Manthey DK Engineering 2026 #91:LM');
   });
+  it('reads a session that joined an online event as online, and never reads a missing one as offline (ticket 47)', () => {
+    expect(toSessionSummary({...raw, eventId: 'ev-1'}).online).toBe(true);
+    expect(toSessionSummary(raw).online).toBeNull();
+    expect(toSessionSummary({...raw, eventId: ''}).online).toBeNull();
+  });
+  it("keeps the capture's own game mode over the event", () => {
+    expect(toSessionSummary({...raw, online: false}).online).toBe(false);
+    expect(
+      toSessionSummary({...raw, online: false, eventId: 'ev-1'}).online,
+    ).toBe(false);
+    expect(toSessionSummary({...raw, online: true}).online).toBe(true);
+  });
   it('maps Race/Qualify/Practice to R/Q/P and keeps nulls', () => {
     const s = toSessionSummary(raw);
     expect(s.sessionType).toBe('Q');

@@ -11,9 +11,21 @@ import {FactTile, TileRow} from './FactTile';
  * count), the stops (and where the full-tank strategy puts them), the start
  * load. The median lap the count comes from stays as one small line.
  */
-export function RaceCardView({card}: {card: RaceCard}) {
+export function RaceCardView({
+  card,
+  startNote,
+}: {
+  card: RaceCard;
+  /** What the plan assumes the car starts with, and whether he set it (`startNote.ts`). */
+  startNote: string | null;
+}) {
   return (
     <View style={styles.box}>
+      {startNote ? (
+        <Text variant='dataSmall' tone='textSecondary'>
+          {startNote}
+        </Text>
+      ) : null}
       <TileRow>
         <FactTile
           label='Laps'

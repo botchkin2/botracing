@@ -31,6 +31,7 @@ import {PlanCard, Section} from './components/PlanCard';
 import {eventLabel} from './planEvent';
 import {LengthStepper} from './components/LengthStepper';
 import {StartLoad} from './components/StartLoad';
+import {startNote} from './startNote';
 import {PooledUseCard} from './components/PooledUseCard';
 import {RulesBlock} from './components/RulesBlock';
 import {TrackCarPicker} from './components/TrackCarPicker';
@@ -383,7 +384,18 @@ export function PlanScreen() {
           {data.checks ? <PlanChecksView text={data.checks} /> : null}
           {data.cards ? (
             <PlanCard title='Race'>
-              <RaceCardView card={data.cards.race} />
+              <RaceCardView
+                card={data.cards.race}
+                startNote={
+                  rules
+                    ? startNote(
+                        start,
+                        {fuelL: rules.rules.fuelL, vePct: rules.rules.vePct},
+                        hasVe,
+                      )
+                    : null
+                }
+              />
             </PlanCard>
           ) : null}
           {data.cards && slider.pit ? (
