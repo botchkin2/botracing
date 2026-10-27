@@ -15,6 +15,11 @@ import {
 } from '@/src/design';
 import {sessionHref} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
+import {
+  startTextFor,
+  type StartText,
+  usePlanStart,
+} from '@/src/state/planStart';
 import {EmptyState, Pressable, Skeleton, StatusBanner, Text} from '@/src/ui';
 import {
   comboCar,
@@ -84,15 +89,10 @@ export function PlanScreen() {
   const combo = resolveCombo(combos, comboKey, defaultCombo(combos));
   // What the car starts with, as typed for this track and car; blank is a full
   // load, and the last race's start is only offered (parc #1902).
-  const [startTyped, setStartTyped] = useState<{
-    key: string;
-    ve: string;
-    fuel: string;
-  } | null>(null);
-  const startText =
-    startTyped && startTyped.key === combo?.key
-      ? startTyped
-      : {key: combo?.key ?? '', ve: '', fuel: ''};
+  const startState = usePlanStart();
+  const startText = startTextFor(startState, combo?.key ?? null);
+  const setStartTyped = (text: StartText) =>
+    startState.setStart(combo?.key ?? '', text);
   const start = {
     vePct: parseNumber(startText.ve),
     fuelL: parseNumber(startText.fuel),
