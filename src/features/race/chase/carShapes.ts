@@ -24,6 +24,8 @@ export interface ClassShape {
   wing: [number, number, number, number];
   /** Prototype shark fin: from x, length, height; null on a GT. */
   fin: [number, number, number] | null;
+  /** Wheels (four dark discs, merged into the body): front axle x, rear axle x, radius, width; the outer face sits at the hull's half-width. */
+  wheels: [front: number, rear: number, radius: number, width: number];
 }
 
 export const SILL_Y = 0.1;
@@ -47,6 +49,7 @@ export const SHAPES: Record<string, ClassShape> = {
     ],
     wing: [-2.15, 1.22, 0.42, 1.85],
     fin: null,
+    wheels: [1.42, -1.42, 0.36, 0.26],
   },
   Hyper: {
     hull: [
@@ -66,6 +69,7 @@ export const SHAPES: Record<string, ClassShape> = {
     ],
     wing: [-2.32, 1.02, 0.4, 1.9],
     fin: [-1.95, 1.4, 0.38],
+    wheels: [1.55, -1.5, 0.37, 0.32],
   },
   LMP2: {
     hull: [
@@ -85,6 +89,7 @@ export const SHAPES: Record<string, ClassShape> = {
     ],
     wing: [-2.2, 1.12, 0.4, 1.8],
     fin: [-1.8, 1.5, 0.46],
+    wheels: [1.45, -1.4, 0.35, 0.3],
   },
 };
 
@@ -154,7 +159,7 @@ function scaled(shape: ClassShape, v: Variant): ClassShape {
   );
   const [wx, wy, chord, span] = shape.wing;
   const tailTop = hull[hull.length - 1][4];
-  return {hull, cabin, wing: [wx, tailTop + (wy - tailTop) * v.wingScale, chord, span], fin: shape.fin};
+  return {hull, cabin, wing: [wx, tailTop + (wy - tailTop) * v.wingScale, chord, span], fin: shape.fin, wheels: shape.wheels};
 }
 
 /**

@@ -1,6 +1,13 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {KNOWN, SHAPES, SIZE, familyOf, shapeFor, type Family} from './carShapes';
+import {
+  KNOWN,
+  SHAPES,
+  SIZE,
+  familyOf,
+  shapeFor,
+  type Family,
+} from './carShapes';
 import {TINT_STEPS} from './carTint';
 
 // the `vehicle` strings a real LMU race field carries (seat-test's Road Atlanta race, 54 cars), class as the field gives it
@@ -54,19 +61,24 @@ describe('car families', () => {
       const key = fam.family + ':' + fam.slot;
       const other = seen.get(key);
       // the two Ferrari 296 variants are one model
-      if (other && !(other.includes('296') && vehicle.includes('296'))) throw new Error(vehicle + ' and ' + other + ' share ' + key);
+      if (other && !(other.includes('296') && vehicle.includes('296')))
+        throw new Error(vehicle + ' and ' + other + ' share ' + key);
       seen.set(key, vehicle);
     }
   });
   it('the families look different inside a class: the cabin sits further forward or back, by more than 0.3 m', () => {
-    const cabinFront = (v: string, cls: string) => shapeFor(v, cls).shape.cabin[0][0];
+    const cabinFront = (v: string, cls: string) =>
+      shapeFor(v, cls).shape.cabin[0][0];
     const front = cabinFront('BMW M4 LMGT3', 'GT3');
     const mid = cabinFront('McLaren 720S LMGT3 Evo', 'GT3');
     const rear = cabinFront('Porsche 911 GT3 R LMGT3', 'GT3');
     expect(mid - front).toBeGreaterThan(0.5);
     expect(rear - front).toBeGreaterThan(0.3);
     expect(Math.abs(mid - rear)).toBeGreaterThan(0.1);
-    expect(cabinFront('Ferrari 499P', 'Hyper') - cabinFront('Cadillac V-Series.R', 'Hyper')).toBeGreaterThan(0.3);
+    expect(
+      cabinFront('Ferrari 499P', 'Hyper') -
+        cabinFront('Cadillac V-Series.R', 'Hyper'),
+    ).toBeGreaterThan(0.3);
   });
   it('stays inside the class: no hull, cabin or footprint beyond the class own, the wing where it was', () => {
     for (const [cls, vehicle] of FIELD) {
@@ -79,7 +91,9 @@ describe('car families', () => {
         expect(st[0]).toBeLessThanOrEqual(nose + 1e-9);
         expect(st[0]).toBeGreaterThanOrEqual(tail - 1e-9);
       }
-      shape.hull.forEach((st, i) => expect(st.slice(1)).toEqual(base.hull[i].slice(1))); // widths and heights untouched
+      shape.hull.forEach((st, i) =>
+        expect(st.slice(1)).toEqual(base.hull[i].slice(1)),
+      ); // widths and heights untouched
       for (const st of shape.cabin) {
         expect(st[0]).toBeLessThanOrEqual(nose);
         expect(st[0]).toBeGreaterThanOrEqual(tail);
@@ -88,5 +102,26 @@ describe('car families', () => {
       expect(shape.wing[0]).toBe(base.wing[0]);
       expect(shape.wing[3]).toBe(base.wing[3]);
     }
+  });
+});
+
+describe('the wheels', () => {
+  it('stand inside every class: on the road, within the hull and its width, a front axle ahead of the rear', () => {
+    for (const [cls, shape] of Object.entries(SHAPES)) {
+      const [front, rear, radius, width] = shape.wheels;
+      const nose = shape.hull[0][0];
+      const tail = shape.hull[shape.hull.length - 1][0];
+      expect(front).toBeGreaterThan(rear);
+      expect(front + radius).toBeLessThan(nose);
+      expect(rear - radius).toBeGreaterThan(tail);
+      expect(radius).toBeGreaterThan(0.25);
+      expect(width).toBeGreaterThan(0.1);
+      expect(width).toBeLessThan(Math.max(...shape.hull.map(st => st[1])));
+      expect(SIZE[cls][1]).toBeGreaterThan(1.8);
+    }
+  });
+  it('every family keeps its class wheels', () => {
+    for (const [cls, vehicle] of FIELD)
+      expect(shapeFor(vehicle, cls).shape.wheels).toBe(SHAPES[cls].wheels);
   });
 });
