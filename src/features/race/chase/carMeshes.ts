@@ -30,6 +30,8 @@ const BODY_TINT = 0.12;
 const HALO_SHARE = 0.5;
 const HALO_OFFSET_M = 0.05;
 const WHEEL_SEGMENTS = 8;
+/** The wheels stand this far outside the hull's side, so their rims show against it from the side and above (scout #8072). */
+const WHEEL_PROUD_M = 0.06;
 const EDGE_ANGLE_DEG = 25;
 
 type Local = {x: number; z: number};
@@ -227,9 +229,9 @@ function buildClass(carClass: string, c: ClassShape): ClassKit {
         0.03,
       ),
     );
-  // the four wheels stand on the road with their outer faces at the hull's half-width, where the sill is widest
+  // the four wheels stand on the road with their outer faces a little outside the hull's widest half-width
   const [front, rear, radius, width] = c.wheels;
-  const outer = Math.max(...c.hull.map(st => st[1]));
+  const outer = Math.max(...c.hull.map(st => st[1])) + WHEEL_PROUD_M;
   for (const x of [front, rear])
     for (const side of [-1, 1])
       parts.push(wheel(x, radius, width, side * outer));

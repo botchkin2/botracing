@@ -81,7 +81,8 @@ describe('car bodies', () => {
     expect(box.max.x).toBeGreaterThan(2.4); // the tick runs past the nose
     expect(box.min.x).toBeLessThan(-2.4); // the tail, or the wing just behind it
     expect(box.min.x).toBeGreaterThan(-2.7);
-    expect(box.max.z - box.min.z).toBeCloseTo(2.0, 1); // the wheels sit inside the class width
+    // the class width, and the wheels' outer faces 6 cm outside the hull on each side
+    expect(box.max.z - box.min.z).toBeCloseTo(2.0 + 2 * 0.06, 1);
     kit.release(car);
     kit.dispose();
   });

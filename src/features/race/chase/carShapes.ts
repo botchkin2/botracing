@@ -7,14 +7,24 @@
 // Plain TypeScript, no three.js: the stations are numbers and carMeshes lofts them.
 
 /** Class footprints (length x width, metres): the class nominal, the data carries no model dimensions. */
-export const SIZE: Record<string, [number, number]> = {Hyper: [5.0, 2.0], LMP2: [4.75, 1.9], GT3: [4.65, 1.95]};
+export const SIZE: Record<string, [number, number]> = {
+  Hyper: [5.0, 2.0],
+  LMP2: [4.75, 1.9],
+  GT3: [4.65, 1.95],
+};
 
 /**
  * A body as stations along the car (x forward from the centre, metres): at each, the half-width at the sill and at the
  * top, the shoulder height and the top height. Lofted between stations, flat shaded, it is a low-poly hull that narrows
  * to the nose and carries a cabin. Proportions follow the class shapes of prototype v2 (thread 83), simplified.
  */
-export type Station = [x: number, halfW: number, shoulderY: number, topHalfW: number, topY: number];
+export type Station = [
+  x: number,
+  halfW: number,
+  shoulderY: number,
+  topHalfW: number,
+  topY: number,
+];
 
 export interface ClassShape {
   hull: Station[];
@@ -24,7 +34,7 @@ export interface ClassShape {
   wing: [number, number, number, number];
   /** Prototype shark fin: from x, length, height; null on a GT. */
   fin: [number, number, number] | null;
-  /** Wheels (four dark discs, merged into the body): front axle x, rear axle x, radius, width; the outer face sits at the hull's half-width. */
+  /** Wheels (four dark discs, merged into the body): front axle x, rear axle x, radius, width; the outer face stands a few cm outside the hull's widest half-width (carMeshes). */
   wheels: [front: number, rear: number, radius: number, width: number];
 }
 
@@ -111,9 +121,19 @@ const VARIANTS: Record<Family, Variant> = {
   // front engine: cabin set back, the class's long nose
   'gt3-front': {cabinShiftX: -0.3, noseShorten: 0, wingScale: 1, roofScale: 1},
   // mid engine: cabin forward, a short nose
-  'gt3-mid': {cabinShiftX: 0.4, noseShorten: 0.1, wingScale: 1, roofScale: 0.97},
+  'gt3-mid': {
+    cabinShiftX: 0.4,
+    noseShorten: 0.1,
+    wingScale: 1,
+    roofScale: 0.97,
+  },
   // rear engine (the 911): cabin forward, short nose, a taller roof and a lower wing than the class box
-  'gt3-rear': {cabinShiftX: 0.2, noseShorten: 0.06, wingScale: 0.9, roofScale: 1.06},
+  'gt3-rear': {
+    cabinShiftX: 0.2,
+    noseShorten: 0.06,
+    wingScale: 0.9,
+    roofScale: 1.06,
+  },
   // Le Mans Hypercar prototypes: cabin forward, the fin, a lower wing
   lmh: {cabinShiftX: 0.2, noseShorten: 0, wingScale: 0.85, roofScale: 1},
   // LMDh prototypes: cabin set a little back, the class wing and fin
@@ -127,16 +147,38 @@ const VARIANTS: Record<Family, Variant> = {
  */
 export const KNOWN: Record<Family, RegExp[]> = {
   lmh: [/499p/, /9x8/, /tr010|gr010/, /valkyrie/, /glickenhaus|007/],
-  lmdh: [/cadillac|v-series/, /m hybrid/, /963/, /gmr-?001|genesis/, /a424|alpine/, /sc63|lamborghini/],
-  'gt3-front': [/\bm4\b/, /mercedes|amg/, /mustang/, /vantage/, /\brc ?f\b|lexus/],
+  lmdh: [
+    /cadillac|v-series/,
+    /m hybrid/,
+    /963/,
+    /gmr-?001|genesis/,
+    /a424|alpine/,
+    /sc63|lamborghini/,
+  ],
+  'gt3-front': [
+    /\bm4\b/,
+    /mercedes|amg/,
+    /mustang/,
+    /vantage/,
+    /\brc ?f\b|lexus/,
+  ],
   'gt3-mid': [/720s|mclaren/, /296/, /corvette|z06/],
   'gt3-rear': [/911/],
 };
 
-const FAMILY_CLASS: Record<Family, string> = {lmh: 'Hyper', lmdh: 'Hyper', 'gt3-front': 'GT3', 'gt3-mid': 'GT3', 'gt3-rear': 'GT3'};
+const FAMILY_CLASS: Record<Family, string> = {
+  lmh: 'Hyper',
+  lmdh: 'Hyper',
+  'gt3-front': 'GT3',
+  'gt3-mid': 'GT3',
+  'gt3-rear': 'GT3',
+};
 
 /** The family of a model within its class, with the model's place in the family; null for an unknown or missing model. */
-export function familyOf(vehicle: string | null, carClass: string): {family: Family; slot: number} | null {
+export function familyOf(
+  vehicle: string | null,
+  carClass: string,
+): {family: Family; slot: number} | null {
   const v = (vehicle ?? '').toLowerCase().trim();
   if (!v) return null;
   for (const family of Object.keys(KNOWN) as Family[]) {
@@ -150,16 +192,31 @@ export function familyOf(vehicle: string | null, carClass: string): {family: Fam
 function scaled(shape: ClassShape, v: Variant): ClassShape {
   const nose = shape.hull[0][0];
   const tail = shape.hull[shape.hull.length - 1][0];
-  const hull = shape.hull.map(([x, ...rest]) => [x > 0 ? x * (1 - v.noseShorten) : x, ...rest] as Station);
+  const hull = shape.hull.map(
+    ([x, ...rest]) => [x > 0 ? x * (1 - v.noseShorten) : x, ...rest] as Station,
+  );
   // the glasshouse moves within the hull's own length
   const lo = tail + 0.3;
   const hi = nose - 0.4;
   const cabin = shape.cabin.map(
-    ([x, w, sh, wt, top]) => [Math.max(lo, Math.min(hi, x + v.cabinShiftX)), w, sh, wt, sh + (top - sh) * v.roofScale] as Station,
+    ([x, w, sh, wt, top]) =>
+      [
+        Math.max(lo, Math.min(hi, x + v.cabinShiftX)),
+        w,
+        sh,
+        wt,
+        sh + (top - sh) * v.roofScale,
+      ] as Station,
   );
   const [wx, wy, chord, span] = shape.wing;
   const tailTop = hull[hull.length - 1][4];
-  return {hull, cabin, wing: [wx, tailTop + (wy - tailTop) * v.wingScale, chord, span], fin: shape.fin, wheels: shape.wheels};
+  return {
+    hull,
+    cabin,
+    wing: [wx, tailTop + (wy - tailTop) * v.wingScale, chord, span],
+    fin: shape.fin,
+    wheels: shape.wheels,
+  };
 }
 
 /**
@@ -174,5 +231,10 @@ export function shapeFor(
   const footprint = SIZE[cls];
   const fam = familyOf(vehicle, cls);
   if (!fam) return {key: cls, shape: SHAPES[cls], footprint, tint: 0};
-  return {key: `${cls}:${fam.family}`, shape: scaled(SHAPES[cls], VARIANTS[fam.family]), footprint, tint: fam.slot};
+  return {
+    key: `${cls}:${fam.family}`,
+    shape: scaled(SHAPES[cls], VARIANTS[fam.family]),
+    footprint,
+    tint: fam.slot,
+  };
 }
