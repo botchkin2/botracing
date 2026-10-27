@@ -22,6 +22,7 @@ import {
   historySessions,
   lastFuelOf,
   limitsOfPlan,
+  NO_VE_MEASURED,
   parseNumber,
   planView,
   rulesCells,
@@ -365,6 +366,15 @@ describe('parseNumber', () => {
   it('refuses empty, zero, negative and text', () => {
     for (const bad of ['', ' ', '0', '-3', 'abc', '1e999', '7.7.7'])
       expect(parseNumber(bad)).toBeNull();
+  });
+});
+
+describe('the no-data words', () => {
+  it("name the week's rules and ask for any practice, not an offline one (thread 104 #7900)", () => {
+    expect(NO_VE_MEASURED).toBe(
+      "No session under this week's rules yet. Drive any practice of this week's race.",
+    );
+    expect(NO_VE_MEASURED).not.toMatch(/offline/i);
   });
 });
 
