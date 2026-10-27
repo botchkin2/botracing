@@ -5,11 +5,17 @@
 # Minor and patch updates only. Major versions are deliberate work, not Monday
 # noise: each one is a real PR with its blocker and migration noted in
 # docs/MAJOR_UPGRADES.md. Every ecosystem ignores majors below.
+#
+# Paused for his month with no seats (ticket 65, pit-wall thread 122):
+# open-pull-requests-limit 0 stops version-update PRs, so no weekly red CI
+# mail reaches him. Security alerts and security-update PRs are not affected.
+# The first seat back deletes the six limit lines.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule: {interval: weekly}
+    open-pull-requests-limit: 0
     groups: {actions: {patterns: ['*'], update-types: [minor, patch]}}
     ignore:
       - dependency-name: '*'
@@ -17,6 +23,7 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule: {interval: weekly}
+    open-pull-requests-limit: 0
     groups: {app: {patterns: ['*'], update-types: [minor, patch]}}
     # The Expo SDK pins these as one set; upgrade them together with
     # `npx expo install --fix` on an SDK bump, never piecemeal.
@@ -42,6 +49,7 @@ updates:
   - package-ecosystem: npm
     directory: /functions
     schedule: {interval: weekly}
+    open-pull-requests-limit: 0
     groups: {functions: {patterns: ['*'], update-types: [minor, patch]}}
     ignore:
       - dependency-name: '*'
@@ -49,6 +57,7 @@ updates:
   - package-ecosystem: npm
     directory: /desktop
     schedule: {interval: weekly}
+    open-pull-requests-limit: 0
     groups: {desktop: {patterns: ['*'], update-types: [minor, patch]}}
     ignore:
       - dependency-name: '*'
@@ -56,6 +65,7 @@ updates:
   - package-ecosystem: cargo
     directory: /desktop/src-tauri
     schedule: {interval: weekly}
+    open-pull-requests-limit: 0
     groups: {tray: {patterns: ['*'], update-types: [minor, patch]}}
     ignore:
       - dependency-name: '*'
@@ -63,6 +73,7 @@ updates:
   - package-ecosystem: uv
     directory: /tools/capture
     schedule: {interval: weekly}
+    open-pull-requests-limit: 0
     groups: {capture: {patterns: ['*'], update-types: [minor, patch]}}
     ignore:
       - dependency-name: '*'
