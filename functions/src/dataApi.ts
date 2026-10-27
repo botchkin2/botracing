@@ -117,7 +117,7 @@ const handle: Handler = async (req, res) => {
     // What this account may see, from its own users doc (accountFlags.ts):
     // the app hides "Send a note" unless the API says so, so no uid is in the
     // public bundle (pit-wall thread 112 #7908).
-    if (/\/me$/.test(path)) {
+    if (/^(\/api)?\/me$/.test(path)) {
       const doc = await admin.firestore().doc(`users/${uid}`).get();
       res.status(200).json(accountFlags(doc.data()));
       return;
