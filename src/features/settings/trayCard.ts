@@ -22,11 +22,27 @@ export type TrayCard = {
  * The version the uploader reports is the tray's (LAP_VERSION); an older
  * uploader reports a build hash, which is shown as it is without a verdict.
  */
+/**
+ * A newer release than this PC's tray runs. Until its tray has downloaded it
+ * (`updateWaiting`) nothing here can be pressed: the tray fetches the
+ * installer by itself at launch and every 30 minutes (desktop/src-tauri/src/
+ * update.rs CHECK_EVERY), so the line says what happens next (thread 118
+ * #8034, ticket 22). Once it is downloaded the "ready" row and the banner
+ * take over, with Restart inside the tray's own window.
+ */
+function availableText(u: Uploader, latest: string, inTray: boolean): string {
+  if (u.updateWaiting) return `v${u.updateWaiting} ready`;
+  return inTray
+    ? `v${latest} available · fetched within 30 min, then Restart appears here`
+    : `v${latest} available · the PC fetches it within 30 min`;
+}
+
 export function pcLine(
   u: Uploader,
   latest: string | null,
   nowMs: number,
   withName: boolean,
+  inTray = false,
 ): string {
   const seen = u.lastSeenAt != null && nowMs - u.lastSeenAt <= SEEN_MS;
   const cmp = latest && u.version ? compareVersions(u.version, latest) : null;
@@ -35,7 +51,7 @@ export function pcLine(
     : cmp == null
     ? ''
     : cmp < 0
-    ? `v${latest} available`
+    ? availableText(u, latest as string, inTray)
     : 'latest';
   return [withName ? u.host : '', u.version ? `v${u.version}` : '', verdict]
     .filter(Boolean)
@@ -61,7 +77,9 @@ export function trayCard(q: {
       ? ['No PC reporting']
       : [...q.pcs]
           .sort((a, b) => (b.lastSeenAt ?? 0) - (a.lastSeenAt ?? 0))
-          .map(u => pcLine(u, latest, nowMs, q.pcs!.length > 1))
+          .map(u =>
+            pcLine(u, latest, nowMs, q.pcs!.length > 1, q.inTray === true),
+          )
     : [];
   const hasTray =
     q.inTray === true ||

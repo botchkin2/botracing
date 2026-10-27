@@ -64,7 +64,7 @@ describe('trayCard', () => {
 
   it('says per PC: version, then not reporting, or update available, or latest', () => {
     expect(pcLine(pc({}), '0.1.3', NOW, false)).toBe(
-      'v0.1.2 · v0.1.3 available',
+      'v0.1.2 · v0.1.3 available · the PC fetches it within 30 min',
     );
     expect(pcLine(pc({version: '0.1.3'}), '0.1.3', NOW, false)).toBe(
       'v0.1.3 · latest',
@@ -83,8 +83,23 @@ describe('trayCard', () => {
     );
     expect(pcLine(pc({}), null, NOW, false)).toBe('v0.1.2');
     expect(pcLine(pc({}), '0.1.3', NOW, true)).toBe(
-      'Race PC · v0.1.2 · v0.1.3 available',
+      'Race PC · v0.1.2 · v0.1.3 available · the PC fetches it within 30 min',
     );
+  });
+
+  it('says what happens next while an update is available but not downloaded, and what is ready once it is', () => {
+    // Not downloaded: nothing can be pressed yet, the tray fetches it by itself.
+    expect(pcLine(pc({}), '0.1.3', NOW, false, true)).toBe(
+      'v0.1.2 · v0.1.3 available · fetched within 30 min, then Restart appears here',
+    );
+    // Downloaded (updateWaiting): the ready row and the banner take over.
+    expect(pcLine(pc({updateWaiting: '0.1.3'}), '0.1.3', NOW, false)).toBe(
+      'v0.1.2 · v0.1.3 ready',
+    );
+    // Never a promise for a PC that is not reporting.
+    expect(
+      pcLine(pc({lastSeenAt: NOW - 11 * 60_000}), '0.1.3', NOW, false, true),
+    ).toBe('v0.1.2 · not reporting');
   });
 
   it('lists every PC newest first, and says when none has reported', () => {
