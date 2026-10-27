@@ -17,12 +17,6 @@ export type TrayCard = {
 };
 
 /**
- * What one PC's tray says about itself: its version, then 'not reporting' when
- * it has not been seen for 10 minutes, else whether a newer release exists.
- * The version the uploader reports is the tray's (LAP_VERSION); an older
- * uploader reports a build hash, which is shown as it is without a verdict.
- */
-/**
  * A newer release than this PC's tray runs. Until its tray has downloaded it
  * (`updateWaiting`) nothing here can be pressed: the tray fetches the
  * installer by itself at launch and every 30 minutes (desktop/src-tauri/src/
@@ -37,6 +31,12 @@ function availableText(u: Uploader, latest: string, inTray: boolean): string {
     : `v${latest} available · the PC fetches it within 30 min`;
 }
 
+/**
+ * What one PC's tray says about itself: its version, then 'not reporting' when
+ * it has not been seen for 10 minutes, else whether a newer release exists.
+ * The version the uploader reports is the tray's (LAP_VERSION); an older
+ * uploader reports a build hash, which is shown as it is without a verdict.
+ */
 export function pcLine(
   u: Uploader,
   latest: string | null,
