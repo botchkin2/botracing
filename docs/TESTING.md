@@ -63,7 +63,7 @@ node tools/sessions/readStored.mjs --collection sessions --owner <ownerId prefix
 node tools/sessions/readStored.mjs --collection laps --owner <ownerId prefix> --where sessionId=<id> --fields lapNumber,lapTimeS
 ```
 
-Do not write a one-off reader beside it: the allow rule covers this script and nothing else.
+Do not write a one-off reader beside it: the allow rule covers this script and nothing else. The rule trusts the local file, so run it only where `tools/sessions/readStored.mjs` is unchanged from `origin/main` (`git diff origin/main -- tools/sessions/readStored.mjs` prints nothing).
 
 ## A local tray as seat-test
 
