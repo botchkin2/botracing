@@ -652,6 +652,17 @@ describe('lights lead the outline', () => {
     expect(shader.fragmentShader).toContain('vColor.r > 1.50');
     expect(mat.customProgramCacheKey()).toBe('bodyEdgesLights');
   });
+  it("three's own line shader still has the lines the patch hangs on (an upgrade cannot silently drop the lights)", () => {
+    // LineBasicMaterial compiles ShaderLib.basic; the patch replaces its colour chunk and reads diffuse and vColor
+    const {fragmentShader} = THREE.ShaderLib.basic;
+    expect(fragmentShader).toContain('#include <color_fragment>');
+    expect(fragmentShader).toContain('#include <color_pars_fragment>');
+    expect(fragmentShader).toContain('uniform vec3 diffuse;');
+    expect(fragmentShader).toContain('vec4 diffuseColor');
+    expect(THREE.ShaderChunk.color_pars_fragment).toContain(
+      'varying vec3 vColor',
+    );
+  });
 });
 
 describe('the wing end plates', () => {

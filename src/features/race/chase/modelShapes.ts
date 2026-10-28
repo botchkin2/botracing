@@ -430,16 +430,6 @@ export const HYPER_MODELS: ModelEntry[] = [
       wingSpan: 1.1,
       bulges: [{x: 1.25, len: 1.7, z: 0.74, w: 0.42, h: 0.34}],
     },
-    // a bar with a V dipping into the centre
-    tailLights: [
-      [
-        [-0.8, 0.5],
-        [-0.12, 0.5],
-        [0, 0.28],
-        [0.12, 0.5],
-        [0.8, 0.5],
-      ],
-    ],
   },
   {
     // LMH, the 2024 car (one string in his files): the smoothest rounded teardrop, the tallest roof and a low wide wing
@@ -463,19 +453,19 @@ export const HYPER_MODELS: ModelEntry[] = [
       wingSpan: 1.25,
       finH: 0.6,
     },
-    // three diagonal slashes across the tail (the claws)
+    // three vertical claws across the tail (the rear render of the 2024 car)
     tailLights: [
       [
-        [-0.6, 0.2],
-        [-0.34, 0.5],
+        [-0.52, 0.2],
+        [-0.46, 0.5],
       ],
       [
-        [-0.13, 0.2],
-        [0.13, 0.5],
+        [0, 0.2],
+        [0, 0.5],
       ],
       [
-        [0.34, 0.2],
-        [0.6, 0.5],
+        [0.52, 0.2],
+        [0.46, 0.5],
       ],
     ],
   },
@@ -495,19 +485,6 @@ export const HYPER_MODELS: ModelEntry[] = [
       cabinTop: 0.12,
       bulges: [{x: 1.45, len: 1.2, z: 0.76, w: 0.36, h: 0.46}],
     },
-    // a thin bar with a break in the centre, an upright tick at each end
-    tailLights: [
-      [
-        [-0.8, 0.5],
-        [-0.8, 0.38],
-        [-0.1, 0.38],
-      ],
-      [
-        [0.8, 0.5],
-        [0.8, 0.38],
-        [0.1, 0.38],
-      ],
-    ],
   },
   {
     // LMH: the narrowest canopy between wide vented front fenders (tunnels), a cut-away low tail with the wheels exposed,
@@ -529,13 +506,6 @@ export const HYPER_MODELS: ModelEntry[] = [
       wingH: 0.4,
       bulges: [{x: 1.15, len: 1.6, z: 0.84, w: 0.44, h: 0.3}],
     },
-    // one high central light
-    tailLights: [
-      [
-        [-0.2, 0.5],
-        [0.2, 0.5],
-      ],
-    ],
   },
   {
     // LMDh: an angular, flat-roofed body with a narrow canopy and a long pointed nose between broad low scoops; the faceted
@@ -599,17 +569,6 @@ export const HYPER_MODELS: ModelEntry[] = [
         {x: -1.5, len: 1.1, z: 0.82, w: 0.2, h: 0.32},
       ],
     },
-    // vertical blades down the rear corners of the tail
-    tailLights: [
-      [
-        [-0.78, 0.18],
-        [-0.78, 0.52],
-      ],
-      [
-        [0.78, 0.18],
-        [0.78, 0.52],
-      ],
-    ],
   },
   {
     // LMDh: a wide, tall kidney nose between separate front fender pods; the wing between very tall end plates joined to a
@@ -631,19 +590,6 @@ export const HYPER_MODELS: ModelEntry[] = [
       wingSpan: 1.05,
       bulges: [{x: 1.3, len: 1.1, z: 0.82, w: 0.3, h: 0.2}],
     },
-    // slim L-shapes at the rear corners
-    tailLights: [
-      [
-        [-0.5, 0.3],
-        [-0.72, 0.3],
-        [-0.72, 0.52],
-      ],
-      [
-        [0.5, 0.3],
-        [0.72, 0.3],
-        [0.72, 0.52],
-      ],
-    ],
   },
   {
     // LMDh: a rounded, wide, low front (the 956/962 soft shapes) and the wing held up on tall pylons beside a tall fin

@@ -83,13 +83,21 @@ describe('no two models of a class share a rear', () => {
 });
 
 describe('the Hyper lights', () => {
-  // at rival size (about 38 px wide) the bodies differ only by outline: the lights are what names a car (telemetry #8226)
-  it('every Hyper has a light pattern of its own', () => {
-    const patterns = MODELS.Hyper.map(m => ({
+  // A light pattern is drawn only where the real car's tail has it (the reference table, a source per row); a car
+  // without one has none, never an invented one (steward #8277, scout #8284)
+  const SOURCED = [
+    'alpine-a424',
+    'porsche-963',
+    'lamborghini-sc63',
+    'genesis-gmr-001',
+    'peugeot-9x8',
+  ];
+  it('only the source-backed Hypers have lights, and no two share a pattern', () => {
+    const lit = MODELS.Hyper.map(m => ({
       key: m.key,
       lights: rearSignature(m.example, 'Hyper').lights,
-    }));
-    for (const p of patterns) expect(p.lights).not.toBe('[]');
-    expect(new Set(patterns.map(p => p.lights)).size).toBe(patterns.length);
+    })).filter(p => p.lights !== '[]');
+    expect(lit.map(p => p.key).sort()).toEqual([...SOURCED].sort());
+    expect(new Set(lit.map(p => p.lights)).size).toBe(lit.length);
   });
 });
