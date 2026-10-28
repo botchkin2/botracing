@@ -14,6 +14,8 @@ export interface RearSignature {
   wingKind: string;
   /** The wing's top, metres. */
   wingTopM: number;
+  /** The wing's span, metres. */
+  wingSpanM: number;
   /** The tail's half-widths at the sill and at the roof line, metres. */
   tailHalfW: [sill: number, top: number];
   /** The deck's top height just before the tail, metres. */
@@ -35,6 +37,7 @@ export function rearSignature(
   return {
     wingKind: shape.wingKind ?? 'stalks',
     wingTopM: shape.wing[1],
+    wingSpanM: shape.wing[3],
     tailHalfW: [shape.hull[n - 1][1], shape.hull[n - 1][3]],
     deckTopM: shape.hull[n - 2][4],
     endPlateM: shape.endPlate?.h ?? 0,
@@ -52,6 +55,7 @@ export function differingFeatures(
   const out: string[] = [];
   if (a.wingKind !== b.wingKind) out.push('wing kind');
   if (far(a.wingTopM, b.wingTopM)) out.push('wing height');
+  if (far(a.wingSpanM, b.wingSpanM)) out.push('wing span');
   if (
     far(a.tailHalfW[0], b.tailHalfW[0]) ||
     far(a.tailHalfW[1], b.tailHalfW[1])

@@ -44,7 +44,15 @@ export const GT3_MODELS: ModelEntry[] = [
       tailW: -0.16,
       tailTopW: -0.14,
       tailRound: 0.8,
+      wingSpan: 0.95,
     },
+    // the full-width light bar across the tail (read from the 911 rear render)
+    tailLights: [
+      [
+        [-0.8, 0.46],
+        [0.8, 0.46],
+      ],
+    ],
   },
   {
     // front engine: the tallest, longest boxy cabin of the GT3s with a flat roof and a short stubby tail, the wing on one
@@ -67,7 +75,21 @@ export const GT3_MODELS: ModelEntry[] = [
       wingH: -0.02,
       tailW: 0,
       tailTopW: 0,
+      wingSpan: 1.05,
     },
+    // an L at each corner (read from the M4 rear render)
+    tailLights: [
+      [
+        [-0.82, 0.52],
+        [-0.82, 0.3],
+        [-0.55, 0.3],
+      ],
+      [
+        [0.82, 0.52],
+        [0.82, 0.3],
+        [0.55, 0.3],
+      ],
+    ],
   },
   {
     // front engine, no race-car dimensions published: a long hood, the cabin set far back under a fastback that ends in a
@@ -87,7 +109,35 @@ export const GT3_MODELS: ModelEntry[] = [
       wingH: -0.11,
       tailW: 0.14,
       tailTopW: 0.16,
+      wingSpan: 1.05,
     },
+    // three vertical bars at each corner (the Mustang tail lamp; no rear render of the race car was seen)
+    tailLights: [
+      [
+        [-0.82, 0.28],
+        [-0.82, 0.5],
+      ],
+      [
+        [-0.7, 0.28],
+        [-0.7, 0.5],
+      ],
+      [
+        [-0.58, 0.28],
+        [-0.58, 0.5],
+      ],
+      [
+        [0.58, 0.28],
+        [0.58, 0.5],
+      ],
+      [
+        [0.7, 0.28],
+        [0.7, 0.5],
+      ],
+      [
+        [0.82, 0.28],
+        [0.82, 0.5],
+      ],
+    ],
   },
   {
     // mid engine, cab-forward: a short sharp nose, the cabin at the front axle, a long rear deck with big haunches
@@ -106,7 +156,27 @@ export const GT3_MODELS: ModelEntry[] = [
       wingH: 0.16,
       tailW: 0.14,
       tailTopW: 0.16,
+      wingSpan: 1.15,
     },
+    // two stacked bars at each corner (read from the Z06 GT3.R rear render)
+    tailLights: [
+      [
+        [-0.82, 0.4],
+        [-0.5, 0.4],
+      ],
+      [
+        [-0.82, 0.3],
+        [-0.5, 0.3],
+      ],
+      [
+        [0.5, 0.4],
+        [0.82, 0.4],
+      ],
+      [
+        [0.5, 0.3],
+        [0.82, 0.3],
+      ],
+    ],
   },
   {
     // mid engine: a bubble canopy tapering to the tail behind a short nose, the wing mounted very high
@@ -126,7 +196,19 @@ export const GT3_MODELS: ModelEntry[] = [
       deckH: 0.03,
       tailW: -0.16,
       tailTopW: -0.14,
+      wingSpan: 0.85,
     },
+    // a short strip at each corner (read from the 720S rear render)
+    tailLights: [
+      [
+        [-0.78, 0.5],
+        [-0.5, 0.5],
+      ],
+      [
+        [0.5, 0.5],
+        [0.78, 0.5],
+      ],
+    ],
   },
   {
     // front engine: an upright notchback cabin set back behind a long hood, a flat vertical tall tail under a wing on two
@@ -149,6 +231,7 @@ export const GT3_MODELS: ModelEntry[] = [
       wingH: -0.11,
       tailW: 0,
       tailTopW: 0,
+      wingSpan: 1.15,
     },
   },
   {
@@ -166,7 +249,25 @@ export const GT3_MODELS: ModelEntry[] = [
       wingH: 0.25,
       tailW: 0,
       tailTopW: 0,
+      wingSpan: 0.95,
     },
+    // a small ring at each corner (the 296 rear render shows round lamps)
+    tailLights: [
+      [
+        [-0.78, 0.42],
+        [-0.7, 0.5],
+        [-0.62, 0.42],
+        [-0.7, 0.34],
+        [-0.78, 0.42],
+      ],
+      [
+        [0.62, 0.42],
+        [0.7, 0.5],
+        [0.78, 0.42],
+        [0.7, 0.34],
+        [0.62, 0.42],
+      ],
+    ],
   },
   {
     // front-mid engine: the longest hood on the grid, the cabin furthest back and low
@@ -183,6 +284,7 @@ export const GT3_MODELS: ModelEntry[] = [
       wingH: -0.19,
       tailW: 0,
       tailTopW: 0,
+      wingSpan: 0.85,
     },
   },
   {
@@ -203,6 +305,15 @@ export const GT3_MODELS: ModelEntry[] = [
       tailTopW: 0,
       endPlate: {h: 0.2, sweep: 0.12},
     },
+    // a full-width strip with its ends turned up (read from the Vantage rear render)
+    tailLights: [
+      [
+        [-0.8, 0.5],
+        [-0.8, 0.36],
+        [0.8, 0.36],
+        [0.8, 0.5],
+      ],
+    ],
   },
   {
     // mid engine: a low wedge, the lowest nose and roof of the GT3s
@@ -222,7 +333,19 @@ export const GT3_MODELS: ModelEntry[] = [
       wingH: -0.1,
       tailW: -0.16,
       tailTopW: -0.14,
+      wingSpan: 0.85,
     },
+    // an angled slash at each corner (read from the Huracan rear close-up)
+    tailLights: [
+      [
+        [-0.84, 0.52],
+        [-0.58, 0.38],
+      ],
+      [
+        [0.84, 0.52],
+        [0.58, 0.38],
+      ],
+    ],
   },
 ];
 

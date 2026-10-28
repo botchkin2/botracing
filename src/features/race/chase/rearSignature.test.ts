@@ -11,6 +11,7 @@ import {
 const sig = (over: Partial<RearSignature> = {}): RearSignature => ({
   wingKind: 'stalks',
   wingTopM: 1,
+  wingSpanM: 1.85,
   tailHalfW: [0.8, 0.6],
   deckTopM: 0.7,
   endPlateM: 0,
@@ -28,6 +29,10 @@ describe('differingFeatures', () => {
     expect(differingFeatures(sig(), sig({lights: '[[[0,1]]]'}))).toEqual([
       'light pattern',
     ]);
+    expect(differingFeatures(sig(), sig({wingSpanM: 2.05}))).toEqual([
+      'wing span',
+    ]);
+    expect(differingFeatures(sig(), sig({wingSpanM: 1.95}))).toEqual([]);
     expect(
       differingFeatures(sig(), sig({wingTopM: 1.14, deckTopM: 0.84})),
     ).toEqual([]);
