@@ -204,46 +204,51 @@ export const GT3_MODELS: ModelEntry[] = [
 // Cars that share a colour (499P/BMW, 9X8/963, TR010/Genesis, Valkyrie/Alpine) differ in body.
 export const HYPER_MODELS: ModelEntry[] = [
   {
-    // LMH, grade B figures: bulbous high front fenders and a high wing carried on two tall pillars
+    // LMH, grade B figures: huge bulbous front fenders and a very high wing on two tall pillars
     key: 'ferrari-499p',
     match: /499p/,
     example: 'Ferrari 499P',
     params: {
       lengthM: 5.1,
       wheelbaseM: 3.15,
+      noseH: -0.08,
       wingKind: 'pylons',
-      wingH: 0.2,
-      bulges: [{x: 1.3, len: 1.2, z: 0.78, w: 0.34, h: 0.18}],
+      wingH: 0.45,
+      wingSpan: 1.1,
+      bulges: [{x: 1.25, len: 1.7, z: 0.74, w: 0.42, h: 0.34}],
     },
   },
   {
-    // LMH, the 2024 car (one string in his files): the smoothest rounded body, a low wing close to the deck
+    // LMH, the 2024 car (one string in his files): the smoothest rounded teardrop, the tallest roof and a low wide wing
+    // lying on the deck
     key: 'peugeot-9x8',
     match: /9x8/,
     example: 'Peugeot 9x8',
     params: {
       lengthM: 4.995,
       wheelbaseM: 3.045,
-      noseH: -0.06,
-      cabinTop: 0.05,
-      roofDrop: 0.12,
-      deckH: -0.04,
+      noseH: -0.12,
+      cabinTop: 0.2,
+      cabinLen: 1.15,
+      roofDrop: 0.3,
+      deckH: -0.06,
       wingKind: 'low',
       wingH: 0.05,
-      wingSpan: 1.1,
+      wingSpan: 1.25,
+      finH: 0.6,
     },
   },
   {
-    // LMH: tall front fender crests around a low central nose, tall and short for a Hyper (1,150 high on 4,900)
+    // LMH: tall front fender crests either side of a low central nose, tall and short for a Hyper (1,150 high on 4,900)
     key: 'toyota-gr010',
     match: /tr010|gr010/,
     example: 'Toyota TR010',
     params: {
       lengthM: 4.9,
       wheelbaseM: 3.15,
-      noseH: -0.06,
-      cabinTop: 0.07,
-      bulges: [{x: 1.4, len: 1.0, z: 0.78, w: 0.3, h: 0.26}],
+      noseH: -0.14,
+      cabinTop: 0.12,
+      bulges: [{x: 1.45, len: 1.2, z: 0.76, w: 0.36, h: 0.46}],
     },
   },
   {
@@ -253,19 +258,20 @@ export const HYPER_MODELS: ModelEntry[] = [
     match: /valkyrie/,
     example: 'Aston Martin Valkyrie LMH',
     params: {
-      cabinW: 0.72,
-      cabinLen: 0.9,
-      deckH: -0.08,
-      tailOver: -0.25,
-      finH: 1.5,
+      cabinW: 0.6,
+      cabinLen: 0.75,
+      cabinTop: -0.04,
+      deckH: -0.14,
+      tailOver: -0.4,
+      finH: 2,
       wingKind: 'pylon',
-      wingH: 0.2,
-      bulges: [{x: 1.2, len: 1.4, z: 0.82, w: 0.36, h: 0.16}],
+      wingH: 0.4,
+      bulges: [{x: 1.15, len: 1.6, z: 0.84, w: 0.44, h: 0.3}],
     },
   },
   {
-    // LMDh: an angular, flat-roofed body with a narrow canopy and long nose between broad low scoops; the faceted edges
-    // are the cue and need hull stations the class hull does not have (not built here), so this one reads by its
+    // LMDh: an angular, flat-roofed body with a narrow canopy and a long pointed nose between broad low scoops; the faceted
+    // edges are the cue and need hull stations the class hull does not have (not built here), so this one reads by its
     // proportions. Height is the LMDh cap, 1,060, not Wikipedia's 1,170 (steward #8135)
     key: 'lamborghini-sc63',
     match: /sc63|lamborghini/,
@@ -273,45 +279,51 @@ export const HYPER_MODELS: ModelEntry[] = [
     params: {
       lengthM: 5.1,
       wheelbaseM: 3.148,
-      noseLen: 0.12,
-      cabinW: 0.8,
-      cabinLen: 0.9,
+      noseLen: 0.3,
+      noseH: -0.1,
+      cabinW: 0.68,
+      cabinLen: 0.85,
+      cabinTop: -0.1,
       roofDrop: 0,
-      bulges: [{x: 1.1, len: 1.3, z: 0.72, w: 0.26, h: 0.08}],
+      finH: 0.5,
+      bulges: [{x: 1.0, len: 1.5, z: 0.7, w: 0.3, h: 0.1}],
     },
   },
   {
-    // LMDh: a tall, blunt, upright nose between upright fender crests, the cabin set back; blades on the front and rear fenders
+    // LMDh: a tall, blunt, upright nose between upright fender crests, the cabin set far back; blades on the front and rear
+    // fenders
     key: 'cadillac-v-series-r',
     match: /cadillac|v-series/,
     example: 'Cadillac V-Series.R',
     params: {
       lengthM: 4.99,
       wheelbaseM: 3.148,
-      noseH: 0.1,
-      noseLen: -0.1,
-      cabinX: -0.2,
+      noseH: 0.2,
+      noseLen: -0.3,
+      cabinX: -0.45,
       bulges: [
-        {x: 1.3, len: 0.9, z: 0.8, w: 0.22, h: 0.22},
-        {x: -1.6, len: 0.9, z: 0.82, w: 0.22, h: 0.2},
+        {x: 1.3, len: 1, z: 0.8, w: 0.2, h: 0.34},
+        {x: -1.5, len: 1.1, z: 0.82, w: 0.2, h: 0.32},
       ],
     },
   },
   {
-    // LMDh: a wide, tall kidney nose between separate front fender pods; the wing between unusually tall end plates joined
-    // to a long dorsal fin
+    // LMDh: a wide, tall kidney nose between separate front fender pods; the wing between very tall end plates joined to a
+    // long dorsal fin
     key: 'bmw-m-hybrid-v8',
     match: /m hybrid/,
     example: 'BMW M Hybrid V8',
     params: {
       lengthM: 4.99,
       wheelbaseM: 3.148,
-      noseH: 0.08,
-      noseW: 0.12,
-      finH: 1.3,
+      noseH: 0.14,
+      noseW: 0.2,
+      noseLen: -0.1,
+      finH: 1.7,
       wingKind: 'wide',
-      wingH: 0.12,
-      bulges: [{x: 1.3, len: 1.0, z: 0.8, w: 0.3, h: 0.18}],
+      wingH: 0.3,
+      wingSpan: 1.05,
+      bulges: [{x: 1.3, len: 1.1, z: 0.82, w: 0.3, h: 0.2}],
     },
   },
   {
@@ -322,28 +334,32 @@ export const HYPER_MODELS: ModelEntry[] = [
     params: {
       lengthM: 5.1,
       wheelbaseM: 3.148,
-      noseW: 0.12,
-      noseH: -0.06,
-      finH: 1.35,
+      noseW: 0.2,
+      noseH: -0.1,
+      noseLen: 0.1,
+      cabinTop: 0.04,
+      finH: 1.7,
       wingKind: 'pylons',
-      wingH: 0.1,
+      wingH: 0.25,
     },
   },
   {
-    // LMDh (Oreca chassis): the broadest flat nose running straight into tall fender crests, the tallest square wing end plates
+    // LMDh (Oreca chassis): the broadest flat nose running straight into tall fender crests, the tallest square wing end
+    // plates
     key: 'genesis-gmr-001',
     match: /gmr-?001|genesis/,
     example: 'Genesis GMR-001',
     params: {
       lengthM: 5,
       wheelbaseM: 3.15,
-      noseW: 0.16,
-      noseLen: 0.15,
-      finH: 1.4,
+      noseW: 0.2,
+      noseLen: 0.3,
+      noseH: -0.04,
+      finH: 1.6,
       wingKind: 'wide',
-      wingH: 0.25,
-      wingSpan: 1.1,
-      bulges: [{x: 1.2, len: 1.2, z: 0.78, w: 0.3, h: 0.2}],
+      wingH: 0.5,
+      wingSpan: 1.2,
+      bulges: [{x: 1.15, len: 1.4, z: 0.76, w: 0.32, h: 0.36}],
     },
   },
   {
@@ -354,11 +370,12 @@ export const HYPER_MODELS: ModelEntry[] = [
     params: {
       lengthM: 5,
       wheelbaseM: 3.148,
-      cabinW: 0.85,
-      cabinLen: 0.8,
-      cabinTop: 0.05,
-      finH: 1.5,
-      bulges: [{x: 1.3, len: 1.0, z: 0.78, w: 0.3, h: 0.22}],
+      cabinW: 0.78,
+      cabinLen: 0.65,
+      cabinTop: 0.2,
+      cabinX: 0.1,
+      finH: 1.9,
+      bulges: [{x: 1.3, len: 1.2, z: 0.76, w: 0.34, h: 0.36}],
     },
   },
 ];
