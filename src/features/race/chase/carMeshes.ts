@@ -15,6 +15,7 @@ import {
   SIZE,
   WING_PYLONS,
   hullTopAt,
+  lightSegments,
   shapeClassOf,
   shapeFor,
   type ClassShape,
@@ -268,12 +269,31 @@ function buildClass(ground: [number, number], c: ClassShape): ClassKit {
   return {
     body,
     cabin,
-    bodyEdges: new THREE.EdgesGeometry(body, EDGE_ANGLE_DEG),
+    bodyEdges: withSegments(
+      new THREE.EdgesGeometry(body, EDGE_ANGLE_DEG),
+      lightSegments(c),
+    ),
     cabinEdges: new THREE.EdgesGeometry(cabin, EDGE_ANGLE_DEG),
     halo: shellOf(body, HALO_OFFSET_M),
     base,
     tick,
   };
+}
+
+/** A line geometry with more segments appended to it, so they ride the same draw. */
+function withSegments(
+  edges: THREE.BufferGeometry,
+  segments: number[][],
+): THREE.BufferGeometry {
+  if (segments.length === 0) return edges;
+  const at = edges.getAttribute('position');
+  const pos = new Float32Array(at.count * 3 + segments.length * 6);
+  pos.set(at.array as Float32Array, 0);
+  segments.forEach((s, i) => pos.set(s, at.count * 3 + i * 6));
+  edges.dispose();
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  return g;
 }
 
 /** Non-indexed geometries joined into one, so a body is one draw. */

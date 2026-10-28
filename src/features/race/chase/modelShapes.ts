@@ -6,6 +6,7 @@
 //
 // STYLISED, NOT TO SCALE: the numbers only exaggerate what the cue says, inside the class footprint's width.
 
+import type {TailLight} from './carShapes';
 import type {ModelParams} from './modelParams';
 
 export interface ModelEntry {
@@ -16,6 +17,8 @@ export interface ModelEntry {
   /** A real `vehicle` string from his results files; the tests build every entry from it. */
   example: string;
   params: ModelParams;
+  /** Light lines on the tail face: extra segments of the body edges, never a new draw. */
+  tailLights?: TailLight[];
 }
 
 // ---- GT3 ----
@@ -237,6 +240,21 @@ export const HYPER_MODELS: ModelEntry[] = [
       wingSpan: 1.25,
       finH: 0.6,
     },
+    // three vertical claws across the tail
+    tailLights: [
+      [
+        [-0.52, 0.2],
+        [-0.44, 0.5],
+      ],
+      [
+        [0, 0.2],
+        [0, 0.5],
+      ],
+      [
+        [0.52, 0.2],
+        [0.44, 0.5],
+      ],
+    ],
   },
   {
     // LMH: tall front fender crests either side of a low central nose, tall and short for a Hyper (1,150 high on 4,900)
@@ -377,6 +395,19 @@ export const HYPER_MODELS: ModelEntry[] = [
       finH: 1.9,
       bulges: [{x: 1.3, len: 1.2, z: 0.76, w: 0.34, h: 0.36}],
     },
+    // an "A" chevron across the tail, doubled so it reads as a band
+    tailLights: [
+      [
+        [-0.62, 0.3],
+        [0, 0.52],
+        [0.62, 0.3],
+      ],
+      [
+        [-0.62, 0.22],
+        [0, 0.44],
+        [0.62, 0.22],
+      ],
+    ],
   },
 ];
 

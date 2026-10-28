@@ -43,6 +43,12 @@ export const WING_PYLONS: Record<WingKind, number[]> = {
   pylon: [0],
 };
 
+/** A light unit on the tail face, a polyline of (lateral z, height y) points: the Alpine's chevron, the 9X8's claws. */
+export type TailLight = [z: number, y: number][];
+
+/** The light lines stand this far behind the tail face, so they never sink into it. */
+export const LIGHT_OFFSET_M = 0.012;
+
 /** A raised pod on the hull, mirrored left and right: centre x, length, distance from the centre line, width, crest height above the hull's top line. */
 export interface Bulge {
   x: number;
@@ -62,6 +68,8 @@ export interface ClassShape {
   wingKind?: WingKind;
   /** Raised pods on the hull (fender crests, haunches); none when absent. */
   bulges?: Bulge[];
+  /** Light lines on the tail face, drawn as extra segments of the body edges (no extra draw); none when absent. */
+  tailLights?: TailLight[];
   /** Prototype shark fin: from x, length, height; null on a GT. */
   fin: [number, number, number] | null;
   /** Wheels (four dark discs, merged into the body): front axle x, rear axle x, radius, width; the outer face stands a few cm outside the hull's widest half-width (carMeshes). */
@@ -150,6 +158,19 @@ export function shapeClassOf(carClass: string): string {
   return 'GT3';
 }
 
+/**
+ * The tail's light lines as flat segments [x1, y1, z1, x2, y2, z2] in the car's frame, on a plane just behind its last hull
+ * station. Explicit segments, not creases, so EdgesGeometry would never find them (pit-wall thread 124, steward #8140).
+ */
+export function lightSegments(c: ClassShape): number[][] {
+  const x = c.hull[c.hull.length - 1][0] - LIGHT_OFFSET_M;
+  const out: number[][] = [];
+  for (const line of c.tailLights ?? [])
+    for (let i = 0; i + 1 < line.length; i++)
+      out.push([x, line[i][1], line[i][0], x, line[i + 1][1], line[i + 1][0]]);
+  return out;
+}
+
 /** The hull's top height at x, interpolated between stations (the nose tip's and the tail's outside their range). */
 export function hullTopAt(hull: Station[], x: number): number {
   for (let i = 0; i < hull.length - 1; i++) {
@@ -180,9 +201,12 @@ export function shapeFor(
   const model = modelOf(vehicle, cls);
   if (model) {
     const {entry, index} = model;
+    const shaped = applyParams(SHAPES[cls], entry.params);
     return {
       key: `${cls}:${entry.key}`,
-      shape: applyParams(SHAPES[cls], entry.params),
+      shape: entry.tailLights
+        ? {...shaped, tailLights: entry.tailLights}
+        : shaped,
       footprint: [entry.params.lengthM ?? classLength, width],
       paint: index % PAINTS,
     };

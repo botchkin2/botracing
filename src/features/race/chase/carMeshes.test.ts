@@ -9,7 +9,7 @@ import {
   tickSegment,
 } from './carMeshes';
 import {modelPaint} from './carPaint';
-import {SHAPES, shapeFor} from './carShapes';
+import {SHAPES, lightSegments, shapeFor} from './carShapes';
 import {MODELS} from './modelShapes';
 
 // The engine places a car with rotation.set(0, heading, 0) in the three.js frame (x east, y up, z = -north).
@@ -459,13 +459,11 @@ describe('a full field', () => {
 });
 
 describe('every body shape builds', () => {
-  // one car per shape: every model in every block, every Hyper family, and each class hull
+  // one car per shape: every model in every block, and each class hull
   const examples: [string, string | null][] = [
     ...Object.entries(MODELS).flatMap(([cls, block]) =>
       block.map(m => [cls, m.example] as [string, string]),
     ),
-    ['Hyper', 'Ferrari 499P'],
-    ['Hyper', 'Porsche 963'],
     ...Object.keys(SHAPES).map(cls => [cls, null] as [string, null]),
   ];
   const bodyOf = (car: THREE.Object3D) =>
@@ -516,4 +514,57 @@ describe('every body shape builds', () => {
       kit.dispose();
     },
   );
+});
+
+describe('the tail light lines', () => {
+  const edgesOf = (car: THREE.Object3D) =>
+    (car.children[3] as THREE.LineSegments).geometry.getAttribute(
+      'position',
+    ) as THREE.BufferAttribute;
+  const has = (a: THREE.BufferAttribute, seg: number[]) => {
+    const f = Math.fround;
+    for (let i = 0; i + 1 < a.count; i += 2)
+      if (
+        a.getX(i) === f(seg[0]) &&
+        a.getY(i) === f(seg[1]) &&
+        a.getZ(i) === f(seg[2]) &&
+        a.getX(i + 1) === f(seg[3]) &&
+        a.getY(i + 1) === f(seg[4]) &&
+        a.getZ(i + 1) === f(seg[5])
+      )
+        return true;
+    return false;
+  };
+  it.each([
+    ['Alpine A424', 4],
+    ['Peugeot 9x8', 3],
+  ])(
+    '%s: its %i light segments are in the one body-edges buffer, behind the tail, and the car still draws 7 meshes',
+    (vehicle, count) => {
+      const kit = createCarKit(COLORS);
+      const car = kit.make('Hyper', '#e64343', false, vehicle);
+      expect(car.children).toHaveLength(7);
+      expect(car.children[3]).toBeInstanceOf(THREE.LineSegments);
+      const {shape} = shapeFor(vehicle, 'Hyper');
+      const segments = lightSegments(shape);
+      expect(segments).toHaveLength(count);
+      const tailX = shape.hull[shape.hull.length - 1][0];
+      const edges = edgesOf(car);
+      for (const s of segments) {
+        expect(s[0]).toBeLessThan(tailX);
+        expect(s[0]).toBeGreaterThan(tailX - 0.05);
+        expect(has(edges, s)).toBe(true);
+      }
+      kit.dispose();
+    },
+  );
+  it('a model without lights has none, and a light line never adds a draw', () => {
+    const kit = createCarKit(COLORS);
+    const plain = shapeFor('Porsche 963', 'Hyper').shape;
+    expect(lightSegments(plain)).toEqual([]);
+    const lit = kit.make('Hyper', '#e64343', false, 'Alpine A424');
+    const dark = kit.make('Hyper', '#e64343', false, 'Porsche 963');
+    expect(lit.children).toHaveLength(dark.children.length);
+    kit.dispose();
+  });
 });
