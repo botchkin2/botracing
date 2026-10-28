@@ -30,7 +30,7 @@ export const BODY_911: BodyModel = {
     [-0.2, 0.74],
     [-1.13, 0.78],
     [-1.9, 0.62],
-    [-2.31, 0.5],
+    [-2.31, 0.57],
   ],
   top: [
     [2.31, 0.36],
@@ -51,8 +51,10 @@ export const BODY_911: BodyModel = {
     [1.38, 0.97],
     [0.4, 0.93],
     [-1.13, 1.025],
-    [-2.2, 0.99],
-    [-2.31, 0.82],
+    [-1.7, 0.95],
+    [-2.0, 0.9],
+    [-2.2, 0.86],
+    [-2.31, 0.78],
   ],
   // the hood tumbles in a little, the engine deck a lot between the wide rear haunches, the tail rounds off
   topRatio: [

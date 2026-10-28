@@ -51,11 +51,11 @@ export const GT3_MODELS: ModelEntry[] = [
       tailRound: 0.8,
       wingSpan: 0.95,
     },
-    // the full-width light bar across the tail (read from the 911 rear render)
+    // the full-width light bar high across the tail (read from the 911 rear render)
     tailLights: [
       [
-        [-0.8, 0.46],
-        [0.8, 0.46],
+        [-0.74, 0.52],
+        [0.74, 0.52],
       ],
     ],
   },

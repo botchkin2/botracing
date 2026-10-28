@@ -38,8 +38,8 @@ const HALO_OFFSET_M = 0.05;
 const WHEEL_SEGMENTS = 16;
 /** The wheels stand this far outside the hull's side, so their rims show against it from the side and above (scout #8072). */
 const WHEEL_PROUD_M = 0.06;
-/** On a real body the wheel's face stands this far outside the flank, in its arch's rim. */
-const BODY_WHEEL_PROUD_M = 0.012;
+/** On a real body the wheel's face stands this far outside the flank, so the tyres show from behind (scout #8305). */
+const BODY_WHEEL_PROUD_M = 0.07;
 const EDGE_ANGLE_DEG = 25;
 /** An end plate reaches this far below the wing's top. */
 const PLATE_BELOW_M = 0.1;
