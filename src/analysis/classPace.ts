@@ -36,7 +36,11 @@ export type ResultsDriver = {
   player: boolean;
   cls: string;
   car: string;
+  /** The place in his class (the file's ClassPosition). */
   pos: number | null;
+  /** The place among all cars (the file's Position) and the file's FinishStatus: the game's own classification, read by `finishFromResults`. Absent in an input written before they were added. */
+  overall?: number | null;
+  status?: string | null;
   laps: ResultsLap[];
 };
 
@@ -134,6 +138,11 @@ export function sectorGapS(
   const mine = you.sectors[sector].median;
   const theirs = other.sectors[sector].median;
   return mine === null || theirs === null ? null : mine - theirs;
+}
+
+/** Whether `classPace` lists a driver other than him: the one test for "this session knows its other cars" (a doc with only his own laps does not). */
+export function hasOtherDrivers(doc: ClassPaceDoc | null): boolean {
+  return doc !== null && doc.drivers.some(d => !d.you);
 }
 
 export type TopVsYou = {

@@ -116,6 +116,90 @@
   Pop $1
 !macroend
 
+; One line in install.log.
+!macro BOTRACING_LOG_LINE TEXT
+  Push $1
+  CreateDirectory "${BOTRACING_DATA}"
+  FileOpen $1 "${BOTRACING_DATA}\install.log" a
+  FileSeek $1 0 END
+  FileWrite $1 "${TEXT}$\r$\n"
+  FileClose $1
+  Pop $1
+!macroend
+
+; The old exe is moved aside, not overwritten (pit wall thread 100, ticket 10): a file that something else
+; holds open without sharing writes (a scanner on the exe that just exited, the shell) cannot be written, but
+; it can be renamed, and so can an exe that is still running. The new exe is then written to a free name.
+; "1" once this run has moved it.
+Var BotRacingAside
+; The exe's path, set by the move for .onInstFailed (see there).
+Var BotRacingExe
+
+; Test seam for tray-e2e.yml (desktop/scripts/e2e-exe-late.ps1), read from the installer process's environment,
+; which a person cannot set by accident and no support step copies around: BOTRACING_TEST_PAUSE_AFTER_CHECK and
+; BOTRACING_TEST_PAUSE_AFTER_MOVE (ms to sleep), BOTRACING_TEST_FAIL_AFTER_MOVE (1: abort the install). It only
+; adds a pause or an abort at those points; it never skips a check or a wait. Unset, these do nothing.
+!macro BOTRACING_TEST_SEAM KEY
+  Push $0
+  ReadEnvStr $0 "BOTRACING_TEST_${KEY}"
+  ${If} $0 != ""
+    !insertmacro BOTRACING_LOG_LINE "test seam ${KEY}=$0"
+    StrCmp "${KEY}" "FAIL_AFTER_MOVE" 0 +3
+      Pop $0
+      Abort "test seam: FAIL_AFTER_MOVE"
+    Sleep $0
+  ${EndIf}
+  Pop $0
+!macroend
+
+; Moves botracing.exe to botracing.exe.old as the last step before the files are written. A leftover .old
+; from an earlier run is deleted first; if it cannot be, nothing is moved and the wait above, then NSIS's own
+; Retry, are all there is (as before). A rename that fails is the same: logged, never an error.
+!macro BOTRACING_MOVE_EXE_ASIDE
+  StrCpy $BotRacingAside ""
+  StrCpy $BotRacingExe "$INSTDIR\${MAINBINARYNAME}.exe"
+  ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
+    ClearErrors
+    Delete "$INSTDIR\${MAINBINARYNAME}.exe.old"
+    ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe.old"
+      !insertmacro BOTRACING_LOG_LINE "exe not moved aside: an old .old is still held (update mode $UpdateMode)"
+    ${Else}
+      ClearErrors
+      Rename "$INSTDIR\${MAINBINARYNAME}.exe" "$INSTDIR\${MAINBINARYNAME}.exe.old"
+      ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
+        !insertmacro BOTRACING_LOG_LINE "exe not moved aside: the rename failed (update mode $UpdateMode)"
+      ${Else}
+        StrCpy $BotRacingAside "1"
+        !insertmacro BOTRACING_LOG_LINE "moved the old exe aside (update mode $UpdateMode)"
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
+!macroend
+
+; The install failed or was cancelled after the old exe was moved aside: put it back, so the Start with Windows
+; entry still starts a tray. Only when this run moved it (a stale .old is never put over an exe).
+; This function is compiled before the template defines MAINBINARYNAME (this file is included at installer.nsi
+; line 36, the define is at line 53), so it never names the define: it reads the path the move stored in
+; $BotRacingExe. Named here, the define stayed literal text and the restore looked for a file that never existed.
+Function .onInstFailed
+  ${If} $BotRacingAside == "1"
+    Delete "$BotRacingExe"
+    Rename "$BotRacingExe.old" "$BotRacingExe"
+    ; Success is the file being there, not the error flag.
+    ${IfNot} ${FileExists} "$BotRacingExe"
+      ${If} ${FileExists} "$BotRacingExe.old"
+        CopyFiles /SILENT "$BotRacingExe.old" "$BotRacingExe"
+        Delete "$BotRacingExe.old"
+      ${EndIf}
+    ${EndIf}
+    ${If} ${FileExists} "$BotRacingExe"
+      !insertmacro BOTRACING_LOG_LINE "install failed: the old exe is back"
+    ${Else}
+      !insertmacro BOTRACING_LOG_LINE "install failed and the old exe could not be put back"
+    ${EndIf}
+  ${EndIf}
+FunctionEnd
+
 ; Ends and deletes one old logon task if it is there. Absent is not an error;
 ; a refusal (a task made with the highest privileges) is written for the tray
 ; to say once, never an installer error.
@@ -155,16 +239,26 @@
 
 !macro NSIS_HOOK_PREINSTALL
   !insertmacro BOTRACING_LOG_HOOK "preinstall"
+  !insertmacro BOTRACING_REMOVE_TASK "LapUploader"
+  !insertmacro BOTRACING_REMOVE_TASK "LapRecorder"
+  ; The tray wait and the exe-writable check come last: they were first, and the two task rounds above (a
+  ; process start each) sat between "the exe is free" and the file write, long enough for a scanner to open it.
+  !insertmacro BOTRACING_LOG_LINE "waiting for the tray and the exe (update mode $UpdateMode)"
   ${If} $UpdateMode <> 1
     !insertmacro BOTRACING_QUIT_TRAY
   ${Else}
     !insertmacro BOTRACING_WAIT_TRAY_GONE
   ${EndIf}
-  !insertmacro BOTRACING_REMOVE_TASK "LapUploader"
-  !insertmacro BOTRACING_REMOVE_TASK "LapRecorder"
+  !insertmacro BOTRACING_LOG_LINE "exe free (update mode $UpdateMode)"
+  !insertmacro BOTRACING_TEST_SEAM "PAUSE_AFTER_CHECK"
+  !insertmacro BOTRACING_MOVE_EXE_ASIDE
+  !insertmacro BOTRACING_TEST_SEAM "PAUSE_AFTER_MOVE"
+  !insertmacro BOTRACING_TEST_SEAM "FAIL_AFTER_MOVE"
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
+  ; Still held by whatever blocked the write: left for the next run, which deletes it first.
+  Delete "$INSTDIR\${MAINBINARYNAME}.exe.old"
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
@@ -174,6 +268,8 @@
   ${Else}
     !insertmacro BOTRACING_WAIT_TRAY_GONE
   ${EndIf}
+  ; Before the template removes the folder (RMDir $INSTDIR), which an .old would keep.
+  Delete "$INSTDIR\${MAINBINARYNAME}.exe.old"
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL

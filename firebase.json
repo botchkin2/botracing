@@ -27,6 +27,13 @@
         }
       },
       {
+        "source": "/api/me",
+        "function": {
+          "functionId": "dataApi",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/sessions",
         "function": {
           "functionId": "dataApi",

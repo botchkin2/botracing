@@ -18,6 +18,7 @@ import {trayDownloadUrl, useTrayRelease} from '@/src/data/tray';
 import {readFailure} from '@/src/data/queryState';
 import {updateReady, useUploaders} from '@/src/data/uploaders';
 import {useSectionPrefs, sectionModeOf} from '@/src/state/sectionPrefs';
+import {useSendNote} from '@/src/workspace/useSendNote';
 import {OfflineLine, Button, Pressable, Segment, Text} from '@/src/ui';
 
 import {
@@ -65,6 +66,8 @@ export function SettingsScreen() {
 
       <Problems rows={model.problems} />
 
+      <SendNote />
+
       <Text variant='label' tone='textMuted' style={styles.section}>
         Uploader
       </Text>
@@ -98,6 +101,21 @@ export function SettingsScreen() {
         Version {model.version}
       </Text>
     </ScrollView>
+  );
+}
+
+// His account only (the API says so): opens GitHub's note form with the facts
+// of this moment filled in (workspace/useSendNote).
+function SendNote() {
+  const send = useSendNote();
+  if (!send) return null;
+  return (
+    <>
+      <Text variant='label' tone='textMuted' style={styles.section}>
+        Notes
+      </Text>
+      <Button label='Send a note' kind='outline' onPress={send} />
+    </>
   );
 }
 

@@ -78,3 +78,17 @@ test('editing the gate itself needs proof; the template and README do not', () =
   assert.deepEqual(r.device.map(f => f.reaches), ['gate', 'gate', 'gate']);
   assert.deepEqual(deviceFiles(['.github/pull_request_template.md', 'tools/ci/waitForDeploys.mjs']), []);
 });
+
+test('a dependabot PR passes with a notice, whatever its body; anyone else still needs the section', () => {
+  const files = ['package.json', 'package-lock.json', 'desktop/src-tauri/Cargo.lock'];
+  const bot = checkShipProof({files, body: 'Bumps esbuild from 0.25.0 to 0.28.0.', commits, head: HEAD, author: 'dependabot[bot]'});
+  assert.equal(bot.ok, true);
+  assert.deepEqual(bot.problems, []);
+  assert.match(bot.notes[0], /dependency bump: the seat that takes it adds the proof/);
+  assert.equal(bot.device.length, 3);
+  for (const author of ['botchkin2', 'dependabot', 'not-dependabot[bot]', null]) {
+    const r = checkShipProof({files, body: 'Bumps esbuild.', commits, head: HEAD, author});
+    assert.equal(r.ok, false, String(author));
+    assert.match(r.problems[0], /no "## Proof where he uses it" section/);
+  }
+});

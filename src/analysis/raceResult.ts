@@ -13,6 +13,7 @@
 // whether the race was finished is read from the leader: if the leader crossed
 // the line after the player's last crossing, the player left early.
 
+import type {ResultsDriver} from './classPace.ts';
 import {ABSENT, type Field} from './field.ts';
 import {lapLabel} from './lapNumbering.ts';
 
@@ -66,6 +67,8 @@ export interface FinishDoc {
   version: number;
   kind: 'race' | 'other';
   finish: FinishPosition | null;
+  /** Where the place came from: the game's results file (its own classification, the referee) or the recorded field. Absent on a doc written before the file was read. */
+  source?: 'results' | 'field';
 }
 
 const kindOf = (sessionType: string): FinishDoc['kind'] =>
@@ -155,7 +158,61 @@ export function finishDoc(field: ResultField, sessionType: string): FinishDoc {
     version: FINISH_VERSION,
     kind,
     finish: kind === 'race' ? finishPosition(field) : null,
+    source: 'field',
   };
+}
+
+/** The game's own finish for a race from the results input's drivers (v2): his overall and class place, the classified counts, his laps and the leaders', and whether he left early (a FinishStatus other than "Finished Normally"). Null without his row or his overall place. */
+export function finishFromResults(
+  drivers: readonly ResultsDriver[] | null | undefined,
+): FinishPosition | null {
+  const me = drivers?.find(d => d.player);
+  if (!drivers || !me || me.overall == null || me.pos == null) return null;
+  const lapsOf = (d: ResultsDriver) => d.laps.length;
+  const mine = drivers.filter(d => d.cls === me.cls);
+  return {
+    overall: me.overall,
+    inClass: me.pos,
+    ofOverall: drivers.length,
+    ofClass: mine.length,
+    lapsDone: lapsOf(me),
+    leaderLapsDone: Math.max(...drivers.map(lapsOf)),
+    classLeaderLapsDone: me.cls.trim() ? Math.max(...mine.map(lapsOf)) : null,
+    leftEarly: me.status != null && me.status !== 'Finished Normally',
+  };
+}
+
+/** The game's FinishStatus of a driver it classified. */
+const FINISHED = 'Finished Normally';
+
+/**
+ * The race's stored `result`: the game's results file's when it classified the
+ * race, else the field's as it stood (null with neither). The one rule, in one
+ * place (thread 111 #7739, #7765, #7771; store.mjs calls it once):
+ *  - the file is a classification only if the game classified someone, a driver
+ *    whose FinishStatus is "Finished Normally". Of his 125 race files 52 have none:
+ *    snapshots the game wrote when he left (Daytona 2026-09-29: 61 of 62 "None"),
+ *    not the referee's verdict, so the field's result stands there; the other 73
+ *    have finishers and no grey zone, and take the file's;
+ *  - and the file must be able to place him (an input from before `overall` existed,
+ *    a v1 input, no row of his: the field's stands).
+ * No FINISH_VERSION bump: a session gets the file's finish when its v2 input arrives.
+ */
+export function finishOf(input: {
+  drivers: readonly ResultsDriver[] | null | undefined;
+  sessionType: string;
+  field: FinishDoc | null;
+}): FinishDoc | null {
+  const {drivers, sessionType} = input;
+  if (
+    kindOf(sessionType) === 'race' &&
+    drivers?.some(d => d.status === FINISHED)
+  ) {
+    const finish = finishFromResults(drivers);
+    if (finish)
+      return {version: FINISH_VERSION, kind: 'race', finish, source: 'results'};
+  }
+  return input.field;
 }
 
 /** Whether a stored `result` can be kept: this version of the rule, for this kind of session. */
@@ -166,6 +223,18 @@ export function finishCurrent(
   return (
     stored?.version === FINISH_VERSION && stored.kind === kindOf(sessionType)
   );
+}
+
+/**
+ * The race's result as a line a header prints: "Finished P5 · P1 in class", or the
+ * list row's words for a race he left early. The Session head's line and the Race
+ * tab's header are both this one string (livery #7757, chassis #7777), so the two
+ * never say two places for him.
+ */
+export function finishedText(finish: FinishPosition | null): string | null {
+  const text = raceResultText(finish);
+  // A race he left early reads as the Sessions list row does, with no "Finished" (livery #7778).
+  return text && finish && !finish.leftEarly ? `Finished ${text}` : text;
 }
 
 /**

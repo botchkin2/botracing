@@ -28,6 +28,12 @@ on:
 permissions:
   contents: read
   actions: read
+
+# One hosting release at a time, in push order (see firebase-functions-deploy.yml).
+concurrency:
+  group: hosting-merge
+  cancel-in-progress: false
+
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
