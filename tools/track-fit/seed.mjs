@@ -32,6 +32,12 @@ for (const [trackId, fit] of Object.entries(fits)) {
       (hasOutline ? `, outline -> ${path}` : ', no outline (run fit.py)'),
   );
   if (!write) continue;
+  // A georef on a track with no corner map would make a doc of only a georef; it waits for its map.
+  const map = (await db.collection('tracks').doc(trackId).get()).data();
+  if (!map?.corners?.length) {
+    console.log(`  skipped ${trackId}: no corner map on the track doc yet`);
+    continue;
+  }
   if (hasOutline) {
     await bucket.file(path).save(gzipSync(readFileSync(local), {level: 9}), {
       resumable: false,
