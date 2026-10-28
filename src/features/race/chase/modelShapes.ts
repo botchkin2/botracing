@@ -212,13 +212,14 @@ export const HYPER_MODELS: ModelEntry[] = [
     match: /499p/,
     example: 'Ferrari 499P',
     params: {
+      endPlate: {h: 0.35, sweep: 0},
       tailW: 0.04,
       tailTopW: 0.08,
       lengthM: 5.1,
       wheelbaseM: 3.15,
       noseH: -0.08,
-      wingKind: 'pylons',
-      wingH: 0.45,
+      wingKind: 'wide',
+      wingH: 0.3,
       wingSpan: 1.1,
       bulges: [{x: 1.25, len: 1.7, z: 0.74, w: 0.42, h: 0.34}],
     },
@@ -268,6 +269,8 @@ export const HYPER_MODELS: ModelEntry[] = [
     example: 'Toyota TR010',
     params: {
       fenderW: 0.12,
+      wingKind: 'pylon',
+      wingH: 0.3,
       tailTopW: -0.1,
       lengthM: 4.9,
       wheelbaseM: 3.15,
@@ -318,6 +321,27 @@ export const HYPER_MODELS: ModelEntry[] = [
       finH: 0.5,
       bulges: [{x: 1.0, len: 1.5, z: 0.7, w: 0.3, h: 0.1}],
     },
+    // a Y at each rear corner
+    tailLights: [
+      [
+        [-0.72, 0.52],
+        [-0.58, 0.36],
+        [-0.44, 0.52],
+      ],
+      [
+        [-0.58, 0.36],
+        [-0.58, 0.2],
+      ],
+      [
+        [0.72, 0.52],
+        [0.58, 0.36],
+        [0.44, 0.52],
+      ],
+      [
+        [0.58, 0.36],
+        [0.58, 0.2],
+      ],
+    ],
   },
   {
     // LMDh: a tall, blunt, upright nose between upright fender crests, the cabin set far back; blades on the front and rear
@@ -338,6 +362,17 @@ export const HYPER_MODELS: ModelEntry[] = [
         {x: -1.5, len: 1.1, z: 0.82, w: 0.2, h: 0.32},
       ],
     },
+    // vertical blades down the rear corners of the tail
+    tailLights: [
+      [
+        [-0.78, 0.18],
+        [-0.78, 0.52],
+      ],
+      [
+        [0.78, 0.18],
+        [0.78, 0.52],
+      ],
+    ],
   },
   {
     // LMDh: a wide, tall kidney nose between separate front fender pods; the wing between very tall end plates joined to a
@@ -346,15 +381,16 @@ export const HYPER_MODELS: ModelEntry[] = [
     match: /m hybrid/,
     example: 'BMW M Hybrid V8',
     params: {
-      endPlate: {h: 0.3, sweep: 0},
+      tailW: -0.1,
+      tailTopW: -0.12,
       lengthM: 4.99,
       wheelbaseM: 3.148,
       noseH: 0.14,
       noseW: 0.2,
       noseLen: -0.1,
       finH: 1.7,
-      wingKind: 'wide',
-      wingH: 0.3,
+      wingKind: 'pylons',
+      wingH: 0.45,
       wingSpan: 1.05,
       bulges: [{x: 1.3, len: 1.1, z: 0.82, w: 0.3, h: 0.2}],
     },
@@ -376,6 +412,13 @@ export const HYPER_MODELS: ModelEntry[] = [
       wingKind: 'pylons',
       wingH: 0.25,
     },
+    // the full-width light bar across the tail
+    tailLights: [
+      [
+        [-0.82, 0.44],
+        [0.82, 0.44],
+      ],
+    ],
   },
   {
     // LMDh (Oreca chassis): the broadest flat nose running straight into tall fender crests, the tallest square wing end
@@ -396,6 +439,17 @@ export const HYPER_MODELS: ModelEntry[] = [
       wingSpan: 1.2,
       bulges: [{x: 1.15, len: 1.4, z: 0.76, w: 0.32, h: 0.36}],
     },
+    // two horizontal lines across the tail (the "two-line" lights)
+    tailLights: [
+      [
+        [-0.8, 0.5],
+        [0.8, 0.5],
+      ],
+      [
+        [-0.8, 0.36],
+        [0.8, 0.36],
+      ],
+    ],
   },
   {
     // LMDh: tall rounded front fender crests around a small bubble canopy with a roof intake, a long flat fin

@@ -560,10 +560,10 @@ describe('the tail light lines', () => {
   );
   it('a model without lights has none, and a light line never adds a draw', () => {
     const kit = createCarKit(COLORS);
-    const plain = shapeFor('Porsche 963', 'Hyper').shape;
+    const plain = shapeFor('Ferrari 499P', 'Hyper').shape;
     expect(lightSegments(plain)).toEqual([]);
     const lit = kit.make('Hyper', '#e64343', false, 'Alpine A424');
-    const dark = kit.make('Hyper', '#e64343', false, 'Porsche 963');
+    const dark = kit.make('Hyper', '#e64343', false, 'Ferrari 499P');
     expect(lit.children).toHaveLength(dark.children.length);
     kit.dispose();
   });
@@ -590,7 +590,7 @@ describe('the wing end plates', () => {
     kit.dispose();
     return {...out, plate};
   };
-  it.each(['Genesis GMR-001', 'BMW M Hybrid V8', 'Alpine A424'])(
+  it.each(['Genesis GMR-001', 'Ferrari 499P', 'Alpine A424'])(
     '%s: a plate stands at each wing end, rising h above the wing',
     vehicle => {
       const {top, bottom, plate} = plateVertices(vehicle);
