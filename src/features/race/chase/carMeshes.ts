@@ -307,14 +307,52 @@ function buildClass(ground: [number, number], c: ClassShape): ClassKit {
   };
 }
 
-/** A light line is this many times brighter than its car's outline (three.js multiplies the vertex colour by the material's; the screen clamps it). */
-export const LIGHT_GAIN = 2.2;
+/**
+ * The vertex colour that marks a light vertex in the body-edges buffer (an outline vertex is 1). The material turns a
+ * marked vertex into its car's colour at full brightness, hue and saturation held: paint / max(r, g, b) (steward #8229,
+ * #8272; scout #8241). A plain gain clamps a channel and pulls the colour toward white, and white-hot is his car's alone.
+ */
+export const LIGHT_FLAG = 2;
+
+/** `color` at its brightest with the same hue and saturation: the top channel at 1 and the ratios kept (linear light, as the shader works). */
+export function lightColor(color: THREE.Color): THREE.Color {
+  const top = Math.max(color.r, color.g, color.b, 1e-3);
+  return new THREE.Color(color.r / top, color.g / top, color.b / top);
+}
+
+/**
+ * Patches the body-edges material's fragment shader: where `vColor.r` is LIGHT_FLAG the fragment takes lightColor of
+ * the material's own colour, elsewhere it stays the material's colour. One program for every body-edges material, still
+ * one LineSegments a car. The GLSL mirrors lightColor above.
+ */
+export function patchBodyEdges(mat: THREE.LineBasicMaterial): void {
+  mat.onBeforeCompile = shader => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <color_fragment>',
+      `#ifdef USE_COLOR
+  float lightTop = max(max(diffuse.r, diffuse.g), max(diffuse.b, 0.001));
+  diffuseColor.rgb = vColor.r > ${(LIGHT_FLAG * 0.75).toFixed(
+    2,
+  )} ? diffuse / lightTop : diffuse;
+#endif`,
+    );
+  };
+  mat.customProgramCacheKey = () => 'bodyEdgesLights';
+}
+
+function bodyEdgesMaterial(
+  color: THREE.Color,
+  see: object,
+): THREE.LineBasicMaterial {
+  const mat = new THREE.LineBasicMaterial({color, vertexColors: true, ...see});
+  patchBodyEdges(mat);
+  return mat;
+}
 
 /**
  * A line geometry with more segments appended to it, so they ride the same draw, and a colour attribute: 1 for every
- * outline vertex, LIGHT_GAIN for the appended light lines, so the lights lead at a distance where the outline is a
- * smear (steward #8229). The colour attribute is on every body-edges geometry, because the material that draws them
- * reads vertex colours.
+ * outline vertex, LIGHT_FLAG for the appended light lines. The colour attribute is on every body-edges geometry, because
+ * the material that draws them reads vertex colours.
  */
 function withSegments(
   edges: THREE.BufferGeometry,
@@ -323,9 +361,9 @@ function withSegments(
   const at = edges.getAttribute('position');
   const pos = new Float32Array(at.count * 3 + segments.length * 6);
   pos.set(at.array as Float32Array, 0);
-  segments.forEach((s, i) => pos.set(s, at.count * 3 + i * 6));
+  segments.forEach((seg, i) => pos.set(seg, at.count * 3 + i * 6));
   const colors = new Float32Array(pos.length).fill(1);
-  colors.fill(LIGHT_GAIN, at.count * 3);
+  colors.fill(LIGHT_FLAG, at.count * 3);
   edges.dispose();
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -474,11 +512,7 @@ export function createCarKit(colors: {
           side: THREE.DoubleSide,
           ...see,
         }),
-        bodyEdges: new THREE.LineBasicMaterial({
-          color: edge,
-          vertexColors: true,
-          ...see,
-        }),
+        bodyEdges: bodyEdgesMaterial(edge, see),
         cabinEdges: new THREE.LineBasicMaterial({color: cabinEdge, ...see}),
         tick: new THREE.LineBasicMaterial({color: paint, ...see}),
         halo: new THREE.MeshBasicMaterial({

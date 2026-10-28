@@ -3,13 +3,15 @@ import * as THREE from 'three';
 
 import {
   carOutline,
-  LIGHT_GAIN,
+  LIGHT_FLAG,
+  lightColor,
+  patchBodyEdges,
   createCarKit,
   mixSrgb,
   shellOf,
   tickSegment,
 } from './carMeshes';
-import {modelPaint} from './carPaint';
+import {PAINTS, colorGap, modelPaint, toOklab} from './carPaint';
 import {SHAPES, lightSegments, shapeFor} from './carShapes';
 import {MODELS} from './modelShapes';
 
@@ -579,7 +581,7 @@ describe('lights lead the outline', () => {
     ['GT3', 'Porsche 911 GT3 R LMGT3'],
     ['Hyper', 'Alpine A424'],
   ])(
-    '%s %s: the outline is 1 and each light vertex is LIGHT_GAIN, in the one body-edges buffer',
+    '%s %s: the outline is 1 and each light vertex is LIGHT_FLAG, in the one body-edges buffer',
     (cls, vehicle) => {
       const kit = createCarKit(COLORS);
       const car = kit.make(cls, '#e64343', false, vehicle);
@@ -592,7 +594,7 @@ describe('lights lead the outline', () => {
       expect(lights).toBeGreaterThan(0);
       for (let i = 0; i < edges.count; i++)
         expect(color.getX(i)).toBe(
-          Math.fround(i >= edges.count - lights ? LIGHT_GAIN : 1),
+          Math.fround(i >= edges.count - lights ? LIGHT_FLAG : 1),
         );
       const mat = (car.children[3] as THREE.LineSegments)
         .material as THREE.LineBasicMaterial;
@@ -608,8 +610,47 @@ describe('lights lead the outline', () => {
     for (let i = 0; i < color.count; i++) expect(color.getX(i)).toBe(1);
     kit.dispose();
   });
-  it('a light line is brighter than the car colour it multiplies, and the gain is a real brightening', () => {
-    expect(LIGHT_GAIN).toBeGreaterThan(1.5);
+  it('the light colour is the paint at full brightness with the hue held, and stays well away from his white-hot, for every class colour and every model colour', () => {
+    const hue = (hex: string) => {
+      const lab = toOklab(hex)!;
+      return (Math.atan2(lab[2], lab[1]) * 180) / Math.PI;
+    };
+    const classes = COLORS.classes;
+    for (const anchor of classes)
+      for (let i = 0; i < PAINTS; i++) {
+        const paint = new THREE.Color(
+          modelPaint(
+            anchor,
+            classes.filter(c => c !== anchor),
+            i,
+          ),
+        );
+        const light = lightColor(paint);
+        // the top channel is at 1 and the ratios are the paint's: the hue and saturation do not move
+        expect(Math.max(light.r, light.g, light.b)).toBeCloseTo(1, 6);
+        const top = Math.max(paint.r, paint.g, paint.b);
+        expect(light.r).toBeCloseTo(paint.r / top, 6);
+        expect(light.g).toBeCloseTo(paint.g / top, 6);
+        expect(light.b).toBeCloseTo(paint.b / top, 6);
+        const p = '#' + paint.getHexString();
+        const l = '#' + light.getHexString();
+        const turn = Math.abs(((hue(l) - hue(p) + 540) % 360) - 180);
+        expect(turn).toBeLessThan(3);
+        expect(colorGap(l, '#ffffff')).toBeGreaterThanOrEqual(15);
+      }
+  });
+  it('the body-edges material patches its shader: a marked vertex takes the light colour, the program is its own', () => {
+    const mat = new THREE.LineBasicMaterial({vertexColors: true});
+    patchBodyEdges(mat);
+    const shader = {fragmentShader: 'a\n#include <color_fragment>\nb'};
+    (mat.onBeforeCompile as (s: typeof shader, r: unknown) => void)(
+      shader,
+      null,
+    );
+    expect(shader.fragmentShader).not.toContain('#include <color_fragment>');
+    expect(shader.fragmentShader).toContain('diffuse / lightTop');
+    expect(shader.fragmentShader).toContain('vColor.r > 1.50');
+    expect(mat.customProgramCacheKey()).toBe('bodyEdgesLights');
   });
 });
 
