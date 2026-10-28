@@ -8,7 +8,7 @@ import {buildRoadScene, disposeGroup} from './roadScene';
 
 const theme = {
   bg: '#000000', fill: '#222222', edge: '#555555', edgeFaint: '#333333', grid: '#111111',
-  text: '#ffffff', muted: '#888888', line: '#444444', accent: '#fea92f', good: '#00ff00', bad: '#ff0000',
+  text: '#ffffff', muted: '#888888', line: '#444444', accent: '#fea92f', good: '#00ff00', bad: '#ff0000', classes: [],
 };
 
 describe('road scene', () => {
