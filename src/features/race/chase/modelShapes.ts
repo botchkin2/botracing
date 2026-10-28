@@ -46,11 +46,11 @@ export const GT3_MODELS: ModelEntry[] = [
       tailRound: 0.8,
       wingSpan: 0.95,
     },
-    // the full-width light bar across the tail (read from the 911 rear render)
+    // one straight full-width bar, high under the deck lid (scout #8286, real rear photos)
     tailLights: [
       [
-        [-0.8, 0.46],
-        [0.8, 0.46],
+        [-0.8, 0.6],
+        [0.8, 0.6],
       ],
     ],
   },
@@ -77,17 +77,31 @@ export const GT3_MODELS: ModelEntry[] = [
       tailTopW: 0,
       wingSpan: 1.05,
     },
-    // an L at each corner (read from the M4 rear render)
+    // three thin stacked horizontal strips at each upper corner, wrapping slightly round it; no L (scout #8286)
     tailLights: [
       [
-        [-0.82, 0.52],
-        [-0.82, 0.3],
-        [-0.55, 0.3],
+        [-0.84, 0.66],
+        [-0.42, 0.66],
       ],
       [
-        [0.82, 0.52],
-        [0.82, 0.3],
-        [0.55, 0.3],
+        [0.84, 0.66],
+        [0.42, 0.66],
+      ],
+      [
+        [-0.86, 0.6],
+        [-0.42, 0.6],
+      ],
+      [
+        [0.86, 0.6],
+        [0.42, 0.6],
+      ],
+      [
+        [-0.84, 0.54],
+        [-0.42, 0.54],
+      ],
+      [
+        [0.84, 0.54],
+        [0.42, 0.54],
       ],
     ],
   },
@@ -111,31 +125,31 @@ export const GT3_MODELS: ModelEntry[] = [
       tailTopW: 0.16,
       wingSpan: 1.05,
     },
-    // three vertical bars at each corner (the Mustang tail lamp; no rear render of the race car was seen)
+    // three vertical bars per side at the upper corners (the Mustang tri-bar; telemetry named it from these alone)
     tailLights: [
       [
-        [-0.82, 0.28],
-        [-0.82, 0.5],
+        [-0.84, 0.42],
+        [-0.84, 0.66],
       ],
       [
-        [-0.7, 0.28],
-        [-0.7, 0.5],
+        [-0.72, 0.42],
+        [-0.72, 0.66],
       ],
       [
-        [-0.58, 0.28],
-        [-0.58, 0.5],
+        [-0.6, 0.42],
+        [-0.6, 0.66],
       ],
       [
-        [0.58, 0.28],
-        [0.58, 0.5],
+        [0.6, 0.42],
+        [0.6, 0.66],
       ],
       [
-        [0.7, 0.28],
-        [0.7, 0.5],
+        [0.72, 0.42],
+        [0.72, 0.66],
       ],
       [
-        [0.82, 0.28],
-        [0.82, 0.5],
+        [0.84, 0.42],
+        [0.84, 0.66],
       ],
     ],
   },
@@ -158,23 +172,31 @@ export const GT3_MODELS: ModelEntry[] = [
       tailTopW: 0.16,
       wingSpan: 1.15,
     },
-    // two stacked bars at each corner (read from the Z06 GT3.R rear render)
+    // two stacked angular wedges per side, pointing outward at the upper corners (scout #8286)
     tailLights: [
       [
-        [-0.82, 0.4],
-        [-0.5, 0.4],
+        [-0.5, 0.66],
+        [-0.84, 0.6],
+        [-0.5, 0.55],
+        [-0.5, 0.66],
       ],
       [
-        [-0.82, 0.3],
-        [-0.5, 0.3],
+        [0.5, 0.66],
+        [0.84, 0.6],
+        [0.5, 0.55],
+        [0.5, 0.66],
       ],
       [
-        [0.5, 0.4],
-        [0.82, 0.4],
+        [-0.5, 0.5],
+        [-0.84, 0.44],
+        [-0.5, 0.39],
+        [-0.5, 0.5],
       ],
       [
-        [0.5, 0.3],
-        [0.82, 0.3],
+        [0.5, 0.5],
+        [0.84, 0.44],
+        [0.5, 0.39],
+        [0.5, 0.5],
       ],
     ],
   },
@@ -198,15 +220,15 @@ export const GT3_MODELS: ModelEntry[] = [
       tailTopW: -0.14,
       wingSpan: 0.85,
     },
-    // a short strip at each corner (read from the 720S rear render)
+    // thin blades high at each corner, swept upward toward the outside (scout #8286)
     tailLights: [
       [
-        [-0.78, 0.5],
-        [-0.5, 0.5],
+        [-0.5, 0.56],
+        [-0.84, 0.68],
       ],
       [
-        [0.5, 0.5],
-        [0.78, 0.5],
+        [0.5, 0.56],
+        [0.84, 0.68],
       ],
     ],
   },
@@ -233,19 +255,17 @@ export const GT3_MODELS: ModelEntry[] = [
       tailTopW: 0,
       wingSpan: 1.15,
     },
-    // a C-shaped bracket at each corner, opening inward (stylised: no rear render of the lamp was read)
+    // an L at each corner: a vertical outer stroke and a horizontal inner arm (scout #8286)
     tailLights: [
       [
-        [-0.5, 0.52],
-        [-0.82, 0.52],
-        [-0.82, 0.34],
-        [-0.5, 0.34],
+        [-0.82, 0.68],
+        [-0.82, 0.44],
+        [-0.52, 0.44],
       ],
       [
-        [0.5, 0.52],
-        [0.82, 0.52],
-        [0.82, 0.34],
-        [0.5, 0.34],
+        [0.82, 0.68],
+        [0.82, 0.44],
+        [0.52, 0.44],
       ],
     ],
   },
@@ -266,21 +286,13 @@ export const GT3_MODELS: ModelEntry[] = [
       tailTopW: 0,
       wingSpan: 0.95,
     },
-    // a small ring at each corner (the 296 rear render shows round lamps)
+    // a mid-height bar with short up-turned tips (scout #8286)
     tailLights: [
       [
-        [-0.78, 0.42],
-        [-0.7, 0.5],
-        [-0.62, 0.42],
-        [-0.7, 0.34],
-        [-0.78, 0.42],
-      ],
-      [
-        [0.62, 0.42],
-        [0.7, 0.5],
-        [0.78, 0.42],
-        [0.7, 0.34],
-        [0.62, 0.42],
+        [-0.84, 0.5],
+        [-0.76, 0.38],
+        [0.76, 0.38],
+        [0.84, 0.5],
       ],
     ],
   },
@@ -301,15 +313,15 @@ export const GT3_MODELS: ModelEntry[] = [
       tailTopW: 0,
       wingSpan: 0.85,
     },
-    // one long slim blade at each side, rising inward (stylised: no rear render of the lamp was read)
+    // thin, narrow horizontal slivers low at the outer corners (scout #8286)
     tailLights: [
       [
-        [-0.84, 0.44],
-        [-0.3, 0.52],
+        [-0.84, 0.3],
+        [-0.6, 0.3],
       ],
       [
-        [0.84, 0.44],
-        [0.3, 0.52],
+        [0.84, 0.3],
+        [0.6, 0.3],
       ],
     ],
   },
@@ -331,13 +343,14 @@ export const GT3_MODELS: ModelEntry[] = [
       tailTopW: 0,
       endPlate: {h: 0.2, sweep: 0.12},
     },
-    // a full-width strip with its ends turned up (read from the Vantage rear render)
+    // one full-width blade that drops at both ends (scout #8286)
     tailLights: [
       [
-        [-0.8, 0.5],
-        [-0.8, 0.36],
-        [0.8, 0.36],
-        [0.8, 0.5],
+        [-0.82, 0.46],
+        [-0.7, 0.54],
+        [0, 0.58],
+        [0.7, 0.54],
+        [0.82, 0.46],
       ],
     ],
   },
@@ -361,15 +374,31 @@ export const GT3_MODELS: ModelEntry[] = [
       tailTopW: -0.14,
       wingSpan: 0.85,
     },
-    // an angled slash at each corner (read from the Huracan rear close-up)
+    // a Y at each corner: a horizontal line that forks at its inner end (scout #8286)
     tailLights: [
       [
-        [-0.84, 0.52],
-        [-0.58, 0.38],
+        [-0.84, 0.5],
+        [-0.55, 0.5],
       ],
       [
-        [0.84, 0.52],
-        [0.58, 0.38],
+        [0.84, 0.5],
+        [0.55, 0.5],
+      ],
+      [
+        [-0.55, 0.5],
+        [-0.42, 0.58],
+      ],
+      [
+        [0.55, 0.5],
+        [0.42, 0.58],
+      ],
+      [
+        [-0.55, 0.5],
+        [-0.42, 0.42],
+      ],
+      [
+        [0.55, 0.5],
+        [0.42, 0.42],
       ],
     ],
   },
