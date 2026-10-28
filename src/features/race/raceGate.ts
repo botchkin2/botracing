@@ -21,6 +21,10 @@ export type RaceGate =
  */
 export type LineState = 'pending' | 'drawn' | 'failed' | 'missing';
 
+/** An iRacing race's field comes only from the tray's live recorder (an .ibt holds no other cars), so an older race has none (pit-wall thread 123, ticket 61). */
+export const IRACING_NO_FIELD_WHY =
+  'Other cars: not recorded. This race is from before the recorder.';
+
 /**
  * The field hash the Race screen loads, and the line its empty state shows.
  * A garbage mark is stored and not drawn: the gate sees no field, and `why`
@@ -29,6 +33,7 @@ export type LineState = 'pending' | 'drawn' | 'failed' | 'missing';
 export function raceScreenField(
   detail:
     | {
+        sim?: string;
         field?: {
           hash?: string | null;
           mark?: {kind?: string} | null;
@@ -42,8 +47,11 @@ export function raceScreenField(
   const field = detail?.field;
   const hide = field?.mark?.kind === 'garbage';
   return {
-    hash: hide ? null : (field?.hash ?? null),
-    why: field?.note ?? detail?.fieldMissing ?? null,
+    hash: hide ? null : field?.hash ?? null,
+    why:
+      field?.note ??
+      detail?.fieldMissing ??
+      (detail?.sim === 'iracing' ? IRACING_NO_FIELD_WHY : null),
   };
 }
 

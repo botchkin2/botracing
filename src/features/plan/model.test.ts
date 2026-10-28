@@ -123,7 +123,15 @@ describe('veRatioFor', () => {
     key: 'wedR',
     sessionIds: ['wedR'],
     newestAt: '2026-10-22T16:39:00Z',
-    ratio: {perPctL: 0.625, from: {id: 'wedR', startedAt: '2026-10-22T16:39:00Z', sessionType: 'R', online: null}},
+    ratio: {
+      perPctL: 0.625,
+      from: {
+        id: 'wedR',
+        startedAt: '2026-10-22T16:39:00Z',
+        sessionType: 'R',
+        online: null,
+      },
+    },
     fromPracticeOnly: false,
     stopRatio: 0.609,
     mostRunL: 73,
@@ -142,8 +150,16 @@ describe('veRatioFor', () => {
   });
 
   it('prefers the preset ratio', () => {
-    const preset = newPreset('X', {veRatio: 0.68}, 'p1', '2026-09-26T00:00:00Z');
-    expect(veRatioFor(preset, rules)).toEqual({perPctL: 0.68, source: {kind: 'preset'}});
+    const preset = newPreset(
+      'X',
+      {veRatio: 0.68},
+      'p1',
+      '2026-09-26T00:00:00Z',
+    );
+    expect(veRatioFor(preset, rules)).toEqual({
+      perPctL: 0.68,
+      source: {kind: 'preset'},
+    });
   });
 
   it('is null with neither', () => {
@@ -366,6 +382,43 @@ describe('parseNumber', () => {
   it('refuses empty, zero, negative and text', () => {
     for (const bad of ['', ' ', '0', '-3', 'abc', '1e999', '7.7.7'])
       expect(parseNumber(bad)).toBeNull();
+  });
+});
+
+describe('a fuel-only plan (a sim that records no VE)', () => {
+  const noVeLaps: GreenLap[] = Array.from({length: 10}, (_, i) => ({
+    fuelL: 3.5,
+    vePct: null,
+    lapTimeS: 110,
+    sessionId: i % 2 ? 'a' : 'b',
+  }));
+  const r = rulesFor(
+    null,
+    {kind: 'laps', value: 30},
+    sessionFuel({startL: 84, fillLimitL: 84, tankL: null}),
+  )!;
+  const view = (fuelOnlySim: boolean) =>
+    planView(
+      null,
+      r,
+      planRace(r.rules, noVeLaps),
+      {
+        since: null,
+        lastFillLimitL: null,
+        ratio: null,
+        lastRatio: null,
+        ratioLoadsL: [],
+        eventText: 'Rules from your race, Aug 28 \u00b7 Road Atlanta',
+        drift: null,
+        fuelOnly: fuelOnlySim,
+      },
+      'fuel',
+    );
+  it("prints no VE words: no 'this week's rules' line under a fuel-only plan", () => {
+    expect(view(true).basis.ratio).toBeNull();
+  });
+  it('still says why when a VE sim has no VE measured under the rules', () => {
+    expect(view(false).basis.ratio).toBe(NO_VE_MEASURED);
   });
 });
 
@@ -675,7 +728,11 @@ describe('a stored preset VE % is kept but not applied (thread 104)', () => {
   it('rulesFor plans on a full VE load whatever the preset holds', () => {
     const old = newPreset('Old', {vePct: 80}, 'p1', '2026-09-26T00:00:00Z');
     expect(old.vePct).toBe(80);
-    const rules = rulesFor({...old, fuelL: 75}, {kind: 'min', value: 60}, null)!;
+    const rules = rulesFor(
+      {...old, fuelL: 75},
+      {kind: 'min', value: 60},
+      null,
+    )!;
     expect(rules.rules.vePct).toBe(100);
     // the stored preset is untouched
     expect(old.vePct).toBe(80);
@@ -684,9 +741,22 @@ describe('a stored preset VE % is kept but not applied (thread 104)', () => {
 
 describe('under a rule set the tank is never the load (thread 104)', () => {
   // A live online practice: the capture reports the car's own 117 L tank, no fill limit, a start of 78.9 L.
-  const livePractice = {startL: 78.9, fillLimitL: null, tankL: 117, litresPerVePct: 0.839, litresPerVePctStop: null, setupVePct: null, setupVePerLapPct: null};
+  const livePractice = {
+    startL: 78.9,
+    fillLimitL: null,
+    tankL: 117,
+    litresPerVePct: 0.839,
+    litresPerVePctStop: null,
+    setupVePct: null,
+    setupVePerLapPct: null,
+  };
   const length = {kind: 'min' as const, value: 60};
-  const laps: GreenLap[] = Array.from({length: 10}, () => ({fuelL: 3.6, vePct: 4.3, lapTimeS: 123, sessionId: 's'}));
+  const laps: GreenLap[] = Array.from({length: 10}, () => ({
+    fuelL: 3.6,
+    vePct: 4.3,
+    lapTimeS: 123,
+    sessionId: 's',
+  }));
 
   it('a rule set made of one live practice has no load: not 117 L, not the practice start', () => {
     const last = lastFuelOf(livePractice, null, true)!;
@@ -714,16 +784,28 @@ describe('under a rule set the tank is never the load (thread 104)', () => {
     expect(view.rulesLine).toBe('Rules from your practice, Oct 21');
     expect(view.rulesLine).not.toMatch(/117|83\.9|167|125/);
     // no Max fuel cell, no litres anywhere in the rules cells
-    expect(rulesCells(rules.rules, true).map(c => c.label)).not.toContain('Max fuel');
+    expect(rulesCells(rules.rules, true).map(c => c.label)).not.toContain(
+      'Max fuel',
+    );
   });
 
   it('a fuel-only car (no ratio, so no VE allowance) with no load still needs fuel', () => {
-    const last = lastFuelOf({...livePractice, litresPerVePct: null}, null, false)!;
-    expect(rulesFor(null, length, {...last, startL: null, tankL: null}, {}, false)).toBeNull();
+    const last = lastFuelOf(
+      {...livePractice, litresPerVePct: null},
+      null,
+      false,
+    )!;
+    expect(
+      rulesFor(null, length, {...last, startL: null, tankL: null}, {}, false),
+    ).toBeNull();
   });
 
   it('a rule set with a most-run load plans on it, and the line does not print the 117 L tank', () => {
-    const last = lastFuelOf(livePractice, {kind: 'fill limit', litres: 85}, true)!;
+    const last = lastFuelOf(
+      livePractice,
+      {kind: 'fill limit', litres: 85},
+      true,
+    )!;
     const rules = rulesFor(null, length, last)!;
     expect(rules.rules.fuelL).toBe(85);
     const view = planView(null, rules, planRace(rules.rules, laps), {
@@ -740,7 +822,11 @@ describe('under a rule set the tank is never the load (thread 104)', () => {
   });
 
   it('a series week of a car with no VE keeps its old reading of the load', () => {
-    const last = lastFuelOf(livePractice, {kind: 'start fuel', litres: 80}, false)!;
+    const last = lastFuelOf(
+      livePractice,
+      {kind: 'start fuel', litres: 80},
+      false,
+    )!;
     expect(last).toMatchObject({fillLimitL: null, startL: 80, tankL: 117});
   });
 });

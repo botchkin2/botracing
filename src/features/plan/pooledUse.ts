@@ -9,6 +9,20 @@ import {formatLapTime} from '@/src/design';
 
 export type UseMeasure = 'fuel' | 've';
 
+/**
+ * The measure the card draws and whether it offers the Fuel / VE switch. A fuel-only sim (iRacing records no VE) has
+ * only fuel to show, so the switch is not drawn and the measure is fuel; otherwise the Plan's own unit wins when it
+ * drives the card, else the card's own choice.
+ */
+export function shownMeasure(
+  asked: UseMeasure | undefined,
+  own: UseMeasure,
+  fuelOnlySim: boolean,
+): {measure: UseMeasure; canSwitch: boolean} {
+  if (fuelOnlySim) return {measure: 'fuel', canSwitch: false};
+  return {measure: asked ?? own, canSwitch: asked == null};
+}
+
 export type PooledUse = {
   points: {
     key: string;

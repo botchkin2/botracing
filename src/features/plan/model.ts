@@ -285,7 +285,8 @@ export function startChips(
   const under = (v: number | null, cap: number) =>
     v != null && v > 0 && v < cap - 0.5 ? v : null;
   const ve = hasVe ? under(last?.vePct ?? null, caps.vePct) : null;
-  const fuel = caps.fuelL == null ? null : under(last?.fuelL ?? null, caps.fuelL);
+  const fuel =
+    caps.fuelL == null ? null : under(last?.fuelL ?? null, caps.fuelL);
   return {
     ve:
       ve == null
@@ -343,7 +344,12 @@ export function parseNumber(text: string): number | null {
 }
 
 /** Where the fuel to plan with came from. */
-export type FuelSource = 'preset' | 'fill limit' | 'tank' | 'start fuel' | 'unknown';
+export type FuelSource =
+  | 'preset'
+  | 'fill limit'
+  | 'tank'
+  | 'start fuel'
+  | 'unknown';
 
 export type Rules = {
   rules: PlanRules;
@@ -441,8 +447,7 @@ function ratioNote(
   loadsL: number[],
   eventText: string | null = null,
 ): string | null {
-  if (!ratio && eventText != null)
-    return NO_VE_MEASURED;
+  if (!ratio && eventText != null) return NO_VE_MEASURED;
   if (!ratio)
     return loadsL.length > 0
       ? `no VE: none of your sessions ran ${fuelL} L (they ran ${loadsL.join(
@@ -528,6 +533,8 @@ export function planView(
     ruleSet?: boolean;
     /** Set when the newest session's use has moved away from the older ones. */
     drift: HistoryDrift | null;
+    /** The plan is fuel-only (a sim that records no VE): there is no VE ratio to explain, so no ratio line. */
+    fuelOnly?: boolean;
   },
   /** The one unit the rows speak in: VE where the plan has it, unless fuel is asked for (thread 44 #1826). */
   unit: Unit = 've',
@@ -546,8 +553,7 @@ export function planView(
           ? 'tank'
           : 'start fuel'
       }${
-        rules.fuelSource !== 'tank' &&
-        rules.last?.tankL != null
+        rules.fuelSource !== 'tank' && rules.last?.tankL != null
           ? `, ${rules.last.tankL} L tank`
           : ''
       })`;
@@ -575,15 +581,16 @@ export function planView(
   const shown = effectiveUnit(unit, ve != null);
   const basis = {
     drift: history.drift ? driftRowOf(history.drift) : null,
-    ratio:
-      shown === 've' || ve == null
-        ? ratioNote(
-            history.ratio,
-            r.fuelL,
-            history.ratioLoadsL,
-            preset ? null : history.eventText ?? null,
-          ) ?? null
-        : null,
+    ratio: history.fuelOnly
+      ? null
+      : shown === 've' || ve == null
+      ? ratioNote(
+          history.ratio,
+          r.fuelL,
+          history.ratioLoadsL,
+          preset ? null : history.eventText ?? null,
+        ) ?? null
+      : null,
     from: `${plan.history.laps} ${
       plan.history.laps === 1 ? 'lap' : 'laps'
     } in ${plan.history.sessions} ${

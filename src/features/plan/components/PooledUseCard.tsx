@@ -7,7 +7,13 @@ import {space} from '@/src/design';
 import {Segment, Skeleton, Text} from '@/src/ui';
 import {PLAN_HISTORY_DAYS, planCombos} from '@/src/workspace/planCombo';
 
-import {pooledUse, thresholdOf, type UseMeasure} from '../pooledUse';
+import {fuelOnly} from '../model';
+import {
+  pooledUse,
+  shownMeasure,
+  thresholdOf,
+  type UseMeasure,
+} from '../pooledUse';
 import {usePlanData} from '../usePlanData';
 
 const SCATTER_H = 190;
@@ -37,7 +43,6 @@ export function PooledUseCard({
   measure?: UseMeasure;
 }) {
   const [own, setMeasure] = useState<UseMeasure>('fuel');
-  const measure = asked ?? own;
   const sessions = useSessions({ageDays: PLAN_HISTORY_DAYS});
   const combo = useMemo(
     () =>
@@ -47,6 +52,7 @@ export function PooledUseCard({
   );
   // The Plan screen's own data, so the dots are the laps the plan is built from.
   const {limits, hist, greenLaps, plan} = usePlanData(combo);
+  const {measure, canSwitch} = shownMeasure(asked, own, fuelOnly(greenLaps));
   const loading = sessions.isPending || limits.pending || hist.loading.pending;
   const chart = useMemo(
     () =>
@@ -63,9 +69,9 @@ export function PooledUseCard({
       <View style={styles.title}>
         <Text variant='label'>Use and lap time</Text>
       </View>
-      {asked ? null : (
+      {canSwitch ? (
         <Segment options={MEASURES} value={measure} onChange={setMeasure} />
-      )}
+      ) : null}
       {loading ? (
         <Skeleton height={SCATTER_H} />
       ) : chart ? (
