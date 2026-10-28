@@ -36,6 +36,8 @@ const WHEEL_SEGMENTS = 8;
 /** The wheels stand this far outside the hull's side, so their rims show against it from the side and above (scout #8072). */
 const WHEEL_PROUD_M = 0.06;
 const EDGE_ANGLE_DEG = 25;
+/** An end plate reaches this far below the wing's top. */
+const PLATE_BELOW_M = 0.1;
 
 type Local = {x: number; z: number};
 
@@ -106,6 +108,27 @@ function loft(stations: Station[], sillY: number): THREE.BufferGeometry {
   }
   const g = new THREE.BufferGeometry().setFromPoints(tri);
   g.computeVertexNormals();
+  return g;
+}
+
+/** A wing end plate at lateral z: a thin slab from below the wing to `h` above it, its top vertices swept toward the tail. */
+function plate(
+  x: number,
+  wingY: number,
+  chord: number,
+  {h, sweep}: {h: number; sweep: number},
+  z: number,
+): THREE.BufferGeometry {
+  const bottom = wingY - PLATE_BELOW_M;
+  const g = new THREE.BoxGeometry(
+    chord,
+    wingY + h - bottom,
+    0.03,
+  ).toNonIndexed();
+  const pos = g.getAttribute('position');
+  for (let i = 0; i < pos.count; i++)
+    if (pos.getY(i) > 0) pos.setX(i, pos.getX(i) - sweep);
+  g.translate(x, (wingY + h + bottom) / 2, z);
   return g;
 }
 
@@ -228,6 +251,10 @@ function buildClass(ground: [number, number], c: ClassShape): ClassKit {
       ),
     );
   }
+  // end plates: a slab at each end of the wing, rising above it, its top rear corner swept back
+  if (kind !== 'none' && c.endPlate)
+    for (const side of [-1, 1])
+      parts.push(plate(wx, wy, chord, c.endPlate, side * (span / 2)));
   // raised pods (fender crests, haunches): a slab each side, standing on the hull's top line
   for (const b of c.bulges ?? []) {
     const top = hullTopAt(c.hull, b.x);

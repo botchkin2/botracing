@@ -88,12 +88,14 @@ describe('Hyper models', () => {
       for (let j = i + 1; j < hyper.length; j++)
         if (i % PAINTS === j % PAINTS) expect(bodyOf(i)).not.toBe(bodyOf(j));
   });
-  it('each model stands on the class hull: its own length on the class footprint width, the class station count', () => {
+  it('each model stands on the class hull: its own length on the class footprint width, the class station count (one more for a round tail)', () => {
     for (const m of hyper) {
       const {shape, footprint} = shapeFor(m.example, 'Hyper');
       expect(footprint[1]).toBe(SIZE.Hyper[1]);
       expect(footprint[0]).toBe(m.params.lengthM ?? SIZE.Hyper[0]);
-      expect(shape.hull).toHaveLength(SHAPES.Hyper.hull.length);
+      expect(shape.hull).toHaveLength(
+        SHAPES.Hyper.hull.length + (m.params.tailRound ? 1 : 0),
+      );
       const half = Math.max(...shape.hull.map(st => st[1]));
       expect(half).toBeLessThanOrEqual(SHAPES.Hyper.hull[2][1] + 0.1);
       const length = shape.hull[0][0] - shape.hull[shape.hull.length - 1][0];

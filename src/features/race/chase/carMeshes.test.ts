@@ -568,3 +568,45 @@ describe('the tail light lines', () => {
     kit.dispose();
   });
 });
+
+describe('the wing end plates', () => {
+  const plateVertices = (vehicle: string) => {
+    const kit = createCarKit(COLORS);
+    const car = kit.make('Hyper', '#e64343', false, vehicle);
+    const {shape} = shapeFor(vehicle, 'Hyper');
+    const pos = (car.children[1] as THREE.Mesh).geometry.getAttribute(
+      'position',
+    ) as THREE.BufferAttribute;
+    const [, wy, , span] = shape.wing;
+    const plate = shape.endPlate as {h: number; sweep: number};
+    const out = {top: [] as number[], bottom: [] as number[]};
+    for (let i = 0; i < pos.count; i++) {
+      if (Math.abs(Math.abs(pos.getZ(i)) - span / 2) > 0.03) continue;
+      if (Math.abs(pos.getY(i) - (wy + plate.h)) < 1e-4)
+        out.top.push(pos.getX(i));
+      if (Math.abs(pos.getY(i) - (wy - 0.1)) < 1e-4)
+        out.bottom.push(pos.getX(i));
+    }
+    kit.dispose();
+    return {...out, plate};
+  };
+  it.each(['Genesis GMR-001', 'BMW M Hybrid V8', 'Alpine A424'])(
+    '%s: a plate stands at each wing end, rising h above the wing',
+    vehicle => {
+      const {top, bottom, plate} = plateVertices(vehicle);
+      expect(plate.h).toBeGreaterThan(0);
+      // two plates, four top and four bottom corners each (a box has 36 non-indexed vertices; the rest are shared corners)
+      expect(top.length).toBeGreaterThanOrEqual(8);
+      expect(bottom.length).toBeGreaterThanOrEqual(8);
+    },
+  );
+  it('a swept plate cuts its top back by the sweep; a square one does not', () => {
+    const swept = plateVertices('Alpine A424');
+    expect(Math.min(...swept.top)).toBeCloseTo(
+      Math.min(...swept.bottom) - swept.plate.sweep,
+      4,
+    );
+    const square = plateVertices('Genesis GMR-001');
+    expect(Math.min(...square.top)).toBeCloseTo(Math.min(...square.bottom), 4);
+  });
+});

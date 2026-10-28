@@ -212,6 +212,8 @@ export const HYPER_MODELS: ModelEntry[] = [
     match: /499p/,
     example: 'Ferrari 499P',
     params: {
+      tailW: 0.04,
+      tailTopW: 0.08,
       lengthM: 5.1,
       wheelbaseM: 3.15,
       noseH: -0.08,
@@ -228,6 +230,9 @@ export const HYPER_MODELS: ModelEntry[] = [
     match: /9x8/,
     example: 'Peugeot 9x8',
     params: {
+      tailRound: 1,
+      tailW: -0.12,
+      tailTopW: -0.2,
       lengthM: 4.995,
       wheelbaseM: 3.045,
       noseH: -0.12,
@@ -262,6 +267,8 @@ export const HYPER_MODELS: ModelEntry[] = [
     match: /tr010|gr010/,
     example: 'Toyota TR010',
     params: {
+      fenderW: 0.12,
+      tailTopW: -0.1,
       lengthM: 4.9,
       wheelbaseM: 3.15,
       noseH: -0.14,
@@ -276,6 +283,9 @@ export const HYPER_MODELS: ModelEntry[] = [
     match: /valkyrie/,
     example: 'Aston Martin Valkyrie LMH',
     params: {
+      tailCut: 1,
+      tailW: -0.2,
+      tailTopW: -0.25,
       cabinW: 0.6,
       cabinLen: 0.75,
       cabinTop: -0.04,
@@ -295,6 +305,8 @@ export const HYPER_MODELS: ModelEntry[] = [
     match: /sc63|lamborghini/,
     example: 'Lamborghini SC63',
     params: {
+      tailW: 0.05,
+      tailTopW: -0.3,
       lengthM: 5.1,
       wheelbaseM: 3.148,
       noseLen: 0.3,
@@ -314,6 +326,8 @@ export const HYPER_MODELS: ModelEntry[] = [
     match: /cadillac|v-series/,
     example: 'Cadillac V-Series.R',
     params: {
+      tailW: 0.06,
+      tailTopW: 0.12,
       lengthM: 4.99,
       wheelbaseM: 3.148,
       noseH: 0.2,
@@ -332,6 +346,7 @@ export const HYPER_MODELS: ModelEntry[] = [
     match: /m hybrid/,
     example: 'BMW M Hybrid V8',
     params: {
+      endPlate: {h: 0.3, sweep: 0},
       lengthM: 4.99,
       wheelbaseM: 3.148,
       noseH: 0.14,
@@ -350,6 +365,7 @@ export const HYPER_MODELS: ModelEntry[] = [
     match: /963/,
     example: 'Porsche 963',
     params: {
+      tailRound: 0.6,
       lengthM: 5.1,
       wheelbaseM: 3.148,
       noseW: 0.2,
@@ -368,6 +384,7 @@ export const HYPER_MODELS: ModelEntry[] = [
     match: /gmr-?001|genesis/,
     example: 'Genesis GMR-001',
     params: {
+      endPlate: {h: 0.4, sweep: 0},
       lengthM: 5,
       wheelbaseM: 3.15,
       noseW: 0.2,
@@ -375,7 +392,7 @@ export const HYPER_MODELS: ModelEntry[] = [
       noseH: -0.04,
       finH: 1.6,
       wingKind: 'wide',
-      wingH: 0.5,
+      wingH: 0.25,
       wingSpan: 1.2,
       bulges: [{x: 1.15, len: 1.4, z: 0.76, w: 0.32, h: 0.36}],
     },
@@ -386,6 +403,7 @@ export const HYPER_MODELS: ModelEntry[] = [
     match: /a424|alpine/,
     example: 'Alpine A424',
     params: {
+      endPlate: {h: 0.2, sweep: 0.15},
       lengthM: 5,
       wheelbaseM: 3.148,
       cabinW: 0.78,

@@ -43,6 +43,12 @@ export const WING_PYLONS: Record<WingKind, number[]> = {
   pylon: [0],
 };
 
+/** A wing end plate: `h` rises above the wing, `sweep` cuts the top rear corner back (0 is square). */
+export interface EndPlate {
+  h: number;
+  sweep: number;
+}
+
 /** A light unit on the tail face, a polyline of (lateral z, height y) points: the Alpine's chevron, the 9X8's claws. */
 export type TailLight = [z: number, y: number][];
 
@@ -68,6 +74,8 @@ export interface ClassShape {
   wingKind?: WingKind;
   /** Raised pods on the hull (fender crests, haunches); none when absent. */
   bulges?: Bulge[];
+  /** The wing's end plates: their height above the wing and how far the top rear corner is swept back, metres; none when absent. */
+  endPlate?: EndPlate;
   /** Light lines on the tail face, drawn as extra segments of the body edges (no extra draw); none when absent. */
   tailLights?: TailLight[];
   /** Prototype shark fin: from x, length, height; null on a GT. */

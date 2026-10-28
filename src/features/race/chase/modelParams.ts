@@ -2,7 +2,7 @@
 // field is a number the table's cue column names, in metres unless it says scale. A model is the class hull plus these
 // edits; a field left out leaves the class value. Plain TypeScript, no three.js, so every edit is tested as numbers.
 
-import type {Bulge, ClassShape, Station, WingKind} from './carShapes';
+import type {Bulge, ClassShape, EndPlate, Station, WingKind} from './carShapes';
 
 export interface ModelParams {
   /** The hull's length, nose to tail, after the other edits (they change its proportions, never its total). */
@@ -29,6 +29,18 @@ export interface ModelParams {
   deckH?: number;
   /** The tail reaches further behind the rear axle (+) or is cut short (-). */
   tailOver?: number;
+  /** The tail's half-width at the sill and shoulder: wider (+) or narrower (-); the last station takes it all, the one before half. */
+  tailW?: number;
+  /** The tail's half-width at the roof line, wider (+) or narrower (-): a flat-topped tail against a tapered one. */
+  tailTopW?: number;
+  /** 0 to 1: a station is added near the tail and the last one is pulled in at its corners, so the tail is rounded, not a box. */
+  tailRound?: number;
+  /** 0 to 1: the width behind the rear axle is cut away, so the rear wheels stand outside a narrow tail. */
+  tailCut?: number;
+  /** The wing's end plates: how far they rise above the wing and how far their top rear corner is swept back (metres). */
+  endPlate?: EndPlate;
+  /** The fender pods stand this much further from the centre line (metres), so they show wider than the deck from behind. */
+  fenderW?: number;
   wingKind?: WingKind;
   /** The wing stands higher (+) or lower (-). */
   wingH?: number;
@@ -41,6 +53,15 @@ export interface ModelParams {
 }
 
 const MIN_ABOVE_SHOULDER = 0.02;
+/** No tail edit leaves a half-width below this. */
+const MIN_HALF_W = 0.1;
+/** A full tail cut takes this share off the last station's width (the one before takes half of it). */
+const TAIL_CUT_SHARE = 0.5;
+/** A full tail round: the added station is this much narrower than the mean, the last one this much pulled in. */
+const ROUND_MID_W = 0.08;
+const ROUND_MID_TOP_W = 0.12;
+const ROUND_END_W = 0.25;
+const ROUND_END_TOP_W = 0.35;
 const WING_LOW_ABOVE_TAIL = 0.1;
 
 const copy = (st: Station): Station => [...st] as Station;
@@ -79,6 +100,18 @@ export function applyParams(base: ClassShape, p: ModelParams): ClassShape {
   const dTail = p.tailOver ?? 0;
   hull[last][0] -= dTail;
   hull[last - 1][0] -= dTail * 0.6;
+  // the tail seen from behind: its width at the sill and at the roof line, and a cut-away behind the rear axle
+  const dTailW = p.tailW ?? 0;
+  const dTailTop = p.tailTopW ?? 0;
+  const cut = p.tailCut ?? 0;
+  for (const [i, share] of [
+    [last, 1],
+    [last - 1, 0.5],
+  ] as const) {
+    hull[i][1] = Math.max(MIN_HALF_W, hull[i][1] + dTailW * share);
+    hull[i][3] = Math.max(MIN_HALF_W, hull[i][3] + dTailTop * share);
+    hull[i][1] *= 1 - TAIL_CUT_SHARE * cut * share;
+  }
   for (const st of hull) keepAbove(st);
 
   let cabin = base.cabin.map(copy);
@@ -131,7 +164,11 @@ export function applyParams(base: ClassShape, p: ModelParams): ClassShape {
     wingKind: kind,
     fin,
     wheels: base.wheels,
-    bulges: p.bulges ?? base.bulges,
+    bulges: (p.bulges ?? base.bulges)?.map(b => ({
+      ...b,
+      z: b.z + (p.fenderW ?? 0),
+    })),
+    endPlate: p.endPlate ?? base.endPlate,
   };
 
   if (p.lengthM) {
@@ -147,6 +184,24 @@ export function applyParams(base: ClassShape, p: ModelParams): ClassShape {
       fin: fin && [fit(fin[0]), fin[1] * s, fin[2]],
       bulges: out.bulges?.map(b => ({...b, x: fit(b.x), len: b.len * s})),
     };
+  }
+
+  const round = p.tailRound ?? 0;
+  if (round > 0) {
+    // one more station between the last two, narrower, and the last one pulled in at its corners
+    const n = out.hull.length;
+    const a = out.hull[n - 2];
+    const b = copy(out.hull[n - 1]);
+    const mid: Station = [
+      (a[0] + b[0]) / 2,
+      ((a[1] + b[1]) / 2) * (1 - ROUND_MID_W * round),
+      (a[2] + b[2]) / 2,
+      ((a[3] + b[3]) / 2) * (1 - ROUND_MID_TOP_W * round),
+      (a[4] + b[4]) / 2,
+    ];
+    b[1] *= 1 - ROUND_END_W * round;
+    b[3] *= 1 - ROUND_END_TOP_W * round;
+    out.hull = [...out.hull.slice(0, n - 1), mid, b];
   }
 
   const [front0, rear0, radius, width] = base.wheels;
