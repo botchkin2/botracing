@@ -8,6 +8,7 @@ import {
   patchBodyEdges,
   createCarKit,
   mixSrgb,
+  positionKey,
   shellOf,
   tickSegment,
 } from './carMeshes';
@@ -693,5 +694,29 @@ describe('the wing end plates', () => {
     );
     const square = plateVertices('Genesis GMR-001');
     expect(Math.min(...square.top)).toBeCloseTo(Math.min(...square.bottom), 4);
+  });
+});
+
+describe('positionKey', () => {
+  it('names a position to 0.1 mm: equal positions share a key, 0.2 mm apart do not', () => {
+    expect(positionKey(1.23456, -0.5, 2)).toBe(positionKey(1.23456, -0.5, 2));
+    expect(positionKey(1.2345, 0, 0)).not.toBe(positionKey(1.2347, 0, 0));
+    // positions within the 0.05 mm rounding are one vertex
+    expect(positionKey(1.23451, 0, 0)).toBe(positionKey(1.23454, 0, 0));
+  });
+  it('is exact and distinct across a car-sized box: no two grid positions collide, all keys are whole numbers', () => {
+    const seen = new Set<number>();
+    for (let x = -6; x <= 6; x += 1.5)
+      for (let y = 0; y <= 2; y += 0.5)
+        for (let z = -3; z <= 3; z += 1) {
+          const k = positionKey(x, y, z);
+          expect(Number.isSafeInteger(k)).toBe(true);
+          expect(seen.has(k)).toBe(false);
+          seen.add(k);
+        }
+  });
+  it('keeps the signed axes apart: swapping two coordinates changes the key', () => {
+    expect(positionKey(1, 2, 3)).not.toBe(positionKey(3, 2, 1));
+    expect(positionKey(-1, 0, 0)).not.toBe(positionKey(1, 0, 0));
   });
 });

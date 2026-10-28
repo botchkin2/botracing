@@ -157,6 +157,21 @@ function wheel(
   return g;
 }
 
+/** One coordinate of a position key: 0.1 mm steps, shifted so a car's coordinates (a few metres) are positive. */
+const KEY_STEP = 1e4;
+const KEY_SHIFT = 1 << 16;
+const KEY_SPAN = 1 << 17;
+
+/**
+ * A number naming a position to 0.1 mm, so vertices that meet in a body are one key without building a string for each
+ * (a body of a thousand triangles is three thousand lookups). Exact: three 17-bit parts in one double, for positions
+ * within +/- 6.5 m of the car's centre.
+ */
+export function positionKey(x: number, y: number, z: number): number {
+  const part = (v: number) => Math.round(v * KEY_STEP) + KEY_SHIFT;
+  return (part(x) * KEY_SPAN + part(y)) * KEY_SPAN + part(z);
+}
+
 /**
  * The glow: `g` (non-indexed, outward-wound) pushed out `offsetM` along each vertex's normal, the face normals of
  * every facet meeting at that position averaged. Flat-shaded bodies have a normal per facet, and moving each facet
@@ -168,11 +183,8 @@ export function shellOf(
   offsetM: number,
 ): THREE.BufferGeometry {
   const pos = g.getAttribute('position').array as Float32Array;
-  const at = (i: number) =>
-    `${Math.round(pos[i] * 1e4)},${Math.round(pos[i + 1] * 1e4)},${Math.round(
-      pos[i + 2] * 1e4,
-    )}`;
-  const sums = new Map<string, [number, number, number]>();
+  const at = (i: number) => positionKey(pos[i], pos[i + 1], pos[i + 2]);
+  const sums = new Map<number, [number, number, number]>();
   for (let t = 0; t < pos.length; t += 9) {
     const ux = pos[t + 3] - pos[t];
     const uy = pos[t + 4] - pos[t + 1];
