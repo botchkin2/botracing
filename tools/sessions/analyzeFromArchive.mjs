@@ -26,6 +26,7 @@ import {paceFieldsOf, paceSetOf} from '../../src/analysis/paceSet.ts';
 import {carLabel} from '../../src/design/carModels.ts';
 import {lapTraffic} from './lapTraffic.mjs';
 import {adapter as adapterOf} from './sims.mjs';
+import {carriesRulings} from './resultsInput.mjs';
 
 export function plain(value) {
   return JSON.parse(JSON.stringify(value));
@@ -317,7 +318,10 @@ export function analyzeFromArchive({
     // The game's rulings over the session: how many, their points, how many
     // could not be placed on a lap of his, and how many laps the results file and
     // the lap time disagree on; absent without a results file.
-    trackLimits: results ? trackLimitsOf(a.laps, results) : undefined,
+    // An iRacing input of class bests (irResults.mjs) holds no rulings: no totals of them.
+    trackLimits: carriesRulings(results)
+      ? trackLimitsOf(a.laps, results)
+      : undefined,
     // Every driver's pace by class, from the results file's laps for all of them
     // (results input v2; src/analysis/classPace.ts); null without them. Its own
     // field of the full doc, never in a list.

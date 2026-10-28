@@ -1564,6 +1564,8 @@ function allLapsByStint(
               ? 'IN'
               : l.partialWhy === 'grid'
               ? 'PARK'
+              : l.startLapTimeS != null
+              ? 'START'
               : l.partial
               ? 'PART'
               : l.reasons.includes('slow')

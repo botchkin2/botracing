@@ -109,6 +109,7 @@ describe('TAG_KEY', () => {
       'PART',
       'INV',
       'PARK',
+      'START',
       'OUT',
       'IN',
       'RESET',
@@ -123,6 +124,7 @@ describe('TAG_KEY', () => {
       'BTL',
     ]);
     expect(TAG_KEY.every(t => t.meaning.length > 0)).toBe(true);
+    expect(TAG_KEY.find(t => t.code === 'START')?.meaning).toBe('start lap');
     // The traffic tags trafficTags draws are all in the legend.
     const traffic = {
       draftS: 6,

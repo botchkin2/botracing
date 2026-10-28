@@ -22,6 +22,13 @@
 
 export const RESULTS_INPUT_VERSION = 2;
 
+/** An iRacing input of class bests from its .ibt's qualifying results (irResults.mjs): no track-limit rulings in it. */
+export const IBT_QUALIFYING_SOURCE = 'ibt-qualifying';
+
+/** Whether a read input holds the game's track-limit rulings: every input does but an iRacing one of class bests. */
+export const carriesRulings = results =>
+  results != null && results.source !== IBT_QUALIFYING_SOURCE;
+
 /** The versions the reader takes. */
 const READABLE_VERSIONS = [1, 2];
 
@@ -83,6 +90,7 @@ export function readResultsInput(text) {
       // The session times the file's laps of his cover; null when it lists none.
       coveredFrom: Number.isFinite(x.coveredFrom) ? x.coveredFrom : null,
       coveredTo: Number.isFinite(x.coveredTo) ? x.coveredTo : null,
+      ...(x.source === IBT_QUALIFYING_SOURCE ? {source: x.source} : {}),
       ...(drivers ? {drivers} : {}),
     };
   } catch {

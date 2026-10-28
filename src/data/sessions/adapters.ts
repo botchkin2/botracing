@@ -640,6 +640,12 @@ export type Lap = {
    * timed, partial and pit laps.
    */
   invalidTimeS: number | null;
+  /**
+   * A race's first racing lap in iRacing, whole and measured, that the game gave no lap time (it starts at the green flag,
+   * before the line): its line-to-line time, for display only (pit-wall thread 123, ticket 61). timeS stays null, so no
+   * median, best or selection uses it. Null on every other lap: LMU's, a partial or pit lap, a timed lap.
+   */
+  startLapTimeS: number | null;
   /** The game's rulings that fell in this lap (its results file), null without the file. */
   trackLimits: LapStrike[] | null;
   /** The recording file the lap came from; a new file mid-stint is a reset
@@ -1137,6 +1143,25 @@ function toPassMarks(v: unknown): LapTraffic['passMarks'] {
   return out;
 }
 
+/** See `Lap.startLapTimeS`. The analysis's own `partial` is the whole-lap decision; `timed: false` is the game giving no time. */
+function startLapTimeOf(
+  raw: Record<string, unknown>,
+  sim: string,
+  race: boolean,
+  lapNo: number | null,
+): number | null {
+  if (sim !== 'iracing' || !race || lapNo !== 1) return null;
+  if (
+    raw.partial === true ||
+    raw.pitIn === true ||
+    raw.pitOut === true ||
+    raw.invalid === true ||
+    raw.timed !== false
+  )
+    return null;
+  return num(raw.lapTime);
+}
+
 function toPartialWhy(v: unknown): Lap['partialWhy'] {
   return v === 'grid' || v === 'file' ? v : null;
 }
@@ -1145,16 +1170,19 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
   const laps = items.map((raw, i) => {
     // The fields the opening set reads, mapped once for app and uploader.
     const pace = paceFieldsOf(raw);
+    const sim = str(raw.sim, 'lmu');
+    const race = toSessionType(raw.sessionType) === 'R';
+    const lapNo = lapNoOf({
+      sim,
+      race,
+      lapNumber: num(raw.lapNumber),
+      lapIndex: i + 1,
+    });
     return {
       id: str(raw.id),
       lapIndex: i + 1,
       lapNumber: num(raw.lapNumber),
-      lapNo: lapNoOf({
-        sim: str(raw.sim, 'lmu'),
-        race: toSessionType(raw.sessionType) === 'R',
-        lapNumber: num(raw.lapNumber),
-        lapIndex: i + 1,
-      }),
+      lapNo,
       recordingId: str(raw.recordingId) || null,
       timeS: pace.timeS,
       sectorsS: Array.isArray(raw.sectors) ? raw.sectors.map(num) : [],
@@ -1176,6 +1204,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
         raw.pitOut !== true
           ? num(raw.lapTime)
           : null,
+      startLapTimeS: startLapTimeOf(raw, sim, race, lapNo),
       trackLimits: toLapStrikes(raw.trackLimits),
       offTrackS: num(raw.offTrackSec) ?? 0,
       hadImpact: (num(raw.impactMax) ?? 0) > 0,

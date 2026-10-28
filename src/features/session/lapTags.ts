@@ -42,13 +42,14 @@ export function trafficTags(traffic: LapTraffic | null): {code: string}[] {
   return tags;
 }
 
-// R3: PART · INV · PARK · OUT · IN · RESET · SLOW · TOW · BEST · LIM · HIT · TRAF · BLUE ·
+// R3: PART · INV · PARK · START · OUT · IN · RESET · SLOW · TOW · BEST · LIM · HIT · TRAF · BLUE ·
 // PASS · BTL. At 375 pt one tag shows, so this decides which one; TOW is above BEST
 // so a towed best lap shows TOW.
 const PRIORITY = [
   'PART',
   'INV',
   'PARK',
+  'START',
   'OUT',
   'IN',
   'RESET',
@@ -71,6 +72,7 @@ const MEANING: Record<TagCode, string> = {
   PART: 'partial',
   INV: 'invalid',
   PARK: 'parked',
+  START: 'start lap',
   OUT: 'out lap',
   IN: 'in lap',
   RESET: 'reset',
