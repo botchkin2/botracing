@@ -50,6 +50,29 @@ describe('featureLines', () => {
     expect(atMid[0][2]).toBeCloseTo(mid.half + LINE_OFFSET_M, 9);
   });
 
+  it('draws the roofline on each flank between neighbouring stations along the hood and the deck, where the glass edge does not', () => {
+    const g = COUPE.greenhouse;
+    const stations = bodyStations(COUPE);
+    const inside = (x: number) => x <= g.screenBaseX && x >= g.rearBaseX;
+    for (const side of [-1, 1]) {
+      for (let i = 0; i + 1 < stations.length; i++) {
+        const [s0, s1] = [stations[i], stations[i + 1]];
+        const wanted = [
+          s0.x,
+          s0.top + LINE_OFFSET_M,
+          side * s0.topHalf,
+          s1.x,
+          s1.top + LINE_OFFSET_M,
+          side * s1.topHalf,
+        ];
+        const found = lines.body.some(s =>
+          s.every((v, k) => Math.abs(v - wanted[k]) < 1e-9),
+        );
+        expect(found).toBe(!(inside(s0.x) && inside(s1.x)));
+      }
+    }
+  });
+
   it('puts an arch rim over each wheel on each flank, a radius clear of the wheel, between the sill and the belt', () => {
     for (const axleX of [COUPE.frontAxleX, COUPE.rearAxleX]) {
       for (const side of [-1, 1]) {
@@ -60,7 +83,8 @@ describe('featureLines', () => {
             Math.abs(s[0] - axleX) < WHEEL_R + ARCH_CLEARANCE_M + 1e-6 &&
             Math.abs(s[3] - axleX) < WHEEL_R + ARCH_CLEARANCE_M + 1e-6 &&
             Math.abs(s[1] - s[4]) > 1e-9 &&
-            Math.abs(s[0] - s[3]) > 1e-9,
+            Math.abs(s[0] - s[3]) > 1e-9 &&
+            Math.max(s[1], s[4]) <= stationAt(COUPE, s[0]).belt + 1e-9,
         );
         expect(arch.length).toBeGreaterThan(3);
         for (const s of arch) {

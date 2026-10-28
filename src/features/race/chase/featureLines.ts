@@ -82,6 +82,25 @@ export function featureLines(
       ),
     );
   }
+  // the top edge on each flank, where the top surface meets the shoulder: the roofline seen from the side. The centre line
+  // alone sits at the silhouette's height and is half hidden by the near shoulder, so the hood, the screen and the
+  // fastback to the tail would lose their one flowing curve. The greenhouse's own stretch is the glass edge below.
+  const g0 = model.greenhouse;
+  const inGlassRange = (st: BodyStation) =>
+    st.x <= g0.screenBaseX && st.x >= g0.rearBaseX;
+  for (const side of [-1, 1])
+    for (let i = 0; i + 1 < stations.length; i++) {
+      const [a, b] = [stations[i], stations[i + 1]];
+      if (inGlassRange(a) && inGlassRange(b)) continue;
+      body.push([
+        a.x,
+        a.top + LINE_OFFSET_M,
+        side * a.topHalf,
+        b.x,
+        b.top + LINE_OFFSET_M,
+        side * b.topHalf,
+      ]);
+    }
   // the arch rim: an arc over each wheel, on the flank surface between the sill and the belt
   const radius = wheelRadius + ARCH_CLEARANCE_M;
   for (const axleX of [model.frontAxleX, model.rearAxleX]) {

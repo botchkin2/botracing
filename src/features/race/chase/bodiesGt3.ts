@@ -39,10 +39,11 @@ export const BODY_911: BodyModel = {
     [0.66, 0.78],
     [0.23, 1.09],
     [-0.11, 1.14],
-    [-0.57, 1.09],
-    [-1.48, 0.85],
-    [-1.93, 0.72],
-    [-2.31, 0.62],
+    [-0.6, 1.09],
+    [-1.1, 0.98],
+    [-1.55, 0.87],
+    [-1.95, 0.76],
+    [-2.31, 0.64],
   ],
   half: [
     [2.31, 0.55],
@@ -65,8 +66,8 @@ export const BODY_911: BodyModel = {
   greenhouse: {
     screenBaseX: 0.66,
     roofFrontX: 0.23,
-    roofRearX: -0.57,
-    rearBaseX: -1.48,
+    roofRearX: -0.6,
+    rearBaseX: -1.9,
     roofHalfW: 0.58,
   },
 };
