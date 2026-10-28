@@ -1,10 +1,10 @@
 {
  "summary": {
   "lapCount": 12,
-  "comparableCount": 11,
+  "comparableCount": 10,
   "bestLapTime": 80.491,
-  "medianLapTime": 80.869,
-  "stdevLapTime": 1.186
+  "medianLapTime": 80.823,
+  "stdevLapTime": 0.624
  },
  "stints": [
   {

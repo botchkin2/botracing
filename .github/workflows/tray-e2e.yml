@@ -259,6 +259,23 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
 
+      # A lock that appears after the installer's waits (a scanner on the exe that just exited): the old exe is
+      # moved aside and the install completes; and a failed install after the move puts the old exe back
+      # (hooks.nsh, e2e-exe-late.ps1; pit wall thread 100).
+      - name: Install N under a late holder, and a failed install after the move
+        working-directory: .
+        env:
+          REHEARSALS: ${{ inputs.rehearsals || 1 }}
+        run: |
+          for ($i = 1; $i -le [int]$env:REHEARSALS; $i++) {
+            foreach ($scenario in 'late', 'abort') {
+              Write-Host "exe $scenario $i of $env:REHEARSALS"
+              $global:LASTEXITCODE = 0
+              ./desktop/scripts/e2e-exe-late.ps1 -Installer (Join-Path $env:RUNNER_TEMP "rehearsal/$env:NEW-setup.exe") -Scenario $scenario
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            }
+          }
+
       - uses: actions/upload-artifact@v7
         if: ${{ always() && inputs.rehearsals > 1 }}
         with:

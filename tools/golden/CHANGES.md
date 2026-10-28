@@ -151,3 +151,26 @@ Why: the session doc's fuel block gains setupVePct and setupVePerLapPct, LMU's o
 Changed:
 - fuel.setupVePct: undefined -> null
 - fuel.setupVePerLapPct: undefined -> null
+
+## 2026-10-27 lmu-race-road-atlanta
+Why: the lap next to a stint's edge is now judged with Tukey's end rule from the first two full 5-lap windows (ticket 31, pit-wall thread 120, slowLaps 4), so a run of 2 slow laps at a stint's start is an event as it is mid-stint. Lap 1 (84.553 s, the first candidate lap, 4.6 % over the 80.8 s median) was ticked because it and lap 2 (81.53 s) were read as the stint's pace; it is now slow and leaves the comparable set, so the count, median and spread move. The session's limit is unchanged.
+Changed:
+- summary.comparableCount: 11 -> 10
+- summary.medianLapTime: 80.869 -> 80.823
+- summary.stdevLapTime: 1.186 -> 0.624
+
+## 2026-10-27 lmu-practice-road-atlanta
+Why: the lap next to a stint's edge is now judged with Tukey's end rule from the first two full 5-lap windows (ticket 31, pit-wall thread 120, slowLaps 4), so a run of 2 slow laps at a stint's start is an event as it is mid-stint. Lap 1 (83.695 s, the first candidate lap, 3.5 % over the 80.9 s median) is now slow and leaves the comparable set (stint 1: 11 -> 10, and the laps' reasons). The session summary's count, median and spread read the first pass, which judges by lap times alone and flags laps 1 and 2 (9 laps), so they move by one more lap than the final flags do; that gap is older than this change. The session's limit is unchanged.
+Changed:
+- summary.comparableCount: 11 -> 9
+- summary.medianLapTime: 80.853 -> 80.697
+- summary.stdevLapTime: 1.009 -> 0.356
+- stints.0.comparable: 11 -> 10
+- stints.0.medianLapTime: 80.853 -> 80.775
+- stints.0.stdevLapTime: 1.009 -> 0.547
+- cornerMedians.1: 13.963 -> 13.96
+- cornerMedians.2: 10.602 -> 10.569500000000001
+- cornerMedians.3: 28.944 -> 28.9425
+- cornerMedians.4: 16.444 -> 16.4435
+- laps.1.reasons.0: undefined -> "slow"
+- laps.1.comparable: true -> false

@@ -5,12 +5,14 @@ import {
   MIN_CURVE_LAPS,
   MIN_EVENT_LAPS,
   type PaceLap,
+  judgedPace,
   paceEvents,
   sectionTimesOf,
   slowLapIds,
   smallSampleFactor,
   smoothPace,
 } from './paceEvents';
+import {median} from './setStats';
 
 // A seeded rhythm so the synthetic drivers are the same on every run.
 function rng(seed: number) {
@@ -278,5 +280,97 @@ describe('a stint too short for a curve', () => {
     ];
     // Three laps at 2 % off are a run of 3: their own pace, not events.
     expect(slowLapIds(three).size).toBe(0);
+  });
+});
+
+describe('the edges of a stint (pit-wall thread 120, ticket 31)', () => {
+  // One stint of `n` laps with no sections: the lap time is the pace. A small
+  // deterministic scatter keeps the limit above its guard; `extra` adds seconds
+  // to the laps at those positions.
+  const SCATTER = [0.04, -0.06, 0.02, 0.07, -0.03, 0.05, -0.04, 0.01];
+  const stint = (n: number, extra: Record<number, number> = {}): PaceLap[] =>
+    Array.from({length: n}, (_, i) => ({
+      id: `l${i}`,
+      stint: 1,
+      stintLap: i,
+      lapTime: 76 + SCATTER[i % SCATTER.length] + (extra[i] ?? 0),
+      sections: null,
+    }));
+  const slow = (laps: readonly PaceLap[]) => [...slowLapIds(laps)].sort();
+  const SLOW_S = 3;
+
+  it('a run of 2 slow laps at the start of a stint is slow', () => {
+    expect(slow(stint(12, {0: SLOW_S, 1: SLOW_S}))).toEqual(['l0', 'l1']);
+  });
+
+  it('a run of 2 one lap in from the start is slow', () => {
+    expect(slow(stint(12, {1: SLOW_S, 2: SLOW_S}))).toEqual(['l1', 'l2']);
+  });
+
+  it('a run of 2 slow laps at the end of a stint is slow', () => {
+    expect(slow(stint(12, {10: SLOW_S, 11: SLOW_S}))).toEqual(['l10', 'l11']);
+    expect(slow(stint(12, {9: SLOW_S, 10: SLOW_S}))).toEqual(['l10', 'l9']);
+  });
+
+  it('a stint of 6 judges its edges the same way', () => {
+    expect(slow(stint(6, {0: SLOW_S, 1: SLOW_S}))).toEqual(['l0', 'l1']);
+    expect(slow(stint(6, {4: SLOW_S, 5: SLOW_S}))).toEqual(['l4', 'l5']);
+  });
+
+  it('a run of 3 at an edge is pace, not events', () => {
+    expect(slow(stint(12, {0: SLOW_S, 1: SLOW_S, 2: SLOW_S}))).toEqual([]);
+    expect(slow(stint(12, {9: SLOW_S, 10: SLOW_S, 11: SLOW_S}))).toEqual([]);
+  });
+
+  it('a warm-up of 5 laps that falls away linearly is followed at the start, and a fade at the end', () => {
+    const ramp = {0: 2.5, 1: 2, 2: 1.5, 3: 1, 4: 0.5};
+    expect(slow(stint(12, ramp))).toEqual([]);
+    const fade = {7: 0.5, 8: 1, 9: 1.5, 10: 2, 11: 2.5};
+    expect(slow(stint(12, fade))).toEqual([]);
+  });
+
+  it('one slow lap at an edge is still slow', () => {
+    expect(slow(stint(12, {0: SLOW_S}))).toEqual(['l0']);
+    expect(slow(stint(12, {11: SLOW_S}))).toEqual(['l11']);
+  });
+
+  it('a stint of 5 laps is judged as before: the median of 3 next to the edge', () => {
+    const f = [1.1, 1.1, 1, 1, 1];
+    expect(judgedPace(f)).toEqual(smoothPace(f));
+  });
+
+  it('the session limit is the one smoothPace residuals make, whatever the edges do', () => {
+    // Two stints, an edge pair in one and a mistake in the other, so there are
+    // events to report the limit on. The limit is made again here from
+    // smoothPace alone: the edge rule must not move it.
+    const a = stint(12, {0: SLOW_S, 1: SLOW_S});
+    const b = stint(10, {5: 6}).map(l => ({...l, id: `b${l.id}`, stint: 2}));
+    const laps = [...a, ...b];
+    const residuals = [a, b].flatMap(st => {
+      const times = st.map(l => l.lapTime);
+      const curve = smoothPace(times);
+      return times.map((t, i) => t - curve[i]);
+    });
+    const m = median(residuals) as number;
+    const mad = median(residuals.map(r => Math.abs(r - m))) as number;
+    const limitS = Math.max(
+      3.5 * smallSampleFactor(residuals.length) * 1.4826 * mad,
+      EVENT_GUARD_S,
+    );
+    const events = paceEvents(laps);
+    expect(events.map(e => e.id)).toContain('l0');
+    expect(events.map(e => e.id)).toContain('bl5');
+    for (const e of events) expect(e.limitS).toBe(limitS);
+  });
+
+  it('judgedPace follows a straight fade exactly, ends included, and keeps a run of 2 out of the curve', () => {
+    const f = Array.from({length: 9}, (_, i) => 1 - i * 0.01);
+    judgedPace(f).forEach((v, i) => expect(v).toBeCloseTo(f[i], 9));
+    const flat = Array(10).fill(1);
+    for (const edge of [[0, 1], [8, 9]]) {
+      const two = [...flat];
+      for (const i of edge) two[i] = 1.1;
+      judgedPace(two).forEach(v => expect(v).toBe(1));
+    }
   });
 });

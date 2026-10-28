@@ -48,7 +48,7 @@ export function SessionHead({facts}: {facts: Fact[]}) {
         ))}
       </View>
       {result ? (
-        <Text variant='dataStrong'>{`Finished ${result.value}`}</Text>
+        <Text variant='dataStrong'>{result.line ?? result.value}</Text>
       ) : null}
       {line ? (
         <Text variant='dataSmall' tone='textMuted'>

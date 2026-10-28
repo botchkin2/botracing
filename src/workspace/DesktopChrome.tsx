@@ -18,6 +18,7 @@ import {AppChrome, type ChromeSession} from '@/src/ui';
 
 import {chromeBox} from './chromeBox';
 import {SessionSwitcher} from './SessionSwitcher';
+import {useSendNote} from './useSendNote';
 import {usePlanCombo} from './usePlanCombo';
 import {useWorkspaceGo} from './useWorkspaceGo';
 
@@ -40,6 +41,7 @@ export function DesktopChrome() {
     combo?: string;
   }>();
   const {scheme} = useTheme();
+  const sendNote = useSendNote();
   const {isWide} = useLayout();
   const tab = sessionTabOf(pathname);
   const openMap = useTrackMapOfSession(tab && id ? id : null);
@@ -122,6 +124,7 @@ export function DesktopChrome() {
         onPlan={() => go('plan')}
         settingsActive={pathname === '/settings'}
         onSettings={() => go('settings')}
+        onNote={sendNote}
       />
       {session && content && sessionId && (
         <SessionSwitcher

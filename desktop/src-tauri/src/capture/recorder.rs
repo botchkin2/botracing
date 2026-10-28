@@ -1502,21 +1502,21 @@ mod tests {
     }
 
     /// The real window, the real messages Windows sends, the real recorder loop. The answer comes back only
-    /// after the chunk is on disk, and to a shutdown query it is yes.
+    /// after the chunk is on disk, and to a shutdown query it is yes. The window is this process's own, read
+    /// from power's handle: a search by class name would find the tray running on this PC first, and
+    /// message that.
     #[cfg(windows)]
     #[test]
     fn windows_telling_of_a_shutdown_or_a_sleep_writes_the_open_chunk_before_it_answers() {
         use crate::capture::power;
         use std::sync::atomic::Ordering;
         use windows_sys::Win32::UI::WindowsAndMessaging::{
-            FindWindowW, SendMessageW, PBT_APMSUSPEND, WM_ENDSESSION, WM_POWERBROADCAST, WM_QUERYENDSESSION,
+            SendMessageW, PBT_APMSUSPEND, WM_ENDSESSION, WM_POWERBROADCAST, WM_QUERYENDSESSION,
         };
         power::start(|why| eprintln!("{why}"));
-        let class = power::wide(power::CLASS);
         let waited = std::time::Instant::now();
         let hwnd = loop {
-            // SAFETY: a valid NUL-terminated class name; null title.
-            let found = unsafe { FindWindowW(class.as_ptr(), std::ptr::null()) };
+            let found = power::window();
             if !found.is_null() {
                 break found;
             }
@@ -1544,8 +1544,7 @@ mod tests {
         assert!(!written, "a shutdown called off writes nothing early");
         // Quitting closes the window: gone at once, its thread ended, and no message is answered any more.
         power::stop(std::time::Duration::from_secs(2));
-        // SAFETY: a valid NUL-terminated class name; null title.
-        assert!(unsafe { FindWindowW(class.as_ptr(), std::ptr::null()) }.is_null(), "the window is gone after stop");
+        assert!(power::window().is_null(), "the window is gone after stop");
         for (stop, join) in running {
             stop.store(true, Ordering::SeqCst);
             join.join().unwrap();

@@ -13,6 +13,7 @@ import {
   type ResultsDriver,
   type ResultsLap,
   TOP_CARS,
+  hasOtherDrivers,
   sectorGapS,
   topVsYou,
 } from './classPace';
@@ -309,5 +310,25 @@ describe('sectorGapS: the one place the sign is written', () => {
       median([sectorGapS(you, fast, 0), sectorGapS(you, slow, 0)])!,
       9,
     );
+  });
+});
+
+describe('hasOtherDrivers', () => {
+  it('is true when the doc lists a driver other than him, false with only him or no doc', () => {
+    expect(hasOtherDrivers(null)).toBe(false);
+    expect(
+      hasOtherDrivers(
+        classPaceDoc([driver({player: true, times: [100, 101, 102]})]),
+      ),
+    ).toBe(false);
+    expect(
+      hasOtherDrivers(
+        classPaceDoc([
+          driver({player: true, times: [100, 101, 102]}),
+          driver({times: [99, 100, 101]}),
+        ]),
+      ),
+    ).toBe(true);
+    expect(hasOtherDrivers(classPaceDoc(driversOf(race)))).toBe(true);
   });
 });

@@ -1,9 +1,16 @@
 import {describe, expect, it} from '@jest/globals';
 
+import race from './__fixtures__/classPaceR.json';
+import snapshotDaytona from './__fixtures__/classPaceSnapshotDaytona.json';
+import snapshotRoadAtlanta from './__fixtures__/classPaceSnapshotRoadAtlanta.json';
+import {type ResultsDriver} from './classPace';
 import {
   FINISH_VERSION,
   finishCurrent,
   finishDoc,
+  finishedText,
+  finishFromResults,
+  finishOf,
   finishPosition,
   type ResultField,
   raceResultText,
@@ -155,6 +162,7 @@ describe('finishDoc', () => {
         version: FINISH_VERSION,
         kind: 'other',
         finish: null,
+        source: 'field',
       });
   });
 
@@ -200,5 +208,138 @@ describe('raceResultText', () => {
     expect(raceResultText({...left, classLeaderLapsDone: null})).toBe(
       'P20 · L20 (left early)',
     );
+  });
+});
+
+// His real race, Sebring 2026-10-21 (20_45_08-82R1), cut to him and a few cars:
+// the game's file gives Position 5 and ClassPosition 1 (GT3), Finished Normally.
+describe('finishFromResults: the game own classification', () => {
+  const drivers = race.drivers as ResultsDriver[];
+
+  it('is the file overall and class place, as the head says it: P5 · P1 in class', () => {
+    const finish = finishFromResults(drivers)!;
+    expect(finish).toMatchObject({overall: 5, inClass: 1, leftEarly: false});
+    expect(raceResultText(finish)).toBe('P5 · P1 in class');
+    // the classified counts are the drivers the input lists (this fixture is cut to 7)
+    expect(finish.ofOverall).toBe(7);
+    expect(finish.ofClass).toBe(4);
+  });
+
+  it('counts his laps and the leaders: the class leader laps are the GT3 ones, not the faster class', () => {
+    const finish = finishFromResults(drivers)!;
+    expect(finish.lapsDone).toBe(30);
+    expect(finish.leaderLapsDone).toBe(33);
+    expect(finish.classLeaderLapsDone).toBe(30);
+  });
+
+  it('a status other than "Finished Normally" is left early, and reads as the list reads a left-early race', () => {
+    for (const status of ['DNF', 'DQ', 'None']) {
+      const left = finishFromResults(
+        drivers.map(d => (d.player ? {...d, status} : d)),
+      )!;
+      expect(left.leftEarly).toBe(true);
+      expect(raceResultText(left)).toBe('P1 · L30 of L30+ (left early)');
+    }
+  });
+
+  it('is null without his row, without his overall place (an input from before it), or with no drivers', () => {
+    expect(finishFromResults(null)).toBeNull();
+    expect(finishFromResults([])).toBeNull();
+    expect(finishFromResults(drivers.filter(d => !d.player))).toBeNull();
+    expect(
+      finishFromResults(
+        drivers.map(d => (d.player ? {...d, overall: undefined} : d)),
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('finishOf: the one rule, in one place', () => {
+  const drivers = race.drivers as ResultsDriver[];
+  const fromField = finishDoc(field, 'Race');
+  const choose = (d: ResultsDriver[] | null, sessionType = 'Race') =>
+    finishOf({drivers: d, sessionType, field: fromField});
+
+  it('a race with finishers takes the file: the version, the race kind, its finish and its source', () => {
+    expect(choose(drivers)).toEqual({
+      version: FINISH_VERSION,
+      kind: 'race',
+      finish: finishFromResults(drivers),
+      source: 'results',
+    });
+    // Sebring Oct 21: P5 · P1 in class, over the field's P2 · P1
+    expect(raceResultText(choose(drivers)!.finish)).toBe('P5 · P1 in class');
+    // a result of either source is kept under the same version and kind
+    expect(finishCurrent(choose(drivers) as never, 'Race')).toBe(true);
+  });
+
+  it('a race nobody finished is a snapshot, not a classification: the field stands (Daytona 2026-09-29)', () => {
+    const daytona = snapshotDaytona.drivers as ResultsDriver[];
+    expect(daytona.some(d => d.status === 'Finished Normally')).toBe(false);
+    expect(choose(daytona)).toBe(fromField);
+  });
+
+  it('and on another of his 52 snapshot files: the field stands (Road Atlanta 2026-10-01, he DNF, the rest None)', () => {
+    const atlanta = snapshotRoadAtlanta.drivers as ResultsDriver[];
+    expect(atlanta.some(d => d.status === 'Finished Normally')).toBe(false);
+    expect(choose(atlanta)).toBe(fromField);
+  });
+
+  it('finishers present and he DNF: left early, from the file', () => {
+    const dnf = drivers.map(d => (d.player ? {...d, status: 'DNF'} : d));
+    const doc = choose(dnf)!;
+    expect(doc.source).toBe('results');
+    expect(doc.finish!.leftEarly).toBe(true);
+    expect(raceResultText(doc.finish)).toBe('P1 · L30 of L30+ (left early)');
+  });
+
+  it('no file, a v1 input, an input from before overall, or no row of his: the field stands, unchanged', () => {
+    expect(choose(null)).toBe(fromField);
+    expect(choose([])).toBe(fromField);
+    expect(choose(drivers.filter(d => !d.player))).toBe(fromField);
+    const old = drivers.map(d => ({...d, overall: undefined}));
+    expect(choose(old)).toBe(fromField);
+    expect(
+      finishOf({drivers: null, sessionType: 'Race', field: null}),
+    ).toBeNull();
+  });
+
+  it('practice and qualifying have no result from the file', () => {
+    expect(choose(drivers, 'Practice')).toBe(fromField);
+    expect(choose(drivers, 'Qualify')).toBe(fromField);
+  });
+});
+
+describe('finishedText: the line both headers print', () => {
+  const drivers = race.drivers as ResultsDriver[];
+  const fromField = finishDoc(field, 'Race');
+
+  it('is "Finished " and the result text, and none without a result', () => {
+    const doc = finishOf({drivers, sessionType: 'Race', field: fromField})!;
+    expect(finishedText(doc.finish)).toBe('Finished P5 · P1 in class');
+    expect(finishedText(doc.finish)).toBe(
+      `Finished ${raceResultText(doc.finish)}`,
+    );
+    expect(finishedText(null)).toBeNull();
+    // a race he left early reads as the Sessions list row does: no "Finished"
+    const left = {
+      ...doc.finish!,
+      leftEarly: true,
+      inClass: 20,
+      lapsDone: 20,
+      classLeaderLapsDone: 23,
+    };
+    expect(finishedText(left)).toBe('P20 · L20 of L23+ (left early)');
+    expect(finishedText(left)).toBe(raceResultText(left));
+  });
+
+  it('a penalty: the header says the file place while the field still has him where the road had him; both stay what they are', () => {
+    // On the road he was P2 overall at the flag (the field); the game's classification, after a penalty, is P5.
+    expect(raceResultText(fromField.finish)).toBe('P2 · P1 in class');
+    const doc = finishOf({drivers, sessionType: 'Race', field: fromField})!;
+    expect(finishedText(doc.finish)).toBe('Finished P5 · P1 in class');
+    expect(doc.source).toBe('results');
+    // the field's own reading is untouched: the Race tab's list at the flag is built from it
+    expect(finishPosition(field)).toEqual(fromField.finish);
   });
 });

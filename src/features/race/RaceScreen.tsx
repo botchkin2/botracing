@@ -68,6 +68,7 @@ import {
 } from './selectionClock';
 import {followCar, followViewFor} from './followTarget';
 import {phone3dHeight} from './phone3dHeight';
+import {phone3dOn, phoneKeyShown} from './phoneKey';
 import {markPitLane} from './pitLaneState';
 import {useRaceClock} from './useRaceClock';
 import {type RaceData, useRaceData} from './useRaceData';
@@ -90,6 +91,8 @@ const WIDE_MIN_MAP_W = 560;
 const BOARD_BELOW_H = 260;
 
 const NO_FIELD_TITLE = 'No field data for this session';
+/** The game's results file listed the other drivers, but no positions on the track were recorded (otherCarsState). */
+const NO_REPLAY_TITLE = "No replay: other cars' positions were not recorded";
 const NO_LAP_TITLE = 'No timed lap to draw the track';
 const NO_LINE_TITLE = 'No track line in this session';
 const LINE_ERROR_TEXT = 'Could not load the lap that draws the track';
@@ -210,17 +213,25 @@ function Notice({data}: {data: Exclude<RaceData, {kind: 'ready'}>}) {
     data.kind === 'no-lap' ||
     data.kind === 'no-line'
   ) {
+    const noReplay = data.kind === 'no-field' && data.others.kind === 'drivers';
     return (
       <View style={styles.center}>
+        {data.kind === 'no-field' && data.result ? (
+          <Text variant='dataStrong'>{data.result}</Text>
+        ) : null}
         <EmptyState
           title={
             data.kind === 'no-lap'
               ? NO_LAP_TITLE
               : data.kind === 'no-line'
               ? NO_LINE_TITLE
+              : noReplay
+              ? NO_REPLAY_TITLE
               : NO_FIELD_TITLE
           }
-          body={data.kind === 'no-field' ? data.why ?? undefined : undefined}
+          body={
+            data.kind === 'no-field' && !noReplay ? data.why ?? undefined : undefined
+          }
         />
       </View>
     );
@@ -349,8 +360,6 @@ function RaceView({
   const [zoom, setZoom] = useState<LaneZoom>('l10');
   const [focus, setFocus] = useState<number | null>(null);
   const [wanted, setWanted] = useState<ClassFilter | null>(null);
-  // Phone: the legend is folded away until asked for.
-  const [keyOpen, setKeyOpen] = useState(false);
   // R1e: per view; the design's third mode (car number) needs numbers the
   // field upload does not carry.
   const [labels, setLabels] = useState<LabelMode>('pos');
@@ -447,7 +456,12 @@ function RaceView({
   const [columnW, setColumnW] = useState(0);
   const [mapBox, setMapBox] = useState({width: 0, height: 0});
   const mapW = desktop ? mapBox.width : layout.contentWidth;
-  const phone3d = !desktop && mapMode === 'chase' && chaseAvailable && data.chase !== null;
+  const phone3d = phone3dOn({
+    desktop,
+    mapMode,
+    chaseAvailable,
+    hasChase: data.chase !== null,
+  });
   const mapH = desktop
     ? mapBox.height
     : phone3d
@@ -762,6 +776,9 @@ function RaceView({
             {sub}
           </Text>
         </View>
+        {data.result ? (
+          <Text variant='dataStrong'>{data.result}</Text>
+        ) : null}
         {roadLine ? (
           <Text variant='dataSmall' tone='textSecondary'>
             {roadLine}
@@ -828,27 +845,19 @@ function RaceView({
             <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
               {sub}
             </Text>
-            {phone3d ? null : (
-              <Pressable
-                accessibilityRole='button'
-                accessibilityState={{expanded: keyOpen}}
-                accessibilityLabel='Key'
-                onPress={() => setKeyOpen(o => !o)}
-                hitSlop={space.md}
-                style={styles.keyToggle}>
-                <Text variant='dataSmall' tone='accentInk'>
-                  {keyOpen ? 'Key ▴' : 'Key ▾'}
-                </Text>
-              </Pressable>
-            )}
           </View>
+          {data.result ? (
+            <Text variant='dataStrong'>{data.result}</Text>
+          ) : null}
           {roadLine ? (
             <Text variant='dataSmall' tone='textSecondary'>
               {roadLine}
             </Text>
           ) : null}
           {map}
-          {keyOpen && !phone3d ? <RaceLegend classes={rows.classes} /> : null}
+          {phoneKeyShown(phone3d) ? (
+            <RaceLegend classes={rows.classes} />
+          ) : null}
         </View>
         {boardPaged}
         <View style={styles.phoneLanes}>{lanesBlock}</View>
@@ -909,10 +918,4 @@ const styles = StyleSheet.create({
   matchNote: {marginTop: space.xs},
   subRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   flexFill: {flex: 1},
-  keyToggle: {
-    minWidth: size.hit,
-    minHeight: size.hit,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });

@@ -29,7 +29,7 @@ A user's sync never writes app data. An admin tool never writes user data.
 | Session `fieldMissing` | user | `sessions/{id}.fieldMissing`: why the session has no field, in words for the driver (null with a field; the Field screen shows it as is). Written by every upload from `field.mjs fieldMissingAfter`; a cloud run keeps the stored line | | upload API (`docs/SESSION_PIPELINE.md`) |
 | Raw recordings archive | user | | `archive/{uid}/{sim}/` | upload API |
 | Uploader heartbeats | user | `uploaders/{uid}__{hostId}`: the tray's status, with `problems[]` (what is wrong on the PC now, at most 10, overwritten each beat; no `lastError`) | | upload API |
-| Profile and usage | user | `users/{uid}` | | upload API (usage), sign-in |
+| Profile and usage | user | `users/{uid}`: `ownerKey` and `canSendNote` (admin-set only, never by a client; `GET /api/me` returns the flag) | | upload API (usage), sign-in |
 | Tracks: identity, length, georef, corner map | app | `tracks/{trackId}` | `trackmaps/{trackId}/` | curate, track-fit |
 | Section boundaries | app | `trackBoundaries/{trackId}` | | curate |
 | Track surface | app | `tracks/{trackId}.surface` | `surface/{trackId}/` | curate (rebuild) |

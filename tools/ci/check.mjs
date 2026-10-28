@@ -152,6 +152,7 @@ export const CI_ONLY = [
   ['capture', 'DuckDB CLI', '810329774d27', 'downloads the Linux DuckDB CLI; use your own'],
   ['contract-replay', 'Anything on the tray/API line?', 'e6389d38a660', 'the scope step: this file gates on the same pattern (TRAY_API_LINE)'],
   ['contract-replay', 'Functions build', 'b54ab5407395', 'installs and builds the functions for the replay'],
+  ['contract-replay', 'Golden set (skipped without the credential)', 'b1281e26915b', 'the notice a run without the golden credential prints (a Dependabot run, a fork)'],
   ['contract-replay', 'DuckDB CLI', '1b40681f0ee2', 'downloads the Windows DuckDB CLI; use your own'],
   ['contract-replay', 'The finished files (an LMU .duckdb, an iRacing .ibt)', '18238520dfe2', 'fetches the replay inputs from the private golden bucket'],
   ['contract-replay', 'Replay against the API in the emulators', 'a4c3328db05a', 'the replay against the API in the emulators (Java 21)'],
