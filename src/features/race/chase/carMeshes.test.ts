@@ -3,13 +3,14 @@ import * as THREE from 'three';
 
 import {
   carOutline,
+  LIGHT_COPIES,
   LIGHT_GAIN,
   createCarKit,
   mixSrgb,
   shellOf,
   tickSegment,
 } from './carMeshes';
-import {modelPaint} from './carPaint';
+import {PAINTS, colorGap, modelPaint, toOklab} from './carPaint';
 import {SHAPES, lightSegments, shapeFor} from './carShapes';
 import {MODELS} from './modelShapes';
 
@@ -588,7 +589,8 @@ describe('lights lead the outline', () => {
       ).geometry.getAttribute('position');
       const color = colorsOf(car);
       expect(color.count).toBe(edges.count);
-      const lights = lightSegments(shapeFor(vehicle, cls).shape).length * 2;
+      const lights =
+        lightSegments(shapeFor(vehicle, cls).shape).length * 2 * LIGHT_COPIES;
       expect(lights).toBeGreaterThan(0);
       for (let i = 0; i < edges.count; i++)
         expect(color.getX(i)).toBe(
@@ -608,8 +610,35 @@ describe('lights lead the outline', () => {
     for (let i = 0; i < color.count; i++) expect(color.getX(i)).toBe(1);
     kit.dispose();
   });
-  it('a light line is brighter than the car colour it multiplies, and the gain is a real brightening', () => {
-    expect(LIGHT_GAIN).toBeGreaterThan(1.5);
+  it('the light colour keeps the hue and stays well away from his white-hot, for every class colour and every model colour', () => {
+    const clamp = (hex: string) => {
+      const c = new THREE.Color(hex);
+      // three.js multiplies in linear light and the screen clamps each channel
+      const light = new THREE.Color(
+        Math.min(1, c.r * LIGHT_GAIN),
+        Math.min(1, c.g * LIGHT_GAIN),
+        Math.min(1, c.b * LIGHT_GAIN),
+      );
+      return '#' + light.getHexString();
+    };
+    const hue = (hex: string) => {
+      const lab = toOklab(hex)!;
+      return (Math.atan2(lab[2], lab[1]) * 180) / Math.PI;
+    };
+    const classes = COLORS.classes;
+    for (const anchor of classes)
+      for (let i = 0; i < PAINTS; i++) {
+        const paint = modelPaint(
+          anchor,
+          classes.filter(c => c !== anchor),
+          i,
+        );
+        const light = clamp(paint);
+        const turn = Math.abs(((hue(light) - hue(paint) + 540) % 360) - 180);
+        expect(turn).toBeLessThan(5);
+        expect(colorGap(light, '#ffffff')).toBeGreaterThanOrEqual(15);
+        expect(colorGap(light, paint)).toBeGreaterThan(0.5);
+      }
   });
 });
 

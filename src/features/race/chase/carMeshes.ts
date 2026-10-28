@@ -307,23 +307,40 @@ function buildClass(ground: [number, number], c: ClassShape): ClassKit {
   };
 }
 
-/** A light line is this many times brighter than its car's outline (three.js multiplies the vertex colour by the material's; the screen clamps it). */
-export const LIGHT_GAIN = 2.2;
+/**
+ * A light line is this many times brighter than its car's outline (three.js multiplies the vertex colour by the
+ * material's; the screen clamps each channel). Kept small on purpose: a big gain clamps a channel and pulls the colour
+ * toward white, and white-hot is his car's colour alone (scout #8241, steward #8239); carMeshes.test.ts holds the hue
+ * and the distance from white-hot for every class colour and every model colour.
+ */
+export const LIGHT_GAIN = 1.1;
+/**
+ * Each light line is drawn this many times, this far apart (metres, in height). A 1 px line is faint at 30 m, where it
+ * covers a fraction of a pixel; three of them cover three times as much and read as a brighter, thicker line, with the
+ * colour untouched. All inside the one body-edges buffer.
+ */
+export const LIGHT_COPIES = 3;
+export const LIGHT_SPREAD_M = 0.012;
 
 /**
  * A line geometry with more segments appended to it, so they ride the same draw, and a colour attribute: 1 for every
- * outline vertex, LIGHT_GAIN for the appended light lines, so the lights lead at a distance where the outline is a
- * smear (steward #8229). The colour attribute is on every body-edges geometry, because the material that draws them
- * reads vertex colours.
+ * outline vertex, LIGHT_GAIN for the appended light lines (each LIGHT_COPIES times, LIGHT_SPREAD_M apart). The colour
+ * attribute is on every body-edges geometry, because the material that draws them reads vertex colours.
  */
 function withSegments(
   edges: THREE.BufferGeometry,
   segments: number[][],
 ): THREE.BufferGeometry {
   const at = edges.getAttribute('position');
-  const pos = new Float32Array(at.count * 3 + segments.length * 6);
+  const copies: number[][] = [];
+  for (const seg of segments)
+    for (let k = 0; k < LIGHT_COPIES; k++) {
+      const dy = (k - (LIGHT_COPIES - 1) / 2) * LIGHT_SPREAD_M;
+      copies.push([seg[0], seg[1] + dy, seg[2], seg[3], seg[4] + dy, seg[5]]);
+    }
+  const pos = new Float32Array(at.count * 3 + copies.length * 6);
   pos.set(at.array as Float32Array, 0);
-  segments.forEach((s, i) => pos.set(s, at.count * 3 + i * 6));
+  copies.forEach((s, i) => pos.set(s, at.count * 3 + i * 6));
   const colors = new Float32Array(pos.length).fill(1);
   colors.fill(LIGHT_GAIN, at.count * 3);
   edges.dispose();
