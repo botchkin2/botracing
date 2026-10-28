@@ -537,7 +537,7 @@ describe('the tail light lines', () => {
     return false;
   };
   it.each([
-    ['Alpine A424', 4],
+    ['Alpine A424', 5],
     ['Peugeot 9x8', 3],
   ])(
     '%s: its %i light segments are in the one body-edges buffer, behind the tail, and the car still draws 7 meshes',
@@ -561,10 +561,10 @@ describe('the tail light lines', () => {
   );
   it('a model without lights has none, and a light line never adds a draw', () => {
     const kit = createCarKit(COLORS);
-    const plain = shapeFor('Ferrari 499P', 'Hyper').shape;
+    const plain = shapeFor(null, 'Hyper').shape;
     expect(lightSegments(plain)).toEqual([]);
     const lit = kit.make('Hyper', '#e64343', false, 'Alpine A424');
-    const dark = kit.make('Hyper', '#e64343', false, 'Ferrari 499P');
+    const dark = kit.make('Hyper', '#e64343', false, null);
     expect(lit.children).toHaveLength(dark.children.length);
     kit.dispose();
   });

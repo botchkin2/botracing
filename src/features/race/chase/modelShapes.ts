@@ -401,6 +401,19 @@ export const HYPER_MODELS: ModelEntry[] = [
       wingSpan: 1.1,
       bulges: [{x: 1.25, len: 1.7, z: 0.74, w: 0.42, h: 0.34}],
     },
+    // a split bar: two halves with a notch down the centre
+    tailLights: [
+      [
+        [-0.8, 0.5],
+        [-0.06, 0.5],
+        [-0.06, 0.3],
+      ],
+      [
+        [0.8, 0.5],
+        [0.06, 0.5],
+        [0.06, 0.3],
+      ],
+    ],
   },
   {
     // LMH, the 2024 car (one string in his files): the smoothest rounded teardrop, the tallest roof and a low wide wing
@@ -456,6 +469,17 @@ export const HYPER_MODELS: ModelEntry[] = [
       cabinTop: 0.12,
       bulges: [{x: 1.45, len: 1.2, z: 0.76, w: 0.36, h: 0.46}],
     },
+    // a thin bar across the tail with a break in the centre
+    tailLights: [
+      [
+        [-0.8, 0.38],
+        [-0.1, 0.38],
+      ],
+      [
+        [0.1, 0.38],
+        [0.8, 0.38],
+      ],
+    ],
   },
   {
     // LMH: the narrowest canopy between wide vented front fenders (tunnels), a cut-away low tail with the wheels exposed,
@@ -477,6 +501,13 @@ export const HYPER_MODELS: ModelEntry[] = [
       wingH: 0.4,
       bulges: [{x: 1.15, len: 1.6, z: 0.84, w: 0.44, h: 0.3}],
     },
+    // one high central light
+    tailLights: [
+      [
+        [-0.2, 0.5],
+        [0.2, 0.5],
+      ],
+    ],
   },
   {
     // LMDh: an angular, flat-roofed body with a narrow canopy and a long pointed nose between broad low scoops; the faceted
@@ -572,6 +603,19 @@ export const HYPER_MODELS: ModelEntry[] = [
       wingSpan: 1.05,
       bulges: [{x: 1.3, len: 1.1, z: 0.82, w: 0.3, h: 0.2}],
     },
+    // slim L-shapes at the rear corners
+    tailLights: [
+      [
+        [-0.5, 0.3],
+        [-0.72, 0.3],
+        [-0.72, 0.52],
+      ],
+      [
+        [0.5, 0.3],
+        [0.72, 0.3],
+        [0.72, 0.52],
+      ],
+    ],
   },
   {
     // LMDh: a rounded, wide, low front (the 956/962 soft shapes) and the wing held up on tall pylons beside a tall fin
@@ -656,6 +700,11 @@ export const HYPER_MODELS: ModelEntry[] = [
         [-0.62, 0.22],
         [0, 0.44],
         [0.62, 0.22],
+      ],
+      // a short bar under the fin
+      [
+        [-0.12, 0.58],
+        [0.12, 0.58],
       ],
     ],
   },
