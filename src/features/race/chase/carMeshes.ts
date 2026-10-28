@@ -22,6 +22,9 @@ import {
   type Station,
 } from './carShapes';
 import {modelPaint} from './carPaint';
+import {bodyGeometry, glassGeometry} from './bodyMesh';
+import {featureLines} from './featureLines';
+import {stationAt} from './bodyCurves';
 
 const TICK_OF_LENGTH = 0.3;
 /** The ring's diameter is about a car's length (chord, thread 83 #6151). */
@@ -250,7 +253,9 @@ function buildClass(ground: [number, number], c: ClassShape): ClassKit {
   const [wx, wy, chord, span] = c.wing;
   const tail = c.hull[c.hull.length - 1];
   const kind = c.wingKind ?? 'stalks';
-  const parts = [loft(c.hull, SILL_Y)];
+  // a model with a real body draws it in place of the hull; everything else on the car is the same parts
+  const first = c.body ? bodyGeometry(c.body) : loft(c.hull, SILL_Y);
+  const parts: THREE.BufferGeometry[] = [];
   if (kind !== 'none') {
     parts.push(
       slab(wx, wy, chord, 0.05, span),
@@ -291,12 +296,20 @@ function buildClass(ground: [number, number], c: ClassShape): ClassKit {
     );
   // the four wheels stand on the road with their outer faces a little outside the hull's widest half-width
   const [front, rear, radius, width] = c.wheels;
-  const outer = Math.max(...c.hull.map(st => st[1])) + WHEEL_PROUD_M;
-  for (const x of [front, rear])
+  const hullOuter = Math.max(...c.hull.map(st => st[1])) + WHEEL_PROUD_M;
+  for (const x of [front, rear]) {
+    const outer = c.body
+      ? stationAt(c.body, x).half + WHEEL_PROUD_M
+      : hullOuter;
     for (const side of [-1, 1])
       parts.push(wheel(x, radius, width, side * outer));
-  const body = mergeAll(parts);
-  const cabin = loft(c.cabin, c.cabin[0][2] - 0.02);
+  }
+  // a real body's outline is its feature lines, not creases (a smooth body has few): only the other parts are edged
+  const outlineParts = c.body ? mergeAll(parts.map(p => p.clone())) : null;
+  const body = mergeAll([first, ...parts]);
+  const cabin = c.body
+    ? glassGeometry(c.body)
+    : loft(c.cabin, c.cabin[0][2] - 0.02);
   const outline = new THREE.Shape(
     carOutline(ground).map(p => new THREE.Vector2(p.x, -p.z)),
   );
@@ -309,10 +322,13 @@ function buildClass(ground: [number, number], c: ClassShape): ClassKit {
     body,
     cabin,
     bodyEdges: withSegments(
-      new THREE.EdgesGeometry(body, EDGE_ANGLE_DEG),
+      new THREE.EdgesGeometry(outlineParts ?? body, EDGE_ANGLE_DEG),
+      c.body ? featureLines(c.body, radius).body : [],
       lightSegments(c),
     ),
-    cabinEdges: new THREE.EdgesGeometry(cabin, EDGE_ANGLE_DEG),
+    cabinEdges: c.body
+      ? segmentsGeometry(featureLines(c.body, radius).glass)
+      : new THREE.EdgesGeometry(cabin, EDGE_ANGLE_DEG),
     halo: shellOf(body, HALO_OFFSET_M),
     base,
     tick,
@@ -368,18 +384,30 @@ function bodyEdgesMaterial(
  */
 function withSegments(
   edges: THREE.BufferGeometry,
-  segments: number[][],
+  outline: number[][],
+  lights: number[][],
 ): THREE.BufferGeometry {
   const at = edges.getAttribute('position');
-  const pos = new Float32Array(at.count * 3 + segments.length * 6);
+  const plain = at.count * 3 + outline.length * 6;
+  const pos = new Float32Array(plain + lights.length * 6);
   pos.set(at.array as Float32Array, 0);
-  segments.forEach((seg, i) => pos.set(seg, at.count * 3 + i * 6));
+  outline.forEach((seg, i) => pos.set(seg, at.count * 3 + i * 6));
+  lights.forEach((seg, i) => pos.set(seg, plain + i * 6));
   const colors = new Float32Array(pos.length).fill(1);
-  colors.fill(LIGHT_FLAG, at.count * 3);
+  colors.fill(LIGHT_FLAG, plain);
   edges.dispose();
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  return g;
+}
+
+/** A line geometry of explicit segments (each [x1, y1, z1, x2, y2, z2]). */
+function segmentsGeometry(segments: number[][]): THREE.BufferGeometry {
+  const pos = new Float32Array(segments.length * 6);
+  segments.forEach((seg, i) => pos.set(seg, i * 6));
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   return g;
 }
 

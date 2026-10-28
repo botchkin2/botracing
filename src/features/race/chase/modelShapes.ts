@@ -7,6 +7,8 @@
 // STYLISED, NOT TO SCALE: the numbers only exaggerate what the cue says, inside the class footprint's width.
 
 import type {TailLight} from './carShapes';
+import type {BodyModel} from './bodyCurves';
+import {BODY_911} from './bodiesGt3';
 import type {ModelParams} from './modelParams';
 
 export interface ModelEntry {
@@ -17,6 +19,8 @@ export interface ModelEntry {
   /** A real `vehicle` string from his results files; the tests build every entry from it. */
   example: string;
   params: ModelParams;
+  /** A real body for this model (bodyCurves); without one the model is the class hull and its params. */
+  body?: BodyModel;
   /** Light lines on the tail face: extra segments of the body edges, never a new draw. */
   tailLights?: TailLight[];
 }
@@ -30,6 +34,7 @@ export const GT3_MODELS: ModelEntry[] = [
     key: 'porsche-911',
     match: /911/,
     example: 'Porsche 911 GT3 R LMGT3',
+    body: BODY_911,
     params: {
       lengthM: 4.62,
       wheelbaseM: 2.5,

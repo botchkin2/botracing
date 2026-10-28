@@ -56,3 +56,41 @@ export function bodyGeometry(
   g.computeVertexNormals();
   return g;
 }
+
+/** The glass of the greenhouse lifts off the body by this much, so it never fights the body's own surface. */
+const GLASS_LIFT_M = 0.006;
+
+/**
+ * The greenhouse's glass: an open strip over the sections between the screen's foot and the rear window's foot, from the
+ * belt on one flank across the roof to the belt on the other, lifted off the body. Drawn dark (the cabin material).
+ */
+export function glassGeometry(
+  model: BodyModel,
+  n: number = STATIONS,
+): THREE.BufferGeometry {
+  const g = model.greenhouse;
+  const rings = bodyStations(model, n)
+    .filter(st => st.x <= g.screenBaseX && st.x >= g.rearBaseX)
+    .map(st => {
+      const ring = sectionRing(st, model.roundness ?? SHOULDER_ROUNDNESS);
+      // from the belt on the left (index 2) to the belt on the right (the mirror)
+      return ring
+        .slice(2, ring.length - 2)
+        .map(
+          ([z, y]) =>
+            new THREE.Vector3(
+              st.x,
+              y + GLASS_LIFT_M,
+              z + Math.sign(z) * GLASS_LIFT_M,
+            ),
+        );
+    });
+  const tri: THREE.Vector3[] = [];
+  for (let k = 0; k < rings.length - 1; k++) {
+    const a = rings[k];
+    const b = rings[k + 1];
+    for (let i = 0; i < a.length - 1; i++)
+      tri.push(a[i], b[i], b[i + 1], a[i], b[i + 1], a[i + 1]);
+  }
+  return new THREE.BufferGeometry().setFromPoints(tri);
+}

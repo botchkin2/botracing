@@ -2,8 +2,13 @@ import {describe, expect, it} from '@jest/globals';
 import * as THREE from 'three';
 
 import {COUPE} from './__fixtures__/coupeBody';
-import {bodyStations, sectionRing, STATIONS} from './bodyCurves';
-import {MAX_BODY_TRIANGLES, bodyGeometry, bodyRings} from './bodyMesh';
+import {bodyStations, sectionRing, stationAt, STATIONS} from './bodyCurves';
+import {
+  MAX_BODY_TRIANGLES,
+  bodyGeometry,
+  bodyRings,
+  glassGeometry,
+} from './bodyMesh';
 
 const positions = (g: THREE.BufferGeometry) =>
   g.getAttribute('position') as THREE.BufferAttribute;
@@ -117,5 +122,33 @@ describe('bodyRings', () => {
       expect(r).toHaveLength(sectionRing(stations[i]).length);
       for (const v of r) expect(v.x).toBeCloseTo(stations[i].x, 9);
     });
+  });
+});
+
+describe('glassGeometry', () => {
+  const g = glassGeometry(COUPE);
+  const p = positions(g);
+
+  it('covers only the greenhouse, from the belt across the roof to the belt, lifted off the body', () => {
+    const box = new THREE.Box3().setFromBufferAttribute(p);
+    const gh = COUPE.greenhouse;
+    expect(box.max.x).toBeLessThanOrEqual(gh.screenBaseX + 1e-9);
+    expect(box.min.x).toBeGreaterThanOrEqual(gh.rearBaseX - 1e-9);
+    const roof = stationAt(COUPE, (gh.roofFrontX + gh.roofRearX) / 2);
+    expect(box.max.y).toBeGreaterThan(roof.top);
+    // nothing below the belt of its lowest station
+    const lowestBelt = Math.min(
+      ...bodyStations(COUPE)
+        .filter(st => st.x <= gh.screenBaseX && st.x >= gh.rearBaseX)
+        .map(st => st.belt),
+    );
+    expect(box.min.y).toBeGreaterThanOrEqual(lowestBelt - 1e-9);
+  });
+
+  it('is finite, non-empty and cheap', () => {
+    expect(p.count).toBeGreaterThan(0);
+    for (let i = 0; i < p.count; i++)
+      expect(Number.isFinite(p.getY(i))).toBe(true);
+    expect(p.count / 3).toBeLessThan(400);
   });
 });

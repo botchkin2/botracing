@@ -6,6 +6,7 @@
 import {PAINTS, stepOfName} from './carPaint';
 import {modelOf} from './modelShapes';
 import {applyParams} from './modelParams';
+import type {BodyModel} from './bodyCurves';
 
 /** Class footprints (length x width, metres): the class nominal, the data carries no model dimensions. */
 export const SIZE: Record<string, [number, number]> = {
@@ -76,6 +77,8 @@ export interface ClassShape {
   bulges?: Bulge[];
   /** The wing's end plates: their height above the wing and how far the top rear corner is swept back, metres; none when absent. */
   endPlate?: EndPlate;
+  /** A real body (bodyCurves): drawn in place of the hull and the cabin box; the hull stays for placing the wing and the fin. */
+  body?: BodyModel;
   /** Light lines on the tail face, drawn as extra segments of the body edges (no extra draw); none when absent. */
   tailLights?: TailLight[];
   /** Prototype shark fin: from x, length, height; null on a GT. */
@@ -171,7 +174,8 @@ export function shapeClassOf(carClass: string): string {
  * station. Explicit segments, not creases, so EdgesGeometry would never find them (pit-wall thread 124, steward #8140).
  */
 export function lightSegments(c: ClassShape): number[][] {
-  const x = c.hull[c.hull.length - 1][0] - LIGHT_OFFSET_M;
+  const tailX = c.body ? -c.body.lengthM / 2 : c.hull[c.hull.length - 1][0];
+  const x = tailX - LIGHT_OFFSET_M;
   const out: number[][] = [];
   for (const line of c.tailLights ?? [])
     for (let i = 0; i + 1 < line.length; i++)
@@ -209,7 +213,20 @@ export function shapeFor(
   const model = modelOf(vehicle, cls);
   if (model) {
     const {entry, index} = model;
-    const shaped = applyParams(SHAPES[cls], entry.params);
+    const applied = applyParams(SHAPES[cls], entry.params);
+    // a model with a real body draws it, and its wheels stand on the body's own axles
+    const shaped = entry.body
+      ? {
+          ...applied,
+          body: entry.body,
+          wheels: [
+            entry.body.frontAxleX,
+            entry.body.rearAxleX,
+            applied.wheels[2],
+            applied.wheels[3],
+          ] as ClassShape['wheels'],
+        }
+      : applied;
     return {
       key: `${cls}:${entry.key}`,
       shape: entry.tailLights

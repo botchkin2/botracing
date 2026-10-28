@@ -301,7 +301,13 @@ describe('GT3 models', () => {
       const {shape} = shapeFor(m.example, 'GT3');
       const [front, rear, radius] = shape.wheels;
       expect(front).toBeGreaterThan(rear);
-      if (m.params.wheelbaseM)
+      // a model with a real body stands its wheels on the body's own axles
+      if (m.body)
+        expect(front - rear).toBeCloseTo(
+          m.body.frontAxleX - m.body.rearAxleX,
+          6,
+        );
+      else if (m.params.wheelbaseM)
         expect(front - rear).toBeCloseTo(m.params.wheelbaseM, 6);
       else
         expect(front - rear).toBeCloseTo(
