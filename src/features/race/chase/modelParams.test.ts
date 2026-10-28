@@ -26,6 +26,16 @@ describe('the tail seen from behind', () => {
     }
   });
 
+  it('the floor holds for every combination: a narrowed tail with a full cut stays at 0.1 m', () => {
+    const s = applyParams(HYPER, {tailW: -5, tailTopW: -5, tailCut: 1});
+    for (const st of s.hull) {
+      expect(st[1]).toBeGreaterThanOrEqual(0.1 - 1e-9);
+      expect(st[3]).toBeGreaterThanOrEqual(0.1 - 1e-9);
+    }
+    expect(last(s)[1]).toBeCloseTo(0.1, 9);
+    expect(before(s)[1]).toBeCloseTo(0.1, 9);
+  });
+
   it('tailCut narrows the sill behind the rear axle and leaves the wheels where they were', () => {
     const s = applyParams(HYPER, {tailCut: 1});
     expect(last(s)[1]).toBeLessThan(last(HYPER)[1] * 0.6);

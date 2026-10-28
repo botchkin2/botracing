@@ -108,9 +108,12 @@ export function applyParams(base: ClassShape, p: ModelParams): ClassShape {
     [last, 1],
     [last - 1, 0.5],
   ] as const) {
-    hull[i][1] = Math.max(MIN_HALF_W, hull[i][1] + dTailW * share);
-    hull[i][3] = Math.max(MIN_HALF_W, hull[i][3] + dTailTop * share);
-    hull[i][1] *= 1 - TAIL_CUT_SHARE * cut * share;
+    hull[i][1] =
+      (hull[i][1] + dTailW * share) * (1 - TAIL_CUT_SHARE * cut * share);
+    hull[i][3] += dTailTop * share;
+    // the floor comes last, so no combination of edits leaves a tail thinner than it
+    hull[i][1] = Math.max(MIN_HALF_W, hull[i][1]);
+    hull[i][3] = Math.max(MIN_HALF_W, hull[i][3]);
   }
   for (const st of hull) keepAbove(st);
 
