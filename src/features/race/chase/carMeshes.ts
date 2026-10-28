@@ -11,9 +11,11 @@
 import * as THREE from 'three';
 
 import {
-  SHAPES,
   SILL_Y,
   SIZE,
+  WING_PYLONS,
+  hullTopAt,
+  shapeClassOf,
   shapeFor,
   type ClassShape,
   type Station,
@@ -36,13 +38,16 @@ const EDGE_ANGLE_DEG = 25;
 
 type Local = {x: number; z: number};
 
-function footprint(carClass: string): [number, number] {
-  return SIZE[carClass] ?? SIZE.GT3;
+/** A ground box: a class (its nominal length and width) or a model's own [length, width]. */
+type Footprint = string | [number, number];
+
+function footprint(of: Footprint): [number, number] {
+  return typeof of === 'string' ? SIZE[shapeClassOf(of)] : of;
 }
 
 /** The car's footprint on the ground in its own frame: x forward (the nose at +L/2), z to the right. */
-export function carOutline(carClass: string): Local[] {
-  const [L, W] = footprint(carClass);
+export function carOutline(of: Footprint): Local[] {
+  const [L, W] = footprint(of);
   const half: Local[] = [
     {x: L * 0.42, z: W * 0.36},
     {x: L * 0.2, z: W / 2},
@@ -57,8 +62,8 @@ export function carOutline(carClass: string): Local[] {
 }
 
 /** The heading tick: from the nose, forward, a fraction of the car's length. */
-export function tickSegment(carClass: string): [Local, Local] {
-  const [L] = footprint(carClass);
+export function tickSegment(of: Footprint): [Local, Local] {
+  const [L] = footprint(of);
   return [
     {x: L / 2, z: 0},
     {x: L / 2 + L * TICK_OF_LENGTH, z: 0},
@@ -205,20 +210,35 @@ interface ClassKit {
   tick: THREE.BufferGeometry;
 }
 
-function buildClass(carClass: string, c: ClassShape): ClassKit {
+function buildClass(ground: [number, number], c: ClassShape): ClassKit {
   const [wx, wy, chord, span] = c.wing;
   const tail = c.hull[c.hull.length - 1];
-  const parts = [
-    loft(c.hull, SILL_Y),
-    slab(wx, wy, chord, 0.05, span),
-    ...[-1, 1].map(side =>
-      slab(wx + 0.08, (wy + tail[4]) / 2, 0.12, wy - tail[4], 0.03).translate(
-        0,
-        0,
-        side * span * 0.42,
+  const kind = c.wingKind ?? 'stalks';
+  const parts = [loft(c.hull, SILL_Y)];
+  if (kind !== 'none') {
+    parts.push(
+      slab(wx, wy, chord, 0.05, span),
+      ...WING_PYLONS[kind].map(f =>
+        slab(wx + 0.08, (wy + tail[4]) / 2, 0.12, wy - tail[4], 0.03).translate(
+          0,
+          0,
+          f * span,
+        ),
       ),
-    ),
-  ];
+    );
+  }
+  // raised pods (fender crests, haunches): a slab each side, standing on the hull's top line
+  for (const b of c.bulges ?? []) {
+    const top = hullTopAt(c.hull, b.x);
+    for (const side of [-1, 1])
+      parts.push(
+        slab(b.x, top - 0.02 + b.h / 2, b.len, b.h, b.w).translate(
+          0,
+          0,
+          side * b.z,
+        ),
+      );
+  }
   if (c.fin)
     parts.push(
       slab(
@@ -238,12 +258,12 @@ function buildClass(carClass: string, c: ClassShape): ClassKit {
   const body = mergeAll(parts);
   const cabin = loft(c.cabin, c.cabin[0][2] - 0.02);
   const outline = new THREE.Shape(
-    carOutline(carClass).map(p => new THREE.Vector2(p.x, -p.z)),
+    carOutline(ground).map(p => new THREE.Vector2(p.x, -p.z)),
   );
   const base = new THREE.ShapeGeometry(outline);
   base.rotateX(-Math.PI / 2);
   const tick = new THREE.BufferGeometry().setFromPoints(
-    tickSegment(carClass).map(p => new THREE.Vector3(p.x, 0.04, p.z)),
+    tickSegment(ground).map(p => new THREE.Vector3(p.x, 0.04, p.z)),
   );
   return {
     body,
@@ -342,10 +362,10 @@ export function createCarKit(colors: {
   const sets = new Map<string, MaterialSets>();
   let ring: THREE.RingGeometry | null = null;
   const kitFor = (carClass: string, vehicle: string | null): ClassKit => {
-    const {key, shape} = shapeFor(vehicle, carClass);
+    const {key, shape, footprint: ground} = shapeFor(vehicle, carClass);
     const cached = classes.get(key);
     if (cached) return cached;
-    const made = buildClass(SHAPES[carClass] ? carClass : 'GT3', shape);
+    const made = buildClass(ground, shape);
     classes.set(key, made);
     return made;
   };

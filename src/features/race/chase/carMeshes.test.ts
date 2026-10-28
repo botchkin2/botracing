@@ -9,6 +9,8 @@ import {
   tickSegment,
 } from './carMeshes';
 import {modelPaint} from './carPaint';
+import {SHAPES, shapeFor} from './carShapes';
+import {MODELS} from './modelShapes';
 
 // The engine places a car with rotation.set(0, heading, 0) in the three.js frame (x east, y up, z = -north).
 const placed = (local: {x: number; z: number}, heading: number) => {
@@ -185,7 +187,7 @@ describe('the halo shell', () => {
   it('is built per body shape, drawn back-faced in a dimmer edge colour, and never part of the car box', () => {
     const kit = createCarKit(COLORS);
     const a = kit.make('GT3', '#ff8800', false, 'BMW M4 LMGT3');
-    const b = kit.make('GT3', '#ff8800', false, 'Mercedes-AMG LMGT3');
+    const b = kit.make('GT3', '#ff8800', false, 'BMW M4 LMGT3');
     const halo = (car: THREE.Object3D) =>
       car.children.find(c => c.name === 'halo') as THREE.Mesh;
     expect(halo(a).geometry).toBe(halo(b).geometry);
@@ -316,11 +318,11 @@ describe('car families in the kit', () => {
     return (lines[0].material as THREE.LineBasicMaterial).color.getHexString();
   };
 
-  it('two cars of one family share their shape, and a different family has its own', () => {
+  it('two cars of one model share their shape (the 296 and its Evo are one model), and a different model has its own', () => {
     const kit = createCarKit(colors);
-    const a = kit.make('GT3', '#ff8800', false, 'BMW M4 LMGT3');
-    const b = kit.make('GT3', '#ff8800', false, 'Mercedes-AMG LMGT3'); // the same family (front engine)
-    const c = kit.make('GT3', '#ff8800', false, 'McLaren 720S LMGT3 Evo');
+    const a = kit.make('GT3', '#ff8800', false, 'Ferrari 296 LMGT3');
+    const b = kit.make('GT3', '#ff8800', false, 'Ferrari 296 LMGT3 Evo');
+    const c = kit.make('GT3', '#ff8800', false, 'BMW M4 LMGT3');
     const bodyOf = (car: THREE.Object3D) =>
       (car.children[1] as THREE.Mesh).geometry;
     expect(bodyOf(a)).toBe(bodyOf(b));
@@ -446,8 +448,72 @@ describe('a full field', () => {
     // before: 6 materials a car (7 for the followed car), 53 x 6 + 7 = 325, none shared
     expect(mats.size).toBeLessThan(200);
     expect(mats.size).toBeLessThan(0.6 * 325);
-    // a geometry set a body shape: 5 families and 2 class hulls at most, 7 each, plus the ring
-    expect(geos.size).toBeLessThanOrEqual(7 * 7 + 1);
+    // a geometry set (7) a body shape present in the field, plus the ring
+    const shapes = new Set([
+      ...HYPER.map(v => shapeFor(v, 'Hyper').key),
+      ...GT3.map(v => shapeFor(v, 'GT3').key),
+    ]);
+    expect(geos.size).toBeLessThanOrEqual(7 * shapes.size + 1);
     kit.dispose();
   });
+});
+
+describe('every body shape builds', () => {
+  // one car per shape: every model in every block, every Hyper family, and each class hull
+  const examples: [string, string | null][] = [
+    ...Object.entries(MODELS).flatMap(([cls, block]) =>
+      block.map(m => [cls, m.example] as [string, string]),
+    ),
+    ['Hyper', 'Ferrari 499P'],
+    ['Hyper', 'Porsche 963'],
+    ...Object.keys(SHAPES).map(cls => [cls, null] as [string, null]),
+  ];
+  const bodyOf = (car: THREE.Object3D) =>
+    (car.children[1] as THREE.Mesh).geometry;
+  const haloOf = (car: THREE.Object3D) =>
+    (car.children.find(c => c.name === 'halo') as THREE.Mesh).geometry;
+  const key = (a: THREE.BufferAttribute, i: number) =>
+    `${Math.round(a.getX(i) * 1e4)},${Math.round(a.getY(i) * 1e4)},${Math.round(
+      a.getZ(i) * 1e4,
+    )}`;
+
+  it.each(examples)(
+    '%s %s: 7 draws, a closed halo, on the road, its own footprint',
+    (cls, vehicle) => {
+      const kit = createCarKit(COLORS);
+      const car = kit.make(cls, '#e64343', false, vehicle);
+      expect(car.children).toHaveLength(7);
+      const body = bodyOf(car).getAttribute(
+        'position',
+      ) as THREE.BufferAttribute;
+      const halo = haloOf(car).getAttribute(
+        'position',
+      ) as THREE.BufferAttribute;
+      expect(halo.count).toBe(body.count);
+      // the shell is not torn open: vertices that met in the body still meet in the shell, and every one moved
+      const moved = new Map<string, string>();
+      for (let i = 0; i < body.count; i++) {
+        const at = key(body, i);
+        const to = key(halo, i);
+        expect(moved.get(at) ?? to).toBe(to);
+        moved.set(at, to);
+        expect(to).not.toBe(at);
+      }
+      // it stands on the road and nothing reaches past 1.7 m
+      const box = new THREE.Box3().setFromBufferAttribute(body);
+      expect(box.min.y).toBeGreaterThanOrEqual(-0.001);
+      expect(box.max.y).toBeLessThanOrEqual(1.7);
+      // the ground box is the shape's own length
+      const [length] = shapeFor(vehicle, cls).footprint;
+      const base = new THREE.Box3().setFromBufferAttribute(
+        car.children[0].type === 'Mesh'
+          ? ((car.children[0] as THREE.Mesh).geometry.getAttribute(
+              'position',
+            ) as THREE.BufferAttribute)
+          : body,
+      );
+      expect(base.max.x - base.min.x).toBeCloseTo(length, 1);
+      kit.dispose();
+    },
+  );
 });

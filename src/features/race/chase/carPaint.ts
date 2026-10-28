@@ -66,7 +66,8 @@ export function colorGap(a: string, b: string): number {
   return 100 * Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]);
 }
 
-const hueOf = ([, a, b]: Lab) => ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360;
+const hueOf = ([, a, b]: Lab) =>
+  ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360;
 const turn = (from: number, to: number) => ((to - from + 540) % 360) - 180;
 
 /** A stable index for a model name nothing else placed (a hash of the lower-cased name); 0 for no name. */
@@ -109,8 +110,7 @@ export function modelPaint(
     }
   }
   const row = Math.floor(i / HUE_STEPS);
-  const h =
-    hue + sign * (HUE_STEP_DEG * (i % HUE_STEPS) + ROW_HUE_DEG * row);
+  const h = hue + sign * (HUE_STEP_DEG * (i % HUE_STEPS) + ROW_HUE_DEG * row);
   const L = lab[0] + LIGHT_ROW * row;
   const C = chroma + ROW_CHROMA * row;
   // pull the chroma in until the colour fits sRGB; the hue and lightness stay what the model asked for

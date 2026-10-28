@@ -17,7 +17,11 @@ const paintsOf = (anchor: string) =>
 
 describe('model paint, on the real class colours', () => {
   it('the class colours are the same in both themes', () => {
-    expect([colors.light.class1, colors.light.class2, colors.light.class3]).toEqual(CLASSES);
+    expect([
+      colors.light.class1,
+      colors.light.class2,
+      colors.light.class3,
+    ]).toEqual(CLASSES);
   });
   it('colour 0 is the class colour itself, and every colour is a #rrggbb', () => {
     for (const anchor of CLASSES) {
@@ -38,7 +42,9 @@ describe('model paint, on the real class colours', () => {
     for (const anchor of CLASSES)
       for (const c of paintsOf(anchor))
         for (const other of CLASSES.filter(o => o !== anchor))
-          expect(colorGap(c, other) - colorGap(c, anchor)).toBeGreaterThanOrEqual(2);
+          expect(
+            colorGap(c, other) - colorGap(c, anchor),
+          ).toBeGreaterThanOrEqual(2);
   });
   it('no colour of one class is the same as a colour of another: cross-class pairs are at least 7 apart', () => {
     for (const a of CLASSES)
@@ -61,14 +67,21 @@ describe('model paint, on the real class colours', () => {
       const lab = toOklab(c)!;
       return ((Math.atan2(lab[2], lab[1]) * 180) / Math.PI + 360) % 360;
     };
-    const turned = (from: string, to: string) => ((hue(to) - hue(from) + 540) % 360) - 180;
+    const turned = (from: string, to: string) =>
+      ((hue(to) - hue(from) + 540) % 360) - 180;
     const [hyper, , gt3] = CLASSES;
     // red 25 deg and orange 48 deg: red goes down (toward pink, which wraps below 0), orange up (toward yellow)
-    expect(turned(hyper, modelPaint(hyper, [CLASSES[1], gt3], 2))).toBeLessThan(-20);
-    expect(turned(gt3, modelPaint(gt3, [hyper, CLASSES[1]], 2))).toBeGreaterThan(20);
+    expect(turned(hyper, modelPaint(hyper, [CLASSES[1], gt3], 2))).toBeLessThan(
+      -20,
+    );
+    expect(
+      turned(gt3, modelPaint(gt3, [hyper, CLASSES[1]], 2)),
+    ).toBeGreaterThan(20);
   });
   it('is the same colour every call, with finite inputs only giving colours', () => {
-    expect(modelPaint(CLASSES[0], CLASSES, 3)).toBe(modelPaint(CLASSES[0], CLASSES, 3));
+    expect(modelPaint(CLASSES[0], CLASSES, 3)).toBe(
+      modelPaint(CLASSES[0], CLASSES, 3),
+    );
     for (const i of [-5, 0, 2.6, 5, 99, Number.NaN]) {
       const c = modelPaint(CLASSES[2], [CLASSES[0]], i);
       expect(c).toMatch(/^#[0-9a-f]{6}$/);
@@ -83,7 +96,9 @@ describe('model paint, the edges of its input', () => {
   });
   it('with no rival it turns up, and with a rival that is not a colour it ignores it', () => {
     expect(modelPaint('#4697e4', [], 2)).toMatch(/^#[0-9a-f]{6}$/);
-    expect(modelPaint('#4697e4', ['nope'], 2)).toBe(modelPaint('#4697e4', [], 2));
+    expect(modelPaint('#4697e4', ['nope'], 2)).toBe(
+      modelPaint('#4697e4', [], 2),
+    );
   });
   it('a model with no place in a family gets a stable index from its name, in range, 0 for no name', () => {
     expect(stepOfName(null)).toBe(0);
@@ -97,7 +112,10 @@ describe('model paint, the edges of its input', () => {
   });
   it('colorGap is 0 for the same colour, symmetric, and infinite for a non-colour', () => {
     expect(colorGap('#e64343', '#e64343')).toBe(0);
-    expect(colorGap('#e64343', '#4697e4')).toBeCloseTo(colorGap('#4697e4', '#e64343'), 9);
+    expect(colorGap('#e64343', '#4697e4')).toBeCloseTo(
+      colorGap('#4697e4', '#e64343'),
+      9,
+    );
     expect(colorGap('#e64343', 'x')).toBe(Infinity);
   });
 });
