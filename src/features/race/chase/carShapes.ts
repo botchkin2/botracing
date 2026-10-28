@@ -1,9 +1,6 @@
-// The car bodies the 3D draws: one hull per class, and from it a few stylised body families told apart by what shows
-// at a glance (where the cabin sits, how long the nose is, the wing), picked from the car's `vehicle`.
-// STYLISED, NOT TO SCALE: no per-model measurement is claimed. The data carries no model dimensions, and the figures
-// that are published (the LMDh/LMH regulation caps, a few race-car sheets) differ by 2-4 %, which is invisible, so a
-// family only moves the cabin, shortens the nose or scales the wing, always inside the class footprint and never
-// beyond it (pit-wall thread 94 #6866-#6868). An unknown model keeps the class hull.
+// The car bodies the 3D draws: one hull per class, and from it one body per known model (modelShapes), picked from the
+// car's `vehicle`. STYLISED, NOT TO SCALE: a model's numbers exaggerate the cue it is read by, inside the class footprint's
+// width. An unknown model keeps the class hull.
 // Plain TypeScript, no three.js: the stations are numbers and carMeshes lofts them.
 
 import {PAINTS, stepOfName} from './carPaint';
@@ -133,103 +130,6 @@ export const SHAPES: Record<string, ClassShape> = {
   },
 };
 
-export type Family = 'lmh' | 'lmdh';
-
-/** What a family changes on its class hull (all small, all inside the class footprint). */
-interface Variant {
-  /** The glasshouse moves along the car: + forward, metres. */
-  cabinShiftX: number;
-  /** The front stations pull back by this share of their distance from the centre (0 keeps the class nose). */
-  noseShorten: number;
-  /** The rear wing's height above the tail, scaled. */
-  wingScale: number;
-  /** The cabin's roof height above its shoulder, scaled: a rear-engined car's rounder greenhouse. */
-  roofScale: number;
-}
-
-const VARIANTS: Record<Family, Variant> = {
-  // Le Mans Hypercar prototypes: cabin forward, the fin, a lower wing
-  lmh: {cabinShiftX: 0.2, noseShorten: 0, wingScale: 0.85, roofScale: 1},
-  // LMDh prototypes: cabin set a little back, the class wing and fin
-  lmdh: {cabinShiftX: -0.15, noseShorten: 0, wingScale: 1, roofScale: 1},
-};
-
-/**
- * The known models, in the order that gives each its place in the family (and, with FAMILY_FIRST, its colour in the
- * class, carPaint). A pattern is matched on the lower-cased `vehicle` the field carries (`Ferrari 499P`,
- * `Porsche 911 GT3 R LMGT3`, ...); the order is fixed so a model keeps its colour in every session.
- */
-export const KNOWN: Record<Family, RegExp[]> = {
-  lmh: [/499p/, /9x8/, /tr010|gr010/, /valkyrie/, /glickenhaus|scg/],
-  lmdh: [
-    /cadillac|v-series/,
-    /m hybrid/,
-    /963/,
-    /gmr-?001|genesis/,
-    /a424|alpine/,
-    /sc63|lamborghini/,
-  ],
-};
-
-/**
- * Where each family's models start in their class's run of colours (carPaint's PAINTS of them, wrapping): the families
- * of a class continue one another, so two models share a colour only across families, which differ in body.
- */
-const FAMILY_FIRST: Record<Family, number> = {
-  lmh: 0,
-  lmdh: 5,
-};
-
-const FAMILY_CLASS: Record<Family, string> = {
-  lmh: 'Hyper',
-  lmdh: 'Hyper',
-};
-
-/** The family of a model within its class, with the model's place in the family; null for an unknown or missing model. */
-export function familyOf(
-  vehicle: string | null,
-  carClass: string,
-): {family: Family; slot: number} | null {
-  const v = (vehicle ?? '').toLowerCase().trim();
-  if (!v) return null;
-  for (const family of Object.keys(KNOWN) as Family[]) {
-    if (FAMILY_CLASS[family] !== carClass) continue;
-    const slot = KNOWN[family].findIndex(re => re.test(v));
-    if (slot >= 0) return {family, slot};
-  }
-  return null;
-}
-
-function scaled(shape: ClassShape, v: Variant): ClassShape {
-  const nose = shape.hull[0][0];
-  const tail = shape.hull[shape.hull.length - 1][0];
-  const hull = shape.hull.map(
-    ([x, ...rest]) => [x > 0 ? x * (1 - v.noseShorten) : x, ...rest] as Station,
-  );
-  // the glasshouse moves within the hull's own length
-  const lo = tail + 0.3;
-  const hi = nose - 0.4;
-  const cabin = shape.cabin.map(
-    ([x, w, sh, wt, top]) =>
-      [
-        Math.max(lo, Math.min(hi, x + v.cabinShiftX)),
-        w,
-        sh,
-        wt,
-        sh + (top - sh) * v.roofScale,
-      ] as Station,
-  );
-  const [wx, wy, chord, span] = shape.wing;
-  const tailTop = hull[hull.length - 1][4];
-  return {
-    hull,
-    cabin,
-    wing: [wx, tailTop + (wy - tailTop) * v.wingScale, chord, span],
-    fin: shape.fin,
-    wheels: shape.wheels,
-  };
-}
-
 /**
  * The class whose hull draws a car of `carClass`: its own when it has one, else the nearest by its own name (an LMP2_ELMS
  * or an LMP3 is a prototype, a Hyper-anything an Hypercar), and only a class with nothing to read from falls back to GT3
@@ -255,10 +155,9 @@ export function hullTopAt(hull: Station[], x: number): number {
 }
 
 /**
- * The shape to draw for a car: its model's (modelShapes: the class hull and the model's numbers), else, for a Hyper, its
- * family's variant, else the class hull. `key` names it for the kit's cache, `footprint` is the ground box from the
- * shape's own length, and `paint` is the model's colour index in its class (carPaint; a model nothing places gets a
- * stable one from its name).
+ * The shape to draw for a car: its model's (modelShapes: the class hull and the model's numbers), else the class hull.
+ * `key` names it for the kit's cache, `footprint` is the ground box from the shape's own length, and `paint` is the
+ * model's colour index in its class (carPaint; a model nothing places gets a stable one from its name).
  */
 export function shapeFor(
   vehicle: string | null,
@@ -281,18 +180,10 @@ export function shapeFor(
       paint: index % PAINTS,
     };
   }
-  const fam = familyOf(vehicle, cls);
-  if (!fam)
-    return {
-      key: cls,
-      shape: SHAPES[cls],
-      footprint: SIZE[cls],
-      paint: stepOfName(vehicle),
-    };
   return {
-    key: `${cls}:${fam.family}`,
-    shape: scaled(SHAPES[cls], VARIANTS[fam.family]),
+    key: cls,
+    shape: SHAPES[cls],
     footprint: SIZE[cls],
-    paint: (FAMILY_FIRST[fam.family] + fam.slot) % PAINTS,
+    paint: stepOfName(vehicle),
   };
 }

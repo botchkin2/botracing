@@ -195,9 +195,173 @@ export const GT3_MODELS: ModelEntry[] = [
 ];
 
 // ---- Hyper ----
-// circuit's block (the Hyper rows of the reference table). Empty until the Hyper builds land: a Hyper still draws its
-// LMH/LMDh family from carShapes.
-export const HYPER_MODELS: ModelEntry[] = [];
+// The Hyper rows of the reference table (circuit's block). The class hull is 5.0 m long on a 3.05 m wheelbase, the cabin
+// forward, a tall fin and a wing on stalks. Every LMDh car runs the 3,148 mm wheelbase, the LMH cars their own where one is
+// published. Where the table says "not found" the class value stays. Isotta, Glickenhaus and Vanwall keep the class hull.
+//
+// ORDER IS COLOUR: an entry's place here is its colour (index % 6), and the order keeps every model the colour it had as a
+// family member (LMH cars 0-3, then SC63, then the LMDh cars from 5), so a car does not change colour with this change.
+// Cars that share a colour (499P/BMW, 9X8/963, TR010/Genesis, Valkyrie/Alpine) differ in body.
+export const HYPER_MODELS: ModelEntry[] = [
+  {
+    // LMH, grade B figures: bulbous high front fenders and a high wing carried on two tall pillars
+    key: 'ferrari-499p',
+    match: /499p/,
+    example: 'Ferrari 499P',
+    params: {
+      lengthM: 5.1,
+      wheelbaseM: 3.15,
+      wingKind: 'pylons',
+      wingH: 0.2,
+      bulges: [{x: 1.3, len: 1.2, z: 0.78, w: 0.34, h: 0.18}],
+    },
+  },
+  {
+    // LMH, the 2024 car (one string in his files): the smoothest rounded body, a low wing close to the deck
+    key: 'peugeot-9x8',
+    match: /9x8/,
+    example: 'Peugeot 9x8',
+    params: {
+      lengthM: 4.995,
+      wheelbaseM: 3.045,
+      noseH: -0.06,
+      cabinTop: 0.05,
+      roofDrop: 0.12,
+      deckH: -0.04,
+      wingKind: 'low',
+      wingH: 0.05,
+      wingSpan: 1.1,
+    },
+  },
+  {
+    // LMH: tall front fender crests around a low central nose, tall and short for a Hyper (1,150 high on 4,900)
+    key: 'toyota-gr010',
+    match: /tr010|gr010/,
+    example: 'Toyota TR010',
+    params: {
+      lengthM: 4.9,
+      wheelbaseM: 3.15,
+      noseH: -0.06,
+      cabinTop: 0.07,
+      bulges: [{x: 1.4, len: 1.0, z: 0.78, w: 0.3, h: 0.26}],
+    },
+  },
+  {
+    // LMH: the narrowest canopy between wide vented front fenders (tunnels), a cut-away low tail with the wheels exposed,
+    // one tall fin carrying a high wing. No race-car length or wheelbase is published: the class values stand
+    key: 'aston-valkyrie',
+    match: /valkyrie/,
+    example: 'Aston Martin Valkyrie LMH',
+    params: {
+      cabinW: 0.72,
+      cabinLen: 0.9,
+      deckH: -0.08,
+      tailOver: -0.25,
+      finH: 1.5,
+      wingKind: 'pylon',
+      wingH: 0.2,
+      bulges: [{x: 1.2, len: 1.4, z: 0.82, w: 0.36, h: 0.16}],
+    },
+  },
+  {
+    // LMDh: an angular, flat-roofed body with a narrow canopy and long nose between broad low scoops; the faceted edges
+    // are the cue and need hull stations the class hull does not have (not built here), so this one reads by its
+    // proportions. Height is the LMDh cap, 1,060, not Wikipedia's 1,170 (steward #8135)
+    key: 'lamborghini-sc63',
+    match: /sc63|lamborghini/,
+    example: 'Lamborghini SC63',
+    params: {
+      lengthM: 5.1,
+      wheelbaseM: 3.148,
+      noseLen: 0.12,
+      cabinW: 0.8,
+      cabinLen: 0.9,
+      roofDrop: 0,
+      bulges: [{x: 1.1, len: 1.3, z: 0.72, w: 0.26, h: 0.08}],
+    },
+  },
+  {
+    // LMDh: a tall, blunt, upright nose between upright fender crests, the cabin set back; blades on the front and rear fenders
+    key: 'cadillac-v-series-r',
+    match: /cadillac|v-series/,
+    example: 'Cadillac V-Series.R',
+    params: {
+      lengthM: 4.99,
+      wheelbaseM: 3.148,
+      noseH: 0.1,
+      noseLen: -0.1,
+      cabinX: -0.2,
+      bulges: [
+        {x: 1.3, len: 0.9, z: 0.8, w: 0.22, h: 0.22},
+        {x: -1.6, len: 0.9, z: 0.82, w: 0.22, h: 0.2},
+      ],
+    },
+  },
+  {
+    // LMDh: a wide, tall kidney nose between separate front fender pods; the wing between unusually tall end plates joined
+    // to a long dorsal fin
+    key: 'bmw-m-hybrid-v8',
+    match: /m hybrid/,
+    example: 'BMW M Hybrid V8',
+    params: {
+      lengthM: 4.99,
+      wheelbaseM: 3.148,
+      noseH: 0.08,
+      noseW: 0.12,
+      finH: 1.3,
+      wingKind: 'wide',
+      wingH: 0.12,
+      bulges: [{x: 1.3, len: 1.0, z: 0.8, w: 0.3, h: 0.18}],
+    },
+  },
+  {
+    // LMDh: a rounded, wide, low front (the 956/962 soft shapes) and the wing held up on tall pylons beside a tall fin
+    key: 'porsche-963',
+    match: /963/,
+    example: 'Porsche 963',
+    params: {
+      lengthM: 5.1,
+      wheelbaseM: 3.148,
+      noseW: 0.12,
+      noseH: -0.06,
+      finH: 1.35,
+      wingKind: 'pylons',
+      wingH: 0.1,
+    },
+  },
+  {
+    // LMDh (Oreca chassis): the broadest flat nose running straight into tall fender crests, the tallest square wing end plates
+    key: 'genesis-gmr-001',
+    match: /gmr-?001|genesis/,
+    example: 'Genesis GMR-001',
+    params: {
+      lengthM: 5,
+      wheelbaseM: 3.15,
+      noseW: 0.16,
+      noseLen: 0.15,
+      finH: 1.4,
+      wingKind: 'wide',
+      wingH: 0.25,
+      wingSpan: 1.1,
+      bulges: [{x: 1.2, len: 1.2, z: 0.78, w: 0.3, h: 0.2}],
+    },
+  },
+  {
+    // LMDh: tall rounded front fender crests around a small bubble canopy with a roof intake, a long flat fin
+    key: 'alpine-a424',
+    match: /a424|alpine/,
+    example: 'Alpine A424',
+    params: {
+      lengthM: 5,
+      wheelbaseM: 3.148,
+      cabinW: 0.85,
+      cabinLen: 0.8,
+      cabinTop: 0.05,
+      finH: 1.5,
+      bulges: [{x: 1.3, len: 1.0, z: 0.78, w: 0.3, h: 0.22}],
+    },
+  },
+];
 
 // ---- LMP2 ----
 // circuit's block: the Oreca 07.

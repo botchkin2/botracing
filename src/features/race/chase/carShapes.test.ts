@@ -3,14 +3,12 @@ import {describe, expect, it} from '@jest/globals';
 import rivals from './__fixtures__/rivalCars.json';
 import {PAINTS} from './carPaint';
 import {
-  KNOWN,
   SHAPES,
   SIZE,
-  familyOf,
   hullTopAt,
   shapeClassOf,
   shapeFor,
-  type Family,
+  type ClassShape,
 } from './carShapes';
 import {MODELS} from './modelShapes';
 
@@ -23,36 +21,169 @@ const RIVALS = rivals as {
   recent: number;
 }[];
 
-// the `vehicle` strings a real LMU Hyper field carries, class as the field gives it
-const HYPERS: [string, Family][] = [
-  ['Ferrari 499P', 'lmh'],
-  ['Genesis GMR-001', 'lmdh'],
-  ['Cadillac V-Series.R', 'lmdh'],
-  ['Peugeot 9x8', 'lmh'],
-  ['BMW M Hybrid V8', 'lmdh'],
-  ['Aston Martin Valkyrie LMH', 'lmh'],
-  ['Porsche 963', 'lmdh'],
-  ['Toyota TR010 ', 'lmh'],
-  ['Toyota GR010', 'lmh'],
-  ['Glickenhaus SCG007', 'lmh'],
+// the `vehicle` strings his Hyper fields carry (rivalCars.json) and the model entry each one is drawn as
+const HYPERS: [string, string][] = [
+  ['Ferrari 499P', 'ferrari-499p'],
+  ['Genesis GMR-001', 'genesis-gmr-001'],
+  ['Genesis GMR001', 'genesis-gmr-001'],
+  ['Cadillac V-Series.R', 'cadillac-v-series-r'],
+  ['Peugeot 9x8', 'peugeot-9x8'],
+  ['BMW M Hybrid V8', 'bmw-m-hybrid-v8'],
+  ['Aston Martin Valkyrie LMH', 'aston-valkyrie'],
+  ['Porsche 963', 'porsche-963'],
+  ['Toyota TR010', 'toyota-gr010'],
+  ['Toyota GR010', 'toyota-gr010'],
+  ['Alpine A424', 'alpine-a424'],
+  ['Lamborghini SC63', 'lamborghini-sc63'],
 ];
 
-describe('hyper families', () => {
-  it.each(HYPERS)('%s is %s', (vehicle, family) => {
-    expect(familyOf(vehicle, 'Hyper')?.family).toBe(family);
+describe('Hyper models', () => {
+  const hyper = MODELS.Hyper;
+  it.each(HYPERS)('%s is drawn as %s', (vehicle, key) => {
+    expect(shapeFor(vehicle, 'Hyper').key).toBe('Hyper:' + key);
   });
-  it("a bare '007' is not a Glickenhaus, and a model in the wrong class is no family", () => {
-    expect(familyOf('Some Car 007 X', 'Hyper')).toBeNull();
-    expect(familyOf('Ferrari 499P', 'GT3')).toBeNull();
+  it('Isotta, Glickenhaus and Vanwall, and a model in the wrong class, keep the class hull', () => {
+    for (const v of [
+      'Isotta Fraschini TIPO6',
+      'Glickenhaus SCG007',
+      'Vanwall 680',
+      'Some Car 007 X',
+      '',
+      null,
+    ]) {
+      const s = shapeFor(v, 'Hyper');
+      expect(s.key).toBe('Hyper');
+      expect(s.shape).toBe(SHAPES.Hyper);
+    }
+    expect(shapeFor('Ferrari 499P', 'GT3').key).toBe('GT3');
   });
-  it('a family keeps its colour in every session: its place in the list, unique inside the family', () => {
-    for (const family of Object.keys(KNOWN) as Family[])
-      expect(KNOWN[family].length).toBeLessThanOrEqual(PAINTS);
-    const paintOf = (v: string | null) => shapeFor(v, 'Hyper').paint;
-    expect(paintOf('Ferrari 499P')).toBe(0);
-    expect(paintOf('Peugeot 9x8')).toBe(1);
+  it('there are ten, each with a distinct key and a real vehicle string that matches only itself', () => {
+    expect(hyper).toHaveLength(10);
+    expect(new Set(hyper.map(m => m.key)).size).toBe(10);
+    for (const m of hyper) {
+      const hits = hyper.filter(o => o.match.test(m.example.toLowerCase()));
+      expect(hits.map(h => h.key)).toEqual([m.key]);
+      expect(shapeFor(m.example, 'Hyper').key).toBe('Hyper:' + m.key);
+    }
+  });
+  it('a model keeps the colour it had as a family member (pinned: a reorder shows up here)', () => {
+    const paintOf = (v: string) => shapeFor(v, 'Hyper').paint;
+    expect(hyper.map(m => [m.key, paintOf(m.example)])).toEqual([
+      ['ferrari-499p', 0],
+      ['peugeot-9x8', 1],
+      ['toyota-gr010', 2],
+      ['aston-valkyrie', 3],
+      ['lamborghini-sc63', 4],
+      ['cadillac-v-series-r', 5],
+      ['bmw-m-hybrid-v8', 0],
+      ['porsche-963', 1],
+      ['genesis-gmr-001', 2],
+      ['alpine-a424', 3],
+    ]);
     expect(paintOf('Some New Car')).toBe(paintOf('some new car'));
-    expect(paintOf(null)).toBe(0);
+  });
+  it('two models that share a colour differ in body (colour is the place in the block, six colours)', () => {
+    const bodyOf = (i: number) => JSON.stringify(hyper[i].params);
+    for (let i = 0; i < hyper.length; i++)
+      for (let j = i + 1; j < hyper.length; j++)
+        if (i % PAINTS === j % PAINTS) expect(bodyOf(i)).not.toBe(bodyOf(j));
+  });
+  it('each model stands on the class hull: its own length on the class footprint width, the class station count', () => {
+    for (const m of hyper) {
+      const {shape, footprint} = shapeFor(m.example, 'Hyper');
+      expect(footprint[1]).toBe(SIZE.Hyper[1]);
+      expect(footprint[0]).toBe(m.params.lengthM ?? SIZE.Hyper[0]);
+      expect(shape.hull).toHaveLength(SHAPES.Hyper.hull.length);
+      const half = Math.max(...shape.hull.map(st => st[1]));
+      expect(half).toBeLessThanOrEqual(SHAPES.Hyper.hull[2][1] + 0.1);
+      const length = shape.hull[0][0] - shape.hull[shape.hull.length - 1][0];
+      expect(length).toBeCloseTo(m.params.lengthM ?? length, 6);
+    }
+  });
+  it('every number is finite, the hull descends in x, nothing is taller than 1.4 m or below its shoulder, the cabin sits on the hull, the wing is above the deck', () => {
+    for (const m of hyper) {
+      const {shape} = shapeFor(m.example, 'Hyper');
+      shape.hull.forEach((st, i) => {
+        for (const n of st) expect(Number.isFinite(n)).toBe(true);
+        if (i > 0) expect(st[0]).toBeLessThan(shape.hull[i - 1][0]);
+        expect(st[4]).toBeGreaterThanOrEqual(st[2]);
+        expect(st[4]).toBeLessThanOrEqual(1.4);
+      });
+      const nose = shape.hull[0][0];
+      const tail = shape.hull[shape.hull.length - 1][0];
+      shape.cabin.forEach((st, i) => {
+        for (const n of st) expect(Number.isFinite(n)).toBe(true);
+        expect(st[0]).toBeLessThanOrEqual(nose);
+        expect(st[0]).toBeGreaterThanOrEqual(tail);
+        expect(st[4]).toBeGreaterThanOrEqual(st[2]);
+        if (i > 0) expect(st[0]).toBeLessThan(shape.cabin[i - 1][0]);
+      });
+      for (const n of shape.wing) expect(Number.isFinite(n)).toBe(true);
+      expect(shape.wing[1]).toBeLessThanOrEqual(1.7);
+      expect(shape.wing[1]).toBeGreaterThan(
+        hullTopAt(shape.hull, shape.wing[0]) - 0.01,
+      );
+      for (const b of shape.bulges ?? []) {
+        for (const n of Object.values(b)) expect(Number.isFinite(n)).toBe(true);
+        expect(b.x - b.len / 2).toBeGreaterThan(tail);
+        expect(b.x + b.len / 2).toBeLessThan(nose);
+      }
+    }
+  });
+  it('the wheels come from the model: the wheelbase it names (the LMDh cars run 3,148 mm), inside the hull', () => {
+    for (const m of hyper) {
+      const {shape} = shapeFor(m.example, 'Hyper');
+      const [front, rear, radius] = shape.wheels;
+      expect(front).toBeGreaterThan(rear);
+      expect(front - rear).toBeCloseTo(
+        m.params.wheelbaseM ?? SHAPES.Hyper.wheels[0] - SHAPES.Hyper.wheels[1],
+        6,
+      );
+      expect(front + radius).toBeLessThan(shape.hull[0][0]);
+      expect(rear - radius).toBeGreaterThan(
+        shape.hull[shape.hull.length - 1][0],
+      );
+    }
+    for (const v of [
+      'Cadillac V-Series.R',
+      'BMW M Hybrid V8',
+      'Porsche 963',
+      'Alpine A424',
+      'Lamborghini SC63',
+    ]) {
+      const [front, rear] = shapeFor(v, 'Hyper').shape.wheels;
+      expect(front - rear).toBeCloseTo(3.148, 6);
+    }
+  });
+  it('the cues are there, as numbers: the Valkyrie has the narrowest canopy, the 9X8 the lowest wing, the Toyota the shortest hull, the 499P a higher wing than the class; the LMDh cars with a fin have a taller one than the class', () => {
+    const shape = (v: string) => shapeFor(v, 'Hyper').shape;
+    const all = hyper.map(m => shape(m.example));
+    const cabinW = (s: ClassShape) => Math.max(...s.cabin.map(st => st[1]));
+    expect(cabinW(shape('Aston Martin Valkyrie LMH'))).toBe(
+      Math.min(...all.map(cabinW)),
+    );
+    const wingAbove = (s: ClassShape) =>
+      s.wing[1] - hullTopAt(s.hull, s.wing[0]);
+    expect(wingAbove(shape('Peugeot 9x8'))).toBe(
+      Math.min(...all.map(wingAbove)),
+    );
+    expect(shape('Peugeot 9x8').wingKind).toBe('low');
+    expect(wingAbove(shape('Ferrari 499P'))).toBeGreaterThan(
+      wingAbove(SHAPES.Hyper),
+    );
+    const lengths = hyper.map(m => shapeFor(m.example, 'Hyper').footprint[0]);
+    expect(shapeFor('Toyota TR010', 'Hyper').footprint[0]).toBe(
+      Math.min(...lengths),
+    );
+    const classFin = SHAPES.Hyper.fin?.[2] ?? 0;
+    for (const v of [
+      'Genesis GMR-001',
+      'BMW M Hybrid V8',
+      'Porsche 963',
+      'Alpine A424',
+    ])
+      expect(shape(v).fin?.[2]).toBeGreaterThan(classFin);
+    expect(shape('Cadillac V-Series.R').bulges).toHaveLength(2);
   });
 });
 
@@ -177,8 +308,8 @@ describe('his real cars (every pair in his results files)', () => {
       expect(shapeFor(r.car, r.cls).key.startsWith(cls)).toBe(true);
     }
   });
-  it('every Hyper he meets has a family but the two rare ones (Isotta, Vanwall), which the class hull draws', () => {
-    const rare = /isotta|vanwall/i;
+  it('every Hyper he meets has a model but the three rare ones (Isotta, Glickenhaus, Vanwall), which the class hull draws', () => {
+    const rare = /isotta|glickenhaus|vanwall/i;
     for (const r of RIVALS.filter(x => x.cls === 'Hyper')) {
       const key = shapeFor(r.car, r.cls).key;
       if (rare.test(r.car)) expect(key).toBe('Hyper');
