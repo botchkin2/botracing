@@ -401,17 +401,14 @@ export const HYPER_MODELS: ModelEntry[] = [
       wingSpan: 1.1,
       bulges: [{x: 1.25, len: 1.7, z: 0.74, w: 0.42, h: 0.34}],
     },
-    // a split bar: two halves with a notch down the centre
+    // a bar with a V dipping into the centre
     tailLights: [
       [
         [-0.8, 0.5],
-        [-0.06, 0.5],
-        [-0.06, 0.3],
-      ],
-      [
+        [-0.12, 0.5],
+        [0, 0.28],
+        [0.12, 0.5],
         [0.8, 0.5],
-        [0.06, 0.5],
-        [0.06, 0.3],
       ],
     ],
   },
@@ -437,19 +434,19 @@ export const HYPER_MODELS: ModelEntry[] = [
       wingSpan: 1.25,
       finH: 0.6,
     },
-    // three vertical claws across the tail
+    // three diagonal slashes across the tail (the claws)
     tailLights: [
       [
-        [-0.52, 0.2],
-        [-0.44, 0.5],
+        [-0.6, 0.2],
+        [-0.34, 0.5],
       ],
       [
-        [0, 0.2],
-        [0, 0.5],
+        [-0.13, 0.2],
+        [0.13, 0.5],
       ],
       [
-        [0.52, 0.2],
-        [0.44, 0.5],
+        [0.34, 0.2],
+        [0.6, 0.5],
       ],
     ],
   },
@@ -469,15 +466,17 @@ export const HYPER_MODELS: ModelEntry[] = [
       cabinTop: 0.12,
       bulges: [{x: 1.45, len: 1.2, z: 0.76, w: 0.36, h: 0.46}],
     },
-    // a thin bar across the tail with a break in the centre
+    // a thin bar with a break in the centre, an upright tick at each end
     tailLights: [
       [
+        [-0.8, 0.5],
         [-0.8, 0.38],
         [-0.1, 0.38],
       ],
       [
-        [0.1, 0.38],
+        [0.8, 0.5],
         [0.8, 0.38],
+        [0.1, 0.38],
       ],
     ],
   },
@@ -661,15 +660,15 @@ export const HYPER_MODELS: ModelEntry[] = [
       wingSpan: 1.2,
       bulges: [{x: 1.15, len: 1.4, z: 0.76, w: 0.32, h: 0.36}],
     },
-    // two horizontal lines across the tail (the "two-line" lights)
+    // two horizontal lines stacked well apart across the tail (the "two-line" lights)
     tailLights: [
       [
-        [-0.8, 0.5],
-        [0.8, 0.5],
+        [-0.8, 0.56],
+        [0.8, 0.56],
       ],
       [
-        [-0.8, 0.36],
-        [0.8, 0.36],
+        [-0.8, 0.3],
+        [0.8, 0.3],
       ],
     ],
   },
