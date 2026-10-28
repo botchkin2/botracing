@@ -53,8 +53,8 @@ describe('differingFeatures', () => {
 });
 
 describe('no two models of a class share a rear', () => {
-  // Hyper's rows are circuit's; GT3's are wrench's and join this loop with their rear-first pass
-  it.each(['Hyper'])(
+  // both blocks: GT3's rows are wrench's, Hyper's circuit's
+  it.each(['GT3', 'Hyper'])(
     '%s: every pair differs in at least two rear features',
     cls => {
       const block = MODELS[cls];

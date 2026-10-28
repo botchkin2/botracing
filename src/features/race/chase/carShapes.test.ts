@@ -232,6 +232,21 @@ describe('GT3 models', () => {
       expect(shapeFor(m.example, 'GT3').key).toBe('GT3:' + m.key);
     }
   });
+  it('a model keeps its colour (pinned: a reorder or an inserted row shows up here)', () => {
+    const paintOf = (v: string) => shapeFor(v, 'GT3').paint;
+    expect(gt3.map(m => [m.key, paintOf(m.example)])).toEqual([
+      ['porsche-911', 0],
+      ['bmw-m4', 1],
+      ['ford-mustang', 2],
+      ['corvette-z06', 3],
+      ['mclaren-720s', 4],
+      ['lexus-rc-f', 5],
+      ['ferrari-296', 0],
+      ['mercedes-amg', 1],
+      ['aston-vantage', 2],
+      ['lamborghini-huracan', 3],
+    ]);
+  });
   it('two models that share a colour differ in body (colour is the place in the block, six colours)', () => {
     const colour = (i: number) => i % PAINTS;
     const bodyOf = (i: number) => JSON.stringify(gt3[i].params);
@@ -245,7 +260,10 @@ describe('GT3 models', () => {
       expect(footprint[1]).toBe(SIZE.GT3[1]);
       expect(footprint[0]).toBe(m.params.lengthM ?? SIZE.GT3[0]);
       const base = SHAPES.GT3;
-      expect(shape.hull).toHaveLength(base.hull.length);
+      // the class station count; a round tail adds one near the tail
+      expect(shape.hull).toHaveLength(
+        base.hull.length + (m.params.tailRound ? 1 : 0),
+      );
       const half = Math.max(...shape.hull.map(st => st[1]));
       expect(half).toBeLessThanOrEqual(base.hull[2][1] + 0.1);
       const length = shape.hull[0][0] - shape.hull[shape.hull.length - 1][0];
