@@ -3,6 +3,8 @@ import {act, create, type ReactTestRenderer} from 'react-test-renderer';
 
 import {ThemeProvider} from '@/src/design/theme';
 
+import {finishedText, raceResultText} from '@/src/analysis/raceResult';
+
 import {type Fact} from '../model';
 import {SessionHead} from './SessionHead';
 
@@ -52,5 +54,31 @@ describe('SessionHead', () => {
     expect(t).toContain('3 laps · Other cars none recorded');
     expect(t).toContain('Best · session');
     expect(t).toContain('Median · of 3');
+  });
+
+  it('prints the result fact own line, the string the Race tab header prints', () => {
+    const finish = {
+      overall: 5,
+      inClass: 1,
+      ofOverall: 23,
+      ofClass: 13,
+      lapsDone: 30,
+      leaderLapsDone: 33,
+      classLeaderLapsDone: 30,
+      leftEarly: false,
+    };
+    const t = texts(
+      mount([
+        {label: 'Best', value: '2:02.700', basis: 'session'},
+        {label: 'Median', value: '2:03.487', basis: 'of 25'},
+        {
+          label: 'Result',
+          value: raceResultText(finish)!,
+          line: finishedText(finish)!,
+        },
+      ]),
+    );
+    expect(t).toContain('Finished P5 · P1 in class');
+    expect(t).toContain(finishedText(finish));
   });
 });

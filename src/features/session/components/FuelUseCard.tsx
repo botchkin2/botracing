@@ -7,20 +7,41 @@ import {planHref} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
 import {Pressable, Text} from '@/src/ui';
 
-import {
-  fuelUseRows,
-  limitText,
-  planLinkText,
-  planMatchesLimit,
-  planRaceText,
-  verdictText,
-} from '../fuelUse';
+import {limitText, planLinkText, planRaceText} from '../fuelUse';
 import {type FuelUseCardModel} from '../model';
+import {stintFuelTable, type TableCell} from '../stintFuelTable';
+
+/** Column weights at 343 pt: the lap time (m:ss.sss) and the stint end ("need 5.91") need the width, the use and coast figures do not. */
+const END_FLEX = 1.3;
+const USE_FLEX = 0.9;
+const TIME_FLEX = 1.2;
+
+function Cell({cell, flex}: {cell: TableCell; flex: number}) {
+  return (
+    <View style={{flex}}>
+      <Text variant='data'>{cell.value}</Text>
+      {cell.note ? (
+        <Text variant='dataSmall' tone='textMuted'>
+          {cell.note}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+function Head({label, flex}: {label: string; flex: number}) {
+  return (
+    <View style={{flex}}>
+      <Text variant='label' tone='textMuted' numberOfLines={2}>
+        {label}
+      </Text>
+    </View>
+  );
+}
 
 /**
- * The practice fuel card (pit-wall thread 36): one row per stint, the laps as
- * a scatter, and the plan these laps belong to. When the stints do not
- * differ it says so and marks no median.
+ * The fuel card (pit-wall thread 36 and 121): one table, a row per stint, and
+ * the plan these laps belong to. A race adds how each stint ended.
  */
 export function FuelUseCard({
   card,
@@ -33,7 +54,7 @@ export function FuelUseCard({
   const {color} = useTheme();
   const router = useRouter();
   const {fuelUse: fu} = card;
-  const rows = fuelUseRows(fu);
+  const table = stintFuelTable(fu);
   const presets = useFuelPresets(s => s.presets);
   const activeId = useFuelPresets(s => s.activeId);
   const length = useFuelPresets(s => s.length);
@@ -46,32 +67,38 @@ export function FuelUseCard({
     planLimitL,
   );
   const limit = limitText(fu);
-  // These laps are in the plan's history only when its rules run at this fill limit.
-  const inPlan = planMatchesLimit(fu.limitL, planLimitL ?? fu.limitL);
   return (
     <View style={styles.card}>
-      <Text variant='label'>Fuel use</Text>
-      <Text variant='dataSmall' tone='textSecondary'>
-        {verdictText(fu)}
-      </Text>
-      {rows.map(r => (
+      <View style={styles.title}>
+        <Text variant='label'>Fuel use</Text>
+        {table.against ? (
+          <Text variant='dataSmall' tone='textMuted'>
+            {table.against}
+          </Text>
+        ) : null}
+      </View>
+      <View
+        style={[styles.row, styles.headRow, {borderColor: color.lineStrong}]}>
+        <View style={styles.stint} />
+        {table.endHead != null ? (
+          <Head label={table.endHead} flex={END_FLEX} />
+        ) : null}
+        <Head label={table.useHead} flex={USE_FLEX} />
+        <Head label={table.coastHead} flex={USE_FLEX} />
+        <Head label={table.timeHead} flex={TIME_FLEX} />
+      </View>
+      {table.rows.map(r => (
         <View key={r.key} style={[styles.row, {borderColor: color.line}]}>
-          <Text variant='bodyStrong'>{r.title}</Text>
-          {r.lines.map(line => (
-            <Text key={line} variant='dataSmall' tone='textSecondary'>
-              {line}
+          <View style={styles.stint}>
+            <Text variant='bodyStrong'>{r.stint.value}</Text>
+            <Text variant='dataSmall' tone='textMuted'>
+              {r.stint.note}
             </Text>
-          ))}
-          {r.counts && inPlan ? (
-            <Pressable
-              accessibilityRole='link'
-              onPress={() => router.push(planHref(card.planKey))}
-              style={styles.link}>
-              <Text variant='dataSmall' tone='accentInk'>
-                in Plan →
-              </Text>
-            </Pressable>
-          ) : null}
+          </View>
+          {r.end ? <Cell cell={r.end} flex={END_FLEX} /> : null}
+          <Cell cell={r.use} flex={USE_FLEX} />
+          <Cell cell={r.coast} flex={USE_FLEX} />
+          <Cell cell={r.time} flex={TIME_FLEX} />
         </View>
       ))}
       {limit ? (
@@ -99,6 +126,18 @@ export function FuelUseCard({
 
 const styles = StyleSheet.create({
   card: {gap: space.xs},
-  row: {gap: space.xxs, paddingVertical: space.md, borderTopWidth: 1},
+  title: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  row: {
+    flexDirection: 'row',
+    gap: space.xs,
+    paddingVertical: space.md,
+    borderTopWidth: 1,
+  },
+  headRow: {paddingVertical: space.sm},
+  stint: {width: 56},
   link: {minHeight: 44, justifyContent: 'center'},
 });

@@ -420,6 +420,9 @@ export function analyzeFromArchive({
 
   return {
     session,
+    // Every driver of the game's results file, when its input has them: store.mjs
+    // chooses the race's result between the file and the field (raceResult.ts finishOf).
+    resultsDrivers: results?.drivers ?? null,
     laps,
     lapWindows,
     band: a.band,

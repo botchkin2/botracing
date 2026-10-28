@@ -70,7 +70,7 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
-      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: desktop/src-tauri
 
@@ -168,7 +168,7 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
-      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: desktop/src-tauri
 
@@ -257,6 +257,23 @@ jobs:
             $global:LASTEXITCODE = 0
             ./desktop/scripts/e2e-exe-lock.ps1 -Installer (Join-Path $env:RUNNER_TEMP "rehearsal/$env:NEW-setup.exe")
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      # A lock that appears after the installer's waits (a scanner on the exe that just exited): the old exe is
+      # moved aside and the install completes; and a failed install after the move puts the old exe back
+      # (hooks.nsh, e2e-exe-late.ps1; pit wall thread 100).
+      - name: Install N under a late holder, and a failed install after the move
+        working-directory: .
+        env:
+          REHEARSALS: ${{ inputs.rehearsals || 1 }}
+        run: |
+          for ($i = 1; $i -le [int]$env:REHEARSALS; $i++) {
+            foreach ($scenario in 'late', 'abort') {
+              Write-Host "exe $scenario $i of $env:REHEARSALS"
+              $global:LASTEXITCODE = 0
+              ./desktop/scripts/e2e-exe-late.ps1 -Installer (Join-Path $env:RUNNER_TEMP "rehearsal/$env:NEW-setup.exe") -Scenario $scenario
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            }
           }
 
       - uses: actions/upload-artifact@v7

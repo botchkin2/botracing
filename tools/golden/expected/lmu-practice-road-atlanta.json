@@ -1,10 +1,10 @@
 {
  "summary": {
   "lapCount": 16,
-  "comparableCount": 11,
+  "comparableCount": 9,
   "bestLapTime": 79.968,
-  "medianLapTime": 80.853,
-  "stdevLapTime": 1.009
+  "medianLapTime": 80.697,
+  "stdevLapTime": 0.356
  },
  "stints": [
   {
@@ -13,10 +13,10 @@
    "firstLap": 0,
    "lastLap": 13,
    "laps": 14,
-   "comparable": 11,
+   "comparable": 10,
    "bestLapTime": 79.968,
-   "medianLapTime": 80.853,
-   "stdevLapTime": 1.009,
+   "medianLapTime": 80.775,
+   "stdevLapTime": 0.547,
    "greenLaps": 11,
    "medianFuelL": 2.43,
    "fuelSpreadL": 0.02,
@@ -53,10 +53,10 @@
  "corners": 5,
  "cornerMedians": [
   6.782,
-  13.963,
-  10.602,
-  28.944,
-  16.444
+  13.96,
+  10.569500000000001,
+  28.9425,
+  16.4435
  ],
  "consistency": {
   "overview": "7 laps. Scatter 0.17 s around the pace trend (raw spread 0.34 s). Best lap 79.968; best sections add up to 75.785. Pace trend -0.109 s/lap in stint 1. No lap off pace. Most time lost against repeatable pace: section 2 (0.4 s), section 4 (0.4 s)."
@@ -262,8 +262,10 @@
    "timed": true,
    "partial": false,
    "stint": 1,
-   "reasons": [],
-   "comparable": true,
+   "reasons": [
+    "slow"
+   ],
+   "comparable": false,
    "pitIn": false,
    "pitOut": false,
    "offtrack": false,

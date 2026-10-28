@@ -116,9 +116,10 @@ impl Drop for Registration<'_> {
 
 #[cfg(windows)]
 pub use window::{start, stop};
-// The test finds the window by its class.
+// The test reads the window from here, never by its class: a tray running on the PC has a window of
+// the same class, and a search by class can reach that one instead.
 #[cfg(all(windows, test))]
-pub use window::{wide, CLASS};
+pub use window::window;
 
 #[cfg(windows)]
 mod window {
@@ -142,6 +143,12 @@ mod window {
     /// The window and its thread, for `stop`.
     static WINDOW: AtomicPtr<std::ffi::c_void> = AtomicPtr::new(std::ptr::null_mut());
     static THREAD: Mutex<Option<std::thread::JoinHandle<()>>> = Mutex::new(None);
+
+    /// This process's power window: null before `start` has made it and after `stop` has ended its thread.
+    #[cfg(test)]
+    pub fn window() -> HWND {
+        WINDOW.load(Ordering::SeqCst)
+    }
 
     pub fn wide(text: &str) -> Vec<u16> {
         text.encode_utf16().chain(std::iter::once(0)).collect()

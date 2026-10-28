@@ -54,6 +54,17 @@ node tools/sessions/sync.mjs --remote --only "<session name>"
 
 Ids derive from the uid, so they never clash with Botkin's. A re-seed is the same command.
 
+## Reading Botkin's stored data
+
+Seats may read production data read-only (pit-wall `JOIN.md`). `tools/sessions/readStored.mjs` is the one reader for it: firebase-admin on `botracing-61` with your own `gcloud` login, `get` and `getAll` only, and `readStored.test.mjs` fails if the file gains a write call, an import beyond node built-ins and firebase-admin, or a second allow line in `.claude/settings.json`. A query needs `--owner` (an `ownerId` prefix), `--where field=value` or `--id`; `--fields` names what to print and the server sends only those.
+
+```powershell
+node tools/sessions/readStored.mjs --collection sessions --owner <ownerId prefix> --fields startedAt,sessionType,analysis.v,fieldMissing --sort startedAt --limit 10
+node tools/sessions/readStored.mjs --collection laps --owner <ownerId prefix> --where sessionId=<id> --fields lapNumber,lapTimeS
+```
+
+Do not write a one-off reader beside it: the allow rule covers this script and nothing else. The rule trusts the local file, so run it only where `tools/sessions/readStored.mjs` is unchanged from `origin/main` (`git diff origin/main -- tools/sessions/readStored.mjs` prints nothing).
+
 ## A local tray as seat-test
 
 A tray built from a branch runs beside the installed one, signed in as `seat-test`, with no browser and nothing of Botkin's touched. It needs a profile (`desktop/README.md`; debug or release build alike, so CI can sign in the installer it ships): its own data folder `%LOCALAPPDATA%\BotRacing-<profile>`, Credential Manager entry and watcher lock.

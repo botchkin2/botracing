@@ -9,11 +9,17 @@
 // and checks it ran at the head (docs/CODE_STANDARDS.md, section 11).
 //
 // CLI (.github/workflows/ship-proof.yml, pull_request_target so the base runs it):
-//   BASE_SHA, HEAD_SHA, PR_BODY   (set by the workflow)
+//   BASE_SHA, HEAD_SHA, PR_BODY, PR_AUTHOR   (set by the workflow)
 import {execFileSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 
 export const PROOF_HEADING = '## Proof where he uses it';
+
+// Dependabot writes its own PR body, so it can never carry the section. Its
+// PRs pass with a notice; the seat that takes one pushes a commit to the bump
+// branch and adds the proof to the body, as for any PR (pit-wall thread 122).
+// The login is GitHub's, not text a PR can set.
+export const DEPENDABOT = 'dependabot[bot]';
 
 // What reaches the phone: the OTA workflow's bundle inputs (ota-update.yml
 // `paths`, a deny-list) minus what ships nothing. tools/track-info is there
@@ -79,13 +85,22 @@ export function proofSection(body) {
 }
 
 /**
- * Decide the check. `commits` are the full shas of base..head in this PR.
+ * Decide the check. `commits` are the full shas of base..head in this PR;
+ * `author` is the PR author's login.
  * Returns {ok, device, problems, notes}; `problems` is empty when ok.
  */
-export function checkShipProof({files, body, commits, head}) {
+export function checkShipProof({files, body, commits, head, author = null}) {
   const device = deviceFiles(files);
   if (device.length === 0) {
     return {ok: true, device, problems: [], notes: ['No app, tray or gate code in the diff: exempt.']};
+  }
+  if (author === DEPENDABOT) {
+    return {
+      ok: true,
+      device,
+      problems: [],
+      notes: ['A dependency bump: the seat that takes it adds the proof.'],
+    };
   }
   const problems = [];
   const notes = [];
@@ -117,12 +132,12 @@ function git(...args) {
 }
 
 export function main(env = process.env) {
-  const {BASE_SHA: base, HEAD_SHA: head, PR_BODY: body} = env;
+  const {BASE_SHA: base, HEAD_SHA: head, PR_BODY: body, PR_AUTHOR: author} = env;
   if (!base || !head) throw new Error('BASE_SHA and HEAD_SHA are required');
   // --no-renames: a moved file lists its old path too.
   const files = git('diff', '--name-only', '--no-renames', `${base}...${head}`);
   const commits = git('rev-list', `${base}..${head}`);
-  const result = checkShipProof({files, body, commits, head});
+  const result = checkShipProof({files, body, commits, head, author});
   for (const note of result.notes) console.log(note);
   if (result.ok) return 0;
   const shown = result.device.slice(0, 10).map(f => `  ${f.reaches}: ${f.path}`);

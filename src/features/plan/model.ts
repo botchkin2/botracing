@@ -430,7 +430,7 @@ const NL = String.fromCharCode(10);
 const l2 = (v: number) => `${v.toFixed(2)} L`;
 /** The Plan's words when no session here measured VE (pit-wall thread 104 #7391). */
 export const NO_VE_MEASURED =
-  "No VE measured here yet. Run an offline practice with this week's settings.";
+  "No session under this week's rules yet. Drive any practice of this week's race.";
 
 const pct2 = (v: number) => `${v.toFixed(2)} %`;
 

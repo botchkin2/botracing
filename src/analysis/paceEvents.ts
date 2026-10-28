@@ -18,6 +18,11 @@
 //      laps it is taken from (smallSampleFactor). A stint under MIN_CURVE_LAPS
 //      laps has no curve to be judged against: its laps are compared with the
 //      session's pace, and the limit is still made from the residuals above.
+//    The lap compared to the limit is judged against a second curve in a stint
+//    of 6+ laps: the lap next to each edge takes Tukey's end rule from the
+//    first two full windows, so a run of 2 slow laps at a stint's start or end
+//    is 2 of 5 and loses its vote, as it does mid-stint (pit-wall thread 120,
+//    decisions/lap/2026-10-15-lap-selection-protected.md, 2026-10-27).
 // Laps with no sections (or sections that do not line up) use the lap time as
 // the factor: the same curve and the same test. No straight line anywhere.
 // Neither sections nor recorded events (off-track, yellow, impact) decide: a lap
@@ -132,6 +137,25 @@ export function smoothPace(f: readonly number[]): number[] {
 }
 
 /**
+ * The curve a lap is judged against: `smoothPace`, except that in a stint of 6+
+ * laps the lap next to each edge takes Tukey's end rule from the first two full
+ * windows (`rm[1] = med(f1, rm2, 2 rm2 - rm3)`, mirrored at the end), and the end
+ * lap's rule is then applied on top of it. With the median of 3 that `smoothPace`
+ * leaves there, two slow laps at a stint's edge win the vote and read as pace,
+ * against the rule that 1 or 2 slow laps are events.
+ */
+export function judgedPace(f: readonly number[]): number[] {
+  const rm = smoothPace(f);
+  const n = f.length;
+  if (n <= SMOOTH_LAPS) return rm;
+  rm[1] = med([f[1], rm[2], 2 * rm[2] - rm[3]]);
+  rm[n - 2] = med([f[n - 2], rm[n - 3], 2 * rm[n - 3] - rm[n - 4]]);
+  rm[0] = med([f[0], rm[1], 3 * rm[1] - 2 * rm[2]]);
+  rm[n - 1] = med([f[n - 1], rm[n - 2], 3 * rm[n - 2] - 2 * rm[n - 3]]);
+  return rm;
+}
+
+/**
  * A lap's section times as `PaceLap.sections` wants them: the start straight
  * then the sections, all present and positive (they add up to the lap time),
  * else null. The uploader and the app both build `sections` here.
@@ -190,13 +214,20 @@ export function paceEvents(laps: readonly PaceLap[]): PaceEvent[] {
     const own = laps
       .filter(l => l.stint === st)
       .sort((a, b) => a.stintLap - b.stintLap);
-    const curve = smoothPace(own.map(l => factor.get(l.id) as number));
+    const factors = own.map(l => factor.get(l.id) as number);
+    // Two curves, on purpose: the limit is made from `smoothPace`'s residuals,
+    // so the edge rule moves no lap's verdict through the limit (as #655 kept
+    // the limit when a short stint was judged against the session). Making the
+    // limit from the judged curve too moves it and frees clearly slow laps
+    // (pit-wall thread 120 #7872 section 4).
+    const curve = smoothPace(factors);
+    const judgedCurve = judgedPace(factors);
     own.forEach((l, i) => {
-      const r = l.lapTime - scale * curve[i];
-      residual.set(l.id, r);
+      residual.set(l.id, l.lapTime - scale * curve[i]);
       judged.set(
         l.id,
-        own.length < MIN_CURVE_LAPS ? l.lapTime - scale * sessionPace : r,
+        l.lapTime -
+          scale * (own.length < MIN_CURVE_LAPS ? sessionPace : judgedCurve[i]),
       );
     });
   }

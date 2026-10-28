@@ -118,7 +118,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
       # The writer tests read every column back with the DuckDB CLI (#140).
       - name: DuckDB CLI
         run: |
@@ -149,7 +149,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: desktop/node-version  # the bundled node's pin (stage-resources.mjs)
-      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: desktop/src-tauri
       - name: Tray tests
@@ -167,6 +167,13 @@ jobs:
   contract-replay:
     runs-on: windows-latest
     timeout-minutes: 30
+    env:
+      # The app job's guard (above). Absent on a Dependabot run, which reads the
+      # Dependabot secret store and has no golden key, and on a fork's pull
+      # request: the steps that fetch from the private bucket are then skipped
+      # with a notice that says why, never failed. Only the boolean is in the
+      # job's environment: the key itself goes to the auth step alone.
+      HAS_GOLDEN: ${{ secrets.GOLDEN_READER_SERVICE_ACCOUNT != '' }}
     defaults:
       run:
         shell: bash
@@ -199,18 +206,21 @@ jobs:
           echo "2a31d67cf54aec3494fb331147edddfee1cd7f3fadcb5b84056f9bc28cf76576  duckdb.zip" | sha256sum -c -
           unzip -q duckdb.zip -d "$RUNNER_TEMP/duckdb"
           echo "DUCKDB=$RUNNER_TEMP/duckdb/duckdb.exe" >> "$GITHUB_ENV"
-      # The replay is the gate: without the golden credential it fails rather
-      # than passes unchecked.
+      # Every step below this notice reads the private golden bucket. Without the
+      # credential none of them runs, and this says so in the run's summary.
+      - name: Golden set (skipped without the credential)
+        if: steps.scope.outputs.run == 'true' && env.HAS_GOLDEN != 'true'
+        run: echo "::notice::The parity gate and the replay were skipped. This run has no GOLDEN_READER_SERVICE_ACCOUNT (a Dependabot run or a fork). A seat pushes a commit to the branch before merging, so the run is ours and has it."
       - name: Golden set (credential)
-        if: steps.scope.outputs.run == 'true'
+        if: steps.scope.outputs.run == 'true' && env.HAS_GOLDEN == 'true'
         uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.GOLDEN_READER_SERVICE_ACCOUNT }}
       - name: Golden set (gcloud)
-        if: steps.scope.outputs.run == 'true'
+        if: steps.scope.outputs.run == 'true' && env.HAS_GOLDEN == 'true'
         uses: google-github-actions/setup-gcloud@v3
       - name: The capture (Road Atlanta 3 Oct, 3 laps)
-        if: steps.scope.outputs.run == 'true'
+        if: steps.scope.outputs.run == 'true' && env.HAS_GOLDEN == 'true'
         # Each object by name (the reader may get objects under golden/ but not
         # list them: ops/iam/goldenReaderPlan.mjs), pinned like tools/golden.
         run: |
@@ -228,7 +238,7 @@ jobs:
       # the game-file path must agree (tools/golden/parityAllow.json says what
       # may differ, and why), and both must have every feature (manifest.mjs).
       - name: Parity gate (capture vs game file, the same drive)
-        if: steps.scope.outputs.run == 'true'
+        if: steps.scope.outputs.run == 'true' && env.HAS_GOLDEN == 'true'
         run: |
           pairs="$RUNNER_TEMP/parity-pairs"
           g=gs://botracing-61-lmu/golden/parity
@@ -253,7 +263,7 @@ jobs:
           )
           PARITY_PAIRS="$pairs" node --test tools/golden/parity.test.mjs
       - name: The finished files (an LMU .duckdb, an iRacing .ibt)
-        if: steps.scope.outputs.run == 'true'
+        if: steps.scope.outputs.run == 'true' && env.HAS_GOLDEN == 'true'
         run: |
           d="$RUNNER_TEMP/finished-file"
           mkdir -p "$d"
@@ -264,7 +274,7 @@ jobs:
           c1fd5038e3fb2e041aecd34d1b129e6601a038d7ff0a2272b44bb5b13b2a3021  fordmustanggt3_roadatlanta full 2026-08-27 20-49-07.ibt
           SUMS
       - name: Replay against the API in the emulators
-        if: steps.scope.outputs.run == 'true'
+        if: steps.scope.outputs.run == 'true' && env.HAS_GOLDEN == 'true'
         run: |
           export JAVA_HOME="$(cygpath "$JAVA_HOME_21_X64")"
           export PATH="$JAVA_HOME/bin:$PATH"
