@@ -11,6 +11,9 @@ import {applyParams} from './modelParams';
 export const SIZE: Record<string, [number, number]> = {
   Hyper: [5.0, 2.0],
   LMP2: [4.75, 1.9],
+  // The LMP3 envelope: Ligier JS P325 4,605 x 1,900 on 2,860 and ADESS AD25 4,650 x 1,890 on 2,925 (Wikipedia, ADESS's sheet),
+  // so about 4.63 x 1.9 m; the width is the LMP2's, only the length is shorter (pit-wall thread 124 #8162).
+  LMP3: [4.63, 1.9],
   GT3: [4.65, 1.95],
 };
 
@@ -130,14 +133,18 @@ export const SHAPES: Record<string, ClassShape> = {
   },
 };
 
+// The LMP3 hull is the LMP2 language at the LMP3 envelope: shorter, on a shorter wheelbase (2.89 m, between the two published).
+SHAPES.LMP3 = applyParams(SHAPES.LMP2, {lengthM: 4.63, wheelbaseM: 2.89});
+
 /**
  * The class whose hull draws a car of `carClass`: its own when it has one, else the nearest by its own name (an LMP2_ELMS
- * or an LMP3 is a prototype, a Hyper-anything an Hypercar), and only a class with nothing to read from falls back to GT3
- * (pit-wall thread 124, scout #8133: a prototype is never drawn as a coupé).
+ * is a prototype, a Hyper-anything an Hypercar), and only a class with nothing to read from falls back to GT3 (pit-wall
+ * thread 124, scout #8133: a prototype is never drawn as a coupé).
  */
 export function shapeClassOf(carClass: string): string {
   if (SHAPES[carClass]) return carClass;
   const c = carClass.toLowerCase();
+  if (/lmp3/.test(c)) return 'LMP3';
   if (/lmp|prototype/.test(c)) return 'LMP2';
   if (/hyper|lmh|lmdh|gtp/.test(c)) return 'Hyper';
   return 'GT3';

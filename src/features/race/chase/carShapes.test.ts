@@ -201,17 +201,21 @@ describe('LMP2 models', () => {
       expect(s.shape.bulges).toHaveLength(1);
     },
   );
-  it('the LMP3 chassis keep the LMP2 class hull: a prototype, never a coupé, and no Oreca', () => {
-    for (const car of [
-      'ADESS AD25 LMP3',
-      'Ginetta G61-LT-P325 Evo',
-      'Ligier JS P325',
-      'Duqueine D09 P3',
-    ]) {
-      const s = shapeFor(car, 'LMP3');
-      expect(s.key).toBe('LMP2');
-      expect(s.shape).toBe(SHAPES.LMP2);
+  it('the four LMP3 chassis get the one LMP3 class hull: the LMP2 language at the LMP3 envelope (4.63 x 1.9 m, 2.89 m wheelbase), never the Oreca', () => {
+    const lmp3 = RIVALS.filter(r => r.cls === 'LMP3');
+    expect(lmp3).toHaveLength(4);
+    for (const r of lmp3) {
+      const s = shapeFor(r.car, r.cls);
+      expect(s.key).toBe('LMP3');
+      expect(s.shape).toBe(SHAPES.LMP3);
+      expect(s.footprint).toEqual(SIZE.LMP3);
     }
+    expect(SIZE.LMP3).toEqual([4.63, SIZE.LMP2[1]]);
+    const hull = SHAPES.LMP3.hull;
+    expect(hull[0][0] - hull[hull.length - 1][0]).toBeCloseTo(4.63, 6);
+    const [front, rear] = SHAPES.LMP3.wheels;
+    expect(front - rear).toBeCloseTo(2.89, 6);
+    expect(SHAPES.LMP3.fin).not.toBeNull();
   });
 });
 
@@ -331,7 +335,13 @@ describe('his real cars (every pair in his results files)', () => {
     for (const r of RIVALS) {
       const cls = shapeClassOf(r.cls);
       expect(cls).toBe(
-        r.cls === 'GT3' ? 'GT3' : r.cls === 'Hyper' ? 'Hyper' : 'LMP2',
+        r.cls === 'GT3'
+          ? 'GT3'
+          : r.cls === 'Hyper'
+          ? 'Hyper'
+          : r.cls === 'LMP3'
+          ? 'LMP3'
+          : 'LMP2',
       );
       expect(shapeFor(r.car, r.cls).key.startsWith(cls)).toBe(true);
     }
@@ -346,7 +356,7 @@ describe('his real cars (every pair in his results files)', () => {
   });
   it('a class with no shape of its own is read by its name, and GT3 only when the name says nothing', () => {
     expect(shapeClassOf('LMP2_ELMS')).toBe('LMP2');
-    expect(shapeClassOf('LMP3')).toBe('LMP2');
+    expect(shapeClassOf('LMP3')).toBe('LMP3');
     expect(shapeClassOf('Hypercar')).toBe('Hyper');
     expect(shapeClassOf('GTP')).toBe('Hyper');
     expect(shapeClassOf('GTE')).toBe('GT3');
