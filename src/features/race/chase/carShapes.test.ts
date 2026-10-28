@@ -187,6 +187,34 @@ describe('Hyper models', () => {
   });
 });
 
+describe('LMP2 models', () => {
+  it.each([
+    ['LMP2', 'Oreca 07'],
+    ['LMP2_ELMS', 'Oreca 07'],
+  ])(
+    '%s %s is drawn as the Oreca, with its own length and wheelbase',
+    (cls, car) => {
+      const s = shapeFor(car, cls);
+      expect(s.key).toBe('LMP2:oreca-07');
+      expect(s.footprint).toEqual([4.745, SIZE.LMP2[1]]);
+      expect(s.shape.wheels[0] - s.shape.wheels[1]).toBeCloseTo(3.005, 6);
+      expect(s.shape.bulges).toHaveLength(1);
+    },
+  );
+  it('the LMP3 chassis keep the LMP2 class hull: a prototype, never a coupé, and no Oreca', () => {
+    for (const car of [
+      'ADESS AD25 LMP3',
+      'Ginetta G61-LT-P325 Evo',
+      'Ligier JS P325',
+      'Duqueine D09 P3',
+    ]) {
+      const s = shapeFor(car, 'LMP3');
+      expect(s.key).toBe('LMP2');
+      expect(s.shape).toBe(SHAPES.LMP2);
+    }
+  });
+});
+
 describe('GT3 models', () => {
   const gt3 = MODELS.GT3;
   it('there are ten, each with a distinct key and a real vehicle string that matches only itself', () => {

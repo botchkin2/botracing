@@ -364,8 +364,24 @@ export const HYPER_MODELS: ModelEntry[] = [
 ];
 
 // ---- LMP2 ----
-// circuit's block: the Oreca 07.
-export const LMP2_MODELS: ModelEntry[] = [];
+// The Oreca 07 (circuit's block): the one LMP2 chassis in his files, in LMP2 and LMP2_ELMS. The four LMP3 chassis (ADESS,
+// Ginetta, Ligier, Duqueine) have no row and keep the class hull.
+export const LMP2_MODELS: ModelEntry[] = [
+  {
+    // detached, rounded front fenders each ending in a lamp pod (the LMP2 face), the class fin, the wing on its stalks;
+    // grade B figures (team and encyclopedia sites, no Oreca sheet)
+    key: 'oreca-07',
+    match: /oreca/,
+    example: 'Oreca 07',
+    params: {
+      lengthM: 4.745,
+      wheelbaseM: 3.005,
+      wingKind: 'stalks',
+      wingH: 0.08,
+      bulges: [{x: 1.25, len: 1, z: 0.74, w: 0.3, h: 0.2}],
+    },
+  },
+];
 
 export const MODELS: Record<string, ModelEntry[]> = {
   GT3: GT3_MODELS,
