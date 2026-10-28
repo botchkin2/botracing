@@ -76,3 +76,15 @@ describe('no two models of a class share a rear', () => {
     },
   );
 });
+
+describe('the Hyper lights', () => {
+  // at rival size (about 38 px wide) the bodies differ only by outline: the lights are what names a car (telemetry #8226)
+  it('every Hyper has a light pattern of its own', () => {
+    const patterns = MODELS.Hyper.map(m => ({
+      key: m.key,
+      lights: rearSignature(m.example, 'Hyper').lights,
+    }));
+    for (const p of patterns) expect(p.lights).not.toBe('[]');
+    expect(new Set(patterns.map(p => p.lights)).size).toBe(patterns.length);
+  });
+});
