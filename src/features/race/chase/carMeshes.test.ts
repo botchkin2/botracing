@@ -484,6 +484,7 @@ describe('every body shape builds', () => {
     (cls, vehicle) => {
       const kit = createCarKit(COLORS);
       const car = kit.make(cls, '#e64343', false, vehicle);
+      while (kit.tick() > 0); // a model with a real body is built after the first frame: check the body, not the class shape
       expect(car.children).toHaveLength(7);
       const body = bodyOf(car).getAttribute(
         'position',
@@ -586,6 +587,7 @@ describe('lights lead the outline', () => {
     (cls, vehicle) => {
       const kit = createCarKit(COLORS);
       const car = kit.make(cls, '#e64343', false, vehicle);
+      while (kit.tick() > 0); // a model with a real body is built after the first frame
       const edges = (
         car.children[3] as THREE.LineSegments
       ).geometry.getAttribute('position');
@@ -718,5 +720,94 @@ describe('positionKey', () => {
   it('keeps the signed axes apart: swapping two coordinates changes the key', () => {
     expect(positionKey(1, 2, 3)).not.toBe(positionKey(3, 2, 1));
     expect(positionKey(-1, 0, 0)).not.toBe(positionKey(1, 0, 0));
+  });
+});
+
+describe('a real body is built after the first frame, one a frame', () => {
+  // two models with a real body: the 911, and the M4 given the same curves for this test
+  const withTwoBodies = (run: () => void) => {
+    const m4 = MODELS.GT3.find(m => m.key === 'bmw-m4');
+    const original = m4?.body;
+    if (!m4) throw new Error('no M4');
+    m4.body = MODELS.GT3.find(m => m.key === 'porsche-911')?.body;
+    try {
+      run();
+    } finally {
+      m4.body = original;
+    }
+  };
+  const geometries = (car: THREE.Object3D) =>
+    (car.children as THREE.Mesh[]).map(c => c.geometry);
+
+  it('make() returns the class shape at once; tick() builds one model a frame and swaps every car of it', () => {
+    withTwoBodies(() => {
+      const kit = createCarKit(COLORS);
+      const a1 = kit.make('GT3', '#e64343', false, 'Porsche 911 GT3 R LMGT3');
+      const a2 = kit.make('GT3', '#e64343', false, 'Porsche 911 GT3 R LMGT3');
+      const b = kit.make('GT3', '#e64343', false, 'BMW M4 LMGT3');
+      const plain = kit.make('GT3', '#e64343', false, 'Ford Mustang LMGT3');
+      const first = geometries(a1);
+      // the first frame: every car is its class shape (the 911 and the M4 share the class hull's geometries)
+      expect(geometries(b)[1]).toBe(first[1]);
+      expect(geometries(a2)[1]).toBe(first[1]);
+      expect(geometries(plain)[1]).not.toBe(first[1]);
+
+      expect(kit.tick()).toBe(1);
+      // the 911's body is in on both of its cars; the M4's is not yet
+      expect(geometries(a1)[1]).not.toBe(first[1]);
+      expect(geometries(a2)[1]).toBe(geometries(a1)[1]);
+      expect(geometries(b)[1]).toBe(first[1]);
+
+      expect(kit.tick()).toBe(1);
+      expect(geometries(b)[1]).not.toBe(first[1]);
+      expect(geometries(b)[1]).not.toBe(geometries(a1)[1]);
+      // nothing left: the next frame builds nothing
+      expect(kit.tick()).toBe(0);
+      kit.dispose();
+    });
+  });
+
+  it('never builds two in one tick, however many models wait, and each only once', () => {
+    withTwoBodies(() => {
+      const kit = createCarKit(COLORS);
+      for (let i = 0; i < 5; i++) {
+        kit.make('GT3', '#e64343', false, 'Porsche 911 GT3 R LMGT3');
+        kit.make('GT3', '#e64343', false, 'BMW M4 LMGT3');
+      }
+      const built = [kit.tick(), kit.tick(), kit.tick(), kit.tick()];
+      expect(built).toEqual([1, 1, 0, 0]);
+      kit.dispose();
+    });
+  });
+
+  it('a car released before its turn leaves the queue, and a model with no car left is never built', () => {
+    withTwoBodies(() => {
+      const kit = createCarKit(COLORS);
+      const a = kit.make('GT3', '#e64343', false, 'Porsche 911 GT3 R LMGT3');
+      const b = kit.make('GT3', '#e64343', false, 'BMW M4 LMGT3');
+      kit.release(a);
+      expect(kit.tick()).toBe(1); // the M4's
+      expect(geometries(b)[1]).not.toBe(geometries(a)[1]);
+      expect(kit.tick()).toBe(0);
+      kit.dispose();
+    });
+  });
+
+  it('a car made after its model was built gets the body at once', () => {
+    const kit = createCarKit(COLORS);
+    const early = kit.make('GT3', '#e64343', false, 'Porsche 911 GT3 R LMGT3');
+    expect(kit.tick()).toBe(1);
+    const late = kit.make('GT3', '#e64343', false, 'Porsche 911 GT3 R LMGT3');
+    expect(geometries(late)[1]).toBe(geometries(early)[1]);
+    expect(kit.tick()).toBe(0);
+    kit.dispose();
+  });
+
+  it('keeps the car whole after the swap: 7 children, and the ring of the followed car is its own', () => {
+    const kit = createCarKit(COLORS);
+    const me = kit.make('GT3', '#e64343', true, 'Porsche 911 GT3 R LMGT3');
+    expect(kit.tick()).toBe(1);
+    expect(me.children).toHaveLength(8);
+    kit.dispose();
   });
 });

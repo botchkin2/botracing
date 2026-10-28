@@ -10,14 +10,30 @@ import * as THREE from 'three';
 import {clamp, mod} from '@/src/analysis/chaseMath';
 import {clockAt, followApp, type ChaseClock} from '@/src/analysis/chaseClock';
 import {surfacePose} from '@/src/analysis/chasePose';
-import {dragFree, isFree, resetFree, zoomFree} from '@/src/analysis/chaseFreeCam';
+import {
+  dragFree,
+  isFree,
+  resetFree,
+  zoomFree,
+} from '@/src/analysis/chaseFreeCam';
 import {createPanRule} from '@/src/analysis/panGesture';
 import {chaseHeading, stepTravel} from '@/src/analysis/chaseHeading';
 import type {ChaseRoad} from '@/src/analysis/chaseRoad';
 import {roadIndex, type RoadIndex} from '@/src/analysis/chaseRoadIndex';
-import type {ChaseCamMode, ChaseCar, ChaseEngine, ChaseRibbon, ChaseTheme, ChaseUpdate} from '@/src/features/race/chase/chaseTypes';
+import type {
+  ChaseCamMode,
+  ChaseCar,
+  ChaseEngine,
+  ChaseRibbon,
+  ChaseTheme,
+  ChaseUpdate,
+} from '@/src/features/race/chase/chaseTypes';
 import type {ChaseFrame} from './chaseInputsAt';
-import {createCarLabels, declutterLabels, type LabelCandidate} from './carLabels';
+import {
+  createCarLabels,
+  declutterLabels,
+  type LabelCandidate,
+} from './carLabels';
 import {createCarKit, type CarObject} from './carMeshes';
 import {createCameraRig} from './cameraRig';
 import {setCarRotation} from './carPose';
@@ -25,7 +41,6 @@ import {fadedNow} from './fadeRule';
 import {buildInputsScene, type InputsScene} from './inputsScene';
 import {buildRoadScene, disposeGroup} from './roadScene';
 import {setWorld} from './sceneFrame';
-
 
 const FOG_NEAR_M = 260;
 const FOG_FAR_M = 1500;
@@ -62,20 +77,25 @@ export function mountChase(
   container: HTMLElement,
   opts: {
     theme: ChaseTheme;
-    onPick: (index: number) => void; onFree?: (free: boolean) => void;
+    onPick: (index: number) => void;
+    onFree?: (free: boolean) => void;
     onPan?: (dy: number) => void;
     /** Every frame drawn: the followed car's lap distance at the engine's own clock (the HUD reads the recording there). */
     onFollowed?: (frame: ChaseFrame) => void;
   },
 ): ChaseEngine {
   const T = opts.theme;
-  const renderer = new THREE.WebGLRenderer({antialias: true, powerPreference: 'high-performance'});
+  const renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    powerPreference: 'high-performance',
+  });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setClearColor(new THREE.Color(T.bg), 1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NoToneMapping;
   const el = renderer.domElement;
-  el.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none';
+  el.style.cssText =
+    'position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none';
   container.appendChild(el);
   const labels = createCarLabels(container, T);
   const scene = new THREE.Scene();
@@ -89,8 +109,22 @@ export function mountChase(
   let inputs: InputsScene | null = null;
   let ribbon: ChaseRibbon | null = null;
   let inputIdx = -1;
-  let state: ChaseUpdate = {sample: () => [], timeS: 0, focus: null, playing: false, rate: 1, inputIdx: -1, ghosts: false};
-  let clock: ChaseClock = {timeS: 0, atMs: performance.now(), playing: false, rate: 1, appS: 0};
+  let state: ChaseUpdate = {
+    sample: () => [],
+    timeS: 0,
+    focus: null,
+    playing: false,
+    rate: 1,
+    inputIdx: -1,
+    ghosts: false,
+  };
+  let clock: ChaseClock = {
+    timeS: 0,
+    atMs: performance.now(),
+    playing: false,
+    rate: 1,
+    appS: 0,
+  };
   let dirty = true;
   let alive = true;
   let last = performance.now();
@@ -152,10 +186,17 @@ export function mountChase(
       const prior = states.get(c.index);
       const x = c.xM;
       const y = c.zM;
-      const travel = prior?.prev ? stepTravel(prior.travel, x - prior.prev.x, y - prior.prev.y) : null;
+      const travel = prior?.prev
+        ? stepTravel(prior.travel, x - prior.prev.x, y - prior.prev.y)
+        : null;
       let onRoad = false;
       let tangent: number | null = null;
-      const lapS = ix ? mod(((c.lapDistM || 0) * ix.lengthM) / (ix.lapM || 1), ix.lengthM || 1) : 0;
+      const lapS = ix
+        ? mod(
+            ((c.lapDistM || 0) * ix.lengthM) / (ix.lapM || 1),
+            ix.lengthM || 1,
+          )
+        : 0;
       let z = ix ? ix.heightAt(lapS) : 0;
       let pitch = 0;
       let roll = 0;
@@ -166,7 +207,11 @@ export function mountChase(
         // the road's grade and bank under or beside the car: a car touching the edge margin must not change pitch
         // with it, and a car beyond the margin stands on the surface at the margin, not at its distance from it
         const reach = ix.widthAt(near.s, near.side) + ON_ROAD_MARGIN_M;
-        const pose = surfacePose(ix, near.s, near.side * Math.min(near.dist, reach));
+        const pose = surfacePose(
+          ix,
+          near.s,
+          near.side * Math.min(near.dist, reach),
+        );
         z = pose.z;
         pitch = pose.pitch;
         roll = pose.roll;
@@ -190,9 +235,24 @@ export function mountChase(
         roll,
       };
       if (prior) {
-        Object.assign(prior, pose, {car: c, v: c.speedKmh / 3.6, ld, onRoad, travel, prev: {x, y}});
+        Object.assign(prior, pose, {
+          car: c,
+          v: c.speedKmh / 3.6,
+          ld,
+          onRoad,
+          travel,
+          prev: {x, y},
+        });
       } else {
-        states.set(c.index, {...pose, car: c, v: c.speedKmh / 3.6, ld, onRoad, travel, prev: {x, y}});
+        states.set(c.index, {
+          ...pose,
+          car: c,
+          v: c.speedKmh / 3.6,
+          ld,
+          onRoad,
+          travel,
+          prev: {x, y},
+        });
       }
     }
     for (const k of [...states.keys()]) {
@@ -225,7 +285,11 @@ export function mountChase(
     roadGroup?.userData.window(me.ld);
     for (const [k, s] of states) {
       let o = objects.get(k);
-      if (o && (o.userData.player !== s.car.player || o.userData.vehicle !== (s.car.vehicle ?? null))) {
+      if (
+        o &&
+        (o.userData.player !== s.car.player ||
+          o.userData.vehicle !== (s.car.vehicle ?? null))
+      ) {
         scene.remove(o);
         kit.release(o);
         o = undefined;
@@ -263,14 +327,27 @@ export function mountChase(
       const reach = camera.position.distanceTo(meAt.position);
       for (const [k, o] of objects) {
         const d = camera.position.distanceTo(o.position);
-        kit.fade(o, fadedNow({followed: k === meObj, ghosts: state.ghosts, wasFaded: o.userData.faded === true, distM: d, reachM: reach}));
+        kit.fade(
+          o,
+          fadedNow({
+            followed: k === meObj,
+            ghosts: state.ghosts,
+            wasFaded: o.userData.faded === true,
+            distM: d,
+            reachM: reach,
+          }),
+        );
       }
     }
     const mine = me.car.player;
     opts.onFollowed?.({lapDistM: me.car.lapDistM, player: mine});
     if (inputs) {
       const first = clamp(inputIdx + 1, 0, inputs.count - 2);
-      const count = clamp(Math.min(INPUT_WINDOW, inputs.count - 2 - first), 0, INPUT_WINDOW);
+      const count = clamp(
+        Math.min(INPUT_WINDOW, inputs.count - 2 - first),
+        0,
+        INPUT_WINDOW,
+      );
       inputs.mesh.geometry.setDrawRange(first * 6, count * 6);
       inputs.mesh.visible = mine && inputIdx >= 0;
       inputs.bars.visible = mine;
@@ -294,7 +371,11 @@ export function mountChase(
     const candidates: LabelCandidate[] = [];
     for (const [k, s] of states) {
       setWorld(probe, s.x, s.y, s.z + LABEL_LIFT_M).project(camera);
-      const inView = probe.z < 1 && probe.z > -1 && Math.abs(probe.x) < 1.05 && Math.abs(probe.y) < 1.05;
+      const inView =
+        probe.z < 1 &&
+        probe.z > -1 &&
+        Math.abs(probe.x) < 1.05 &&
+        Math.abs(probe.y) < 1.05;
       if (!(nearest.has(k) && s.car.label !== '' && inView)) continue;
       const pos = {x: (probe.x * 0.5 + 0.5) * w, y: (-probe.y * 0.5 + 0.5) * h};
       at.set(k, pos);
@@ -302,7 +383,14 @@ export function mountChase(
     }
     // labels that would sit on top of each other: the nearer car keeps its number
     const shown = declutterLabels(candidates);
-    for (const [k, s] of states) labels.place(k, s.car.label, s.car.color, shown.has(k) ? at.get(k)! : null, dist(s));
+    for (const [k, s] of states)
+      labels.place(
+        k,
+        s.car.label,
+        s.car.color,
+        shown.has(k) ? at.get(k)! : null,
+        dist(s),
+      );
   }
 
   let wasFree = false;
@@ -318,6 +406,8 @@ export function mountChase(
       ingest(state.sample(clockAt(clock, now), false));
       render(dt);
       if (rig.free.resetting) dirty = true;
+      // a model body still waiting is built after this frame is drawn, one a frame
+      if (kit.tick() > 0) dirty = true;
       const free = isFree(rig.free);
       if (free !== wasFree) opts.onFree?.((wasFree = free));
     }
@@ -354,9 +444,23 @@ export function mountChase(
     panOnCanvas = e.target === el;
     pan.down(e.screenX, e.screenY, e.timeStamp);
   };
-  let drag: {x: number; y: number; px: number; py: number; orbit: number; moved: boolean} | null = null;
+  let drag: {
+    x: number;
+    y: number;
+    px: number;
+    py: number;
+    orbit: number;
+    moved: boolean;
+  } | null = null;
   const onDown = (e: PointerEvent) => {
-    drag = {x: e.clientX, y: e.clientY, px: e.clientX, py: e.clientY, orbit: rig.orbit, moved: false};
+    drag = {
+      x: e.clientX,
+      y: e.clientY,
+      px: e.clientX,
+      py: e.clientY,
+      orbit: rig.orbit,
+      moved: false,
+    };
   };
   const onMove = (e: PointerEvent) => {
     let turnPx: number | null = null;
@@ -371,8 +475,10 @@ export function mountChase(
     if (turnPx !== null) {
       if (rig.mode === 4) rig.orbit -= turnPx * HELI_DRAG_RAD_PER_PX;
       else if (rig.mode === 1 || rig.mode === 2) dragFree(rig.free, turnPx, 0);
-    } else if (rig.mode === 4) rig.orbit = drag.orbit - dx * HELI_DRAG_RAD_PER_PX;
-    else if ((rig.mode === 1 || rig.mode === 2) && drag.moved) dragFree(rig.free, e.clientX - drag.px, e.clientY - drag.py);
+    } else if (rig.mode === 4)
+      rig.orbit = drag.orbit - dx * HELI_DRAG_RAD_PER_PX;
+    else if ((rig.mode === 1 || rig.mode === 2) && drag.moved)
+      dragFree(rig.free, e.clientX - drag.px, e.clientY - drag.py);
     drag.px = e.clientX;
     drag.py = e.clientY;
     dirty = true;
@@ -411,7 +517,10 @@ export function mountChase(
     for (const [k, s] of states) {
       setWorld(probe, s.x, s.y, s.z + 0.4).project(camera);
       if (probe.z > 1) continue;
-      const d = Math.hypot((probe.x * 0.5 + 0.5) * r.width - (e.clientX - r.left), (-probe.y * 0.5 + 0.5) * r.height - (e.clientY - r.top));
+      const d = Math.hypot(
+        (probe.x * 0.5 + 0.5) * r.width - (e.clientX - r.left),
+        (-probe.y * 0.5 + 0.5) * r.height - (e.clientY - r.top),
+      );
       if (d < bestD) {
         bestD = d;
         best = k;
@@ -438,8 +547,16 @@ export function mountChase(
     update(u) {
       const was = state.focus;
       state = {...state, ...u};
-      if (u.timeS !== undefined || u.playing !== undefined || u.rate !== undefined) {
-        clock = followApp(clock, {timeS: state.timeS, playing: state.playing, rate: state.rate}, performance.now());
+      if (
+        u.timeS !== undefined ||
+        u.playing !== undefined ||
+        u.rate !== undefined
+      ) {
+        clock = followApp(
+          clock,
+          {timeS: state.timeS, playing: state.playing, rate: state.rate},
+          performance.now(),
+        );
       }
       if (u.inputIdx !== undefined) inputIdx = u.inputIdx;
       if (u.focus !== undefined && u.focus !== was) rig.reset();

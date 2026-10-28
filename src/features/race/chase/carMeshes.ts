@@ -481,6 +481,12 @@ export interface CarKit {
     vehicle?: string | null,
   ): CarObject;
   release(car: CarObject): void;
+  /**
+   * Builds the next model body still waiting, one at most, and swaps it onto every car drawn as its class shape until now:
+   * a model with a real body is built after the first frame, one a frame, so a field of fourteen models does not stall the
+   * frame that opens the 3D (steward #8288). Returns how many it built (0 or 1).
+   */
+  tick(): number;
   /** Draw the car see-through (between the camera and the followed car) or solid. */
   fade(car: CarObject, faded: boolean): void;
   dispose(): void;
@@ -504,6 +510,12 @@ export function createCarKit(colors: {
     classes.set(key, made);
     return made;
   };
+  // a model with a real body is not built where its car is made: the car is its class shape now and the body is queued
+  const queue: string[] = [];
+  const waiting = new Map<
+    string,
+    {cars: CarObject[]; carClass: string; vehicle: string | null}
+  >();
   const ringGeometry = () => {
     if (!ring) {
       ring = new THREE.RingGeometry(RING_INNER_M, RING_OUTER_M, 72);
@@ -575,7 +587,9 @@ export function createCarKit(colors: {
   };
   return {
     make(carClass, color, player, vehicle = null) {
-      const k = kitFor(carClass, vehicle);
+      const target = shapeFor(vehicle, carClass);
+      const deferred = !!target.shape.body && !classes.has(target.key);
+      const k = kitFor(carClass, deferred ? null : vehicle);
       // the model channel: the body edges take the model's colour in its class (carPaint)
       const set = setsFor(color, shapeFor(vehicle, carClass).paint, player);
       const group = new THREE.Group() as CarObject;
@@ -611,7 +625,28 @@ export function createCarKit(colors: {
           'ring',
         );
       group.userData = {player, faded: false, vehicle, sets: set, parts};
+      if (deferred) {
+        let w = waiting.get(target.key);
+        if (!w) {
+          w = {cars: [], carClass, vehicle};
+          waiting.set(target.key, w);
+          queue.push(target.key);
+        }
+        w.cars.push(group);
+      }
       return group;
+    },
+    tick() {
+      const key = queue.shift();
+      if (key === undefined) return 0;
+      const w = waiting.get(key);
+      waiting.delete(key);
+      if (!w) return 0;
+      const k = kitFor(w.carClass, w.vehicle);
+      for (const car of w.cars)
+        for (const [o, part] of car.userData.parts)
+          if (part !== 'ring') (o as THREE.Mesh).geometry = k[part];
+      return 1;
     },
     fade(car, faded) {
       if (car.userData.faded === faded) return;
@@ -620,8 +655,17 @@ export function createCarKit(colors: {
       for (const [o, part] of car.userData.parts)
         o.material = set[part] as THREE.Material;
     },
-    release() {
-      // the materials are shared by colour and freed with the kit
+    release(car) {
+      // the materials are shared by colour and freed with the kit; a car that never got its body leaves the queue
+      for (const [key, w] of waiting) {
+        const i = w.cars.indexOf(car);
+        if (i < 0) continue;
+        w.cars.splice(i, 1);
+        if (w.cars.length === 0) {
+          waiting.delete(key);
+          queue.splice(queue.indexOf(key), 1);
+        }
+      }
     },
     dispose() {
       for (const k of classes.values()) {
@@ -634,6 +678,8 @@ export function createCarKit(colors: {
         k.tick.dispose();
       }
       classes.clear();
+      queue.length = 0;
+      waiting.clear();
       for (const s of sets.values())
         for (const m of [...Object.values(s.solid), ...Object.values(s.faded)])
           m?.dispose();
