@@ -15,6 +15,11 @@ import {
 } from '@/src/design';
 import {sessionHref} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
+import {
+  startTextFor,
+  type StartText,
+  usePlanStart,
+} from '@/src/state/planStart';
 import {EmptyState, Pressable, Skeleton, StatusBanner, Text} from '@/src/ui';
 import {
   comboCar,
@@ -31,6 +36,7 @@ import {PlanCard, Section} from './components/PlanCard';
 import {eventLabel} from './planEvent';
 import {LengthStepper} from './components/LengthStepper';
 import {StartLoad} from './components/StartLoad';
+import {startNote} from './startNote';
 import {PooledUseCard} from './components/PooledUseCard';
 import {RulesBlock} from './components/RulesBlock';
 import {TrackCarPicker} from './components/TrackCarPicker';
@@ -83,15 +89,10 @@ export function PlanScreen() {
   const combo = resolveCombo(combos, comboKey, defaultCombo(combos));
   // What the car starts with, as typed for this track and car; blank is a full
   // load, and the last race's start is only offered (parc #1902).
-  const [startTyped, setStartTyped] = useState<{
-    key: string;
-    ve: string;
-    fuel: string;
-  } | null>(null);
-  const startText =
-    startTyped && startTyped.key === combo?.key
-      ? startTyped
-      : {key: combo?.key ?? '', ve: '', fuel: ''};
+  const startState = usePlanStart();
+  const startText = startTextFor(startState, combo?.key ?? null);
+  const setStartTyped = (text: StartText) =>
+    startState.setStart(combo?.key ?? '', text);
   const start = {
     vePct: parseNumber(startText.ve),
     fuelL: parseNumber(startText.fuel),
@@ -227,8 +228,9 @@ export function PlanScreen() {
   // The phone has one purpose, how many stops and when for the next race
   // (Botkin, pit-wall thread 54 #2533): the chips (track, car, rules), the
   // length, then the Race card and the Pit plan. The units switch, the last
-  // race, the start load, the per-tank, class timing and per-lap cards are
-  // desktop. Desktop (D6a) gives the rules their own block with its numbers
+  // race, the start fields, the per-tank, class timing and per-lap cards are
+  // desktop; the phone has the one field that sets the start, in the Race
+  // card (thread 104 #7952). Desktop (D6a) gives the rules their own block with its numbers
   // under the length.
   const setup = !combo ? null : (
     <>
@@ -383,7 +385,35 @@ export function PlanScreen() {
           {data.checks ? <PlanChecksView text={data.checks} /> : null}
           {data.cards ? (
             <PlanCard title='Race'>
-              <RaceCardView card={data.cards.race} />
+              <RaceCardView
+                card={data.cards.race}
+                startNote={
+                  rules
+                    ? startNote(
+                        start,
+                        {fuelL: rules.rules.fuelL, vePct: rules.rules.vePct},
+                        hasVe,
+                      )
+                    : null
+                }
+                startField={
+                  !wide && rules ? (
+                    <StartLoad
+                      compact
+                      hasVe={hasVe}
+                      veText={startText.ve}
+                      fuelText={startText.fuel}
+                      full={{
+                        fuelL: rules.rules.fuelL,
+                        vePct: rules.rules.vePct,
+                      }}
+                      chips={{ve: null, fuel: null}}
+                      onVe={ve => setStartTyped({...startText, ve})}
+                      onFuel={fuel => setStartTyped({...startText, fuel})}
+                    />
+                  ) : null
+                }
+              />
             </PlanCard>
           ) : null}
           {data.cards && slider.pit ? (

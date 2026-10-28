@@ -6,20 +6,19 @@ import type {Lap, SessionDetail} from '@/src/data/sessions';
 import fixture from './__fixtures__/roadAtlantaRace.json';
 import {
   buildFuelUse,
-  fuelUseRows,
   limitText,
   planLinkText,
   planMatchesLimit,
   planRaceText,
   raceLaps,
-  verdictText,
 } from './fuelUse';
 
 const base = toLaps([fixture.laps[0]])[0];
 const session = (
-  over: Partial<Pick<SessionDetail, 'sessionType' | 'fuel'>> = {},
-): Pick<SessionDetail, 'sessionType' | 'fuel'> => ({
+  over: Partial<Pick<SessionDetail, 'sessionType' | 'fuel' | 'plan'>> = {},
+): Pick<SessionDetail, 'sessionType' | 'fuel' | 'plan'> => ({
   sessionType: 'P',
+  plan: null,
   fuel: {
     startL: 75,
     fillLimitL: 75,
@@ -79,7 +78,7 @@ describe('buildFuelUse', () => {
     expect(buildFuelUse(session({sessionType: 'R'}), laps)?.race).toBe(true);
   });
 
-  it('a race stint reads against stint 1: signed deltas, no laps per load (the plan owns it)', () => {
+  it('a race stint reads against stint 1: signed deltas, in litres and VE', () => {
     // Silverstone 10-15 shape (thread 73): about -0.18 L/lap, -0.25 % VE/lap, -0.14 s.
     const laps = [
       ...stintOf(1, [3.47, 3.45, 3.5, 3.48, 3.46, 3.47], 121.56),
@@ -91,13 +90,7 @@ describe('buildFuelUse', () => {
     expect(v.against).toBe(1);
     expect(v.fuelL).toBeCloseTo(-0.18, 2);
     expect(v.timeS).toBeCloseTo(-0.14, 2);
-    const rows = fuelUseRows(fu);
-    expect(rows[0].lines.join('|')).not.toMatch(/vs stint/);
-    expect(rows[1].lines).toContain(
-      'vs stint 1: −0.18 L/lap · −0.26 % VE/lap · −0.140 s',
-    );
-    for (const row of rows)
-      expect(row.lines.join('|')).not.toMatch(/One load|laps of fuel/);
+    expect(v.vePct).toBeCloseTo(-0.26, 2);
     // The plan's race length is the plan card's, not this one's.
     expect(
       planRaceText(fu, {kind: 'min', value: 60}, '60 min', null),
@@ -120,10 +113,6 @@ describe('buildFuelUse', () => {
     const fu = buildFuelUse(session({sessionType: 'R'}), laps)!;
     expect(fu.stints.map(s => s.medianCoastS)).toEqual([10.4, 16.75]);
     expect(fu.stints[1].vsFirst!.coastS).toBeCloseTo(6.35, 5);
-    const rows = fuelUseRows(fu);
-    expect(rows[0].lines[0]).toContain('10.4 s coast/lap');
-    expect(rows[1].lines[0]).toContain('16.8 s coast/lap');
-    expect(rows[1].lines.join('|')).toContain('+6.4 s coast/lap');
   });
 
   it('gives no coast figure when the laps carry none (a session from before the resync)', () => {
@@ -134,18 +123,6 @@ describe('buildFuelUse', () => {
     const fu = buildFuelUse(session({sessionType: 'R'}), laps)!;
     expect(fu.stints.map(s => s.medianCoastS)).toEqual([null, null]);
     expect(fu.stints[1].vsFirst!.coastS).toBeNull();
-    expect(fuelUseRows(fu).join('|')).not.toMatch(/coast/);
-  });
-
-  it('a practice keeps its laps per load and shows the stint against stint 1 too', () => {
-    const laps = [
-      ...stintOf(1, [2.4, 2.42, 2.38, 2.41, 2.39, 2.4], 81),
-      ...stintOf(2, [2.2, 2.21, 2.19, 2.2, 2.22, 2.18], 82.3),
-    ];
-    const fu = buildFuelUse(session(), laps)!;
-    const rows = fuelUseRows(fu);
-    expect(rows[1].lines.some(l => l.startsWith('One load:'))).toBe(true);
-    expect(rows[1].lines.some(l => l.startsWith('vs stint 1:'))).toBe(true);
   });
 
   it('is null with no green lap', () => {
@@ -156,36 +133,16 @@ describe('buildFuelUse', () => {
     expect(buildFuelUse(session(), laps)).toBeNull();
   });
 
-  it('says the stints differ when a saving run is more than the laps inside each vary', () => {
-    const laps = [
-      ...stintOf(1, [2.4, 2.42, 2.38, 2.41, 2.39, 2.4], 81),
-      ...stintOf(2, [2.2, 2.21, 2.19, 2.2, 2.22, 2.18], 82.3),
-    ];
-    const fu = buildFuelUse(session(), laps)!;
-    expect(fu.verdict.kind).toBe('differs');
-    expect(fu.stints[1].medianFuelL).toBeCloseTo(2.2, 2);
-    // One load: 75 L over 2.2 L a lap.
-    expect(fu.stints[1].loadLaps.fuel).toBeCloseTo(34.1, 1);
-  });
-
-  it('says the stints do not differ when the laps inside each vary more (Road Atlanta 09-25 shape)', () => {
-    const laps = [
-      ...stintOf(1, [2.39, 2.46, 2.4, 2.45, 2.41, 2.44], 81),
-      ...stintOf(2, [2.4, 2.45, 2.42, 2.39, 2.46, 2.43], 81.4),
-    ];
-    const fu = buildFuelUse(session(), laps)!;
-    expect(fu.verdict.kind).toBe('same');
-    expect(verdictText(fu)).toBe('Stints within lap IQR: 2.42 L/lap');
-  });
-
-  it('shows the range when the stint medians differ at 2 dp but are still within the spread', () => {
-    const laps = [
-      ...stintOf(1, [2.39, 2.46, 2.4, 2.45, 2.41, 2.44], 81),
-      ...stintOf(2, [2.36, 2.43, 2.37, 2.42, 2.38, 2.41], 81.4),
-    ];
-    const fu = buildFuelUse(session(), laps)!;
-    expect(fu.verdict.kind).toBe('same');
-    expect(verdictText(fu)).toBe('Stints within lap IQR: 2.40–2.42 L/lap');
+  it('counts in VE when the laps carry it, in litres when they do not', () => {
+    const laps = stintOf(1, [2.4, 2.41, 2.39, 2.4]);
+    expect(buildFuelUse(session(), laps)!.unit).toBe('ve');
+    const fuelOnly = laps.map(l => ({
+      ...l,
+      fuel: {...l.fuel!, veUsedPct: null},
+    }));
+    const fu = buildFuelUse(session(), fuelOnly)!;
+    expect(fu.unit).toBe('fuel');
+    expect(fu.stints[0].medianVePct).toBeNull();
   });
 
   it('keeps a towed lap in the medians: a tow is a fact about the lap, not a reason to drop it', () => {
@@ -217,19 +174,10 @@ describe('buildFuelUse', () => {
     expect(fu.stints[0].medianTimeS).toBe(81);
   });
 
-  it('gives no median under 3 laps (the Planner floor), and says there is nothing to compare', () => {
+  it('gives no median under 3 laps (the Planner floor)', () => {
     const fu = buildFuelUse(session(), stintOf(1, [2.4, 2.41]))!;
     expect(fu.stints[0].medianFuelL).toBeNull();
-    expect(fu.verdict.kind).toBe('none');
-    expect(fuelUseRows(fu)[0].lines[0]).toContain('no median');
-  });
-
-  it('is one stint when only one has enough laps', () => {
-    const laps = [
-      ...stintOf(1, [2.4, 2.41, 2.39, 2.4]),
-      ...stintOf(2, [2.2, 2.2]),
-    ];
-    expect(buildFuelUse(session(), laps)!.verdict.kind).toBe('one-stint');
+    expect(fu.stints[0].vsFirst).toBeNull();
   });
 
   it('does not read start fuel or the tank as a fill limit (Sarthe qualifying, 31.8 L)', () => {
@@ -248,32 +196,7 @@ describe('buildFuelUse', () => {
       stintOf(1, [2.4, 2.41, 2.39, 2.4]),
     )!;
     expect(fu.limitL).toBeNull();
-    expect(fu.stints[0].loadLaps.fuel).toBeNull();
-    // 100 % VE is the full load whatever the start.
-    expect(fu.stints[0].loadLaps.ve).not.toBeNull();
     expect(limitText(fu)).toBeNull();
-  });
-
-  it('has no load in laps of fuel without a fill limit on record', () => {
-    const fu = buildFuelUse(
-      session({fuel: null}),
-      stintOf(1, [2.4, 2.41, 2.39, 2.4]),
-    )!;
-    expect(fu.limitL).toBeNull();
-    expect(fu.stints[0].loadLaps.fuel).toBeNull();
-  });
-
-  it('writes a stint as its laps, use, VE, lap time and the load', () => {
-    const fu = buildFuelUse(session(), stintOf(1, [2.4, 2.4, 2.4, 2.4], 81.5))!;
-    expect(fuelUseRows(fu)[0]).toEqual({
-      key: '1',
-      title: 'Stint 1 · 4 laps',
-      lines: [
-        '2.40 L/lap (IQR 0.00) · 3.5 % VE/lap · 1:21.500',
-        'One load: 31.3 laps of fuel · 28.3 laps of VE',
-      ],
-      counts: true,
-    });
   });
 });
 

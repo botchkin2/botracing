@@ -1,3 +1,4 @@
+import {type ReactNode} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {space} from '@/src/design';
@@ -11,9 +12,25 @@ import {FactTile, TileRow} from './FactTile';
  * count), the stops (and where the full-tank strategy puts them), the start
  * load. The median lap the count comes from stays as one small line.
  */
-export function RaceCardView({card}: {card: RaceCard}) {
+export function RaceCardView({
+  card,
+  startNote,
+  startField,
+}: {
+  card: RaceCard;
+  /** What the plan assumes the car starts with, and whether he set it (`startNote.ts`). */
+  startNote: string | null;
+  /** The phone's one control that sets it. */
+  startField?: ReactNode;
+}) {
   return (
     <View style={styles.box}>
+      {startNote ? (
+        <Text variant='dataSmall' tone='textSecondary'>
+          {startNote}
+        </Text>
+      ) : null}
+      {startField}
       <TileRow>
         <FactTile
           label='Laps'
@@ -31,7 +48,7 @@ export function RaceCardView({card}: {card: RaceCard}) {
         />
         {card.startLoad ? (
           <FactTile
-            label='Start'
+            label='Start with'
             value={card.startLoad.hero}
             sub={card.startLoad.covers}
           />

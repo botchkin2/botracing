@@ -49,6 +49,7 @@ export function AppChrome<T extends string>({
   onPlan,
   settingsActive,
   onSettings,
+  onNote,
 }: {
   session: ChromeSession<T> | null;
   /** Below 1280: car, team and date move into the ▾ menu and the swatches become a count. */
@@ -62,6 +63,8 @@ export function AppChrome<T extends string>({
   onPlan: () => void;
   settingsActive: boolean;
   onSettings: () => void;
+  /** "Send a note": null for everyone but his account (the API says who). */
+  onNote?: (() => void) | null;
 }) {
   const {color} = useTheme();
   return (
@@ -139,6 +142,9 @@ export function AppChrome<T extends string>({
           active={planActive}
           onPress={onPlan}
         />
+        {onNote ? (
+          <Item label='Send a note' active={false} onPress={onNote} />
+        ) : null}
         <Item label='Settings' active={settingsActive} onPress={onSettings} />
       </View>
     </View>

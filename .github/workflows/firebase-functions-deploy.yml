@@ -21,6 +21,15 @@ permissions:
   contents: read
   id-token: write
 
+# One deploy at a time, in push order: two merges a minute apart used to run in
+# parallel and whichever finished last was live, so an older commit's functions
+# could replace a newer one's (the v2 results reader, 2026-10-25). A queued run
+# is replaced by a newer one; the waiters (tools/ci/waitForFunctions.mjs)
+# follow the newer run.
+concurrency:
+  group: functions-deploy
+  cancel-in-progress: false
+
 jobs:
   build_and_deploy_functions:
     runs-on: ubuntu-latest

@@ -1,6 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {classPaceDoc, type ResultsDriver} from '@/src/analysis/classPace';
+import {finishOf, raceResultText} from '@/src/analysis/raceResult';
 import race from '@/src/analysis/__fixtures__/classPaceR.json';
 
 import {
@@ -40,6 +41,18 @@ describe('toSessionSummary', () => {
     const s = toSessionSummary(raw);
     expect(s.track).toBe('Daytona International Speedway');
     expect(s.car).toBe('Manthey DK Engineering 2026 #91:LM');
+  });
+  it('reads a session that joined an online event as online, and never reads a missing one as offline (ticket 47)', () => {
+    expect(toSessionSummary({...raw, eventId: 'ev-1'}).online).toBe(true);
+    expect(toSessionSummary(raw).online).toBeNull();
+    expect(toSessionSummary({...raw, eventId: ''}).online).toBeNull();
+  });
+  it("keeps the capture's own game mode over the event", () => {
+    expect(toSessionSummary({...raw, online: false}).online).toBe(false);
+    expect(
+      toSessionSummary({...raw, online: false, eventId: 'ev-1'}).online,
+    ).toBe(false);
+    expect(toSessionSummary({...raw, online: true}).online).toBe(true);
   });
   it('maps Race/Qualify/Practice to R/Q/P and keeps nulls', () => {
     const s = toSessionSummary(raw);
@@ -693,5 +706,42 @@ describe('classPace (ticket 20)', () => {
       stored,
     );
     expect(toSessionDetail(raw).classPace).toBeNull();
+  });
+});
+
+describe('one stored result: the Sessions list row and the race head print the same place (ticket 20, thread 111 #7740)', () => {
+  const drivers = race.drivers as ResultsDriver[];
+  const result = finishOf({drivers, sessionType: 'Race', field: null});
+  const served = {...raw, sessionType: 'Race', result};
+
+  it('a result written from the game file reads P5 · P1 in class on his real race, in the list and in the head', () => {
+    const list = raceResultText(toSessionSummary(served).finish);
+    const head = raceResultText(toSessionDetail(served).finish);
+    expect(list).toBe('P5 · P1 in class');
+    expect(head).toBe(list);
+  });
+
+  it('a result with a source of either kind reads the same: the field-written doc of the 10-22 race is unchanged', () => {
+    const fromField = {
+      version: result!.version,
+      kind: 'race',
+      source: 'field',
+      finish: {...result!.finish, overall: 4, inClass: 2},
+    };
+    const field = {...raw, sessionType: 'Race', result: fromField};
+    expect(raceResultText(toSessionSummary(field).finish)).toBe(
+      'P4 · P2 in class',
+    );
+    expect(raceResultText(toSessionDetail(field).finish)).toBe(
+      'P4 · P2 in class',
+    );
+    // a doc written before `source` existed reads as before
+    const {source, ...old} = fromField;
+    expect(source).toBe('field');
+    expect(
+      raceResultText(
+        toSessionSummary({...raw, sessionType: 'Race', result: old}).finish,
+      ),
+    ).toBe('P4 · P2 in class');
   });
 });

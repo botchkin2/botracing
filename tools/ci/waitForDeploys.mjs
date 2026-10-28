@@ -20,6 +20,7 @@ import {
   COMPARE_FILE_CAP,
   FUNCTIONS_WORKFLOW,
   decide,
+  listRunsFor,
   touchesFunctions,
 } from './waitForFunctions.mjs';
 
@@ -137,23 +138,7 @@ async function main(env = process.env) {
   console.log(`Waiting for: ${workflows.join(', ')}`);
   const result = await waitForDeploys({
     workflows,
-    listRuns: async workflow =>
-      gh(
-        'run',
-        'list',
-        '--repo',
-        repo,
-        '--workflow',
-        workflow,
-        '--commit',
-        sha,
-        '--json',
-        'databaseId,status,conclusion',
-      ).map(r => ({
-        id: r.databaseId,
-        status: r.status,
-        conclusion: r.conclusion,
-      })),
+    listRuns: async workflow => listRunsFor({gh, repo, workflow, sha}),
   });
   console.log(result.reason);
   return result.ok ? 0 : 1;

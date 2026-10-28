@@ -134,8 +134,9 @@ export const blockVersions = {
   iracingSectors: 1,
   // Which laps are slow (src/analysis/paceEvents.ts replaced the median cut),
   // and the session doc's `paceSet` read from them (3: added): every session
-  // re-analyses once.
-  slowLaps: 3,
+  // re-analyses once (4: the lap next to a stint's edge is judged with Tukey's
+  // end rule from the full windows, so a run of 2 at an edge is an event).
+  slowLaps: 4,
   // A yellow never selects a lap; iRacing's local yellows are not a course
   // caution (decision 2026-10-11 #4, pit wall #5171): every session re-analyses once.
   yellowNeverSelects: 1,

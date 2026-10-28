@@ -24,7 +24,11 @@ import {
   classLapsCurrent,
   classLapsDoc,
 } from '../../src/analysis/classLaps.ts';
-import {finishCurrent, finishDoc} from '../../src/analysis/raceResult.ts';
+import {
+  finishCurrent,
+  finishDoc,
+  finishOf,
+} from '../../src/analysis/raceResult.ts';
 import {
   fieldAfterSync,
   fieldFeedsDerived,
@@ -670,6 +674,15 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
       lap.traffic = traffic[k];
     });
   }
+  // The game's own classification first: a race whose results input has the
+  // drivers takes its finishing place from the file, whatever the field gave
+  // above (one stored `result`, read by the list and the head alike).
+  if (out.resultsDrivers)
+    session.result = finishOf({
+      drivers: out.resultsDrivers,
+      sessionType: session.sessionType,
+      field: session.result ?? null,
+    });
   // What only the capture gave, kept when it is gone (keepCapture.mjs): the
   // race length, and the visits read from the car's damage.
   const keptBlocks = [];
@@ -721,7 +734,10 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     const ids = before.recordingIds ?? [];
     const storedRecs = (
       await Promise.all(
-        ids.map(async id => ({id, ...(await backend.getDoc('recordings', id))})),
+        ids.map(async id => ({
+          id,
+          ...(await backend.getDoc('recordings', id)),
+        })),
       )
     ).filter(r => r.recordedAt);
     const prefix = uncoveredPrefixS(storedRecs, out.recordings);
