@@ -92,6 +92,27 @@ describe('bodyStations', () => {
     const tops = stations.map(st => st.top);
     expect(Math.max(...tops)).toBeGreaterThanOrEqual(roof.top - 1e-9);
   });
+  it('reads the top-edge share from topRatio where it is given: a narrow deck between wide haunches', () => {
+    const narrow: BodyModel = {
+      ...COUPE,
+      topRatio: [
+        [2, 0.9],
+        [-1.5, 0.5],
+        [-2, 0.4],
+      ],
+    };
+    const flat = stationAt(COUPE, -1.7);
+    const deck = stationAt(narrow, -1.7);
+    expect(deck.topHalf).toBeLessThan(flat.topHalf);
+    expect(
+      stationAt(narrow, -2).topHalf / stationAt(narrow, -2).half,
+    ).toBeCloseTo(0.4, 6);
+    // the greenhouse is the roof's, whatever topRatio says
+    expect(stationAt(narrow, -0.1).topHalf).toBeCloseTo(
+      stationAt(COUPE, -0.1).topHalf,
+      9,
+    );
+  });
   it('keeps a shoulder even when the top line sinks to the belt', () => {
     const flat: BodyModel = {
       ...COUPE,

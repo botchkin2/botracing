@@ -35,6 +35,8 @@ export interface BodyModel {
   greenhouse: Greenhouse;
   /** The hood and deck's top half-width as a share of the belt's (their flanks tumble in); default HOOD_RATIO. */
   hoodRatio?: number;
+  /** The same share along the car, outside the greenhouse, where it varies: a narrow engine deck between wide haunches, a rounded tail. */
+  topRatio?: CurvePoint[];
   /** How square the shoulder is: 2 is an ellipse, larger is boxier; default SHOULDER_ROUNDNESS. */
   roundness?: number;
 }
@@ -134,7 +136,11 @@ const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
 /** The top edge's half-width at x: the hood's or deck's share of the belt outside the greenhouse, the roof panel inside it. */
 function topHalfAt(model: BodyModel, x: number, half: number): number {
   const g = model.greenhouse;
-  const outside = half * (model.hoodRatio ?? HOOD_RATIO);
+  const outside =
+    half *
+    (model.topRatio
+      ? sampleCurve(model.topRatio, x)
+      : model.hoodRatio ?? HOOD_RATIO);
   const roof = Math.min(g.roofHalfW, half * 0.95);
   if (x >= g.screenBaseX || x <= g.rearBaseX) return outside;
   if (x >= g.roofFrontX) {

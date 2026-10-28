@@ -45,7 +45,7 @@ export const GT3_MODELS: ModelEntry[] = [
       deckH: 0.2,
       tailOver: 0.2,
       wingKind: 'pylons',
-      wingH: -0.29,
+      wingH: -0.19,
       tailW: -0.16,
       tailTopW: -0.14,
       tailRound: 0.8,

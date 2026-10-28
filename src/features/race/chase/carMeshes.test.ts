@@ -811,3 +811,34 @@ describe('a real body is built after the first frame, one a frame', () => {
     kit.dispose();
   });
 });
+
+describe('positionKey range', () => {
+  it('throws outside +/- 6.55 m of the car centre instead of sharing a key between two positions', () => {
+    expect(() => positionKey(6.6, 0, 0)).toThrow(RangeError);
+    expect(() => positionKey(0, -6.6, 0)).toThrow(RangeError);
+    expect(() => positionKey(0, 0, Number.NaN)).toThrow(RangeError);
+    expect(() => positionKey(6.5, 6.5, -6.5)).not.toThrow();
+  });
+});
+
+describe('the swap keeps the colour attribute', () => {
+  it('the class shape and the real body both carry a colour attribute on their body edges, so a swap never lands on edges without one', () => {
+    const kit = createCarKit(COLORS);
+    const car = kit.make('GT3', '#e64343', false, 'Porsche 911 GT3 R LMGT3');
+    const edges = (c: THREE.Object3D) =>
+      (c.children[3] as THREE.LineSegments).geometry;
+    const before = edges(car);
+    expect(before.getAttribute('color')).toBeDefined();
+    expect(before.getAttribute('color').count).toBe(
+      before.getAttribute('position').count,
+    );
+    expect(kit.tick()).toBe(1);
+    const after = edges(car);
+    expect(after).not.toBe(before);
+    expect(after.getAttribute('color')).toBeDefined();
+    expect(after.getAttribute('color').count).toBe(
+      after.getAttribute('position').count,
+    );
+    kit.dispose();
+  });
+});

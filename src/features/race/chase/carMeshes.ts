@@ -35,9 +35,11 @@ const BODY_TINT = 0.12;
 /** The halo shell: the edge colour at this share over the background, pushed out this far along the averaged normals. */
 const HALO_SHARE = 0.5;
 const HALO_OFFSET_M = 0.05;
-const WHEEL_SEGMENTS = 8;
+const WHEEL_SEGMENTS = 16;
 /** The wheels stand this far outside the hull's side, so their rims show against it from the side and above (scout #8072). */
 const WHEEL_PROUD_M = 0.06;
+/** On a real body the wheel's face stands this far outside the flank, in its arch's rim. */
+const BODY_WHEEL_PROUD_M = 0.012;
 const EDGE_ANGLE_DEG = 25;
 /** An end plate reaches this far below the wing's top. */
 const PLATE_BELOW_M = 0.1;
@@ -171,7 +173,15 @@ const KEY_SPAN = 1 << 17;
  * within +/- 6.5 m of the car's centre.
  */
 export function positionKey(x: number, y: number, z: number): number {
-  const part = (v: number) => Math.round(v * KEY_STEP) + KEY_SHIFT;
+  const part = (v: number) => {
+    if (!(Math.abs(v) < KEY_SHIFT / KEY_STEP))
+      throw new RangeError(
+        `positionKey: ${v} m is outside +/- ${
+          KEY_SHIFT / KEY_STEP
+        } m of the car's centre`,
+      );
+    return Math.round(v * KEY_STEP) + KEY_SHIFT;
+  };
   return (part(x) * KEY_SPAN + part(y)) * KEY_SPAN + part(z);
 }
 
@@ -251,7 +261,10 @@ interface ClassKit {
 
 function buildClass(ground: [number, number], c: ClassShape): ClassKit {
   const [wx, wy, chord, span] = c.wing;
-  const tail = c.hull[c.hull.length - 1];
+  // the wing's pylons stand on the body's own deck at the wing, or on the hull's tail when there is no real body
+  const deckTop = c.body
+    ? stationAt(c.body, Math.max(wx, -c.body.lengthM / 2)).top
+    : c.hull[c.hull.length - 1][4];
   const kind = c.wingKind ?? 'stalks';
   // a model with a real body draws it in place of the hull; everything else on the car is the same parts
   const first = c.body ? bodyGeometry(c.body) : loft(c.hull, SILL_Y);
@@ -260,7 +273,7 @@ function buildClass(ground: [number, number], c: ClassShape): ClassKit {
     parts.push(
       slab(wx, wy, chord, 0.05, span),
       ...WING_PYLONS[kind].map(f =>
-        slab(wx + 0.08, (wy + tail[4]) / 2, 0.12, wy - tail[4], 0.03).translate(
+        slab(wx + 0.08, (wy + deckTop) / 2, 0.12, wy - deckTop, 0.03).translate(
           0,
           0,
           f * span,
@@ -299,7 +312,7 @@ function buildClass(ground: [number, number], c: ClassShape): ClassKit {
   const hullOuter = Math.max(...c.hull.map(st => st[1])) + WHEEL_PROUD_M;
   for (const x of [front, rear]) {
     const outer = c.body
-      ? stationAt(c.body, x).half + WHEEL_PROUD_M
+      ? stationAt(c.body, x).half + BODY_WHEEL_PROUD_M
       : hullOuter;
     for (const side of [-1, 1])
       parts.push(wheel(x, radius, width, side * outer));
