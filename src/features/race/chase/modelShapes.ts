@@ -233,6 +233,21 @@ export const GT3_MODELS: ModelEntry[] = [
       tailTopW: 0,
       wingSpan: 1.15,
     },
+    // a C-shaped bracket at each corner, opening inward (stylised: no rear render of the lamp was read)
+    tailLights: [
+      [
+        [-0.5, 0.52],
+        [-0.82, 0.52],
+        [-0.82, 0.34],
+        [-0.5, 0.34],
+      ],
+      [
+        [0.5, 0.52],
+        [0.82, 0.52],
+        [0.82, 0.34],
+        [0.5, 0.34],
+      ],
+    ],
   },
   {
     // mid/rear engine: a short nose, the cabin forward, then a long, low, flat deck ending in a tall wing
@@ -286,6 +301,17 @@ export const GT3_MODELS: ModelEntry[] = [
       tailTopW: 0,
       wingSpan: 0.85,
     },
+    // one long slim blade at each side, rising inward (stylised: no rear render of the lamp was read)
+    tailLights: [
+      [
+        [-0.84, 0.44],
+        [-0.3, 0.52],
+      ],
+      [
+        [0.84, 0.44],
+        [0.3, 0.52],
+      ],
+    ],
   },
   {
     // front-mid engine: a very wide flat-topped tail carrying the widest wing on the grid, the cabin set back

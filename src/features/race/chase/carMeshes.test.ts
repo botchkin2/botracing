@@ -3,6 +3,7 @@ import * as THREE from 'three';
 
 import {
   carOutline,
+  LIGHT_GAIN,
   createCarKit,
   mixSrgb,
   shellOf,
@@ -566,6 +567,49 @@ describe('the tail light lines', () => {
     const dark = kit.make('Hyper', '#e64343', false, 'Ferrari 499P');
     expect(lit.children).toHaveLength(dark.children.length);
     kit.dispose();
+  });
+});
+
+describe('lights lead the outline', () => {
+  const colorsOf = (car: THREE.Object3D) =>
+    (car.children[3] as THREE.LineSegments).geometry.getAttribute(
+      'color',
+    ) as THREE.BufferAttribute;
+  it.each([
+    ['GT3', 'Porsche 911 GT3 R LMGT3'],
+    ['Hyper', 'Alpine A424'],
+  ])(
+    '%s %s: the outline is 1 and each light vertex is LIGHT_GAIN, in the one body-edges buffer',
+    (cls, vehicle) => {
+      const kit = createCarKit(COLORS);
+      const car = kit.make(cls, '#e64343', false, vehicle);
+      const edges = (
+        car.children[3] as THREE.LineSegments
+      ).geometry.getAttribute('position');
+      const color = colorsOf(car);
+      expect(color.count).toBe(edges.count);
+      const lights = lightSegments(shapeFor(vehicle, cls).shape).length * 2;
+      expect(lights).toBeGreaterThan(0);
+      for (let i = 0; i < edges.count; i++)
+        expect(color.getX(i)).toBe(
+          Math.fround(i >= edges.count - lights ? LIGHT_GAIN : 1),
+        );
+      const mat = (car.children[3] as THREE.LineSegments)
+        .material as THREE.LineBasicMaterial;
+      expect(mat.vertexColors).toBe(true);
+      expect(car.children).toHaveLength(7);
+      kit.dispose();
+    },
+  );
+  it('a model without lights has an all-ones colour attribute, so the shared material still reads it', () => {
+    const kit = createCarKit(COLORS);
+    const car = kit.make('GT3', '#e64343', false, 'Toyota nothing');
+    const color = colorsOf(car);
+    for (let i = 0; i < color.count; i++) expect(color.getX(i)).toBe(1);
+    kit.dispose();
+  });
+  it('a light line is brighter than the car colour it multiplies, and the gain is a real brightening', () => {
+    expect(LIGHT_GAIN).toBeGreaterThan(1.5);
   });
 });
 

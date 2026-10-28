@@ -307,19 +307,29 @@ function buildClass(ground: [number, number], c: ClassShape): ClassKit {
   };
 }
 
-/** A line geometry with more segments appended to it, so they ride the same draw. */
+/** A light line is this many times brighter than its car's outline (three.js multiplies the vertex colour by the material's; the screen clamps it). */
+export const LIGHT_GAIN = 2.2;
+
+/**
+ * A line geometry with more segments appended to it, so they ride the same draw, and a colour attribute: 1 for every
+ * outline vertex, LIGHT_GAIN for the appended light lines, so the lights lead at a distance where the outline is a
+ * smear (steward #8229). The colour attribute is on every body-edges geometry, because the material that draws them
+ * reads vertex colours.
+ */
 function withSegments(
   edges: THREE.BufferGeometry,
   segments: number[][],
 ): THREE.BufferGeometry {
-  if (segments.length === 0) return edges;
   const at = edges.getAttribute('position');
   const pos = new Float32Array(at.count * 3 + segments.length * 6);
   pos.set(at.array as Float32Array, 0);
   segments.forEach((s, i) => pos.set(s, at.count * 3 + i * 6));
+  const colors = new Float32Array(pos.length).fill(1);
+  colors.fill(LIGHT_GAIN, at.count * 3);
   edges.dispose();
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   return g;
 }
 
@@ -464,7 +474,11 @@ export function createCarKit(colors: {
           side: THREE.DoubleSide,
           ...see,
         }),
-        bodyEdges: new THREE.LineBasicMaterial({color: edge, ...see}),
+        bodyEdges: new THREE.LineBasicMaterial({
+          color: edge,
+          vertexColors: true,
+          ...see,
+        }),
         cabinEdges: new THREE.LineBasicMaterial({color: cabinEdge, ...see}),
         tick: new THREE.LineBasicMaterial({color: paint, ...see}),
         halo: new THREE.MeshBasicMaterial({
