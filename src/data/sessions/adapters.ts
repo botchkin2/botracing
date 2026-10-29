@@ -6,6 +6,7 @@ import {
   type SectorPace,
 } from '@/src/analysis/classPace';
 import {lapNoOf} from '@/src/analysis/lapNumbering';
+import {median} from '@/src/analysis/setStats';
 import {
   type ClassLaps,
   type ClassLapsKind,
@@ -649,7 +650,8 @@ export type Lap = {
   /**
    * A race's first racing lap in iRacing, whole and measured, that the game gave no lap time (it starts at the green flag,
    * before the line): its line-to-line time, for display only (pit-wall thread 123, ticket 61). timeS stays null, so no
-   * median, best or selection uses it. Null on every other lap: LMU's, a partial or pit lap, a timed lap.
+   * median, best or selection uses it. Null on every other lap: LMU's, a partial or pit lap, a timed lap, and a rolling
+   * start's pace lap (`startLapIndexOf`).
    */
   startLapTimeS: number | null;
   /** The game's rulings that fell in this lap (its results file), null without the file. */
@@ -1149,23 +1151,57 @@ function toPassMarks(v: unknown): LapTraffic['passMarks'] {
   return out;
 }
 
-/** See `Lap.startLapTimeS`. The analysis's own `partial` is the whole-lap decision; `timed: false` is the game giving no time. */
-function startLapTimeOf(
-  raw: Record<string, unknown>,
+/** A race lap that is whole, on the track and that the game gave no time: the start lap, or a pace lap before it. */
+function isUntimedWhole(raw: Record<string, unknown>): boolean {
+  return (
+    raw.partial !== true &&
+    raw.pitIn !== true &&
+    raw.pitOut !== true &&
+    raw.invalid !== true &&
+    raw.timed === false &&
+    num(raw.lapTime) != null
+  );
+}
+
+/** The most a lone untimed lap may run over the session's median timed lap and still be a standing start's first lap: Daytona's is 1.06 x. */
+export const START_LAP_MAX_RATIO = 1.15;
+
+/**
+ * The index of an iRacing race's start lap, or null. Its first racing lap is whole and measured but the game gives it
+ * no time. On a rolling start the pace lap is untimed too, and so is the first racing lap: when the run of whole
+ * untimed laps from L1 has 2 or more, the structure says it, and START is the run's last lap, the one that starts at
+ * the green, with no ratio (Road Atlanta 08-27: L1 135.8 s pace lap, L2 86.8 s racing, L3 timed). A run of exactly 1 is
+ * a standing start's first lap, or a pace lap whose racing lap the game did time: only a lap within
+ * START_LAP_MAX_RATIO of the median timed lap reads START, and with no timed lap to compare with it reads nothing. A
+ * wrong "no tag" costs nothing; a wrong START prints a pace lap as raced. See `Lap.startLapTimeS` (pit-wall thread 123
+ * #8440, #8447).
+ */
+function startLapIndexOf(
+  items: Record<string, unknown>[],
+  lapNos: (number | null)[],
   sim: string,
   race: boolean,
-  lapNo: number | null,
 ): number | null {
-  if (sim !== 'iracing' || !race || lapNo !== 1) return null;
-  if (
-    raw.partial === true ||
-    raw.pitIn === true ||
-    raw.pitOut === true ||
-    raw.invalid === true ||
-    raw.timed !== false
-  )
-    return null;
-  return num(raw.lapTime);
+  if (sim !== 'iracing' || !race) return null;
+  let at = lapNos.indexOf(1);
+  if (at < 0) return null;
+  let last = -1;
+  let runLength = 0;
+  for (let want = 1; at < items.length; at++, want++) {
+    if (lapNos[at] !== want || !isUntimedWhole(items[at])) break;
+    last = at;
+    runLength++;
+  }
+  if (last < 0) return null;
+  // With no timed lap in the session the run is not a start, it is a game that times nothing.
+  const typical = median(
+    items.map(l => (l.timed === true && l.partial !== true ? num(l.lapTime) : null)),
+  );
+  if (typical == null) return null;
+  if (runLength >= 2) return last;
+  const time = num(items[last].lapTime);
+  if (time == null) return null;
+  return time <= typical * START_LAP_MAX_RATIO ? last : null;
 }
 
 function toPartialWhy(v: unknown): Lap['partialWhy'] {
@@ -1173,17 +1209,25 @@ function toPartialWhy(v: unknown): Lap['partialWhy'] {
 }
 
 export function toLaps(items: Record<string, unknown>[]): Lap[] {
+  const lapNos = items.map((raw, i) =>
+    lapNoOf({
+      sim: str(raw.sim, 'lmu'),
+      race: toSessionType(raw.sessionType) === 'R',
+      lapNumber: num(raw.lapNumber),
+      lapIndex: i + 1,
+    }),
+  );
+  const first = items[0] ?? {};
+  const startAt = startLapIndexOf(
+    items,
+    lapNos,
+    str(first.sim, 'lmu'),
+    toSessionType(first.sessionType) === 'R',
+  );
   const laps = items.map((raw, i) => {
     // The fields the opening set reads, mapped once for app and uploader.
     const pace = paceFieldsOf(raw);
-    const sim = str(raw.sim, 'lmu');
-    const race = toSessionType(raw.sessionType) === 'R';
-    const lapNo = lapNoOf({
-      sim,
-      race,
-      lapNumber: num(raw.lapNumber),
-      lapIndex: i + 1,
-    });
+    const lapNo = lapNos[i];
     return {
       id: str(raw.id),
       lapIndex: i + 1,
@@ -1210,7 +1254,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
         raw.pitOut !== true
           ? num(raw.lapTime)
           : null,
-      startLapTimeS: startLapTimeOf(raw, sim, race, lapNo),
+      startLapTimeS: i === startAt ? num(raw.lapTime) : null,
       trackLimits: toLapStrikes(raw.trackLimits),
       offTrackS: num(raw.offTrackSec) ?? 0,
       hadImpact: (num(raw.impactMax) ?? 0) > 0,
