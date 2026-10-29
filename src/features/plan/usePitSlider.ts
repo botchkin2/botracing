@@ -21,6 +21,7 @@ export function usePitSlider(
   const {plan, rules, cards, fuelOnly, pitBase, refuelRate, hist} = data;
   // Litres one 1 % VE adds at a stop, from his own stops in the planned rules.
   const stopRatio = data.limits.event?.rules?.stopRatio ?? null;
+  const fuelRatio = data.limits.event?.rules?.ratio.perPctL ?? null;
   const windows = cards?.stops.windows;
   const planned = useMemo(() => plannedStops(windows ?? []), [windows]);
   const planKey = `${comboKey}|${planned.join(',')}`;
@@ -61,12 +62,13 @@ export function usePitSlider(
             },
             loadL: input.rules.fuelL,
             stopRatio,
+            fuelRatio,
             fullVePct: input.rules.vePct,
             lateFlag: input.plan.raceLaps?.oneMore != null,
             pitModel: input.pitModel,
           })
         : [],
-    [pit, input, meter, sim, stopRatio],
+    [pit, input, meter, sim, stopRatio, fuelRatio],
   );
   const strip = useMemo(
     () => (pit ? stintStrip(pit, panels, meter) : []),

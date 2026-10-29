@@ -62,6 +62,7 @@ const panelOf = (
     loadL,
     fullVePct: 100,
     stopRatio,
+    fuelRatio: stopRatio,
     lateFlag: p.plan.raceLaps?.oneMore != null,
     pitModel: {baseS: 0, refuelLPerS: 1},
   })[0];
@@ -94,6 +95,7 @@ describe('the Wed rules with no load known (a practice only, thread 104)', () =>
       loadL: null,
       fullVePct: 100,
       stopRatio: 0.609,
+      fuelRatio: 0.609,
       lateFlag: plan.raceLaps?.oneMore != null,
       pitModel: null,
     });
@@ -138,6 +140,7 @@ describe('the Wed rules with no load known (a practice only, thread 104)', () =>
         loadL,
         fullVePct: 100,
         stopRatio: 0.609,
+        fuelRatio: 0.609,
         lateFlag: plan.raceLaps?.oneMore != null,
         pitModel,
       })[0].value;
@@ -231,6 +234,7 @@ describe('the plan for his two real races at one track', () => {
       loadL: 73,
       fullVePct: 100,
       stopRatio: 0.609,
+      fuelRatio: 0.609,
       lateFlag: plan.raceLaps?.oneMore != null,
       pitModel,
     });

@@ -23,6 +23,15 @@
  */
 export const FLAG_RESERVE_VE = 1;
 
+/**
+ * With no stop measured the warning tests fuel against the track's ratio less
+ * this share, because the track ratio is the larger of the two in 18 of 43
+ * sessions that have both, by up to 8.6 % among the trustworthy pairs (pit-wall
+ * thread 131 #8498, #8502): a larger ratio understates the fuel the stop must
+ * add. A false warning costs a glance, a missed one the race.
+ */
+export const TRACK_RATIO_MARGIN = 0.1;
+
 export type StopTarget = {
   /** What the number is in: VE % for a VE car, litres otherwise. */
   meter: 've' | 'fuel';
@@ -59,6 +68,12 @@ export type StopTargetInput = {
   fullVePct: number;
   /** Litres one 1 % VE adds at a stop (his own stops); null when no stop was measured. */
   stopRatio: number | null;
+  /**
+   * Litres of fuel per 1 % VE on track (the rule set's ratio). Not what a stop adds: the two disagree by a median 2.6 %
+   * and the track one is the larger in 18 of 43 sessions that have both (pit-wall thread 131 #8498), so it never sizes
+   * a level or litres. With no stop measured it only decides whether to say "fuel-limited".
+   */
+  fuelRatio: number | null;
   /** What the car arrives with at each stop, in `meter`; null where not known. */
   arrive: readonly (number | null)[];
   /** What the car arrives with at each stop in litres; null where not known. */
@@ -82,20 +97,24 @@ export function stopTargets(input: StopTargetInput): StopTarget[] {
       if (p90.vePct == null) return [];
       const veNeed = lapsAfter * p90.vePct + (last ? FLAG_RESERVE_VE : 0);
       // The level that puts in the litres the laps burn over what is left:
-      // the arrival plus the shortfall over the litres one % adds here.
+      // the arrival plus the shortfall over the litres one % adds here. With
+      // no stop measured the track's ratio stands in for the warning only.
+      const ratio =
+        stopRatio ?? (input.fuelRatio == null ? null : input.fuelRatio / (1 + TRACK_RATIO_MARGIN));
       const fuelNeed =
         loadL == null ||
         p90.fuelL == null ||
-        stopRatio == null ||
-        !(stopRatio > 0) ||
+        ratio == null ||
+        !(ratio > 0) ||
         arrive == null ||
         arriveFuelL == null
           ? 0
-          : arrive + (lapsAfter * p90.fuelL - arriveFuelL) / stopRatio;
+          : arrive + (lapsAfter * p90.fuelL - arriveFuelL) / ratio;
       // Within one step of the pit menu the two ratios (the track's and the
       // stops') are noise, not a limiter: the level still takes the higher.
       fuelLimited = fuelNeed - veNeed >= 1;
-      need = Math.max(veNeed, fuelNeed);
+      // The level takes the fuel need only from a ratio measured at a stop.
+      need = stopRatio == null ? veNeed : Math.max(veNeed, fuelNeed);
       cap = fullVePct;
     } else {
       if (p90.fuelL == null || loadL == null) return [];
