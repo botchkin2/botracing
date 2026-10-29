@@ -1,6 +1,6 @@
 import {buildElevation, type ElevationModel} from './elevationProfile';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
-import {matchCornerNames} from '@/src/analysis/cornerNames';
+import {matchSectionNames} from '@/src/analysis/cornerNames';
 import {applyGeoref, canDrawOnRealMap} from '@/src/analysis/geo';
 import {type GridTrace} from '@/src/analysis/resample';
 import {buildTrackMarks, type MapAnchor, type MapMarks} from '@/src/charts';
@@ -117,16 +117,16 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
   if (map && refTrace && mapModel) {
     if (info && map.georef && canDrawOnRealMap(map.quality, map.georef)) {
       const georef = map.georef;
-      const apexes = corners.map(c => {
-        const i = gridIndex(refTrace, c.apexM);
-        const [p] = applyGeoref(
-          [{lat: refTrace.lat[i], lon: refTrace.lon[i]}],
-          georef,
-        );
-        return {n: c.n, ...p};
-      });
-      for (const [n, name] of matchCornerNames(apexes, info.osmNames)) {
-        names.set(n, name);
+      // Part numbers and section numbers differ, so a section is keyed by its place in the list.
+      const spans = map.sections.map((s, k) => ({
+        n: k,
+        points: applyGeoref(stretchOf(refTrace, s.entryM, s.exitM), georef),
+      }));
+      for (const [k, name] of matchSectionNames(spans, info.osmNames)) {
+        const section = map.sections[k];
+        for (const part of section.parts.length ? section.parts : [section]) {
+          names.set(part.n, name);
+        }
       }
     }
   }
@@ -215,6 +215,19 @@ function buildFacts(
   if (info?.place)
     facts.push({label: 'Location', value: info.place, sub: null});
   return facts;
+}
+
+/** The lap's positions every grid step from `fromM` to `toM`, wrapping at the lap's end. */
+function stretchOf(t: GridTrace, fromM: number, toM: number) {
+  const points: {lat: number; lon: number}[] = [];
+  const n = t.lat.length;
+  const from = gridIndex(t, fromM);
+  const count = Math.max(1, Math.round((toM - fromM) / t.stepM) + 1);
+  for (let k = 0; k < count && k < n; k++) {
+    const i = (from + k) % n;
+    points.push({lat: t.lat[i], lon: t.lon[i]});
+  }
+  return points;
 }
 
 function gridIndex(t: GridTrace, m: number): number {

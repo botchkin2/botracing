@@ -20,6 +20,12 @@ export interface ApexPoint {
   lon: number;
 }
 
+/** A section of the corner map: the real-world points of its stretch from entry to exit, apexes included. */
+export interface SectionSpan {
+  n: number;
+  points: {lat: number; lon: number}[];
+}
+
 export const NAME_MATCH_M = 60;
 
 const M_PER_DEG_LAT = 110540;
@@ -41,11 +47,38 @@ export function matchCornerNames(
   names: NamedPoint[],
   maxM: number = NAME_MATCH_M,
 ): Map<number, string> {
+  return matchNames(
+    apexes.map(a => ({n: a.n, points: [a]})),
+    names,
+    maxM,
+  );
+}
+
+/**
+ * Section number → OSM name. A name is a point, but a section is a stretch: Monza's Parabolica is a long arc whose
+ * name sits off its apex, and Ascari's three parts compete for the names around one chicane (`Curva Vialone` on the
+ * approach landed on its first part, ticket 83). So each section is measured by its nearest point from entry to exit,
+ * and a name goes to the section it is nearest, once.
+ */
+export function matchSectionNames(
+  sections: SectionSpan[],
+  names: NamedPoint[],
+  maxM: number = NAME_MATCH_M,
+): Map<number, string> {
+  return matchNames(sections, names, maxM);
+}
+
+function matchNames(
+  sections: SectionSpan[],
+  names: NamedPoint[],
+  maxM: number,
+): Map<number, string> {
   const pairs: {n: number; name: string; d: number}[] = [];
-  for (const a of apexes) {
+  for (const s of sections) {
     for (const p of names) {
-      const d = distanceM(a, p);
-      if (d <= maxM) pairs.push({n: a.n, name: p.name, d});
+      let d = Infinity;
+      for (const q of s.points) d = Math.min(d, distanceM(q, p));
+      if (d <= maxM) pairs.push({n: s.n, name: p.name, d});
     }
   }
   pairs.sort((x, y) => x.d - y.d);
