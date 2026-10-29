@@ -1235,5 +1235,25 @@
   "quality": "good",
   "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
   "location": "Autodromo Hermanos Rodriguez"
+ },
+ "iracing-98-long": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 38.161525,
+    "lon": -122.454709
+   },
+   "rotationDeg": 0,
+   "mirror": 1,
+   "originLat": 38.161525,
+   "originLon": -122.454709,
+   "fitMedianM": 0,
+   "fitP90M": 0,
+   "source": "iracing-gps",
+   "fittedOn": "TrackLatitude/TrackLongitude of the .ibt session YAML",
+   "fittedAt": "2026-10-28"
+  },
+  "quality": "good",
+  "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
+  "location": "Sonoma Raceway"
  }
 }
