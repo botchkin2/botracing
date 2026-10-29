@@ -895,5 +895,345 @@
   "quality": "good",
   "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
   "location": "Circuit des 24 Heures du Mans"
+ },
+ "iracing-144-mosport": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 44.054339,
+    "lon": -78.674384
+   },
+   "rotationDeg": 0,
+   "mirror": 1,
+   "originLat": 44.054339,
+   "originLon": -78.674384,
+   "fitMedianM": 0,
+   "fitP90M": 0,
+   "source": "iracing-gps",
+   "fittedOn": "TrackLatitude/TrackLongitude of the .ibt session YAML",
+   "fittedAt": "2026-10-28"
+  },
+  "quality": "good",
+  "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
+  "location": "Canadian Tire Motorsport Park"
+ },
+ "iracing-145-grand_prix": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 51.360299,
+    "lon": 0.260335
+   },
+   "rotationDeg": 0,
+   "mirror": 1,
+   "originLat": 51.360299,
+   "originLon": 0.260335,
+   "fitMedianM": 0,
+   "fitP90M": 0,
+   "source": "iracing-gps",
+   "fittedOn": "TrackLatitude/TrackLongitude of the .ibt session YAML",
+   "fittedAt": "2026-10-28"
+  },
+  "quality": "good",
+  "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
+  "location": "Brands Hatch Circuit"
+ },
+ "iracing-152-phillipisland": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": -38.502368,
+    "lon": 145.232198
+   },
+   "rotationDeg": 0,
+   "mirror": 1,
+   "originLat": -38.502368,
+   "originLon": 145.232198,
+   "fitMedianM": 0,
+   "fitP90M": 0,
+   "source": "iracing-gps",
+   "fittedOn": "TrackLatitude/TrackLongitude of the .ibt session YAML",
+   "fittedAt": "2026-10-28"
+  },
+  "quality": "good",
+  "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
+  "location": "Phillip Island Circuit"
+ },
+ "iracing-167-short": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 34.914295,
+    "lon": 134.218936
+   },
+   "rotationDeg": 0,
+   "mirror": 1,
+   "originLat": 34.914295,
+   "originLon": 134.218936,
+   "fitMedianM": 0,
+   "fitP90M": 0,
+   "source": "iracing-gps",
+   "fittedOn": "TrackLatitude/TrackLongitude of the .ibt session YAML",
+   "fittedAt": "2026-10-28"
+  },
+  "quality": "good",
+  "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
+  "location": "Okayama International Circuit"
+ },
+ "iracing-199-grand_prix": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 50.988939,
+    "lon": 5.255488
+   },
+   "rotationDeg": 0,
+   "mirror": 1,
+   "originLat": 50.988939,
+   "originLon": 5.255488,
+   "fitMedianM": 0,
+   "fitP90M": 0,
+   "source": "iracing-gps",
+   "fittedOn": "TrackLatitude/TrackLongitude of the .ibt session YAML",
+   "fittedAt": "2026-10-28"
+  },
+  "quality": "good",
+  "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
+  "location": "Zolder Circuit"
+ },
+ "iracing-219-bathurst": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": -33.439189,
+    "lon": 149.557655
+   },
+   "rotationDeg": 0,
+   "mirror": 1,
+   "originLat": -33.439189,
+   "originLon": 149.557655,
+   "fitMedianM": 0,
+   "fitP90M": 0,
+   "source": "iracing-gps",
+   "fittedOn": "TrackLatitude/TrackLongitude of the .ibt session YAML",
+   "fittedAt": "2026-10-28"
+  },
+  "quality": "good",
+  "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
+  "location": "Mount Panorama Circuit"
+ },
+ "iracing-239-monza_full": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 45.616196,
+    "lon": 9.280776
+   },
+   "rotationDeg": 0,
+   "mirror": 1,
+   "originLat": 45.616196,
+   "originLon": 9.280776,
+   "fitMedianM": 0,
+   "fitP90M": 0,
+   "source": "iracing-gps",
+   "fittedOn": "TrackLatitude/TrackLongitude of the .ibt session YAML",
+   "fittedAt": "2026-10-28"
+  },
+  "quality": "good",
+  "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
+  "location": "Autodromo Nazionale Monza"
+ },
+ "iracing-299-100_circuit": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 52.464621,
+    "lon": 0.938895
+   },
+   "rotationDeg": 0,
+   "mirror": 1,
+   "originLat": 52.464621,
+   "originLon": 0.938895,
+   "fitMedianM": 0,
+   "fitP90M": 0,
+   "source": "iracing-gps",
+   "fittedOn": "TrackLatitude/TrackLongitude of the .ibt session YAML",
+   "fittedAt": "2026-10-28"
+  },
+  "quality": "good",
+  "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
+  "location": "Snetterton Racing Circuit"
+ },
+ "iracing-324-tsukuba_2kfull": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 36.150151,
+    "lon": 139.919569
+   },
+   "rotationDeg": 0,
+   "mirror": 1,
+   "originLat": 36.150151,
+   "originLon": 139.919569,
+   "fitMedianM": 0,
+   "fitP90M": 0,
+   "source": "iracing-gps",
+   "fittedOn": "TrackLatitude/TrackLongitude of the .ibt session YAML",
+   "fittedAt": "2026-10-28"
+  },
+  "quality": "good",
+  "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
+  "location": "Tsukuba Circuit 2k Full"
+ },
+ "iracing-345-full_course": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 41.571108,
+    "lon": 2.262107
+   },
+   "rotationDeg": 0,
+   "mirror": 1,
+   "originLat": 41.571108,
+   "originLon": 2.262107,
+   "fitMedianM": 0,
+   "fitP90M": 0,
+   "source": "iracing-gps",
+   "fittedOn": "TrackLatitude/TrackLongitude of the .ibt session YAML",
+   "fittedAt": "2026-10-28"
+  },
+  "quality": "good",
+  "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
+  "location": "Circuit de Barcelona-Catalunya"
+ },
+ "iracing-352-classic": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 41.928607,
+    "lon": -73.381005
+   },
+   "rotationDeg": 0,
+   "mirror": 1,
+   "originLat": 41.928607,
+   "originLon": -73.381005,
+   "fitMedianM": 0,
+   "fitP90M": 0,
+   "source": "iracing-gps",
+   "fittedOn": "TrackLatitude/TrackLongitude of the .ibt session YAML",
+   "fittedAt": "2026-10-28"
+  },
+  "quality": "good",
+  "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
+  "location": "Lime Rock Park"
+ },
+ "iracing-353-grand_prix": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 41.928607,
+    "lon": -73.381005
+   },
+   "rotationDeg": 0,
+   "mirror": 1,
+   "originLat": 41.928607,
+   "originLon": -73.381005,
+   "fitMedianM": 0,
+   "fitP90M": 0,
+   "source": "iracing-gps",
+   "fittedOn": "TrackLatitude/TrackLongitude of the .ibt session YAML",
+   "fittedAt": "2026-10-28"
+  },
+  "quality": "good",
+  "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
+  "location": "Lime Rock Park"
+ },
+ "iracing-413-grand_prix": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 47.579526,
+    "lon": 19.247204
+   },
+   "rotationDeg": 0,
+   "mirror": 1,
+   "originLat": 47.579526,
+   "originLon": 19.247204,
+   "fitMedianM": 0,
+   "fitP90M": 0,
+   "source": "iracing-gps",
+   "fittedOn": "TrackLatitude/TrackLongitude of the .ibt session YAML",
+   "fittedAt": "2026-10-28"
+  },
+  "quality": "good",
+  "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
+  "location": "Hungaroring Circuit"
+ },
+ "iracing-466-grand_course": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 36.568162,
+    "lon": -79.209062
+   },
+   "rotationDeg": 0,
+   "mirror": 1,
+   "originLat": 36.568162,
+   "originLon": -79.209062,
+   "fitMedianM": 0,
+   "fitP90M": 0,
+   "source": "iracing-gps",
+   "fittedOn": "TrackLatitude/TrackLongitude of the .ibt session YAML",
+   "fittedAt": "2026-10-28"
+  },
+  "quality": "good",
+  "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
+  "location": "Virginia International Raceway"
+ },
+ "iracing-509-grand_prix": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 37.23202,
+    "lon": -8.630782
+   },
+   "rotationDeg": 0,
+   "mirror": 1,
+   "originLat": 37.23202,
+   "originLon": -8.630782,
+   "fitMedianM": 0,
+   "fitP90M": 0,
+   "source": "iracing-gps",
+   "fittedOn": "TrackLatitude/TrackLongitude of the .ibt session YAML",
+   "fittedAt": "2026-10-28"
+  },
+  "quality": "good",
+  "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
+  "location": "Autodromo Internacional do Algarve"
+ },
+ "iracing-515-speed_circuit_long": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 42.559233,
+    "lon": -2.168089
+   },
+   "rotationDeg": 0,
+   "mirror": 1,
+   "originLat": 42.559233,
+   "originLon": -2.168089,
+   "fitMedianM": 0,
+   "fitP90M": 0,
+   "source": "iracing-gps",
+   "fittedOn": "TrackLatitude/TrackLongitude of the .ibt session YAML",
+   "fittedAt": "2026-10-28"
+  },
+  "quality": "good",
+  "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
+  "location": "Circuito de Navarra"
+ },
+ "iracing-572-grand_prix": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 19.406302,
+    "lon": -99.094924
+   },
+   "rotationDeg": 0,
+   "mirror": 1,
+   "originLat": 19.406302,
+   "originLon": -99.094924,
+   "fitMedianM": 0,
+   "fitP90M": 0,
+   "source": "iracing-gps",
+   "fittedOn": "TrackLatitude/TrackLongitude of the .ibt session YAML",
+   "fittedAt": "2026-10-28"
+  },
+  "quality": "good",
+  "qualityNote": "iRacing's Lat/Lon is real GPS: the identity georef, no fit.",
+  "location": "Autodromo Hermanos Rodriguez"
  }
 }
