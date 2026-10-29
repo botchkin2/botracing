@@ -5,6 +5,9 @@ import {type Combo} from '@/src/workspace/planCombo';
 
 import {classPaceInput} from './classPaceInput';
 
+// A frozen clock: the stats window starts 183 days before it, 29 Apr 2026 (ticket 79).
+const NOW = new Date('2026-10-29T12:00:00Z');
+
 const stats = {cars: 6, laps: 90, medianS: 100, p10S: 98, p90S: 103};
 
 const doc = (over: Partial<SessionClassLaps> = {}): SessionClassLaps => ({
@@ -72,6 +75,7 @@ describe('classPaceInput', () => {
       ],
       plan: null,
       chosen: null,
+      now: NOW,
     });
     expect(input.sessions.map(s => s.kind)).toEqual([
       'race',
@@ -91,6 +95,7 @@ describe('classPaceInput', () => {
       sessions: [flagged],
       plan: null,
       chosen: null,
+      now: NOW,
     });
     expect(input.mine.key).toBe('gt3');
   });
@@ -105,6 +110,7 @@ describe('classPaceInput', () => {
       sessions: [lmu],
       plan: null,
       chosen: null,
+      now: NOW,
     });
     expect(input.mine.key).toBe('gt3');
     expect(input.sessions).toHaveLength(1);
@@ -116,6 +122,7 @@ describe('classPaceInput', () => {
       sessions: [summary('someone')],
       plan: null,
       chosen: null,
+      now: NOW,
     });
     expect(input.mine).toEqual({
       key: null,
@@ -136,7 +143,13 @@ describe('classPaceInput', () => {
       stopsAfter: [15],
     };
     expect(
-      classPaceInput({combo: comboOf([s]), sessions: [s], plan, chosen: null}),
+      classPaceInput({
+        combo: comboOf([s]),
+        sessions: [s],
+        plan,
+        chosen: null,
+        now: NOW,
+      }),
     ).toMatchObject({
       mine: {medianLapS: 109.2, laps: 40, sessions: 3},
       raceLaps: 30,
@@ -148,6 +161,7 @@ describe('classPaceInput', () => {
         sessions: [s],
         plan,
         chosen: {raceLaps: 31, stopsAfter: [14]},
+        now: NOW,
       }),
     ).toMatchObject({raceLaps: 31, stopsAfter: [14]});
   });
@@ -162,8 +176,13 @@ describe('classPaceInput', () => {
       stopsAfter: [],
     };
     expect(
-      classPaceInput({combo: comboOf(sessions), sessions, plan, chosen: null})
-        .mine,
+      classPaceInput({
+        combo: comboOf(sessions),
+        sessions,
+        plan,
+        chosen: null,
+        now: NOW,
+      }).mine,
     ).toMatchObject({medianLapS: 110, laps: 8, sessions: 1});
   });
 
@@ -179,7 +198,46 @@ describe('classPaceInput', () => {
         sessions,
         plan: null,
         chosen: null,
+        now: NOW,
       }).mine,
     ).toMatchObject({medianLapS: 111, laps: 13, sessions: 2});
+  });
+  it('pools only the field sessions inside the stats window, and labels the window', () => {
+    const recent = summary('recent', {startedAt: '2026-08-01T20:00:00Z'});
+    const old = summary('old', {startedAt: '2026-03-01T20:00:00Z'});
+    const input = classPaceInput({
+      combo: comboOf([recent]),
+      sessions: [recent, old],
+      plan: null,
+      chosen: null,
+      now: NOW,
+    });
+    expect(input.sessions).toHaveLength(1);
+    expect(input.window?.since).toMatch(/^since Apr 2[89]$/);
+    expect(input.window?.olderText).toBeNull();
+  });
+
+  it('says so when the only field sessions here are older than the window', () => {
+    const old = summary('old', {startedAt: '2026-03-01T20:00:00Z'});
+    const input = classPaceInput({
+      combo: comboOf([old]),
+      sessions: [old],
+      plan: null,
+      chosen: null,
+      now: NOW,
+    });
+    expect(input.sessions).toEqual([]);
+    expect(input.window?.olderText).toMatch(
+      /^Nothing since Apr 2[89]\. Older sessions are in the list$/,
+    );
+    // a track with no field at all is not "older": no text
+    const none = classPaceInput({
+      combo: comboOf([]),
+      sessions: [summary('quali', {sessionType: 'Q'})],
+      plan: null,
+      chosen: null,
+      now: NOW,
+    });
+    expect(none.window?.olderText).toBeNull();
   });
 });

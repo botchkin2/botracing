@@ -10,7 +10,8 @@ import {Pressable, Text} from '@/src/ui';
 import {type HistoryModel} from '../history';
 
 // "Your history here" (handoff T1 column 3, phone 05): best lap by car,
-// one car's session bests, cars driven.
+// one car's session bests, cars driven. It reads the stats window, so its
+// label says "since <date>" (ticket 79).
 export function HistoryPanel({
   history,
   width,
@@ -30,7 +31,12 @@ export function HistoryPanel({
   return (
     <View style={styles.col}>
       <View style={styles.block}>
-        <Text variant='label'>Your history here</Text>
+        <Text variant='label'>Your history here · {history.since}</Text>
+        {history.emptyText ? (
+          <Text variant='dataSmall' tone='textMuted'>
+            {history.emptyText}
+          </Text>
+        ) : null}
         <View style={styles.stats}>
           {history.stats.map(s => (
             <View key={s.label}>
@@ -128,21 +134,23 @@ export function HistoryPanel({
         </View>
       ) : null}
 
-      <View>
-        <Text variant='label'>Cars driven</Text>
-        {history.cars.map(c => (
-          <View
-            key={c.name}
-            style={[styles.car, {height: carH, borderColor: color.line}]}>
-            <Text variant='body' numberOfLines={1} style={styles.carName}>
-              {c.name}
-            </Text>
-            <Text variant='dataSmall' tone='textMuted'>
-              {c.laps}
-            </Text>
-          </View>
-        ))}
-      </View>
+      {history.cars.length > 0 ? (
+        <View>
+          <Text variant='label'>Cars driven</Text>
+          {history.cars.map(c => (
+            <View
+              key={c.name}
+              style={[styles.car, {height: carH, borderColor: color.line}]}>
+              <Text variant='body' numberOfLines={1} style={styles.carName}>
+                {c.name}
+              </Text>
+              <Text variant='dataSmall' tone='textMuted'>
+                {c.laps}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }

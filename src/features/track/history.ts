@@ -1,12 +1,18 @@
 import {type SessionSummary} from '@/src/data/sessions';
 import {carLabel, formatDate, formatLapTime} from '@/src/design';
+import {
+  emptyWindowText,
+  statsSinceLabel,
+  withinStatsWindow,
+} from '@/src/workspace/statsWindow';
 
 // "Your history here" on the Track page (handoff T1, third column). Bests
 // are the sessions' own bests, which the uploader takes from comparable laps
 // only, so a track-limits or pit lap never becomes the headline. They are
 // grouped by car, not class: the class is recorded but BoP and car differ
 // within one (pit-wall thread 20 #522). The trend shows one car only and
-// draws no fitted line.
+// draws no fitted line. It reads the stats window (ticket 79): sessions older
+// than 183 days are not in it, and the panel says "since <date>".
 
 export type HistoryBest = {
   key: string;
@@ -24,6 +30,10 @@ export type TrendBar = {
 };
 
 export type HistoryModel = {
+  /** "since Apr 29": the window the figures below read. */
+  since: string;
+  /** Sessions here, none inside the window: said in place of the figures. */
+  emptyText: string | null;
   stats: {label: string; value: string}[];
   bests: HistoryBest[];
   cars: {name: string; laps: string}[];
@@ -43,8 +53,23 @@ export type HistoryModel = {
 const TREND_FLOOR_S = 0.4;
 const TREND_MIN_SESSIONS = 3;
 
-export function buildHistory(sessions: SessionSummary[]): HistoryModel | null {
-  if (sessions.length === 0) return null;
+export function buildHistory(
+  all: SessionSummary[],
+  now: Date,
+): HistoryModel | null {
+  if (all.length === 0) return null;
+  const since = statsSinceLabel(now);
+  const sessions = withinStatsWindow(all, now);
+  if (sessions.length === 0) {
+    return {
+      since,
+      emptyText: emptyWindowText(now),
+      stats: [],
+      bests: [],
+      cars: [],
+      trend: null,
+    };
+  }
   const newestFirst = [...sessions].sort((a, b) =>
     b.startedAt.localeCompare(a.startedAt),
   );
@@ -86,6 +111,8 @@ export function buildHistory(sessions: SessionSummary[]): HistoryModel | null {
     .sort((a, b) => b.laps - a.laps);
 
   return {
+    since,
+    emptyText: null,
     stats: [
       {label: 'Sessions', value: String(sessions.length)},
       {label: 'Laps', value: String(laps)},

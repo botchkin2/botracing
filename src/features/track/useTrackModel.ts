@@ -47,6 +47,8 @@ export function useTrackModel(
   selectedCorner: number | null,
 ): TrackScreenState {
   const info = trackInfo(trackId);
+  // The stats window counts back from when the page opened.
+  const now = useMemo(() => new Date(), []);
   const sessions = useSessions({trackId, ageDays: PLAN_HISTORY_DAYS});
   // Every track, for the car an undriven track's Plan opens with: only asked
   // once this track turns out to have no session of his.
@@ -114,6 +116,7 @@ export function useTrackModel(
         surface: surface.data ?? null,
         refTrace: refTrace ?? null,
         selectedCorner,
+        now,
       }),
     };
   }, [
@@ -132,5 +135,6 @@ export function useTrackModel(
     lap.load,
     refTrace,
     selectedCorner,
+    now,
   ]);
 }

@@ -96,6 +96,8 @@ export type ClassTimingInput = {
   raceLaps: number | null;
   /** Racing laps the plan's stops come after. */
   stopsAfter: number[];
+  /** The stats window the sessions were cut to (ticket 79): the label, and what to say when only older ones exist. */
+  window?: {since: string; olderText: string | null};
 };
 
 export type Pass = {
@@ -129,10 +131,12 @@ export type ClassRow = {
 };
 
 export type ClassTiming =
-  /** No session here, in this sim, has other cars' laps. */
-  | {kind: 'no-field'}
+  /** No session here, in this sim, has other cars' laps. `olderText` when the ones that do are all older than the stats window. */
+  | {kind: 'no-field'; since?: string; olderText?: string | null}
   | {
       kind: 'ready';
+      /** "since Apr 29": the stats window the rows read. */
+      since?: string;
       /** Fastest first. */
       rows: ClassRow[];
       /** His own median; null without green laps here. */
@@ -295,14 +299,19 @@ export const noPassText = (raceLaps: number, firstText: string) =>
   `No pass in ${raceLaps} laps (first at ${firstText})`;
 
 export function classTiming(input: ClassTimingInput): ClassTiming {
-  const {sessions, mine, raceLaps, stopsAfter} = input;
+  const {sessions, mine, raceLaps, stopsAfter, window} = input;
   const myLap = mine.medianLapS;
 
   const pooled = SHOWN.flatMap(key => {
     const p = pool(sessions, key, mine.key);
     return p ? [{key, p}] : [];
   }).sort((a, b) => a.p.medianS - b.p.medianS);
-  if (pooled.length === 0) return {kind: 'no-field'};
+  if (pooled.length === 0) {
+    return {
+      kind: 'no-field',
+      ...(window && {since: window.since, olderText: window.olderText}),
+    };
+  }
 
   const rows: ClassRow[] = pooled.map(({key, p}) => {
     const own = key === mine.key;
@@ -347,6 +356,7 @@ export function classTiming(input: ClassTimingInput): ClassTiming {
 
   return {
     kind: 'ready',
+    ...(window && {since: window.since}),
     rows,
     you:
       myLap == null

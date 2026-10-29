@@ -77,6 +77,8 @@ export type TrackInputs = {
   /** Best lap of the newest session drawn on the stored corner map. */
   refTrace: GridTrace | null;
   selectedCorner: number | null;
+  /** The clock the history's stats window counts back from. */
+  now: Date;
 };
 
 const NO_OUTLINE_NOTE = 'No outline yet: your driven line';
@@ -180,7 +182,7 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
       : null,
     map: mapModel,
     elevation: buildElevation(map),
-    history: buildHistory(input.sessions),
+    history: buildHistory(input.sessions, input.now),
     about: info?.summary
       ? {
           text: info.summary.extract,

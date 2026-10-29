@@ -16,6 +16,9 @@ import {type TrackInfo} from '@/src/data/tracks';
 import {buildHistory} from './history';
 import {buildTrackModel, referenceSession} from './model';
 
+// A frozen clock: the history reads the 183 days before it (ticket 79).
+const NOW = new Date('2026-10-29T12:00:00Z');
+
 const session = (over: Partial<SessionSummary>): SessionSummary => ({
   id: 's1',
   sim: 'lmu',
@@ -127,6 +130,7 @@ describe('buildTrackModel', () => {
       map: null,
       refTrace: null,
       selectedCorner: null,
+      now: NOW,
     });
     expect(m.facts.map(f => f.label)).toEqual(['Length']);
     expect(m.facts[0]).toEqual({
@@ -145,6 +149,7 @@ describe('buildTrackModel', () => {
       map: map(),
       refTrace: squareTrace(),
       selectedCorner: 3,
+      now: NOW,
     });
     expect(m.corners.map(g => g.title)).toEqual([null, 'T2–3', null]);
     expect(m.corners[0].rows[0]).toMatchObject({
@@ -185,6 +190,7 @@ describe('corner headings', () => {
       },
       refTrace: squareTrace(),
       selectedCorner: null,
+      now: NOW,
     });
     expect(m.corners.map(g => g.title)).toEqual([null, 'T9–10']);
     expect(m.corners[0].rows).toHaveLength(2);
@@ -229,7 +235,7 @@ describe('buildHistory', () => {
         car: 'United Autosports #95:LM',
         bestTimeS: 99,
       }),
-    ]);
+    ], NOW);
     expect(h?.bests.map(b => [b.sessionId, b.time])).toEqual([
       ['d', '1:39.000'],
       ['b', '1:40.250'],
@@ -247,16 +253,39 @@ describe('buildHistory', () => {
         lapCount: 1,
         bestTimeS: 90,
       }),
-    ]);
+    ], NOW);
     expect(h?.trend).toBeNull();
     const h3 = buildHistory([
       session({id: 'a', startedAt: '2026-09-01T00:00:00Z', bestTimeS: 101}),
       session({id: 'b', startedAt: '2026-09-02T00:00:00Z', bestTimeS: 100}),
       session({id: 'c', startedAt: '2026-09-03T00:00:00Z', bestTimeS: 100.5}),
-    ]);
+    ], NOW);
     expect(h3?.trend?.bars.map(b => b.best)).toEqual([false, true, false]);
     expect(h3?.trend?.title).toBe('Best lap per session · Porsche 911 GT3 R');
   });
+  it('reads only the stats window and says "since <date>"', () => {
+    const h = buildHistory([
+      session({id: 'new', startedAt: '2026-09-01T10:00:00Z', bestTimeS: 101}),
+      session({id: 'old', startedAt: '2026-03-01T10:00:00Z', bestTimeS: 95}),
+    ], NOW);
+    // the older, faster best is not the headline; nor does it count in the stats
+    expect(h?.bests.map(b => b.sessionId)).toEqual(['new']);
+    expect(h?.stats[0]).toEqual({label: 'Sessions', value: '1'});
+    expect(h?.since).toMatch(/^since Apr 2[89]$/);
+    expect(h?.emptyText).toBeNull();
+  });
+
+  it('with sessions here but none in the window, says so instead of showing nothing', () => {
+    const h = buildHistory([
+      session({id: 'old', startedAt: '2026-03-01T10:00:00Z'}),
+    ], NOW);
+    expect(h?.emptyText).toMatch(
+      /^Nothing since Apr 2[89]\. Older sessions are in the list$/,
+    );
+    expect([h?.bests, h?.cars, h?.stats, h?.trend]).toEqual([[], [], [], null]);
+    expect(buildHistory([], NOW)).toBeNull();
+  });
+
 });
 
 // A square outline on the same origin as the lap fixture: drawable as a real map.
@@ -294,6 +323,7 @@ describe('buildTrackModel: the map without a lap', () => {
       map: realMap(),
       refTrace: null,
       selectedCorner: null,
+      now: NOW,
     });
     expect(m.map).not.toBeNull();
     expect(m.map?.real).toBe(true);
@@ -313,6 +343,7 @@ describe('buildTrackModel: the map without a lap', () => {
       map: map(),
       refTrace: null,
       selectedCorner: null,
+      now: NOW,
     });
     expect(m.map).toBeNull();
   });
@@ -350,6 +381,7 @@ describe('buildTrackModel: a lap draws the same map as before', () => {
       surface: null,
       refTrace: squareTrace(),
       selectedCorner: null,
+      now: NOW,
     });
     const before = require('./__fixtures__/map-with-lap.before.json') as {
       map: unknown;
@@ -406,6 +438,7 @@ const surfaceInputs = (
   surface,
   refTrace,
   selectedCorner: null,
+  now: NOW,
 });
 
 const dist = (a: {x: number; y: number}, b: {x: number; y: number}) =>

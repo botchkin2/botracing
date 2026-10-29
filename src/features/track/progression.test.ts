@@ -1,6 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import type {PlanSession} from '@/src/data/sessions/planBlock';
+import {withinStatsWindow} from '@/src/workspace/statsWindow';
 
 import {
   dotLine,
@@ -127,5 +128,18 @@ describe('placeLanes', () => {
   it('a tap picks the nearest dot', () => {
     expect(nearestDot(placed[0].dots, 120)?.dot.ids).toEqual(['p2']);
     expect(nearestDot([], 5)).toBeNull();
+  });
+});
+
+describe('progression inside the stats window (ticket 79)', () => {
+  const NOW = new Date('2026-10-29T12:00:00Z');
+  it('drops the sets older than 183 days before the lanes are made', () => {
+    const rows = [
+      session('old', 'P', '2026-03-01T16:00:00Z', '2026-03-01T17:00:00Z', laps(10)),
+      session('new', 'P', '2026-10-15T16:00:00Z', '2026-10-15T17:00:00Z', laps(10)),
+    ];
+    const lanes = progressionLanes(withinStatsWindow(rows, NOW));
+    expect(lanes.map(l => l.dots.map(d => d.ids))).toEqual([[['new']]]);
+    expect(progressionLanes(withinStatsWindow([rows[0]], NOW))).toEqual([]);
   });
 });

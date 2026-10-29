@@ -58,6 +58,37 @@ describe('classTiming', () => {
     ).toEqual({kind: 'no-field'});
   });
 
+  it('carries the stats window through: the label on a ready table, the older-sessions line on none', () => {
+    const window = {since: 'since Apr 29', olderText: null};
+    expect(
+      ready(
+        classTiming({
+          sessions: [session('race', 97.04, 110.26, 103.5)],
+          mine,
+          raceLaps: 60,
+          stopsAfter: [],
+          window,
+        }),
+      ).since,
+    ).toBe('since Apr 29');
+    expect(
+      classTiming({
+        sessions: [],
+        mine,
+        raceLaps: 60,
+        stopsAfter: [],
+        window: {
+          since: 'since Apr 29',
+          olderText: 'Nothing since Apr 29. Older sessions are in the list',
+        },
+      }),
+    ).toEqual({
+      kind: 'no-field',
+      since: 'since Apr 29',
+      olderText: 'Nothing since Apr 29. Older sessions are in the list',
+    });
+  });
+
   it('shows every class fastest first, his marked, lap times to a tenth', () => {
     const t = ready(
       classTiming({
