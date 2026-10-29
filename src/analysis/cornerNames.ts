@@ -82,6 +82,41 @@ export function matchSectionNames(
   return matchNames(sections, names, maxM);
 }
 
+/** A part's own name stays when its point lies this close to its section's stretch (flat from 5 to 25 m over 15 layouts, thread 134 #8573, #8576). */
+export const KEEP_OWN_NAME_M = 25;
+
+export interface NamedPart extends ApexPoint {
+  /** Index into the sections passed alongside. */
+  section: number;
+}
+
+/**
+ * Part number → name. Each part keeps the name the apex rule gives it when that name lies on its section's own stretch
+ * (a linked complex keeps its two names); every other part takes its section's name from `matchSectionNames`. Over 15
+ * stored layouts this loses no name any part had, where giving each section one name moved 34 parts to a neighbour's
+ * (Silverstone's Becketts to "Maggotts", COTA's Turns 3 to 7 to "Turn 6").
+ */
+export function matchPartNames(
+  parts: NamedPart[],
+  sections: SectionSpan[],
+  names: NamedPoint[],
+  maxM: number = NAME_MATCH_M,
+): Map<number, string> {
+  const ofSection = matchSectionNames(sections, names, maxM);
+  const own = matchCornerNames(parts, names, maxM);
+  const out = new Map<number, string>();
+  for (const part of parts) {
+    const section = ofSection.get(part.section);
+    const mine = own.get(part.n);
+    const point = mine === undefined ? undefined : names.find(p => p.name === mine);
+    const onStretch =
+      point !== undefined && sections[part.section].points.some(q => distanceM(q, point) <= KEEP_OWN_NAME_M);
+    const name = mine !== undefined && onStretch ? mine : section;
+    if (name !== undefined) out.set(part.n, name);
+  }
+  return out;
+}
+
 function matchNames(
   sections: SectionSpan[],
   names: NamedPoint[],

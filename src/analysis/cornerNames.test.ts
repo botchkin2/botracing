@@ -1,6 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {matchCornerNames, matchSectionNames, stretchIndices} from './cornerNames';
+import {matchCornerNames, matchPartNames, matchSectionNames, stretchIndices} from './cornerNames';
 
 // Near 50°N one metre north is 1/110540° of latitude.
 const north = (m: number) => 50 + m / 110540;
@@ -116,5 +116,46 @@ describe('stretchIndices', () => {
     expect(all).toHaveLength(100);
     expect(Math.max(...stretchIndices(-20, 10, 5, 100))).toBeLessThan(100);
     expect(Math.min(...stretchIndices(-20, 10, 5, 100))).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('matchPartNames (thread 134 #8576)', () => {
+  const stretch = (fromM: number, toM: number) => {
+    const points = [];
+    for (let m = fromM; m <= toM; m += 10) points.push({lat: north(m), lon: 6});
+    return points;
+  };
+
+  it('a part keeps its own name when it lies on its section stretch (Silverstone Becketts and Chapel Curve in one section)', () => {
+    const sections = [{n: 0, points: stretch(0, 200)}];
+    const parts = [
+      {n: 3, section: 0, lat: north(30), lon: 6},
+      {n: 4, section: 0, lat: north(150), lon: 6},
+      {n: 5, section: 0, lat: north(200), lon: 6},
+    ];
+    const names = [
+      {name: 'Becketts', lat: north(30), lon: 6},
+      {name: 'Chapel Curve', lat: north(150), lon: 6},
+      {name: 'Maggotts', lat: north(95), lon: 6},
+    ];
+    const got = matchPartNames(parts, sections, names);
+    expect(got.get(3)).toBe('Becketts');
+    expect(got.get(4)).toBe('Chapel Curve');
+    // The third part has no name of its own within 60 m of its apex, so it takes the section's.
+    expect(got.get(5)).toBe(matchSectionNames(sections, names).get(0));
+  });
+
+  it('a part with no name of its own takes its section name (the Parabolica arc)', () => {
+    const sections = [{n: 0, points: stretch(0, 400)}];
+    const parts = [{n: 10, section: 0, lat: north(300), lon: 6}];
+    const got = matchPartNames(parts, sections, [{name: 'Curva Alboreto', lat: north(390), lon: 6}]);
+    expect(got.get(10)).toBe('Curva Alboreto');
+  });
+
+  it('a part never loses the name the apex rule gave it when that name is on its stretch', () => {
+    const sections = [{n: 0, points: stretch(0, 100)}];
+    const parts = [{n: 1, section: 0, lat: north(50), lon: 6}];
+    const names = [{name: 'Own', lat: north(50), lon: 6}];
+    expect(matchPartNames(parts, sections, names).get(1)).toBe(matchCornerNames(parts, names).get(1));
   });
 });

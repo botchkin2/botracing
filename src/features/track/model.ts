@@ -1,6 +1,6 @@
 import {buildElevation, type ElevationModel} from './elevationProfile';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
-import {matchSectionNames, stretchIndices} from '@/src/analysis/cornerNames';
+import {matchPartNames, stretchIndices} from '@/src/analysis/cornerNames';
 import {applyGeoref, canDrawOnRealMap} from '@/src/analysis/geo';
 import {type GridTrace} from '@/src/analysis/resample';
 import {buildTrackMarks, type MapAnchor, type MapMarks} from '@/src/charts';
@@ -122,11 +122,15 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
         n: k,
         points: applyGeoref(stretchOf(refTrace, s.entryM, s.exitM), georef),
       }));
-      for (const [k, name] of matchSectionNames(spans, info.osmNames)) {
-        const section = map.sections[k];
-        for (const part of section.parts.length ? section.parts : [section]) {
-          names.set(part.n, name);
-        }
+      const parts = map.sections.flatMap((s, k) =>
+        (s.parts.length ? s.parts : [s]).map(p => {
+          const i = gridIndex(refTrace, p.apexM);
+          const [at] = applyGeoref([{lat: refTrace.lat[i], lon: refTrace.lon[i]}], georef);
+          return {n: p.n, section: k, ...at};
+        }),
+      );
+      for (const [n, name] of matchPartNames(parts, spans, info.osmNames)) {
+        names.set(n, name);
       }
     }
   }
