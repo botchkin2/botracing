@@ -11,6 +11,11 @@ import {radius, size, space, type as typeScale, useTheme} from '@/src/design';
 import {sessionDayHref, sessionHref} from '@/src/nav/routes';
 import {Chip, Pressable, Skeleton, Text} from '@/src/ui';
 import {type Combo} from '@/src/workspace/planCombo';
+import {
+  emptyWindowText,
+  statsSinceLabel,
+  withinStatsWindow,
+} from '@/src/workspace/statsWindow';
 
 import {usePlanRows} from '../../plan/usePlanHistory';
 import {
@@ -24,6 +29,8 @@ import {
 // S5 (pit wall thread 88, chord #6056): the median and p10-p90 of every set
 // he drove here in one car, one lane per session type. Reads the Plan's one
 // /plan request, so it costs nothing the Plan card has not already fetched.
+// It reads the stats window (ticket 79): the sets of the last 183 days, said
+// in its label ("since <date>"); the Plan's own history stays all-time.
 
 const LANE_H = 56;
 const LABEL_W = 16;
@@ -38,11 +45,12 @@ export function ProgressionCard({
   width: number;
 }) {
   const [key, setKey] = useState<string | null>(null);
+  const now = useMemo(() => new Date(), []);
   const combo = combos.find(c => c.key === key) ?? combos[0] ?? null;
   if (!combo) return null;
   return (
     <View style={styles.block}>
-      <Text variant='label'>Progression</Text>
+      <Text variant='label'>Progression · {statsSinceLabel(now)}</Text>
       {combos.length > 1 ? (
         <View style={styles.chips}>
           {combos.map(c => (
@@ -55,24 +63,35 @@ export function ProgressionCard({
           ))}
         </View>
       ) : null}
-      <Lanes key={combo.key} combo={combo} width={width} />
+      <Lanes key={combo.key} combo={combo} width={width} now={now} />
     </View>
   );
 }
 
-function Lanes({combo, width}: {combo: Combo; width: number}) {
+function Lanes({combo, width, now}: {combo: Combo; width: number; now: Date}) {
   const {color} = useTheme();
   const router = useRouter();
   const rows = usePlanRows(combo);
   const [picked, setPicked] = useState<PlacedDot | null>(null);
   const plotW = width - LABEL_W;
+  const inWindow = useMemo(
+    () => withinStatsWindow([...rows.byId.values()], now),
+    [rows.byId, now],
+  );
   const placed = useMemo(() => {
-    const lanes = progressionLanes([...rows.byId.values()]);
+    const lanes = progressionLanes(inWindow);
     return lanes.length > 0 ? placeLanes(lanes, plotW, LANE_H, PAD) : [];
-  }, [rows.byId, plotW]);
+  }, [inWindow, plotW]);
 
   if (rows.pending) return <Skeleton height={LANE_H * 2} />;
-  if (placed.length === 0) return null;
+  if (placed.length === 0) {
+    // Sets he drove here, all older than the window: say so, not a blank block.
+    return rows.byId.size > 0 && inWindow.length === 0 ? (
+      <Text variant='dataSmall' tone='textMuted'>
+        {emptyWindowText(now)}
+      </Text>
+    ) : null;
+  }
   const all = placed.flatMap(l => l.dots);
   const first = all.reduce((a, b) => (a.x <= b.x ? a : b));
   const last = all.reduce((a, b) => (a.x >= b.x ? a : b));
@@ -128,7 +147,9 @@ function Lanes({combo, width}: {combo: Combo; width: number}) {
             accessibilityRole='button'
             accessibilityLabel={`${lane.type} sets`}
             onPress={(e: GestureResponderEvent) =>
-              setPicked(nearestDot(lane.dots, e.nativeEvent.locationX - LABEL_W))
+              setPicked(
+                nearestDot(lane.dots, e.nativeEvent.locationX - LABEL_W),
+              )
             }
             style={[StyleSheet.absoluteFill, {left: LABEL_W}]}
           />

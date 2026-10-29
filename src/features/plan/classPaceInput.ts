@@ -5,9 +5,15 @@ import {type Combo} from '@/src/workspace/planCombo';
 import {type ClassTimingInput, classSessionOf} from './classTiming';
 import {HISTORY_SESSIONS} from './model';
 import {median} from '@/src/analysis/setStats';
+import {
+  emptyWindowText,
+  statsSinceLabel,
+  withinStatsWindow,
+} from '@/src/workspace/statsWindow';
 
 // The session list and the plan in force, as the class pace model reads them.
-// Pure: useClassTiming only gathers these inputs.
+// Pure: useClassTiming only gathers these inputs. The field's sessions are
+// the ones inside the stats window (ticket 79); his own median stays the plan's.
 
 /** What the plan says about his pace and the race; null before a plan is built (no fuel rules). */
 export type PlanPace = {
@@ -25,16 +31,22 @@ export function classPaceInput(input: {
   plan: PlanPace | null;
   /** The pit-lap slider's stops and finish, in place of the plan's own. */
   chosen: {raceLaps: number; stopsAfter: number[]} | null;
+  /** The clock the stats window counts back from. */
+  now: Date;
 }): ClassTimingInput {
-  const {combo, sessions, plan, chosen} = input;
-  const pool = sessions.flatMap(s => {
-    const here =
-      s.sim === combo.sim &&
-      s.trackId === combo.trackId &&
-      (s.sessionType === 'R' || s.sessionType === 'P');
-    const c = here ? classSessionOf(s) : null;
-    return c ? [c] : [];
-  });
+  const {combo, sessions, plan, chosen, now} = input;
+  const poolOf = (list: SessionSummary[]) =>
+    list.flatMap(s => {
+      const here =
+        s.sim === combo.sim &&
+        s.trackId === combo.trackId &&
+        (s.sessionType === 'R' || s.sessionType === 'P');
+      const c = here ? classSessionOf(s) : null;
+      return c ? [c] : [];
+    });
+  const pool = poolOf(withinStatsWindow(sessions, now));
+  // A field recorded here, all of it older than the window: said, not a blank card.
+  const olderOnly = pool.length === 0 && poolOf(sessions).length > 0;
 
   // His class: the field's own flag on the newest session that names it
   // (iRacing's short name says little), else the car's class as the sim wrote it.
@@ -64,6 +76,10 @@ export function classPaceInput(input: {
         };
 
   return {
+    window: {
+      since: statsSinceLabel(now),
+      olderText: olderOnly ? emptyWindowText(now) : null,
+    },
     sessions: pool,
     mine: {key, ...mine},
     raceLaps: chosen?.raceLaps ?? plan?.raceLaps ?? null,

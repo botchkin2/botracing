@@ -54,9 +54,10 @@ export function ClassTimingSection({
   if (timing == null) return <Skeleton height={size.sessionRow} />;
   if (timing.kind !== 'ready')
     return (
-      <PlanCard title='Class pace'>
+      <PlanCard
+        title={timing.since ? `Class pace · ${timing.since}` : 'Class pace'}>
         <Text variant='dataSmall' tone='textMuted'>
-          {NO_FIELD_TEXT}
+          {timing.olderText ?? NO_FIELD_TEXT}
         </Text>
       </PlanCard>
     );
@@ -127,7 +128,8 @@ function EstimateBadge() {
 
 function ClassPaceCard({timing}: {timing: ReadyClassTiming}) {
   return (
-    <PlanCard title='Class pace'>
+    <PlanCard
+      title={timing.since ? `Class pace · ${timing.since}` : 'Class pace'}>
       <View style={styles.row}>
         {COLUMNS.map((c, i) => (
           <Text

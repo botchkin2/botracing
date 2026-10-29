@@ -7,7 +7,6 @@ import {classTiming} from './classTiming';
 import {classPaceInput} from './classPaceInput';
 import {type usePlanData} from './usePlanData';
 
-
 /**
  * Class pace for the Plan's track: every race and practice there in the same
  * sim with a field counts, whatever car he drove, against his own median lap
@@ -22,6 +21,8 @@ export function useClassTiming(
   chosen: {raceLaps: number; stopsAfter: number[]} | null = null,
 ) {
   const sessions = useSessions({ageDays: PLAN_HISTORY_DAYS});
+  // The stats window counts back from when the Plan opened.
+  const now = useMemo(() => new Date(), []);
   const {plan, greenLaps, hist} = data;
   return useMemo(
     () =>
@@ -40,6 +41,7 @@ export function useClassTiming(
                 stopsAfter: plan.atP90.stopLaps,
               },
               chosen,
+              now,
             }),
           ),
     [
@@ -50,6 +52,7 @@ export function useClassTiming(
       greenLaps,
       hist.usedSessions,
       chosen,
+      now,
     ],
   );
 }
