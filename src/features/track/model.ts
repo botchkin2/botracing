@@ -14,7 +14,7 @@ import {
   type Xy,
 } from '@/src/data/sessions';
 import {type TrackInfo} from '@/src/data/tracks';
-import {formatLength, turnLabel} from '@/src/design';
+import {formatLength, fullTrackName, turnLabel} from '@/src/design';
 
 import {buildHistory, type HistoryModel} from './history';
 import {sectionHeaderOf, turnOfPart} from '@/src/analysis/turnNames';
@@ -168,7 +168,7 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
   const pickedName = picked ? names.get(picked.n) : undefined;
 
   return {
-    title: info?.layout ?? sessionName ?? input.trackId,
+    title: info?.layout ?? (sessionName ? fullTrackName(sessionName) : input.trackId),
     country: info?.country ?? null,
     facts: buildFacts(info, map),
     corners: groups,
