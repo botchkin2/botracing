@@ -1,6 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {matchCornerNames, matchSectionNames} from './cornerNames';
+import {matchCornerNames, matchSectionNames, stretchIndices} from './cornerNames';
 
 // Near 50°N one metre north is 1/110540° of latitude.
 const north = (m: number) => 50 + m / 110540;
@@ -98,5 +98,23 @@ describe('matchSectionNames (ticket 83, Monza)', () => {
     );
     expect(got.get(0)).toBe('Eau Rouge');
     expect(got.get(1)).toBe('Raidillon');
+  });
+});
+
+describe('stretchIndices', () => {
+  it('lists every grid point from entry to exit', () => {
+    expect(stretchIndices(20, 40, 5, 100)).toEqual([4, 5, 6, 7, 8]);
+  });
+
+  it('a stretch across the start/finish line wraps instead of collapsing to its entry point', () => {
+    // A 100-point lap of 5 m: entry at 490 m, exit at 15 m next lap.
+    expect(stretchIndices(490, 15, 5, 100)).toEqual([98, 99, 0, 1, 2, 3]);
+  });
+
+  it('never lists more than the lap and stays in range', () => {
+    const all = stretchIndices(0, 495, 5, 100);
+    expect(all).toHaveLength(100);
+    expect(Math.max(...stretchIndices(-20, 10, 5, 100))).toBeLessThan(100);
+    expect(Math.min(...stretchIndices(-20, 10, 5, 100))).toBeGreaterThanOrEqual(0);
   });
 });

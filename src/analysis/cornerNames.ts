@@ -28,6 +28,20 @@ export interface SectionSpan {
 
 export const NAME_MATCH_M = 60;
 
+/**
+ * The grid indices of a stretch from `fromM` to `toM` on a lap of `n` points `stepM` apart. A stretch that crosses the
+ * start/finish line (`toM` before `fromM`) wraps: its length is taken modulo the lap's.
+ */
+export function stretchIndices(fromM: number, toM: number, stepM: number, n: number): number[] {
+  const lapM = n * stepM;
+  const lengthM = (((toM - fromM) % lapM) + lapM) % lapM;
+  const first = ((Math.round(fromM / stepM) % n) + n) % n;
+  const count = Math.min(n, Math.round(lengthM / stepM) + 1);
+  const out: number[] = [];
+  for (let k = 0; k < count; k++) out.push((first + k) % n);
+  return out;
+}
+
 const M_PER_DEG_LAT = 110540;
 const M_PER_DEG_LON_EQUATOR = 111320;
 

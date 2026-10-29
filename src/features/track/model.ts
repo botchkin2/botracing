@@ -1,6 +1,6 @@
 import {buildElevation, type ElevationModel} from './elevationProfile';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
-import {matchSectionNames} from '@/src/analysis/cornerNames';
+import {matchSectionNames, stretchIndices} from '@/src/analysis/cornerNames';
 import {applyGeoref, canDrawOnRealMap} from '@/src/analysis/geo';
 import {type GridTrace} from '@/src/analysis/resample';
 import {buildTrackMarks, type MapAnchor, type MapMarks} from '@/src/charts';
@@ -217,17 +217,9 @@ function buildFacts(
   return facts;
 }
 
-/** The lap's positions every grid step from `fromM` to `toM`, wrapping at the lap's end. */
+/** The lap's positions every grid step from `fromM` to `toM`, wrapping at the start/finish line. */
 function stretchOf(t: GridTrace, fromM: number, toM: number) {
-  const points: {lat: number; lon: number}[] = [];
-  const n = t.lat.length;
-  const from = gridIndex(t, fromM);
-  const count = Math.max(1, Math.round((toM - fromM) / t.stepM) + 1);
-  for (let k = 0; k < count && k < n; k++) {
-    const i = (from + k) % n;
-    points.push({lat: t.lat[i], lon: t.lon[i]});
-  }
-  return points;
+  return stretchIndices(fromM, toM, t.stepM, t.lat.length).map(i => ({lat: t.lat[i], lon: t.lon[i]}));
 }
 
 function gridIndex(t: GridTrace, m: number): number {
