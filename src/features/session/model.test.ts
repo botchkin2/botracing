@@ -328,7 +328,8 @@ describe('buildSessionModel', () => {
               comparable: false,
               timed: false,
               reasons: ['untimed'],
-              lapTime: 113.967,
+              // a standing start's first lap, 1.06 x the fixture's median timed lap (Daytona 07-27: 1.06 x)
+              lapTime: 87.2,
               pitIn: false,
               pitOut: false,
               ...l1,
@@ -341,13 +342,13 @@ describe('buildSessionModel', () => {
     it('reads START with its measured time, not PART and a dash, and stays out of the median, best and selection', () => {
       const raw = asIracing();
       const lap = toLaps(raw as never)[1];
-      expect(lap.startLapTimeS).toBe(113.967);
+      expect(lap.startLapTimeS).toBe(87.2);
       expect(lap.timeS).toBeNull();
       const r = build(raw);
       const row = lapRow(r, 'L1');
       expect(row.tags.map(t => t.code)).toContain('START');
       expect(row.tags.map(t => t.code)).not.toContain('PART');
-      expect(row.time).toBe('1:53.967');
+      expect(row.time).toBe('1:27.200');
       const ids = raw.map(l => String(l.id));
       const d = buildSessionModel(session, toLaps(raw as never), {
         laps: [],
@@ -373,9 +374,80 @@ describe('buildSessionModel', () => {
       expect(row.tags.map(t => t.code)).toContain('PART');
       expect(row.tags.map(t => t.code)).not.toContain('START');
     });
+    describe('a rolling start: the pace lap is untimed too (thread 123 #8440)', () => {
+      const typical = (() => {
+        const ts = fixture.laps
+          .filter(l => l.timed === true && l.partial !== true)
+          .map(l => l.lapTime as number)
+          .sort((a, b) => a - b);
+        return ts[Math.floor(ts.length / 2)];
+      })();
+      const untimedWhole = {
+        partial: false,
+        partialWhy: null,
+        comparable: false,
+        timed: false,
+        reasons: ['untimed'],
+        pitIn: false,
+        pitOut: false,
+      };
+      // lap 1 the pace lap (1.7 x), lap 2 the racing lap (1.09 x), both untimed, then the fixture's timed laps
+      const rolling = (second: Record<string, unknown> = {}) =>
+        asIracing({lapTime: typical * 1.7}).map((l, i) =>
+          i === 2
+            ? {...l, ...untimedWhole, lapTime: typical * 1.09, ...second}
+            : l,
+        );
+      it('START goes to the last untimed lap of the run: the racing lap, not the pace lap', () => {
+        const laps = toLaps(rolling() as never);
+        expect(laps[1].startLapTimeS).toBeNull();
+        expect(laps[2].startLapTimeS).toBeCloseTo(typical * 1.09, 6);
+        const r = build(rolling());
+        expect(lapRow(r, 'L2').tags.map(t => t.code)).toContain('START');
+        expect(lapRow(r, 'L1').tags.map(t => t.code)).not.toContain('START');
+      });
+      it('a pace lap run alone (the racing lap timed) reads no START', () => {
+        const alone = rolling({timed: true, lapTime: typical * 1.09});
+        expect(toLaps(alone as never).every(l => l.startLapTimeS == null)).toBe(
+          true,
+        );
+      });
+      it('a standing start (one untimed lap near the median) still reads START on L1', () => {
+        expect(toLaps(asIracing() as never)[1].startLapTimeS).toBe(87.2);
+      });
+      it('a run of two or more needs no ratio: START on the last even when it is slow, and a lone lap just over 1.15 x reads nothing', () => {
+        const slowRacing = rolling({lapTime: typical * 1.5});
+        const laps = toLaps(slowRacing as never);
+        expect(laps[1].startLapTimeS).toBeNull();
+        expect(laps[2].startLapTimeS).toBeCloseTo(typical * 1.5, 6);
+        const lone = asIracing({lapTime: typical * 1.2});
+        expect(toLaps(lone as never).every(l => l.startLapTimeS == null)).toBe(
+          true,
+        );
+        const edge = asIracing({lapTime: typical * 1.14});
+        expect(toLaps(edge as never)[1].startLapTimeS).toBeCloseTo(
+          typical * 1.14,
+          6,
+        );
+      });
+      it('a run ending in a lone lap far over the median reads no START at all, and a race with no timed lap none either', () => {
+        const slow = asIracing({lapTime: typical * 1.5});
+        expect(toLaps(slow as never).every(l => l.startLapTimeS == null)).toBe(
+          true,
+        );
+        const untimed = asIracing().map(l => ({
+          ...l,
+          timed: false,
+          reasons: ['untimed'],
+        }));
+        expect(toLaps(untimed as never).every(l => l.startLapTimeS == null)).toBe(
+          true,
+        );
+      });
+    });
     it('a timed L1 and every other lap are unchanged, and an LMU race L1 never reads START', () => {
       expect(
-        toLaps(asIracing({timed: true, lapTime: 113.967}) as never)[1]
+        toLaps(asIracing({timed: true, lapTime: 87.2}) as never)[1]
           .startLapTimeS,
       ).toBeNull();
       expect(toLaps(asIracing() as never)[2].startLapTimeS).toBeNull();
