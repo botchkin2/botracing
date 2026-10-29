@@ -80,9 +80,15 @@ export function readResultsInput(text) {
     const x = JSON.parse(text);
     if (!READABLE_VERSIONS.includes(x?.v) || !Array.isArray(x.strikes))
       return null;
+    // A qualifying place is not a finish: whatever an input of class bests holds
+    // as `overall` or `status`, the race result never reads it (raceResult.ts finishOf).
+    const qualifying = x.source === IBT_QUALIFYING_SOURCE;
     const drivers =
       x.v >= 2 && Array.isArray(x.drivers)
-        ? x.drivers.map(readDriver).filter(d => d !== null)
+        ? x.drivers
+            .map(readDriver)
+            .filter(d => d !== null)
+            .map(d => (qualifying ? {...d, overall: null, status: null} : d))
         : null;
     return {
       strikes: x.strikes,

@@ -9,7 +9,7 @@ import {capturesRead} from './captureMarker.mjs';
 import {ibtCrossings, liveLapCheck} from './irCapture.mjs';
 import {irFieldFor} from './irField.mjs';
 import {driversOfYaml} from './irClasses.mjs';
-import {iracingResultsInput} from './irResults.mjs';
+import {iracingResultsFromFile} from './irResults.mjs';
 import {openIbt} from './ibt.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
@@ -40,20 +40,6 @@ export function makeBuilder({
       }
     } catch {
       return [];
-    }
-  }
-
-  // An iRacing .ibt's session-info YAML, '' when the file can't be read.
-  function ibtYamlOf(path) {
-    try {
-      const ibt = openIbt(path);
-      try {
-        return ibt.yaml;
-      } finally {
-        ibt.close();
-      }
-    } catch {
-      return '';
     }
   }
 
@@ -172,7 +158,7 @@ export function makeBuilder({
           resultsForSpan(span, first.driver, first.sessionType, resultsFolder),
         )
       : sim === 'iracing'
-      ? iracingResultsInput(ibtYamlOf(s.files[0].path))
+      ? iracingResultsFromFile(s.files[0].path)
       : null;
     // Online or offline, from the capture's game mode; null where it is gone.
     const online =

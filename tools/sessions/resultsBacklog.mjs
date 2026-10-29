@@ -17,6 +17,14 @@
 // input (strikes only). They are looked at once more, so the drivers go up
 // (ticket 20); the file may be gone by now, and then the session keeps its v1
 // ({v: 1, gone: true}, never looked for again).
+//
+// An iRacing session has no results file: its input is the class bests of the
+// .ibt's own qualifying results (irResults.mjs; thread 123, ticket 61 item 4),
+// read from the stored session's file. It has its own state key,
+// state.iracingResultsInputs[id] = {rev, sent}, so the LMU entries above never
+// fire for it and its rev (IRACING_INPUT_REV, bumped when the producer changes)
+// never fires an LMU one. The file is on disk and does not change, so there is
+// no retry window: one look per rev, whether it held a qualifying result or not.
 import {existsSync, readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 
@@ -24,6 +32,11 @@ import {sessionTypeOf} from './lmuCapture.mjs';
 import {RESULTS_INPUT_VERSION, resultsInput} from './resultsInput.mjs';
 
 export const RETRY_WINDOW_MS = 30 * 60_000;
+
+/** The version of the iRacing producer whose input is up; a later rev sends again. */
+export const IRACING_INPUT_REV = 1;
+
+const wantsIracingLook = entry => !(entry?.rev >= IRACING_INPUT_REV);
 
 const wantsLook = (entry, endMs, nowMs, run) => {
   if (!entry || typeof entry === 'string') return true;
@@ -33,12 +46,13 @@ const wantsLook = (entry, endMs, nowMs, run) => {
 };
 
 /**
- * The stored LMU sessions to look for a results file for: uploaded game-file
+ * The stored sessions to look for an input for. LMU: uploaded game-file
  * sessions, and live-uploaded ones (one per sessionId in the live index; an
  * entry from before the index kept the driver and session type reads them from
- * the capture's meta.json).
+ * the capture's meta.json), to look for a results file. iRacing: uploaded
+ * game-file sessions, `sim: 'iracing'` with the .ibt's `file`.
  *
- * @returns {{id: string, driver: string, sessionType: string, span: {startMs: number, endMs: number}}[]}
+ * @returns {({sim?: 'lmu', id: string, driver: string, sessionType: string, span: {startMs: number, endMs: number}} | {sim: 'iracing', id: string, file: string, span: {startMs: number, endMs: number}})[]}
  */
 export function backlogCandidates({
   sessions,
@@ -50,8 +64,18 @@ export function backlogCandidates({
   const out = [];
   for (const s of sessions) {
     const first = s.files[0].info;
+    if (!state.sessions[s.id]) continue;
+    if (first.sim === 'iracing') {
+      out.push({
+        sim: 'iracing',
+        id: s.id,
+        file: s.files[0].path,
+        span: spanOf(s),
+      });
+      continue;
+    }
     // The game's results file is LMU's.
-    if (!state.sessions[s.id] || first.sim !== 'lmu') continue;
+    if (first.sim !== 'lmu') continue;
     out.push({
       id: s.id,
       driver: first.driver,
@@ -105,8 +129,11 @@ function metaOf(captureRoot, key) {
  */
 export function backlogDue({candidates, state, nowMs, run}) {
   const kept = state.resultsInputs ?? {};
+  const keptIr = state.iracingResultsInputs ?? {};
   return candidates.some(c =>
-    wantsLook(kept[c.id], c.span.endMs, nowMs, run),
+    c.sim === 'iracing'
+      ? wantsIracingLook(keptIr[c.id])
+      : wantsLook(kept[c.id], c.span.endMs, nowMs, run),
   );
 }
 
@@ -117,6 +144,7 @@ export function backlogDue({candidates, state, nowMs, run}) {
  * @param {{putResultsInput: Function, markStale: Function}} p.store
  * @param {string} p.ownerId
  * @param {(span: object, driver: string, sessionType: string) => object} p.resultsForSpan
+ * @param {(file: string) => object | null} [p.iracingResultsFromFile]  the .ibt's qualifying input, or null
  * @param {() => void} p.saveState
  * @param {(line: string) => void} p.log
  * @param {number} p.nowMs
@@ -128,14 +156,32 @@ export async function uploadResultsBacklog({
   store,
   ownerId,
   resultsForSpan,
+  iracingResultsFromFile,
   saveState,
   log,
   nowMs,
   run,
 }) {
   state.resultsInputs ??= {};
+  state.iracingResultsInputs ??= {};
   let sent = 0;
   for (const c of candidates) {
+    if (c.sim === 'iracing') {
+      if (!iracingResultsFromFile || !wantsIracingLook(state.iracingResultsInputs[c.id]))
+        continue;
+      const input = iracingResultsFromFile(c.file);
+      if (input) {
+        await store.putResultsInput(ownerId, c.id, input);
+        await store.markStale(c.id, ownerId);
+        sent++;
+      }
+      state.iracingResultsInputs[c.id] = {
+        rev: IRACING_INPUT_REV,
+        sent: input != null,
+      };
+      saveState();
+      continue;
+    }
     if (!wantsLook(state.resultsInputs[c.id], c.span.endMs, nowMs, run))
       continue;
     const input = resultsInput(resultsForSpan(c.span, c.driver, c.sessionType));

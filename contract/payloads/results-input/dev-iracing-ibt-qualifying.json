@@ -1,0 +1,100 @@
+{
+  "v": 2,
+  "source": "ibt-qualifying",
+  "strikes": [],
+  "unplaced": 0,
+  "coveredFrom": null,
+  "coveredTo": null,
+  "drivers": [
+    {
+      "player": false,
+      "cls": "GTP",
+      "car": "Cadillac V-Series.R",
+      "pos": 1,
+      "laps": [
+        {
+          "t": 71.0205,
+          "s1": null,
+          "s2": null,
+          "s3": null,
+          "pit": false
+        }
+      ]
+    },
+    {
+      "player": false,
+      "cls": "GTP",
+      "car": "Porsche 963 GTP",
+      "pos": 2,
+      "laps": [
+        {
+          "t": 71.2016,
+          "s1": null,
+          "s2": null,
+          "s3": null,
+          "pit": false
+        }
+      ]
+    },
+    {
+      "player": false,
+      "cls": "GT3",
+      "car": "Ferrari 296 GT3",
+      "pos": 1,
+      "laps": [
+        {
+          "t": 78.2429,
+          "s1": null,
+          "s2": null,
+          "s3": null,
+          "pit": false
+        }
+      ]
+    },
+    {
+      "player": false,
+      "cls": "GT3",
+      "car": "Ford Mustang GT3",
+      "pos": 2,
+      "laps": [
+        {
+          "t": 78.2836,
+          "s1": null,
+          "s2": null,
+          "s3": null,
+          "pit": false
+        }
+      ]
+    },
+    {
+      "player": false,
+      "cls": "GT3",
+      "car": "McLaren 720S GT3 EVO",
+      "pos": 3,
+      "laps": [
+        {
+          "t": 78.3156,
+          "s1": null,
+          "s2": null,
+          "s3": null,
+          "pit": false
+        }
+      ]
+    },
+    {
+      "player": true,
+      "cls": "GT3",
+      "car": "Ford Mustang GT3",
+      "pos": 30,
+      "laps": [
+        {
+          "t": 79.77,
+          "s1": null,
+          "s2": null,
+          "s3": null,
+          "pit": false
+        }
+      ]
+    }
+  ]
+}

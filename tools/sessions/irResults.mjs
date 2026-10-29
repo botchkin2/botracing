@@ -9,6 +9,7 @@
 // no `overall` and no `status`: a qualifying place is not a finish, and `finishOf` reads the race's result only from a
 // driver who has them. No names and no car numbers leave this file: the YAML's UserName and TeamName are never read.
 import {carClasses, driversOfYaml} from './irClasses.mjs';
+import {openIbt} from './ibt.mjs';
 import {IBT_QUALIFYING_SOURCE} from './resultsInput.mjs';
 
 const QUALIFY = /qualify/i;
@@ -91,4 +92,18 @@ export function iracingResultsInput(yaml) {
     coveredTo: null,
     drivers,
   };
+}
+
+/** The same from an .ibt on disk, or null when the file can't be read or holds no qualifying result. */
+export function iracingResultsFromFile(path) {
+  try {
+    const ibt = openIbt(path);
+    try {
+      return iracingResultsInput(ibt.yaml);
+    } finally {
+      ibt.close();
+    }
+  } catch {
+    return null;
+  }
 }

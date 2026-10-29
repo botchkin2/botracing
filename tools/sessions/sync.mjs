@@ -59,8 +59,13 @@ import {noteNoField} from './noField.mjs';
 import {describeCheck} from './irCapture.mjs';
 import {captureExtractFor, liveExtractSessions} from './captureExtractFor.mjs';
 import {resultsForSpan} from './lmuResults.mjs';
+import {iracingResultsFromFile} from './irResults.mjs';
 import {RESULTS_INPUT_VERSION} from './resultsInput.mjs';
-import {backlogCandidates, uploadResultsBacklog} from './resultsBacklog.mjs';
+import {
+  IRACING_INPUT_REV,
+  backlogCandidates,
+  uploadResultsBacklog,
+} from './resultsBacklog.mjs';
 import {
   adoptLiveIds,
   claimCoveredSessions,
@@ -496,6 +501,7 @@ function keepResults(sessions, state, store, liveIndex) {
     store,
     ownerId,
     resultsForSpan,
+    iracingResultsFromFile,
     saveState: () => saveState(state),
     log,
     nowMs,
@@ -772,7 +778,14 @@ async function runPool(
           state.extracts[s.id] = 'with-session';
           // Its results input went up with it only if the game had written a
           // file; otherwise the backlog looks again (resultsBacklog.mjs).
-          if (r.resultsSent) {
+          // An iRacing session's is the .ibt's qualifying input, under its own key.
+          if (s.files[0].info.sim === 'iracing') {
+            state.iracingResultsInputs ??= {};
+            state.iracingResultsInputs[s.id] = {
+              rev: IRACING_INPUT_REV,
+              sent: Boolean(r.resultsSent),
+            };
+          } else if (r.resultsSent) {
             state.resultsInputs ??= {};
             state.resultsInputs[s.id] = {v: RESULTS_INPUT_VERSION};
           }
