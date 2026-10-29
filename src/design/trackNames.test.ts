@@ -3,7 +3,7 @@ import {resolve} from 'node:path';
 
 import {describe, expect, it} from '@jest/globals';
 
-import {shortTrackName, trackNameKey} from './trackNames';
+import {fullTrackName, shortTrackName, trackNameKey} from './trackNames';
 
 // Every layout and location the curated catalogue names, as the app receives them.
 type CatalogueTrack = {layout: string; location: string};
@@ -30,6 +30,12 @@ describe('shortTrackName: Interlagos', () => {
       const broken = IRACING_FORM[name] ?? name.replace(/[^\x00-\x7f]/g, ' ');
       expect(shortTrackName(broken)).toBe(shortTrackName(name));
     }
+  });
+
+  it('the full name gets its accents back from the iRacing form; unknown names pass through', () => {
+    expect(fullTrackName('Aut dromo Jos  Carlos Pace')).toBe('Autódromo José Carlos Pace');
+    expect(fullTrackName('Autódromo José Carlos Pace')).toBe('Autódromo José Carlos Pace');
+    expect(fullTrackName('Watkins Glen')).toBe('Watkins Glen');
   });
 
   it('unknown names pass through, and no two catalogue names share a key', () => {

@@ -30,6 +30,12 @@ export function trackNameKey(name: string): string {
 }
 
 const SHORT_BY_KEY = new Map(Object.entries(SHORT_NAMES).map(([name, short]) => [trackNameKey(name), short]));
+const FULL_BY_KEY = new Map(Object.keys(SHORT_NAMES).map(name => [trackNameKey(name), name]));
+
+/** The name as the sim spells it: iRacing's accent-dropped form of a known track reads with its accents again. Unknown names pass through. */
+export function fullTrackName(name: string): string {
+  return FULL_BY_KEY.get(trackNameKey(name)) ?? name;
+}
 
 /** "Michelin Raceway Road Atlanta" → "Road Atlanta". Unknown names pass through. */
 export function shortTrackName(name: string): string {
