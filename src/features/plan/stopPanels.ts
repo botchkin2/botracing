@@ -34,6 +34,8 @@ export type StopPanelInput = {
   fullVePct: number;
   /** Litres one 1 % VE adds at a stop, from his own stops; null when none was measured. */
   stopRatio: number | null;
+  /** Litres per 1 % VE on track (the rule set's): only to say fuel-limited when no stop was measured; null when not known. */
+  fuelRatio: number | null;
   /** A timed race: the last stop covers the lap a late flag can add. */
   lateFlag: boolean;
   pitModel: PitModel | null;
@@ -56,6 +58,7 @@ export function stopPanels(pit: PitPlan, input: StopPanelInput): StopPanel[] {
     loadL,
     fullVePct,
     stopRatio: input.stopRatio,
+    fuelRatio: input.fuelRatio,
     arrive,
     arriveFuelL,
   });

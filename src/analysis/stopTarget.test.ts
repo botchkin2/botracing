@@ -1,6 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {stopTargets, type StopTargetInput} from './stopTarget';
+import {stopTargets, TRACK_RATIO_MARGIN, type StopTargetInput} from './stopTarget';
 
 // A car at 5 % VE and 4.0 L a lap at p90 (0.8 L a %), a stop that adds 0.8 L a %, a 80 L load.
 const base: StopTargetInput = {
@@ -12,6 +12,7 @@ const base: StopTargetInput = {
   loadL: 80,
   fullVePct: 100,
   stopRatio: 0.8,
+  fuelRatio: 0.8,
   arrive: [4, 3],
   arriveFuelL: [3.2, 2.4],
 };
@@ -63,8 +64,40 @@ describe('stopTargets: the level he sets at each stop', () => {
   });
 
   it('with no stop measured the level is VE only and the litres are not known, never fill / 100', () => {
-    const [, last] = stopTargets({...base, stopRatio: null});
+    const [, last] = stopTargets({...base, stopRatio: null, fuelRatio: 1.2});
     expect(last).toMatchObject({value: 61, unmeasured: true, addedL: null, fuelLimited: false});
+  });
+
+  it('with no stop measured a fuel-limited finish is still called fuel-limited, but the level stays VE only (Silverstone 11 Jun)', () => {
+    // 12 laps at 5.0 L over the 2.4 L left, at the track's 0.8 L a % less the margin: fuel wants 82 %, VE 61 %.
+    const [, last] = stopTargets({...base, stopRatio: null, p90: {fuelL: 5.0, vePct: 5.0}});
+    expect(last).toMatchObject({value: 61, unmeasured: true, addedL: null, fuelLimited: true});
+  });
+
+  it('with no stop measured and a VE-limited finish the track ratio changes nothing', () => {
+    const [mid, last] = stopTargets({...base, stopRatio: null, fuelRatio: 1.2});
+    expect(mid).toMatchObject({value: 95, fuelLimited: false});
+    expect(last).toMatchObject({value: 61, fuelLimited: false});
+  });
+
+  it('the warning is tested against the track ratio less the margin: the edge of it is not a limiter, a hair past it is', () => {
+    // 12 laps at 5.0 L, 2.4 L left, 3 % arriving: fuel wants 3 + 57.6 / ratio, VE 61 %. One step over is 62 %.
+    const edge = 57.6 / 59;
+    const at = (ratio: number) =>
+      stopTargets({...base, stopRatio: null, fuelRatio: ratio * (1 + TRACK_RATIO_MARGIN), p90: {fuelL: 5.0, vePct: 5.0}})[1];
+    expect(at(edge + 0.001).fuelLimited).toBe(false);
+    expect(at(edge - 0.001)).toMatchObject({fuelLimited: true, value: 61});
+  });
+
+  it('with neither ratio the level is VE only and nothing is called fuel-limited', () => {
+    const [, last] = stopTargets({...base, stopRatio: null, fuelRatio: null, p90: {fuelL: 5.0, vePct: 5.0}});
+    expect(last).toMatchObject({value: 61, fuelLimited: false});
+  });
+
+  it('a measured stop ratio wins over the track ratio, which a track ratio that is larger would understate', () => {
+    // 0.75 against 0.8: the stop's 0.75 sizes the level.
+    const [, last] = stopTargets({...base, stopRatio: 0.75, fuelRatio: 0.8, p90: {fuelL: 5.0, vePct: 5.0}});
+    expect(last).toMatchObject({value: 80, fuelLimited: true});
   });
 
   it('a car that arrives above the level gets no fill', () => {

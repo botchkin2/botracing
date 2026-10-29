@@ -40,6 +40,7 @@ const input: StopPanelInput = {
   loadL: 75,
   fullVePct: 100,
   stopRatio: 0.75,
+  fuelRatio: 0.75,
   lateFlag: true,
   pitModel: {baseS: 25, refuelLPerS: 3.4},
 };
@@ -84,6 +85,13 @@ describe('stopPanels', () => {
     const [p] = stopPanels(pit(), {...input, stopRatio: null});
     expect(p.value).toBe('Set VE 64 %');
     expect(p.tags).toEqual(['no stop measured']);
+    expect(p.line).toBe('arrive 5 % · +59 %');
+  });
+
+  it('with no stop measured and fuel running out first it warns, and still shows the VE level and no litres', () => {
+    const [p] = stopPanels(pit(), {...input, stopRatio: null, p90: {fuelL: 4.6, vePct: 5.21}});
+    expect(p.value).toBe('Set VE 64 %');
+    expect(p.tags).toEqual(['fuel-limited', 'no stop measured']);
     expect(p.line).toBe('arrive 5 % · +59 %');
   });
 
