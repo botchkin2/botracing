@@ -55,7 +55,12 @@ export function ClassTimingSection({
   if (timing.kind !== 'ready')
     return (
       <PlanCard
-        title={timing.since ? `Class pace · ${timing.since}` : 'Class pace'}>
+        title={
+          // the window is named only when it hid something: no field at all is no window's doing
+          timing.olderText && timing.since
+            ? `Class pace · ${timing.since}`
+            : 'Class pace'
+        }>
         <Text variant='dataSmall' tone='textMuted'>
           {timing.olderText ?? NO_FIELD_TEXT}
         </Text>
