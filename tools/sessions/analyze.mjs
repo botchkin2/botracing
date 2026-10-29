@@ -135,8 +135,10 @@ export const blockVersions = {
   // Which laps are slow (src/analysis/paceEvents.ts replaced the median cut),
   // and the session doc's `paceSet` read from them (3: added): every session
   // re-analyses once (4: the lap next to a stint's edge is judged with Tukey's
-  // end rule from the full windows, so a run of 2 at an edge is an event).
-  slowLaps: 4,
+  // end rule from the full windows, so a run of 2 at an edge is an event;
+  // 5: the session summary's comparable count, median and spread come from the
+  // final flags, the ones the laps carry, not the first pass's).
+  slowLaps: 5,
   // A yellow never selects a lap; iRacing's local yellows are not a course
   // caution (decision 2026-10-11 #4, pit wall #5171): every session re-analyses once.
   yellowNeverSelects: 1,
@@ -1309,10 +1311,11 @@ export function analyzeSession(
 
   // The slow flag again, now that the laps have their sections.
   markSlow(laps);
+  // The flags the laps keep: the band and the summary read these, not the first pass's `comparable`.
+  const finalComparable = laps.filter(l => l.comparable);
 
   // The band, over the final flags (the grids were cut above, on the best lap's length).
   if (best && best.distanceM > 100) {
-    const finalComparable = laps.filter(l => l.comparable);
     const finalPool = finalComparable.length
       ? finalComparable
       : laps.filter(l => l.timed && !l.partial);
@@ -1440,10 +1443,10 @@ export function analyzeSession(
     band,
     summary: {
       lapCount: laps.length,
-      comparableCount: comparable.length,
+      comparableCount: finalComparable.length,
       bestLapTime: best?.lapTime ?? null,
-      medianLapTime: round(median(comparable.map(l => l.lapTime)), 3),
-      stdevLapTime: round(stdev(comparable.map(l => l.lapTime)), 3),
+      medianLapTime: round(median(finalComparable.map(l => l.lapTime)), 3),
+      stdevLapTime: round(stdev(finalComparable.map(l => l.lapTime)), 3),
       stints: stints.map(st => {
         const c = st.laps.filter(l => l.comparable).map(l => l.lapTime);
         return {
