@@ -23,6 +23,7 @@ import {fileURLToPath} from 'node:url';
 import {analyzeFromArchive} from './analyzeFromArchive.mjs';
 import {rows, run} from './duck.mjs';
 import {needsDuckdb} from './duckTestSupport.mjs';
+import {IBT_QUALIFYING_SOURCE} from './resultsInput.mjs';
 import {describeCapture, onTrackSpanOf, writeCaptureArchive} from './lmuCapture.mjs';
 
 test('onTrackSpanOf is the first realtime row to the last', () => {
@@ -40,10 +41,11 @@ const here = fileURLToPath(new URL('.', import.meta.url));
 const fixture = resolve(here, 'fixtures/lmu-capture');
 const capture = resolve(fixture, 'capture');
 
-function analyze(info, samplesPath, eventsPath) {
+function analyze(info, samplesPath, eventsPath, results = null) {
   return analyzeFromArchive({
     ownerId: 'o',
     sessionId: 's',
+    results,
     recordings: [{id: 'r', info, samplesPath, eventsPath}],
     trackMap: null,
     boundaries: null,
@@ -92,6 +94,41 @@ test(
       assert.equal(st.laps[k].t0, st.laps[k - 1].t1);
     assert.equal(st.info.baseHz, 100);
     assert.ok(st.info.channels.every(c => c.hz === 100));
+  },
+);
+
+test(
+  "an input of qualifying bests gives the session a classPace with its basis and no track-limit totals; a race's own input has neither change",
+  needsDuckdb,
+  () => {
+    const duckInfo = JSON.parse(
+      readFileSync(resolve(fixture, 'duckdb/info.json'), 'utf8'),
+    );
+    const samples = resolve(fixture, 'duckdb/samples.parquet');
+    const events = resolve(fixture, 'duckdb/events.parquet');
+    const driver = (player, t) => ({
+      player,
+      cls: 'GT3',
+      car: 'Car',
+      pos: 1,
+      laps: [{t, s1: null, s2: null, s3: null, pit: false}],
+    });
+    const input = {
+      strikes: [],
+      unplaced: 0,
+      coveredFrom: null,
+      coveredTo: null,
+      drivers: [driver(true, 80), driver(false, 79)],
+    };
+    const qual = analyze(duckInfo, samples, events, {
+      ...input,
+      source: IBT_QUALIFYING_SOURCE,
+    });
+    assert.equal(qual.session.classPace.basis, 'qualifying');
+    assert.equal(qual.session.trackLimits, undefined);
+    const race = analyze(duckInfo, samples, events, input);
+    assert.equal('basis' in race.session.classPace, false);
+    assert.notEqual(race.session.trackLimits, undefined);
   },
 );
 

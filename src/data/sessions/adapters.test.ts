@@ -684,6 +684,16 @@ describe('classPace (ticket 20)', () => {
     expect(toClassPace(JSON.parse(JSON.stringify(stored)))).toEqual(stored);
   });
 
+  it('keeps a qualifying basis, drops any other, and a race result doc has none', () => {
+    expect(toClassPace({...stored, basis: 'qualifying'})?.basis).toBe(
+      'qualifying',
+    );
+    expect('basis' in toClassPace({...stored, basis: 'x'})!).toBe(false);
+    expect('basis' in toClassPace(JSON.parse(JSON.stringify(stored)))!).toBe(
+      false,
+    );
+  });
+
   it('is null without the block, with another version of the rules, or with no driver', () => {
     expect(toClassPace(undefined)).toBeNull();
     expect(toClassPace(null)).toBeNull();

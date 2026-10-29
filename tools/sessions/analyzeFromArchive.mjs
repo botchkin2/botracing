@@ -26,7 +26,7 @@ import {paceFieldsOf, paceSetOf} from '../../src/analysis/paceSet.ts';
 import {carLabel} from '../../src/design/carModels.ts';
 import {lapTraffic} from './lapTraffic.mjs';
 import {adapter as adapterOf} from './sims.mjs';
-import {carriesRulings} from './resultsInput.mjs';
+import {IBT_QUALIFYING_SOURCE, carriesRulings} from './resultsInput.mjs';
 
 export function plain(value) {
   return JSON.parse(JSON.stringify(value));
@@ -325,7 +325,10 @@ export function analyzeFromArchive({
     // Every driver's pace by class, from the results file's laps for all of them
     // (results input v2; src/analysis/classPace.ts); null without them. Its own
     // field of the full doc, never in a list.
-    classPace: classPaceDoc(results?.drivers),
+    classPace: classPaceDoc(
+      results?.drivers,
+      results?.source === IBT_QUALIFYING_SOURCE ? 'qualifying' : undefined,
+    ),
     series: event.series,
     eventId: event.eventId,
     online,

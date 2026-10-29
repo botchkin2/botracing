@@ -342,7 +342,13 @@ export function toClassPace(v: unknown): ClassPaceDoc | null {
       },
     ];
   });
-  return drivers.length > 0 ? {v: CLASS_PACE_VERSION, drivers} : null;
+  return drivers.length > 0
+    ? {
+        v: CLASS_PACE_VERSION,
+        drivers,
+        ...(x.basis === 'qualifying' ? {basis: x.basis} : {}),
+      }
+    : null;
 }
 
 const numbers = (v: unknown): number[] | null =>
