@@ -22,6 +22,13 @@
 
 export const RESULTS_INPUT_VERSION = 2;
 
+/** An iRacing input of class bests from its .ibt's qualifying results (irResults.mjs): no track-limit rulings in it. */
+export const IBT_QUALIFYING_SOURCE = 'ibt-qualifying';
+
+/** Whether a read input holds the game's track-limit rulings: every input does but an iRacing one of class bests. */
+export const carriesRulings = results =>
+  results != null && results.source !== IBT_QUALIFYING_SOURCE;
+
 /** The versions the reader takes. */
 const READABLE_VERSIONS = [1, 2];
 
@@ -73,9 +80,15 @@ export function readResultsInput(text) {
     const x = JSON.parse(text);
     if (!READABLE_VERSIONS.includes(x?.v) || !Array.isArray(x.strikes))
       return null;
+    // A qualifying place is not a finish: whatever an input of class bests holds
+    // as `overall` or `status`, the race result never reads it (raceResult.ts finishOf).
+    const qualifying = x.source === IBT_QUALIFYING_SOURCE;
     const drivers =
       x.v >= 2 && Array.isArray(x.drivers)
-        ? x.drivers.map(readDriver).filter(d => d !== null)
+        ? x.drivers
+            .map(readDriver)
+            .filter(d => d !== null)
+            .map(d => (qualifying ? {...d, overall: null, status: null} : d))
         : null;
     return {
       strikes: x.strikes,
@@ -83,6 +96,7 @@ export function readResultsInput(text) {
       // The session times the file's laps of his cover; null when it lists none.
       coveredFrom: Number.isFinite(x.coveredFrom) ? x.coveredFrom : null,
       coveredTo: Number.isFinite(x.coveredTo) ? x.coveredTo : null,
+      ...(x.source === IBT_QUALIFYING_SOURCE ? {source: x.source} : {}),
       ...(drivers ? {drivers} : {}),
     };
   } catch {

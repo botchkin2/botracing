@@ -382,6 +382,8 @@ function tagsFor(lap: Lap, bestLapId: string | null): Tag[] {
   // A lap cut short by a reset says so, instead of the generic PART.
   if (lap.endedInReset) tags.push({code: 'RESET'});
   else if (lap.partialWhy === 'grid') tags.push({code: 'PARK'});
+  // iRacing's first racing lap: whole and measured, the game gives it no time (not partial).
+  else if (lap.startLapTimeS != null) tags.push({code: 'START'});
   // A whole lap the game did not time is invalid, not partial (L25 of
   // 682524ed, 2026-10-14: a full lap between two full laps read PART).
   else if (lap.invalidTimeS != null) tags.push({code: 'INV'});
@@ -412,6 +414,8 @@ function statusFor(
       ? 'Reset'
       : lap.partialWhy === 'grid'
       ? 'Parked start'
+      : lap.startLapTimeS != null
+      ? 'Start lap'
       : lap.invalidTimeS != null
       ? invalidWhy(lap)
       : lap.partial || lap.reasons.includes('untimed')
@@ -695,7 +699,7 @@ export function buildSessionModel(
         lapId: l.id,
         label: lapLabel(l.lapNo),
         stint: l.stint,
-        time: timeOrDash(l.timeS ?? l.invalidTimeS),
+        time: timeOrDash(l.timeS ?? l.invalidTimeS ?? l.startLapTimeS),
         gap: gap == null ? null : formatGap(gap),
         gapFaster: gap != null && gap < 0,
         sectors: sectorCells(l.id),

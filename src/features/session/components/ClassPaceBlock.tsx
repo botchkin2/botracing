@@ -118,11 +118,13 @@ function Row({
   row,
   open,
   wide,
+  qualifying,
   onPress,
 }: {
   row: PaceRow;
   open: boolean;
   wide: boolean;
+  qualifying: boolean;
   onPress: () => void;
 }) {
   const {color} = useTheme();
@@ -142,10 +144,12 @@ function Row({
       <Text variant='dataSmall' style={styles.time}>
         {timeText(row.bestS)}
       </Text>
-      <Text variant='dataSmall' style={styles.time}>
-        {timeText(row.medianS)}
-      </Text>
-      {row.cellsS ? (
+      {qualifying ? null : (
+        <Text variant='dataSmall' style={styles.time}>
+          {timeText(row.medianS)}
+        </Text>
+      )}
+      {qualifying ? null : row.cellsS ? (
         <View style={[styles.cells, {width: cellsW(wide)}]}>
           {row.cellsS.map((c, i) => (
             <Cell key={SECTOR_HEADS[i]} deltaS={c} wide={wide} />
@@ -187,6 +191,7 @@ export function ClassPaceBlock({doc}: {doc: ClassPaceDoc}) {
   const wide = useLayout().isDesktop;
   const view = classPaceView(doc, selected, all);
   if (!view) return null;
+  const qualifying = view.basis === 'qualifying';
   const pick = (cls: string) => {
     setSelected(cls);
     setAll(false);
@@ -195,8 +200,11 @@ export function ClassPaceBlock({doc}: {doc: ClassPaceDoc}) {
   return (
     <View style={styles.block}>
       {/* Its basis named once, over every Best and Median of the block, his included (livery #7716): the head's own Median is the lap selection's. */}
+      {/* iRacing keeps one lap a car, the weekend's qualifying best: said once over every Best, his own row's too, and in the place head, Q (not the race order). Its Median and sector columns would be "—" on every row, so they are dropped (pit-wall thread 123 #8381). */}
       <Text variant='label' tone='textMuted'>
-        Class pace · all timed laps
+        {qualifying
+          ? 'Class pace · qualifying best'
+          : 'Class pace · all timed laps'}
       </Text>
       {view.topLine ? (
         <View style={styles.top}>
@@ -219,7 +227,7 @@ export function ClassPaceBlock({doc}: {doc: ClassPaceDoc}) {
       ) : null}
       <View style={[styles.head, {borderColor: color.lineHeader}]}>
         <Text variant='label' tone='textMuted' style={styles.pos}>
-          Pos
+          {qualifying ? 'Q' : 'Pos'}
         </Text>
         <Text variant='label' tone='textMuted' style={styles.car}>
           Car
@@ -227,22 +235,26 @@ export function ClassPaceBlock({doc}: {doc: ClassPaceDoc}) {
         <Text variant='label' tone='textMuted' style={styles.time}>
           Best
         </Text>
-        <Text variant='label' tone='textMuted' style={styles.time}>
-          Median
-        </Text>
-        <View style={[styles.cells, {width: cellsW(wide)}]}>
-          {view.cells
-            ? SECTOR_HEADS.map(h => (
-                <Text
-                  key={h}
-                  variant='axis'
-                  tone='textFaint'
-                  style={[styles.cellHead, {width: cellW(wide)}]}>
-                  {h}
-                </Text>
-              ))
-            : null}
-        </View>
+        {qualifying ? null : (
+          <Text variant='label' tone='textMuted' style={styles.time}>
+            Median
+          </Text>
+        )}
+        {qualifying ? null : (
+          <View style={[styles.cells, {width: cellsW(wide)}]}>
+            {view.cells
+              ? SECTOR_HEADS.map(h => (
+                  <Text
+                    key={h}
+                    variant='axis'
+                    tone='textFaint'
+                    style={[styles.cellHead, {width: cellW(wide)}]}>
+                    {h}
+                  </Text>
+                ))
+              : null}
+          </View>
+        )}
       </View>
       {view.rows.map(row => (
         <Row
@@ -250,6 +262,7 @@ export function ClassPaceBlock({doc}: {doc: ClassPaceDoc}) {
           row={row}
           open={open === row.key}
           wide={wide}
+          qualifying={qualifying}
           onPress={() => setOpen(open === row.key ? null : row.key)}
         />
       ))}

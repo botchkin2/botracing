@@ -25,6 +25,7 @@ test('every payload loads and keeps the scrub rule', () => {
     'capture-meta',
     'heartbeat',
     'recorder-status',
+    'results-input',
   ]);
   for (const f of folders) assert.ok(loadPayloads(f).length > 0, f);
 });

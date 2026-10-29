@@ -41,6 +41,8 @@ export type PaceRow = {
 };
 
 export type ClassPaceView = {
+  /** 'qualifying' when every row is one best lap from qualifying: the block names it and has no Median or sector columns. */
+  basis: 'qualifying' | null;
   /** "You vs top 5" ("top 3" in a class of four): his median sector minus theirs; null without his medians. */
   topLine: {label: string; sectorsS: Sectors} | null;
   /** More than one class; his own first. Empty with one. */
@@ -136,6 +138,7 @@ export function classPaceView(
       );
   const top = topVsYou(doc);
   return {
+    basis: doc.basis ?? null,
     topLine:
       top && top.sectorsS.some(s => s !== null)
         ? {label: `You vs top ${top.cars}`, sectorsS: top.sectorsS}

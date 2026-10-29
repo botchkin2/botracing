@@ -61,7 +61,14 @@ export type DriverPace = {
   sectors: [SectorPace, SectorPace, SectorPace];
 };
 
-export type ClassPaceDoc = {v: number; drivers: DriverPace[]};
+/** What a driver's laps are: absent for the race's own laps, 'qualifying' for one best lap a car from the weekend's qualifying (iRacing, tools/sessions/irResults.mjs). */
+export type ClassPaceBasis = 'qualifying';
+
+export type ClassPaceDoc = {
+  v: number;
+  drivers: DriverPace[];
+  basis?: ClassPaceBasis;
+};
 
 // The game prints four decimals: a median of two laps is a half of one, anything finer is noise in the doc's bytes.
 const round4 = (x: number) => Math.round(x * 1e4) / 1e4;
@@ -100,10 +107,13 @@ function paceOf(d: ResultsDriver): DriverPace | null {
 /**
  * The session doc's `classPace`: every driver with a timed lap, a class at a
  * time (in the order the file lists them) and fastest first inside it. Null
- * without drivers (no results file, or a v1 input).
+ * without drivers (no results file, or a v1 input). `basis` is set only when the
+ * laps are not the race's own (an iRacing input of qualifying bests), so every
+ * other doc is as it was.
  */
 export function classPaceDoc(
   drivers: readonly ResultsDriver[] | null | undefined,
+  basis?: ClassPaceBasis,
 ): ClassPaceDoc | null {
   if (!drivers) return null;
   const paces = drivers.flatMap(d => {
@@ -117,7 +127,7 @@ export function classPaceDoc(
       order.indexOf(a.cls) - order.indexOf(b.cls) ||
       (a.best as number) - (b.best as number),
   );
-  return {v: CLASS_PACE_VERSION, drivers: paces};
+  return {v: CLASS_PACE_VERSION, drivers: paces, ...(basis ? {basis} : {})};
 }
 
 /** Whether a stored `classPace` was made by these rules. */

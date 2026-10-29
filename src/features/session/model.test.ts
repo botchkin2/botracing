@@ -304,6 +304,92 @@ describe('buildSessionModel', () => {
     expect(d.detail).toMatchObject({status: 'Excluded · Parked start'});
   });
 
+  describe('iRacing race L1 (the game gives the first racing lap no time)', () => {
+    // the fixture as an iRacing race: lap 0 the formation, lap 1 whole and measured but untimed, then the counter
+    const asIracing = (l1: Record<string, unknown> = {}) =>
+      fixture.laps.map((l, i) => ({
+        ...l,
+        sim: 'iracing',
+        sessionType: 'Race',
+        lapNumber: i,
+        ...(i === 0
+          ? {
+              partial: true,
+              partialWhy: 'grid',
+              comparable: false,
+              timed: false,
+              reasons: ['partial', 'untimed'],
+            }
+          : {}),
+        ...(i === 1
+          ? {
+              partial: false,
+              partialWhy: null,
+              comparable: false,
+              timed: false,
+              reasons: ['untimed'],
+              lapTime: 113.967,
+              pitIn: false,
+              pitOut: false,
+              ...l1,
+            }
+          : {}),
+      }));
+    const build = (raw: Record<string, unknown>[]) =>
+      buildSessionModel(session, toLaps(raw as never), none);
+
+    it('reads START with its measured time, not PART and a dash, and stays out of the median, best and selection', () => {
+      const raw = asIracing();
+      const lap = toLaps(raw as never)[1];
+      expect(lap.startLapTimeS).toBe(113.967);
+      expect(lap.timeS).toBeNull();
+      const r = build(raw);
+      const row = lapRow(r, 'L1');
+      expect(row.tags.map(t => t.code)).toContain('START');
+      expect(row.tags.map(t => t.code)).not.toContain('PART');
+      expect(row.time).toBe('1:53.967');
+      const ids = raw.map(l => String(l.id));
+      const d = buildSessionModel(session, toLaps(raw as never), {
+        laps: [],
+        hl: ids[1],
+      });
+      expect(d.detail).toMatchObject({
+        status: 'Excluded · Start lap',
+        excluded: true,
+      });
+      expect(toLaps(raw as never)[1].comparable).toBe(false);
+    });
+    it('a partial L1 (a pit or a short lap) stays PART and prints no time', () => {
+      for (const over of [
+        {partial: true},
+        {pitIn: true},
+        {pitOut: true},
+        {invalid: true},
+      ]) {
+        const lap = toLaps(asIracing(over) as never)[1];
+        expect(lap.startLapTimeS).toBeNull();
+      }
+      const row = lapRow(build(asIracing({partial: true})), 'L1');
+      expect(row.tags.map(t => t.code)).toContain('PART');
+      expect(row.tags.map(t => t.code)).not.toContain('START');
+    });
+    it('a timed L1 and every other lap are unchanged, and an LMU race L1 never reads START', () => {
+      expect(
+        toLaps(asIracing({timed: true, lapTime: 113.967}) as never)[1]
+          .startLapTimeS,
+      ).toBeNull();
+      expect(toLaps(asIracing() as never)[2].startLapTimeS).toBeNull();
+      const lmu = toLaps(
+        fixture.laps.map(l => ({
+          ...l,
+          timed: false,
+          reasons: ['untimed'],
+        })) as never,
+      );
+      expect(lmu.every(l => l.startLapTimeS == null)).toBe(true);
+    });
+  });
+
   it('tags pit, partial, slow and best laps; the made-up OFF tag is gone', () => {
     expect(lapRow(m, 'L17').tags.map(t => t.code)).toContain('IN');
     expect(lapRow(m, 'L18').tags.map(t => t.code)).toContain('OUT');
@@ -552,16 +638,31 @@ describe('trafficPaceFacts', () => {
 
   it('a race whose results file gave every driver (classPace) never says the other cars were not recorded', () => {
     const classPace = classPaceDoc(classPaceRace.drivers as ResultsDriver[]);
-    const withPace = {...session, classPace, fieldMissing: 'Other cars: not recorded'};
+    const withPace = {
+      ...session,
+      classPace,
+      fieldMissing: 'Other cars: not recorded',
+    };
     expect(trafficPaceFacts(withPace, [lap(81, null)])).toEqual([]);
     // a classPace with only his own laps lists no other car: the line stays, no silent blank
-    const onlyMe = classPaceDoc(classPaceRace.drivers.filter(d => d.player) as ResultsDriver[]);
+    const onlyMe = classPaceDoc(
+      classPaceRace.drivers.filter(d => d.player) as ResultsDriver[],
+    );
     expect(
-      trafficPaceFacts({...session, classPace: onlyMe, fieldMissing: 'Other cars: not recorded'}, [lap(81, null)]),
+      trafficPaceFacts(
+        {
+          ...session,
+          classPace: onlyMe,
+          fieldMissing: 'Other cars: not recorded',
+        },
+        [lap(81, null)],
+      ),
     ).toEqual([{label: 'Other cars', value: 'not recorded'}]);
     // without classPace the field's own line is still said
     expect(
-      trafficPaceFacts({...session, fieldMissing: 'Other cars: not recorded'}, [lap(81, null)]),
+      trafficPaceFacts({...session, fieldMissing: 'Other cars: not recorded'}, [
+        lap(81, null),
+      ]),
     ).toEqual([{label: 'Other cars', value: 'not recorded'}]);
   });
 

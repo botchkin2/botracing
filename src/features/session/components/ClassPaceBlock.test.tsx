@@ -28,6 +28,63 @@ function mount(): ReactTestRenderer {
   return r!;
 }
 
+// The same cars with one lap each, as an iRacing input of qualifying bests folds (tools/sessions/irResults.mjs).
+const qualifyingDoc = classPaceDoc(
+  (qualifying.drivers as ResultsDriver[]).map(d => ({
+    ...d,
+    laps: d.laps
+      .filter(l => l.t !== null)
+      .slice(0, 1)
+      .map(l => ({...l, s1: null, s2: null, s3: null})),
+  })),
+  'qualifying',
+)!;
+
+function mountDoc(d: typeof doc): ReactTestRenderer {
+  let r: ReactTestRenderer | undefined;
+  act(() => {
+    r = create(
+      <ThemeProvider>
+        <ClassPaceBlock doc={d} />
+      </ThemeProvider>,
+    );
+  });
+  return r!;
+}
+
+describe('ClassPaceBlock on qualifying bests (iRacing, thread 123 #8381)', () => {
+  it('names its basis once, heads the place Q, and has no Median or sector columns', () => {
+    const t = texts(mountDoc(qualifyingDoc));
+    expect(t).toContain('Class pace · qualifying best');
+    expect(t).not.toContain('Class pace · all timed laps');
+    expect(t).toContain('Q');
+    expect(t).not.toContain('Pos');
+    expect(t).toContain('Best');
+    expect(t).not.toContain('Median');
+    expect(t.filter(x => x === 'S1' || x === 'S2' || x === 'S3')).toEqual([]);
+    expect(t).toContain('You');
+  });
+
+  it('has no top line and no row that opens', () => {
+    const r = mountDoc(qualifyingDoc);
+    expect(texts(r).some(x => /^You vs top/.test(x))).toBe(false);
+    expect(
+      r.root.findAll(
+        n =>
+          typeof n.props?.accessibilityLabel === 'string' &&
+          /sectors against yours/.test(n.props.accessibilityLabel),
+      ),
+    ).toEqual([]);
+  });
+
+  it('a race result block is as it was: all timed laps, Pos, Median', () => {
+    const t = texts(mount());
+    expect(t).toContain('Pos');
+    expect(t).toContain('Median');
+    expect(t).not.toContain('Q');
+  });
+});
+
 describe('ClassPaceBlock', () => {
   it('the top line, signed from his side, then his class by place with him as You', () => {
     const t = texts(mount());

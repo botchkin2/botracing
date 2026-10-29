@@ -55,6 +55,18 @@ describe('classPaceDoc', () => {
     expect(classPaceDoc([])).toBeNull();
   });
 
+  it('carries a basis only when it is given, so a race result doc has no such key', () => {
+    const d: ResultsDriver = {
+      player: true,
+      cls: 'GT3',
+      car: 'Car',
+      pos: 1,
+      laps: [lap(100)],
+    };
+    expect('basis' in classPaceDoc([d])!).toBe(false);
+    expect(classPaceDoc([d], 'qualifying')!.basis).toBe('qualifying');
+  });
+
   it('counts a timed lap only: an untimed lap, with or without sectors, is out of the best, the median and the sectors', () => {
     const d: ResultsDriver = {
       player: true,

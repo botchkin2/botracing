@@ -103,6 +103,7 @@ export function usePlanData(
             eventText,
             ruleSet: ruleSet != null,
             ratio: hist.ratio,
+            fuelOnly: noVe,
             lastRatio: hist.measured.find(m => m.ratio != null)?.ratio ?? null,
             drift: hist.chosen.drift,
             ratioLoadsL: [

@@ -9,6 +9,7 @@ import {capturesRead} from './captureMarker.mjs';
 import {ibtCrossings, liveLapCheck} from './irCapture.mjs';
 import {irFieldFor} from './irField.mjs';
 import {driversOfYaml} from './irClasses.mjs';
+import {iracingResultsFromFile} from './irResults.mjs';
 import {openIbt} from './ibt.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
@@ -148,17 +149,17 @@ export function makeBuilder({
     // The game's track-limit rulings for his laps, from the results file it
     // wrote when the session ended (lmuResults.mjs); LMU only, null with no file.
     // `resultsForSpan` answers {absent: why} with no file: the input is null.
-    const results =
-      foldOnly || sim !== 'lmu'
-        ? null
-        : resultsInput(
-            resultsForSpan(
-              span,
-              first.driver,
-              first.sessionType,
-              resultsFolder,
-            ),
-          );
+    // iRacing has no results file: its class bests come from the .ibt's qualifying
+    // results (irResults.mjs), in the same input, with no rulings in it.
+    const results = foldOnly
+      ? null
+      : sim === 'lmu'
+      ? resultsInput(
+          resultsForSpan(span, first.driver, first.sessionType, resultsFolder),
+        )
+      : sim === 'iracing'
+      ? iracingResultsFromFile(s.files[0].path)
+      : null;
     // Online or offline, from the capture's game mode; null where it is gone.
     const online =
       foldOnly || sim !== 'lmu' ? null : onlineFor(captureRoot, span);

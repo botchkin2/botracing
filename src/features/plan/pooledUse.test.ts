@@ -2,7 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type DropStop, type GreenLap} from '@/src/analysis/fuelPlan';
 
-import {pooledUse, thresholdOf} from './pooledUse';
+import {pooledUse, shownMeasure, thresholdOf} from './pooledUse';
 
 const lap = (
   sessionId: string,
@@ -67,5 +67,32 @@ describe('thresholdOf', () => {
     });
     expect(thresholdOf(drop, 've')).toBeNull();
     expect(thresholdOf(null, 'fuel')).toBeNull();
+  });
+});
+
+describe('shownMeasure', () => {
+  it('a fuel-only sim shows fuel and offers no switch, whatever was asked', () => {
+    expect(shownMeasure(undefined, 've', true)).toEqual({
+      measure: 'fuel',
+      canSwitch: false,
+    });
+    expect(shownMeasure('ve', 've', true)).toEqual({
+      measure: 'fuel',
+      canSwitch: false,
+    });
+  });
+  it("where VE is recorded the Plan's unit drives the card, else the card's own choice, with a switch only for its own", () => {
+    expect(shownMeasure('ve', 'fuel', false)).toEqual({
+      measure: 've',
+      canSwitch: false,
+    });
+    expect(shownMeasure(undefined, 've', false)).toEqual({
+      measure: 've',
+      canSwitch: true,
+    });
+    expect(shownMeasure(undefined, 'fuel', false)).toEqual({
+      measure: 'fuel',
+      canSwitch: true,
+    });
   });
 });

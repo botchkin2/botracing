@@ -159,10 +159,123 @@ test('backlogDue wakes a run for a v1 entry and not for a v2 one or a v1 whose f
   );
 });
 
+const irCand = (id, endMs = 0) => ({
+  sim: 'iracing',
+  id,
+  file: `C:/ibt/${id}.ibt`,
+  span: {startMs: endMs - 30 * MIN, endMs},
+});
+const irInput = {v: 2, source: 'ibt-qualifying', strikes: [], drivers: []};
+
+function irHarness(state, input) {
+  const calls = [];
+  const store = {
+    putResultsInput: async (owner, id, body) =>
+      void calls.push(['put', owner, id, body.source ?? null]),
+    markStale: async id => void calls.push(['stale', id]),
+  };
+  return {
+    calls,
+    pass: (candidates, nowMs = 100 * MIN, run = 'r1') =>
+      uploadResultsBacklog({
+        candidates,
+        state,
+        store,
+        ownerId: 'o1',
+        resultsForSpan: (_s, driver, type) => {
+          calls.push(['find', driver, type]);
+          return found;
+        },
+        iracingResultsFromFile: file => {
+          calls.push(['read', file]);
+          return typeof input === 'function' ? input(file) : input;
+        },
+        saveState: () => {},
+        log: () => {},
+        nowMs,
+        run,
+      }),
+  };
+}
+
+test('an iRacing session with a qualifying input sends it once under its own state key, and is marked stale', async () => {
+  const state = {};
+  const h = irHarness(state, irInput);
+  assert.equal(await h.pass([irCand('i1')]), 1);
+  assert.deepEqual(h.calls, [
+    ['read', 'C:/ibt/i1.ibt'],
+    ['put', 'o1', 'i1', 'ibt-qualifying'],
+    ['stale', 'i1'],
+  ]);
+  assert.deepEqual(state.iracingResultsInputs.i1, {rev: 1, sent: true});
+  assert.deepEqual(state.resultsInputs, {});
+  h.calls.length = 0;
+  await h.pass([irCand('i1')], 500 * MIN, 'r2');
+  assert.deepEqual(h.calls, []);
+});
+
+test('an iRacing session with no qualifying result is looked at once, not every run', async () => {
+  const state = {};
+  const h = irHarness(state, null);
+  assert.equal(await h.pass([irCand('i1')]), 0);
+  assert.deepEqual(state.iracingResultsInputs.i1, {rev: 1, sent: false});
+  await h.pass([irCand('i1')], 500 * MIN, 'r2');
+  assert.equal(h.calls.filter(x => x[0] === 'read').length, 1);
+  assert.equal(
+    backlogDue({
+      candidates: [irCand('i1')],
+      state,
+      nowMs: 500 * MIN,
+      run: 'r3',
+    }),
+    false,
+  );
+});
+
+test('a mixed state: LMU entries at v2 do not fire for the iRacing key, and an iRacing entry does not fire an LMU look', async () => {
+  const state = {
+    resultsInputs: {
+      l1: {v: 2},
+      l2: {none: true, atMs: 0, run: 'r1'},
+    },
+    iracingResultsInputs: {i1: {rev: 1, sent: true}},
+  };
+  const h = irHarness(state, irInput);
+  const candidates = [
+    cand('l1', 0),
+    cand('l2', 0),
+    irCand('i1'),
+    irCand('i2'),
+    cand('i1x', 0),
+  ];
+  // l1 is up, l2 has no file and its window is over for this run, i1 is up; i2 is new, and i1x is a new LMU session.
+  assert.equal(
+    backlogDue({candidates, state, nowMs: 100 * MIN, run: 'r1'}),
+    true,
+  );
+  assert.equal(await h.pass(candidates, 100 * MIN, 'r1'), 2);
+  assert.deepEqual(
+    h.calls.filter(x => x[0] === 'put').map(x => x[2]),
+    ['i2', 'i1x'],
+  );
+  assert.deepEqual(state.resultsInputs.l1, {v: 2});
+  assert.deepEqual(state.iracingResultsInputs.i1, {rev: 1, sent: true});
+  assert.deepEqual(state.iracingResultsInputs.i2, {rev: 1, sent: true});
+  assert.equal('i2' in state.resultsInputs, false);
+  assert.equal('i1x' in state.iracingResultsInputs, false);
+});
+
+test('a tray with no iRacing reader leaves iRacing candidates alone', async () => {
+  const state = {};
+  const h = harness(state);
+  assert.equal(await h.pass([irCand('i1')], 100 * MIN, 'r1', found), 0);
+  assert.deepEqual(h.calls, []);
+});
+
 test('candidates: game-file sessions that are stored, and live sessions grouped by id', () => {
   const session = (id, sim = 'lmu') => ({
     id,
-    files: [{info: {sim, driver: 'Me', sessionType: 'Race'}}],
+    files: [{path: `C:/ibt/${id}.ibt`, info: {sim, driver: 'Me', sessionType: 'Race'}}],
   });
   const out = backlogCandidates({
     sessions: [session('g1'), session('g2'), session('g3', 'iracing')],
@@ -190,10 +303,11 @@ test('candidates: game-file sessions that are stored, and live sessions grouped 
     captureRoot: null,
   });
   assert.deepEqual(
-    out.map(c => [c.id, c.sessionType, c.span]),
+    out.map(c => [c.id, c.sim ?? 'lmu', c.sessionType ?? c.file, c.span]),
     [
-      ['g1', 'Race', {startMs: 1, endMs: 2}],
-      ['L1', 'Qualify', {startMs: 10, endMs: 40}],
+      ['g1', 'lmu', 'Race', {startMs: 1, endMs: 2}],
+      ['g3', 'iracing', 'C:/ibt/g3.ibt', {startMs: 1, endMs: 2}],
+      ['L1', 'lmu', 'Qualify', {startMs: 10, endMs: 40}],
     ],
   );
 });

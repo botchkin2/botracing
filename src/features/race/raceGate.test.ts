@@ -1,6 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {raceGate, raceScreenField} from './raceGate';
+import {IRACING_NO_FIELD_WHY, raceGate, raceScreenField} from './raceGate';
 
 const base = {
   sessionPending: false,
@@ -53,7 +53,9 @@ describe('raceScreenField, the decision useRaceData draws with', () => {
     });
     expect(screen.hash).toBeNull();
     expect(screen.why).toBe(note);
-    expect(raceGate({...base, hasField: screen.hash !== null})).toBe('no-field');
+    expect(raceGate({...base, hasField: screen.hash !== null})).toBe(
+      'no-field',
+    );
   });
 
   it('an unmarked field with a hash is drawn', () => {
@@ -63,5 +65,27 @@ describe('raceScreenField, the decision useRaceData draws with', () => {
     });
     expect(screen.hash).toBe('abc');
     expect(raceGate({...base, hasField: screen.hash !== null})).toBe('ready');
+  });
+});
+
+describe('an iRacing race with no field', () => {
+  it('says why: the other cars come from the live recorder, which this race predates', () => {
+    expect(raceScreenField({sim: 'iracing'})).toEqual({
+      hash: null,
+      why: IRACING_NO_FIELD_WHY,
+    });
+    expect(IRACING_NO_FIELD_WHY).toBe(
+      'Other cars: not recorded. This race is from before the recorder.',
+    );
+  });
+  it('keeps the analysis note when it has one, and says nothing for LMU or a session with a field', () => {
+    expect(
+      raceScreenField({sim: 'iracing', fieldMissing: 'the file had no cars'})
+        .why,
+    ).toBe('the file had no cars');
+    expect(raceScreenField({sim: 'lmu'}).why).toBeNull();
+    expect(raceScreenField({sim: 'iracing', field: {hash: 'h1'}}).hash).toBe(
+      'h1',
+    );
   });
 });

@@ -9,6 +9,7 @@ What the tray sends and what the API takes, tested on real bodies only. Roadmap 
   - `heartbeat/`: beats as sent to `POST /api/upload/heartbeat`, taken from a tray's `status.jsonl`.
   - `recorder-status/`: the recorder's `status.json`.
   - `capture-meta/`: a capture's `meta.json`. Only the game version is used.
+  - `results-input/`: a session's results input as the tray puts it in the store (`inputs/<owner>/<session>/results.json.gz`, `tools/sessions/resultsInput.mjs`), which the cloud reader takes. `dev-iracing-ibt-qualifying.json` is the iRacing producer's (`irResults.mjs`, run on his Road Atlanta file, cut to six cars): replace it with the input of the tray build that ships the writer (ticket 61 item 4). Tested in `resultsInput.contract.test.mjs`: the reader takes it, it gives no finish, and the producer writes no key or type it lacks.
 - **`payloads.mjs`** loads them (`loadPayloads`, `payload`), makes a negative case (`mutate`: one field of a copy of a real payload), and compares shapes (`shapeOf`, `newShape`: keys and JSON types, values ignored).
 - **`check.mjs`** is the contract for a sender in another language: the Rust tray's `cargo test` pipes the JSON it builds to it (`desktop/src-tauri/src/contract.rs`).
 
