@@ -16,6 +16,8 @@ export interface NumberCell {
   tone: 'strong' | 'muted';
   /** The cell is at least this many characters wide, figures right-aligned: the speed passing 99 to 100 must not move the box's left edge. */
   minCh?: number;
+  /** A rule is drawn after the cell: the gear is its own figure, not the thousands of the speed beside it (ticket 75: "2 126 km/h" read as 2,126 km/h). */
+  ruleAfter?: boolean;
 }
 
 export interface TightNumbersInput {
@@ -31,7 +33,7 @@ export function tightNumberRows(i: TightNumbersInput): NumberCell[][] {
   const rows: NumberCell[][] = [];
   if (i.place != null) rows.push([{text: i.place, tone: 'strong'}]);
   rows.push([
-    ...(i.gear != null ? [{text: i.gear, tone: 'strong' as const, minCh: 1}] : []),
+    ...(i.gear != null ? [{text: i.gear, tone: 'strong' as const, minCh: 1, ruleAfter: true}] : []),
     {text: i.speed, tone: 'strong', minCh: SPEED_CH},
     {text: 'km/h', tone: 'muted'},
   ]);

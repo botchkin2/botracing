@@ -41,12 +41,23 @@ describe('tightNumberRows: the phone numbers box is two rows, with no gaps (the 
     const known = tightNumberRows({place: 'GT3 P6', gear: '6', speed: '243'})[1];
     const unknown = tightNumberRows({place: 'GT3 P6', gear: GEAR_UNKNOWN, speed: '243'})[1];
     expect(known.map(c => c.minCh)).toEqual(unknown.map(c => c.minCh));
-    expect(unknown[0]).toEqual({text: GEAR_UNKNOWN, tone: 'strong', minCh: 1});
+    expect(unknown[0]).toEqual({text: GEAR_UNKNOWN, tone: 'strong', minCh: 1, ruleAfter: true});
     expect(known[0].tone).toBe(unknown[0].tone);
   });
 
   it('the unit is as wide as its text', () => {
     const row = tightNumberRows({place: 'GT3 P6', gear: 'N', speed: '0'})[1];
     expect(row.filter(c => c.minCh === undefined).map(c => c.text)).toEqual(['km/h']);
+  });
+
+  it('a rule follows the gear, known or not, so it never reads as the thousands of the speed', () => {
+    for (const gear of ['2', 'N', 'R', GEAR_UNKNOWN]) {
+      const row = tightNumberRows({place: 'GT3 P6', gear, speed: '126'})[1];
+      expect(row.filter(c => c.ruleAfter).map(c => c.text)).toEqual([gear]);
+    }
+  });
+
+  it('no rule when there is no gear: nothing to divide', () => {
+    expect(tightNumberRows({place: null, gear: null, speed: '126'})[0].some(c => c.ruleAfter)).toBe(false);
   });
 });

@@ -401,7 +401,10 @@ function ChaseSurface({
                       key={c}
                       variant={cell.tone === 'strong' ? 'dataStrong' : 'dataSmall'}
                       tone={cell.tone === 'muted' ? 'textMuted' : undefined}
-                      style={cell.minCh ? ({minWidth: `${cell.minCh}ch`, textAlign: 'right'} as object) : undefined}>
+                      style={[
+                        cell.minCh ? ({minWidth: `${cell.minCh}ch`, textAlign: 'right'} as object) : null,
+                        cell.ruleAfter ? [styles.ruleAfter, {borderColor: color.textMuted}] : null,
+                      ]}>
                       {cell.text}
                     </Text>
                   ))}
@@ -500,4 +503,5 @@ const styles = StyleSheet.create({
   // Two rows (numbersRows.ts), as wide as the wider of them: the box's left edge stays clear of the car's rear.
   numbersTight: {marginLeft: 'auto', flexDirection: 'column', alignItems: 'flex-end', gap: 0, paddingVertical: space.xs},
   cell: {flexDirection: 'row', alignItems: 'baseline', gap: space.xs},
+  ruleAfter: {borderRightWidth: 1, paddingRight: space.xs},
 });
