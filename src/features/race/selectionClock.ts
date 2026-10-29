@@ -22,6 +22,18 @@ export type LapRef = {
   timeS?: number | null;
 };
 
+/**
+ * `?at=` on the Race page: a moment on the field's own clock, seconds from its first sample, for a page opened with no lap
+ * to hang Compare's cursor on (the Android WebView's `embed=3d`, a 3D proof). Null for anything that is not a finite
+ * number of seconds, else held inside the race. The cursor wins when it resolves.
+ */
+export function openAtOf(raw: string | undefined, endS: number): number | null {
+  if (raw == null || raw.trim() === '') return null;
+  const s = Number(raw);
+  if (!Number.isFinite(s)) return null;
+  return Math.min(Math.max(s, 0), endS);
+}
+
 /** What Race writes back: the cursor, and the highlighted lap when it changed. */
 export type SelectionPatch = {hl: string | null; cursorM: number};
 

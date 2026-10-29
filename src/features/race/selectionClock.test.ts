@@ -2,7 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type RaceClock} from '@/src/analysis/raceClock';
 
-import {raceTimeFor, selectionFor} from './selectionClock';
+import {openAtOf, raceTimeFor, selectionFor} from './selectionClock';
 
 const laps = [
   {id: 'a-001', lapNumber: 1},
@@ -78,5 +78,22 @@ describe('selectionFor', () => {
     expect(
       selectionFor({lapNumber: 1, distanceM: 10}, sel({laps: ['a-002']}), laps),
     ).toEqual({hl: null, cursorM: 10});
+  });
+});
+
+describe('openAtOf (?at=, the field clock a page with no lap to anchor opens on)', () => {
+  it('reads seconds from the first sample, held inside the race', () => {
+    expect(openAtOf('186.2', 275)).toBe(186.2);
+    expect(openAtOf('0', 275)).toBe(0);
+    expect(openAtOf('9999', 275)).toBe(275);
+    expect(openAtOf('-5', 275)).toBe(0);
+  });
+
+  it('is null for nothing, blank or not a number, so the page opens as before', () => {
+    expect(openAtOf(undefined, 275)).toBeNull();
+    expect(openAtOf('', 275)).toBeNull();
+    expect(openAtOf('  ', 275)).toBeNull();
+    expect(openAtOf('soon', 275)).toBeNull();
+    expect(openAtOf('Infinity', 275)).toBeNull();
   });
 });
