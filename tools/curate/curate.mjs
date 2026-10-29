@@ -3,8 +3,8 @@
 //   node tools/curate/curate.mjs sessions [--folder F] [--track <trackId>]
 //   node tools/curate/curate.mjs show <trackId>
 //   node tools/curate/curate.mjs history <trackId>
-//   node tools/curate/curate.mjs plan-add <trackId> --session <id>
-//   node tools/curate/curate.mjs plan-replace <trackId> --session <id> [--allow-renumber]
+//   node tools/curate/curate.mjs plan-add <trackId> --session <id> | --pool
+//   node tools/curate/curate.mjs plan-replace <trackId> --session <id> | --pool [--allow-renumber]
 //   node tools/curate/curate.mjs plan-refold <trackId> --sessions <id,id,...>
 //   node tools/curate/curate.mjs plan-undo <trackId> [--to-rev N]
 //   node tools/curate/curate.mjs plan-elevation <trackId> --session <id> --capture <dir>
@@ -21,6 +21,7 @@ import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {adapter as simAdapter, telemetryFolder} from '../sessions/sims.mjs';
 import {PlanRefused, applyPlan} from './apply.mjs';
+import {poolLines, trackVersionOf} from './poolReport.mjs';
 import {describeMap} from './diff.mjs';
 import {
   checkLapDurations,
@@ -32,6 +33,7 @@ import {bankFromLaps, readCaptureAttitude} from './bank.mjs';
 import {
   LoaderError,
   buildFromSession,
+  buildFromSessions,
   buildRefold,
   describeSession,
   findSessions,
@@ -107,7 +109,13 @@ export async function run(argv, deps) {
   const lines = [];
   const say = line => lines.push(line);
   const {backend, adapter} = deps;
-  const loader = {buildFromSession, buildRefold, findSessions, ...deps.loader};
+  const loader = {
+    buildFromSession,
+    buildFromSessions,
+    buildRefold,
+    findSessions,
+    ...deps.loader,
+  };
   const sessionsHere = () => {
     const fromFlag =
       typeof flags.owners === 'string'
@@ -218,7 +226,9 @@ export async function run(argv, deps) {
       plan = planElevation({trackId, current, built, blast});
     } else if (cmd === 'plan-bank') {
       if (!flags.capture || !flags.session)
-        throw new LoaderError('plan-bank needs --session <id> and --capture <dir>');
+        throw new LoaderError(
+          'plan-bank needs --session <id> and --capture <dir>',
+        );
       const session = pickSession(sessionsHere(), flags.session);
       const sessionLaps = measuredLapNumbers({adapter, session, workDir});
       const picked = keepMeasuredLaps(
@@ -239,12 +249,34 @@ export async function run(argv, deps) {
       };
       plan = planBank({trackId, current, built, blast});
     } else if (cmd === 'plan-add' || cmd === 'plan-replace') {
-      if (!flags.session)
+      if (!flags.session && !flags.pool)
         throw new LoaderError(
-          `${cmd} needs --session <id> (curate sessions lists them)`,
+          `${cmd} needs --session <id> (curate sessions lists them) or --pool`,
         );
-      const session = pickSession(sessionsHere(), flags.session);
-      const built = loader.buildFromSession({adapter, session, workDir});
+      if (flags.session && flags.pool)
+        throw new LoaderError(
+          '--session and --pool are two ways to choose: use one',
+        );
+      let built;
+      if (flags.pool) {
+        const here = sessionsHere().filter(s => {
+          const d = describeSession(s);
+          return trackIdOf(adapter, d.sim, d.layout) === trackId;
+        });
+        if (here.length === 0)
+          throw new LoaderError(`no session of ${trackId} in this folder`);
+        say(`pooling ${here.length} session(s) of ${trackId}`);
+        built = loader.buildFromSessions({
+          adapter,
+          sessions: here,
+          workDir,
+          versionOf: adapter.sim === 'iracing' ? trackVersionOf : undefined,
+        });
+        for (const l of poolLines(built.perSession)) say(l);
+      } else {
+        const session = pickSession(sessionsHere(), flags.session);
+        built = loader.buildFromSession({adapter, session, workDir});
+      }
       onThisTrack(built);
       plan =
         cmd === 'plan-add'

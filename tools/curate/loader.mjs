@@ -124,6 +124,58 @@ export function buildFromSession({adapter, session, workDir, deps = real}) {
   };
 }
 
+/**
+ * The map and boundaries all of these sessions together would give their
+ * track: each session is analysed on its own, then buildFromLaps takes every
+ * comparable lap of all of them (a median per grid point, boundaries folded one
+ * session at a time). A layout he drove in many short sessions clears the
+ * 8-lap floor that no single one does, and a corner one session puts 260 m
+ * away stops moving the map (pit wall thread 125 #8383).
+ */
+export function buildFromSessions({
+  adapter,
+  sessions,
+  workDir,
+  versionOf,
+  deps = real,
+}) {
+  if (!sessions.length)
+    throw new LoaderError('buildFromSessions needs at least one session');
+  const ordered = [...sessions].sort((a, b) =>
+    String(a.files[0].info.recordedAt).localeCompare(
+      String(b.files[0].info.recordedAt),
+    ),
+  );
+  const groups = ordered.map(session => {
+    const recs = loadRecs({adapter, session, workDir, load: deps.load});
+    const a = deps.analyze(recs, {
+      sessionId: session.id,
+      sessionType: session.files[0].info.sessionType,
+    });
+    return {id: session.id, laps: a.laps};
+  });
+  const first = ordered[0].files[0].info;
+  const built = buildFromLaps({
+    sessions: groups,
+    sim: first.sim,
+    track: {name: first.track, variant: first.layout},
+  });
+  const used = new Set(selectMapLaps(groups.flatMap(g => g.laps)).laps);
+  const perSession = groups.map((g, i) => {
+    const laps = g.laps.filter(lap => used.has(lap));
+    const versions = ordered[i].files
+      .map(f => versionOf?.(f.path) ?? '')
+      .filter(Boolean);
+    return {
+      id: g.id,
+      laps: laps.length,
+      lapLengthsM: laps.map(lap => lap.distanceM),
+      versions: [...new Set(versions)],
+    };
+  });
+  return {...built, perSession};
+}
+
 // Every grid point finite. One NaN becomes a NaN median in the map profile.
 function lapGps(lap) {
   const lat = lap.grid?.lat;

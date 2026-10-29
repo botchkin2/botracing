@@ -147,6 +147,43 @@ test('a session from another track is refused, as is a missing session flag; unk
   assert.equal(be.commits, 0);
 });
 
+test('--pool builds the map from every session of the track and prints what each gave; it is not mixed with --session', async () => {
+  const be = memoryCatalog({
+    counts: {[ID]: 7},
+    lengths: {[ID]: [2000, 2001, 1999]},
+  });
+  let pooled = null;
+  const d = deps(be);
+  d.loader = {
+    ...d.loader,
+    buildFromSessions: ({sessions}) => {
+      pooled = sessions.map(s => s.id);
+      return {
+        ...d.loader.buildFromSession({session: sessions[0]}),
+        perSession: sessions.map(s => ({
+          id: s.id,
+          laps: 5,
+          lapLengthsM: [2000],
+          versions: [],
+        })),
+      };
+    },
+  };
+  const dry = await run(['plan-add', ID, '--pool'], d);
+  assert.equal(dry.code, 0, text(dry));
+  assert.deepEqual(pooled, ['aaaaaa1111'], 'only the sessions on this track');
+  assert.match(text(dry), /pooling 1 session\(s\) of lmu-road_atlanta/);
+  assert.match(text(dry), /aaaaaa1111: 5 lap\(s\) used/);
+  assert.match(text(dry), /ADD lmu-road_atlanta/);
+  assert.equal(be.commits, 0);
+
+  const both = await run(['plan-add', ID, '--pool', '--session', 'aaaaaa'], d);
+  assert.equal(both.code, 1);
+  assert.match(text(both), /two ways to choose/);
+  const empty = await run(['plan-add', 'lmu-nowhere', '--pool'], d);
+  assert.match(text(empty), /no session of lmu-nowhere/);
+});
+
 test('a refused plan exits 1 even as a dry run, and undo of a fresh track says why', async () => {
   const be = memoryCatalog();
   const r = await run(['plan-undo', ID], deps(be));
