@@ -26,7 +26,9 @@ export interface ModelEntry {
 // (the field is left out). The class hull is front-engined: the cabin at x -0.1, the nose to 2.33.
 export const GT3_MODELS: ModelEntry[] = [
   {
-    // rear engine: the cabin far forward, one fastback line over a long heavy tail, the wing on two swan-neck pylons
+    // rear engine: one fastback line over a long heavy tail, the wing on two swan-neck pylons. The nose and tail already
+    // say "cabin far forward" against the car's length; cabinX only keeps the glasshouse behind the front axle, roof near
+    // mid-wheelbase (it was 0.85, which put the windscreen foot 0.37 m ahead of the axle: ticket 76)
     key: 'porsche-911',
     match: /911/,
     example: 'Porsche 911 GT3 R LMGT3',
@@ -34,7 +36,7 @@ export const GT3_MODELS: ModelEntry[] = [
       lengthM: 4.62,
       wheelbaseM: 2.5,
       noseLen: -0.35,
-      cabinX: 0.85,
+      cabinX: 0.3,
       cabinTop: 0.05,
       roofDrop: 0.42,
       deckH: 0.2,

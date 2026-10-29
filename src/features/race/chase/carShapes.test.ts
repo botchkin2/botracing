@@ -314,17 +314,30 @@ describe('GT3 models', () => {
       );
     }
   });
-  it('the cues are there, as numbers: the 911 cabin is far forward and the Mustang and AMG far back; the M4 roof is the tallest and the Huracán the lowest; the 296 deck is the lowest', () => {
+  it('the 911 glasshouse sits over the wheelbase, not ahead of it: its windscreen foot is behind the front axle (ticket 76)', () => {
+    const {shape} = shapeFor('Porsche 911 GT3 R LMGT3', 'GT3');
+    const [front, rear] = shape.wheels;
+    const foot = shape.cabin[0][0];
+    expect(foot).toBeLessThan(front);
+    // the roof's middle is between the axles, forward of the class shape's
+    const mid =
+      (shape.cabin[0][0] + shape.cabin[shape.cabin.length - 1][0]) / 2;
+    expect(mid).toBeLessThan(front);
+    expect(mid).toBeGreaterThan(rear);
+    expect((front - mid) / (front - rear)).toBeGreaterThan(0.3);
+    expect((front - mid) / (front - rear)).toBeLessThan(0.55);
+  });
+  it('the cues are there, as numbers: the 911 cabin is ahead of the Mustang and AMG; the M4 roof is the tallest and the Huracán the lowest; the 296 deck is the lowest', () => {
     const shape = (v: string) => shapeFor(v, 'GT3').shape;
     const cabinX = (v: string) => shape(v).cabin[1][0];
     const roof = (v: string) => Math.max(...shape(v).cabin.map(st => st[4]));
     const deck = (v: string) => shape(v).hull[4][4];
     expect(
       cabinX('Porsche 911 GT3 R LMGT3') - cabinX('Ford Mustang LMGT3'),
-    ).toBeGreaterThan(0.9);
+    ).toBeGreaterThan(0.4);
     expect(
       cabinX('Porsche 911 GT3 R LMGT3') - cabinX('Mercedes-AMG LMGT3'),
-    ).toBeGreaterThan(0.9);
+    ).toBeGreaterThan(0.4);
     const roofs = MODELS.GT3.map(m => roof(m.example));
     expect(roof('BMW M4 LMGT3')).toBe(Math.max(...roofs));
     expect(roof('Lamborghini Huracan LMGT3 Evo2')).toBe(Math.min(...roofs));
