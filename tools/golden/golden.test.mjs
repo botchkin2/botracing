@@ -47,6 +47,17 @@ for (const name of Object.keys(manifest.sessions)) {
       assert.ok(bandLaps.length > 0, `${name}: no lap with a grid to check the band against`);
       assert.equal(analysis.band.laps, bandLaps.length, `${name}: band.laps is not the final comparable set`);
     }
+    // The summary is read from the same final flags as the laps (ticket 69): the
+    // Sessions list's median and the spread pool read it, the laps are what a
+    // person counts.
+    const final = analysis.laps.filter(l => l.comparable).map(l => l.lapTime);
+    assert.equal(analysis.summary.comparableCount, final.length, `${name}: summary.comparableCount is not the laps' comparable count`);
+    if (final.length) {
+      const mid = final.length >> 1;
+      const sorted = [...final].sort((x, y) => x - y);
+      const median = final.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+      assert.ok(Math.abs(analysis.summary.medianLapTime - median) < 0.0006, `${name}: summary.medianLapTime is not the median of the comparable laps`);
+    }
     const moved = diffSummary(expected, actual, 25);
     assert.equal(
       moved.length,

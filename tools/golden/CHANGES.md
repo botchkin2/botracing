@@ -174,3 +174,10 @@ Changed:
 - cornerMedians.4: 16.444 -> 16.4435
 - laps.1.reasons.0: undefined -> "slow"
 - laps.1.comparable: true -> false
+
+## 2026-10-29 lmu-practice-road-atlanta
+Why: the session summary's comparable count, median and spread were built from the first slow-lap pass, while the laps' flags come from the second pass (after the sections), so the summary said 9 comparable where the laps carry 10; it now reads the final flags (ticket 69, thread 130). The stints already did, and did not move.
+Changed:
+- summary.comparableCount: 9 -> 10
+- summary.medianLapTime: 80.697 -> 80.775
+- summary.stdevLapTime: 0.356 -> 0.547
