@@ -43,3 +43,5 @@ export default function CompareRoute() {
     />
   );
 }
+
+export {SessionErrorBoundary as ErrorBoundary} from '@/src/workspace/errorBoundaries';

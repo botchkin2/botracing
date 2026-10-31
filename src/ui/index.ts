@@ -6,6 +6,7 @@ export * from './Button';
 export * from './Checkbox';
 export * from './Chip';
 export * from './EmptyState';
+export * from './ErrorScreen';
 export * from './FoldedSection';
 export * from './hitArea';
 export * from './MapZoomButtons';

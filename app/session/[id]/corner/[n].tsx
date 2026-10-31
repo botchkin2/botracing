@@ -39,3 +39,5 @@ export default function CornerRoute() {
     />
   );
 }
+
+export {SessionErrorBoundary as ErrorBoundary} from '@/src/workspace/errorBoundaries';

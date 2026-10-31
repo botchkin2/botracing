@@ -42,3 +42,5 @@ export default function RaceRoute() {
     />
   );
 }
+
+export {SessionErrorBoundary as ErrorBoundary} from '@/src/workspace/errorBoundaries';

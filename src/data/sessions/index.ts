@@ -32,7 +32,12 @@ export type {
   TrackMapQuality,
   Wheel,
 } from './adapters';
-export {analysing} from './analysisOnOpen';
+export {
+  analysing,
+  analysisFailed,
+  analyzeDeps,
+  retryAnalysis,
+} from './analysisOnOpen';
 export {type SessionFilter, sessionKeys} from './keys';
 export {
   useSessionFacets,
