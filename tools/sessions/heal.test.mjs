@@ -730,3 +730,91 @@ test('an uploaded game-file session one live session covers whole is its copy; n
     '53128f6f': '0dddbcb7',
   });
 });
+
+// Ticket 97: Silverstone 2026-10-15. The live stretch ended at 00:20:49, 23 min
+// into a drive whose game files run to 00:51 (file 1 at 23:57:26, files 2 and 3
+// at 00:28:46 and 00:34:39). Only file 1 is covered; the claim used to need all.
+const SIL = Date.parse('2026-10-15T23:57:26.032Z');
+const silFile = (recordedAt, endT) => ({
+  info: {
+    sim: 'lmu',
+    layout: 'Silverstone Grand Prix Circuit - ELMS',
+    sessionType: 'Practice',
+    recordedAt,
+    startT: 0,
+    endT,
+  },
+});
+const silIndex = (id = '7ee77fba88006db8') => ({
+  'cap#0': {
+    sessionId: id,
+    sim: 'lmu',
+    layout: 'Silverstone Grand Prix Circuit - ELMS',
+    sessionType: 'Practice',
+    startMs: SIL,
+    endMs: Date.parse('2026-10-16T00:20:49.012Z'),
+  },
+});
+const silSession = () => ({
+  id: 'eb674e49124ee60c',
+  files: [
+    silFile('2026-10-15T23:57:26Z', 1403),
+    silFile('2026-10-16T00:28:46Z', 360),
+    silFile('2026-10-16T00:34:39Z', 960),
+  ],
+});
+
+test('a drive whose live stretch ended early is still claimed under the live id', () => {
+  const s = silSession();
+  assert.deepEqual(claimCoveredSessions([s], silIndex(), liveCover), [s]);
+  assert.equal(s.id, '7ee77fba88006db8');
+  assert.equal(s.hashId, 'eb674e49124ee60c');
+  assert.equal(s.healLack, true);
+  assert.deepEqual(s.alsoLive, []);
+});
+
+// The real drive: the live recorder cut it in two (7ee77fba for file 1,
+// 90e050c4 for files 2 and 3). The game files say it is one session.
+const silTwoIndex = () => ({
+  'cap#1': {
+    sessionId: '90e050c4bee038a4',
+    sim: 'lmu',
+    layout: 'Silverstone Grand Prix Circuit - ELMS',
+    sessionType: 'Practice',
+    startMs: Date.parse('2026-10-16T00:28:47.039Z'),
+    endMs: Date.parse('2026-10-16T00:51:39.831Z'),
+  },
+  ...silIndex(),
+});
+
+test('a drive the live recorder cut in two is claimed under the earliest live id, the other is named', () => {
+  const s = silSession();
+  assert.deepEqual(claimCoveredSessions([s], silTwoIndex(), liveCover), [s]);
+  assert.equal(s.id, '7ee77fba88006db8');
+  assert.equal(s.hashId, 'eb674e49124ee60c');
+  assert.deepEqual(s.alsoLive, ['90e050c4bee038a4']);
+});
+
+test('a claim that finds its live session gone is undone, alsoLive included', async () => {
+  const s = silSession();
+  const claimed = claimCoveredSessions([s], silTwoIndex(), liveCover);
+  assert.deepEqual(await confirmClaims(claimed, async () => false), []);
+  assert.equal(s.id, 'eb674e49124ee60c');
+  assert.equal(s.alsoLive, undefined);
+});
+
+test('no cover claims nothing', () => {
+  const none = silSession();
+  assert.deepEqual(claimCoveredSessions([none], {}, liveCover), []);
+  assert.equal(none.id, 'eb674e49124ee60c');
+});
+
+test('the files the live stretch never saw are added as stretches it lacks', () => {
+  const stored = [{id: 'live-rec', recordedAt: '2026-10-15T23:57:26.032Z'}];
+  const built = [
+    {id: 'f1', recordedAt: '2026-10-15T23:57:26Z'},
+    {id: 'f2', recordedAt: '2026-10-16T00:28:46Z'},
+    {id: 'f3', recordedAt: '2026-10-16T00:34:39Z'},
+  ];
+  assert.deepEqual(recordingsToAdd(stored, built).map(r => r.id), ['f2', 'f3']);
+});

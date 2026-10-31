@@ -97,28 +97,39 @@ export const tombstoneExpired = (doc, nowMs, listedIds) =>
   nowMs - Date.parse(doc.supersededAt) > TOMBSTONE_DAYS * 86_400_000;
 
 /**
- * A game file whose every recording is covered by one live session is built
- * under that session's id (audit row 13). It does not replace the live
- * recordings; store.mjs adds only the stretches the live copy lacks.
+ * A game-file session in which at least one recording is covered by a live
+ * session is built under that session's id (audit row 13). It does not replace
+ * the live recordings; store.mjs adds only the stretches the live copy lacks,
+ * which include the files a live stretch that ended early never saw. The game
+ * files are the authority on what one drive is (their grouping); the live
+ * recorder may have cut one drive into several live sessions (ticket 97:
+ * Silverstone 2026-10-15, 7ee77fba and 90e050c4 for one drive of three game
+ * files). The earliest live stretch names the id; the other live ids come back
+ * as `alsoLive`, to be tombstoned behind it like the hash id (sync.mjs).
  * The caller confirms the live session is still in the store (confirmClaims).
  */
 export function claimCoveredSessions(sessions, index, cover) {
   const claimed = [];
   for (const s of sessions) {
     if (s.healDefect || s.healLack) continue;
-    const ids = new Set();
-    let open = false;
+    const starts = new Map();
     for (const f of s.files) {
       const hit = cover(index, f.info);
-      if (!hit) open = true;
-      else ids.add(hit.sessionId);
+      if (!hit) continue;
+      const seen = starts.get(hit.sessionId);
+      starts.set(
+        hit.sessionId,
+        seen === undefined ? hit.startMs : Math.min(seen, hit.startMs),
+      );
     }
-    if (open || ids.size !== 1) continue;
-    const [id] = ids;
+    if (starts.size === 0) continue;
+    const ids = [...starts.keys()].sort((a, b) => starts.get(a) - starts.get(b));
+    const [id, ...others] = ids;
     if (s.id === id) continue;
     s.hashId = s.id;
     s.id = id;
     s.healLack = true;
+    s.alsoLive = others.filter(other => other !== s.hashId);
     claimed.push(s);
   }
   return claimed;
@@ -308,6 +319,7 @@ export async function confirmClaims(claimed, exists) {
       s.id = s.hashId;
       delete s.hashId;
       delete s.healLack;
+      delete s.alsoLive;
     }
   }
   return standing;

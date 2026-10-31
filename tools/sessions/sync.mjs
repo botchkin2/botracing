@@ -785,6 +785,9 @@ async function runPool(
           // are written, so there is never a moment with no copy.
           if (s.hashId) {
             (state.pendingSupersede ??= {})[s.hashId] = s.id;
+            // The other live sessions the recorder cut this drive into.
+            for (const other of s.alsoLive ?? [])
+              state.pendingSupersede[other] = s.id;
             delete state.sessions[s.hashId];
             saveState(state);
             await settleSupersedes(
