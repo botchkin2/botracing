@@ -33,6 +33,7 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {analysisVersion, blockVersions} from '../sessions/analyze.mjs';
 import {replaceFile} from '../sessions/replaceFile.mjs';
+import {readStateFile} from '../sessions/stateFile.mjs';
 import {versionKey} from '../sessions/versionKey.mjs';
 import {ARCHIVE_REPAIR} from '../sessions/archiveRepair.mjs';
 import {adapter, telemetryFolder} from '../sessions/sims.mjs';
@@ -57,7 +58,12 @@ import {
 import {createHeartbeatSender, httpSend} from './heartbeatSender.mjs';
 import {newRefusal, trackRefusals} from './refusals.mjs';
 import {readNoField} from '../sessions/noField.mjs';
-import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
+import {
+  clearNetworkBackoff,
+  earliestRetryMs,
+  nextRetries,
+  waitingIds,
+} from './retries.mjs';
 import {runWithBeats} from './syncBeats.mjs';
 import {clearStaleSyncing, stateOf} from './watchState.mjs';
 import {
@@ -401,6 +407,8 @@ function earliestOf(times) {
 }
 
 let db = null;
+// Set in main(): ends the network backoffs when the server takes a heartbeat.
+let onGoodBeat = () => {};
 // Under the tray app (a token file) the status also goes to the server, which
 // stores it under the signed-in user's owner key (heartbeatSender.mjs). Not
 // awaited: a slow or refused request never holds up a sync.
@@ -411,6 +419,7 @@ const statusSender = process.env.LAP_TOKEN_FILE
         tokenFile: process.env.LAP_TOKEN_FILE,
       }),
       log: line => log(line),
+      onAccepted: sentAtMs => onGoodBeat(sentAtMs),
     })
   : null;
 async function writeBeat(doc) {
@@ -429,7 +438,16 @@ async function main() {
   const once = process.argv.includes('--once');
   const ver = version();
   const {label = 'Race PC'} = readJson(resolve(home, 'config.json'), {});
-  const watch = readJson(statePath, {});
+  // A state.json a power cut left unreadable recovers from its .bak, else
+  // starts empty with the bad file kept (stateFile.mjs), and the log says so.
+  const read = readStateFile(statePath);
+  const watch = read.value ?? {};
+  if (read.source === 'backup' || read.source === 'unreadable')
+    log(
+      `watcher state.json was unreadable; ${
+        read.source === 'backup' ? 'restored from its .bak' : 'started empty'
+      } (the bad file is kept as ${read.keptAs})`,
+    );
   // State from before block versions kept only analysisVersion: no versionKey
   // reads as changed, so the first run with this code syncs everything once.
   // The archive repair's version too: a tray that brings a new repair syncs
@@ -443,8 +461,20 @@ async function main() {
   delete watch.failedSessions;
   clearStaleSyncing(watch, SIMS);
   // Written to a temp file and renamed, so the tray never reads a half-written state.json.
-  const save = () => replaceFile(statePath, JSON.stringify(watch));
+  const save = () =>
+    replaceFile(statePath, JSON.stringify(watch), {backup: true});
   save();
+  // The server took a heartbeat: the network is up, so a wait a network error
+  // caused ends now instead of after up to 8 h (retries.mjs).
+  onGoodBeat = sentAtMs => {
+    let ended = 0;
+    for (const sim of SIMS)
+      ended += clearNetworkBackoff(stateOf(watch, sim), sentAtMs);
+    if (ended) {
+      save();
+      log(`network is back: ${ended} retry wait(s) ended`);
+    }
+  };
   let wasRunning = false;
   let lastKey = '';
   let lastBeatMs = 0;
@@ -786,6 +816,12 @@ async function main() {
               ? {
                   at: new Date().toISOString(),
                   message: r.errors[0],
+                  path: 'lap-uploader/watch.log',
+                }
+              : r.stateNote
+              ? {
+                  at: new Date().toISOString(),
+                  message: r.stateNote,
                   path: 'lap-uploader/watch.log',
                 }
               : null;

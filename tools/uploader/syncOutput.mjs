@@ -37,6 +37,9 @@ export function newSyncResult() {
     // size exceeded"), or null: what a sync that died before its closing line
     // says (watch.mjs shows it as "sync crashed").
     crash: null,
+    // "state.json unreadable: ..." (sync.mjs readState): the sync started its
+    // state afresh, and the app shows the line as the uploader's error.
+    stateNote: null,
     total: null,
     // Files the sync left alone because they were written in the last few
     // minutes ("N file(s) still being written, skipped for now").
@@ -74,6 +77,7 @@ export function readSyncLine(result, line) {
   }
   if (result.crash == null && /^(?:[A-Z]\w*)?Error\b[:\s]/.test(line))
     result.crash = line.trim();
+  if (/^state\.json unreadable: /.test(line)) result.stateNote = line.trim();
   const skip = line.match(/^skip (.+?): (.+)$/);
   if (skip) {
     // The reason repeats the file name ("<file> has no samples"): once is enough.

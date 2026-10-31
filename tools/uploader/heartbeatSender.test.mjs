@@ -174,3 +174,36 @@ test('the real send: bearer from the token file read per request, JSON body, 204
   );
   assert.equal(calls[0].init.body, '{"hostId":"h"}');
 });
+
+test('an accepted status tells the watcher when it was sent, a refused or failed one does not (ticket 86)', async () => {
+  let t = 5_000;
+  const accepted = [];
+  const answers = [new Error('getaddrinfo ENOTFOUND'), {status: 500}];
+  const failing = createHeartbeatSender({
+    send: async () => {
+      t += 250;
+      const r = answers.shift();
+      if (r instanceof Error) throw r;
+      return r;
+    },
+    now: () => t,
+    setTimer: () => {},
+    onAccepted: at => accepted.push(at),
+    log: () => {},
+  });
+  await failing.offer(doc());
+  assert.deepEqual(accepted, []);
+  const ok = createHeartbeatSender({
+    send: async () => {
+      t += 250;
+      return {status: 204};
+    },
+    now: () => t,
+    setTimer: () => {},
+    onAccepted: at => accepted.push(at),
+    log: () => {},
+  });
+  const before = t;
+  await ok.offer(doc());
+  assert.deepEqual(accepted, [before], 'the send time, not the time the answer came');
+});

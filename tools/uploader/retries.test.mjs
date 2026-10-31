@@ -1,7 +1,12 @@
 // Run: node --test tools/uploader/
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
+import {
+  clearNetworkBackoff,
+  earliestRetryMs,
+  nextRetries,
+  waitingIds,
+} from './retries.mjs';
 import {decide} from './trigger.mjs';
 
 const MIN = 60 * 1000;
@@ -95,4 +100,40 @@ test('version bump plus one failing session: one pass, then only its retry', () 
     run: true,
     reason: 'retry',
   });
+});
+
+test('a good heartbeat ends a network failure wait, whole-run and per session, and leaves a bad file alone (ticket 86)', () => {
+  const NET = 'sync crashed: Error: getaddrinfo ENOTFOUND botracing-61.web.app';
+  const st = {
+    retryAtMs: 9_000_000,
+    failuresInRow: 5,
+    lastError: {at: new Date(1_000_000).toISOString(), message: NET},
+    retries: {
+      net: {failures: 3, atMs: 9_000_000, lastAtMs: 900_000, message: 'read ECONNRESET'},
+      bad: {failures: 3, atMs: 9_000_000, lastAtMs: 900_000, message: 'RangeError: bad session'},
+    },
+  };
+  assert.equal(clearNetworkBackoff(st, 2_000_000), 2);
+  assert.equal(st.retryAtMs, null);
+  assert.equal(st.failuresInRow, 0);
+  assert.deepEqual(Object.keys(st.retries), ['bad']);
+});
+
+test('a heartbeat sent before the failure does not clear it, and a crash that is not the network keeps its backoff', () => {
+  const st = {
+    retryAtMs: 9_000_000,
+    failuresInRow: 2,
+    lastError: {at: new Date(5_000_000).toISOString(), message: 'sync crashed: read ECONNRESET'},
+    retries: {},
+  };
+  assert.equal(clearNetworkBackoff(st, 4_000_000), 0, 'the beat left before the failure');
+  assert.equal(st.retryAtMs, 9_000_000);
+  const bad = {
+    retryAtMs: 9_000_000,
+    failuresInRow: 2,
+    lastError: {at: new Date(1_000_000).toISOString(), message: 'sync crashed: SyntaxError: Unexpected end of JSON input'},
+    retries: {},
+  };
+  assert.equal(clearNetworkBackoff(bad, 2_000_000), 0);
+  assert.equal(bad.retryAtMs, 9_000_000);
 });

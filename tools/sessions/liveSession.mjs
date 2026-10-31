@@ -4,7 +4,8 @@
 // (track, car, type, times, lap count, best lap) and a stamp older than any
 // analysis, so the first open analyses it in the cloud (analysis on open).
 // Pure: sync.mjs --live reads the capture and uploads; this only shapes docs.
-import {existsSync, readFileSync, writeFileSync} from 'node:fs';
+import {replaceFile} from './replaceFile.mjs';
+import {readStateFile} from './stateFile.mjs';
 import {resolve} from 'node:path';
 import {slugId} from './analyzeFromArchive.mjs';
 import {analysisStamp} from './versionKey.mjs';
@@ -87,17 +88,15 @@ export const partName = i => String(i).padStart(3, '0');
 // covers, so one drive is one session with the live laps' ids.
 export const liveIndexPath = work => resolve(work, 'live', 'index.json');
 
+// A torn index used to read as `{}`, which dropped every cover: the tray then
+// rebuilt already-live drives as second sessions (ticket 86). It recovers from
+// its .bak now, and an unreadable file is kept aside (stateFile.mjs).
 export function readLiveIndex(work) {
-  const path = liveIndexPath(work);
-  try {
-    return existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {};
-  } catch {
-    return {};
-  }
+  return readStateFile(liveIndexPath(work)).value ?? {};
 }
 
 export function writeLiveIndex(work, index) {
-  writeFileSync(liveIndexPath(work), JSON.stringify(index, null, 1));
+  replaceFile(liveIndexPath(work), JSON.stringify(index, null, 1), {backup: true});
 }
 
 /** How much of the shorter of a game recording and a live stretch must overlap the other. */

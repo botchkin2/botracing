@@ -1,6 +1,12 @@
 // Run: node --test tools/sessions/
 import assert from 'node:assert/strict';
-import {mkdtempSync, readFileSync, renameSync} from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {test} from 'node:test';
@@ -61,4 +67,49 @@ test('a lock that never lets go still fails, after about a second; other errors 
     /ENOSPC/,
   );
   assert.equal(tries, 1);
+});
+
+test('the data is flushed to disk before the rename', () => {
+  const path = join(dir(), 'state.json');
+  const order = [];
+  replaceFile(path, '{"a":1}', {
+    fsync: () => order.push('fsync'),
+    rename: (a, b) => {
+      order.push('rename');
+      renameSync(a, b);
+    },
+  });
+  assert.deepEqual(order, ['fsync', 'rename']);
+  assert.equal(readFileSync(path, 'utf8'), '{"a":1}');
+});
+
+test('with backup, the file being replaced is kept as .bak when it is whole JSON', () => {
+  const path = join(dir(), 'state.json');
+  replaceFile(path, '{"v":1}', {backup: true});
+  assert.equal(existsSync(`${path}.bak`), false, 'nothing to keep the first time');
+  replaceFile(path, '{"v":2}', {backup: true});
+  assert.equal(readFileSync(`${path}.bak`, 'utf8'), '{"v":1}');
+  assert.equal(readFileSync(path, 'utf8'), '{"v":2}');
+});
+
+test('with backup, a file that is not JSON never overwrites the last good .bak', () => {
+  const path = join(dir(), 'state.json');
+  replaceFile(path, '{"v":1}', {backup: true});
+  replaceFile(path, '{"v":2}', {backup: true});
+  writeFileSync(path, ''); // a power cut left it empty
+  replaceFile(path, '{"v":3}', {backup: true});
+  assert.equal(readFileSync(`${path}.bak`, 'utf8'), '{"v":1}');
+  assert.equal(readFileSync(path, 'utf8'), '{"v":3}');
+});
+
+test('a backup that cannot be made does not fail the write', () => {
+  const path = join(dir(), 'state.json');
+  replaceFile(path, '{"v":1}');
+  replaceFile(path, '{"v":2}', {
+    backup: true,
+    copy: () => {
+      throw new Error('EPERM');
+    },
+  });
+  assert.equal(readFileSync(path, 'utf8'), '{"v":2}');
 });

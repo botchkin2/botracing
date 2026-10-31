@@ -41,6 +41,9 @@ export function createHeartbeatSender({
   now = Date.now,
   setTimer = (fn, ms) => setTimeout(fn, ms).unref?.(),
   log = () => {},
+  // Called with the time the request was sent when the server accepts a status:
+  // the network is up (the watcher ends its network backoff, retries.mjs).
+  onAccepted = () => {},
 }) {
   let lastKey = null;
   let lastSentAt = -Infinity;
@@ -66,9 +69,11 @@ export function createHeartbeatSender({
     if (now() < notBefore) return schedule();
     const doc = pending;
     busy = true;
+    const sentAt = now();
     try {
       const res = await send(bodyOf(doc));
       if (res.status >= 200 && res.status < 300) {
+        onAccepted(sentAt);
         lastKey = statusKey(doc);
         lastSentAt = now();
         notBefore = lastSentAt + MIN_GAP_MS;

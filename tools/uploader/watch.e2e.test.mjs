@@ -251,6 +251,70 @@ test(
   },
 );
 
+test(
+  'a heartbeat the server accepts ends the wait a network failure caused, and not a bad file\'s (ticket 86)',
+  {skip: !windows},
+  async () => {
+    const {createServer} = await import('node:http');
+    const {spawn} = await import('node:child_process');
+    const server = createServer((req, res) => {
+      req.resume();
+      req.on('end', () => {
+        res.writeHead(204);
+        res.end();
+      });
+    });
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    const tokenFile = resolve(root, 'token-net');
+    writeFileSync(tokenFile, 'tok-e2e\n');
+    const failedAt = Date.now() - 60_000;
+    const crashed = message => ({
+      ...readState(),
+      lastRunAtMs: 0,
+      failuresInRow: 4,
+      retryAtMs: Date.now() + 3 * 3600 * 1000,
+      lastError: {at: new Date(failedAt).toISOString(), message},
+    });
+    const run = async () => {
+      writeFileSync(beatsPath, '');
+      const child = spawn(process.execPath, [watch, '--once'], {
+        env: {
+          ...process.env,
+          LOCALAPPDATA: local,
+          LMU_TELEMETRY: telemetry,
+          LAP_SYNC_SCRIPT: syncPath,
+          LAP_HEARTBEAT_FILE: beatsPath,
+          LAP_TOKEN_FILE: tokenFile,
+          LAP_API: `http://127.0.0.1:${server.address().port}/api/upload`,
+          LAP_LOCK_PIPE: String.raw`\\.\pipe\lap-uploader-watch-e2e-net-${process.pid}`,
+          LAP_GAME_EXE: 'lap-e2e-no-such-game.exe',
+          LAP_SIMS: 'lmu',
+          FAKE_SYNC: 'crash',
+        },
+        stdio: 'ignore',
+      });
+      await new Promise(r => child.on('close', r));
+    };
+    // A bad file's crash keeps its wait.
+    writeFileSync(
+      statePath,
+      JSON.stringify(crashed('sync crashed: SyntaxError: Unexpected end of JSON input')),
+    );
+    await run();
+    assert.ok(readState().retryAtMs > Date.now(), 'a bad file keeps its backoff');
+    // The network's crash ends when the server takes a beat.
+    writeFileSync(
+      statePath,
+      JSON.stringify(crashed('sync crashed: Error: getaddrinfo ENOTFOUND botracing-61.web.app')),
+    );
+    await run();
+    server.close();
+    const after = readState();
+    assert.equal(after.retryAtMs, null);
+    assert.equal(after.failuresInRow, 0);
+  },
+);
+
 // iRacing: the watcher runs `sync --sim iracing` with a work folder of its
 // own, and never for the LMU folder's recordings.
 test(

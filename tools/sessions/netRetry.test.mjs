@@ -70,3 +70,12 @@ test('finds the reset inside a wrapped FetchError', () => {
   );
   assert.equal(isTransient(new Error('nope')), false);
 });
+
+test('a network that is down (no DNS, refused, unreachable) is a blip too (ticket 86)', () => {
+  for (const code of ['ENOTFOUND', 'ECONNREFUSED', 'ENETUNREACH', 'EHOSTUNREACH']) {
+    assert.equal(isTransient(Object.assign(new Error(code), {code})), true, code);
+  }
+  assert.equal(isTransient(new Error('getaddrinfo ENOTFOUND botracing-61.web.app')), true);
+  assert.equal(isTransient(new TypeError('fetch failed')), true);
+  assert.equal(isTransient(new Error('403 forbidden')), false);
+});
