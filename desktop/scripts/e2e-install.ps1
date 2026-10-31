@@ -12,6 +12,11 @@
 #   install    the per-user silent install puts BotRacing.exe where the Uninstall
 #              entry says, and creates the Start with Windows entry (HKCU Run)
 #   launch     the tray starts and stays up, and its data folder appears
+#   cleanup    a capture folder old enough to go, a stray file beside it in the
+#              capture root (the recorders' status files sit there on a real PC)
+#              and a fresh capture are planted before the first launch: the
+#              tray's cleanup deletes the old one, leaves the stray file and the
+#              fresh capture alone and reports no problem (ticket 86)
 #   second     a second launch does not add a second tray (single instance)
 #   uninstall  the uninstaller removes the install folder, the Run entry, the
 #              StartupApproved entry and the token file, and no tray is left
@@ -182,6 +187,30 @@ if ($seen.Count -ge 1) {
   Fail "the window check did not see a plain form: it would pass on a tray that opens a window"
 }
 
+Step "plant a capture root for the cleanup"
+# What the recorder leaves in %LOCALAPPDATA%\lap-capture, and what the uploader's
+# state says: an old finished capture whose sessions were read back from the
+# store ("verified"), a fresh one, and a file in the root that is not a capture.
+# Before the first launch, so the cleanup that runs at the tray's start sees it.
+$capRoot = Join-Path $env:LOCALAPPDATA "lap-capture"
+$oldCap = Join-Path $capRoot "2026-01-01T00-00-00Z_e2e-old-capture_10"
+$newCap = Join-Path $capRoot "2099-01-01T00-00-00Z_e2e-fresh-capture_10"
+$stray = Join-Path $capRoot "e2e-stray-note.txt"
+New-Item -ItemType Directory -Force $oldCap, $newCap | Out-Null
+foreach ($cap in @($oldCap, $newCap)) {
+  Set-Content (Join-Path $cap "chunk.bin") "x" -Encoding ascii
+  Set-Content (Join-Path $cap "meta.json") '{"sim":"lmu","endUtc":"2026-01-01T00:10:00Z"}' -Encoding ascii
+  Set-Content (Join-Path $cap "uploaded.json") '{"sessionId":"s1","sessionIds":["s1"],"uploadedUtc":"2026-01-01T01:00:00Z","verified":{"s1":{"laps":3,"fieldHash":"abc","utc":"2026-01-01T01:00:00Z"}}}' -Encoding ascii
+}
+foreach ($file in (Get-ChildItem $oldCap -File)) { $file.LastWriteTime = (Get-Date).AddDays(-60) }
+(Get-Item $oldCap).LastWriteTime = (Get-Date).AddDays(-60)
+Set-Content $stray "not a capture" -Encoding ascii
+Set-Content (Join-Path $capRoot "status.json") "{}" -Encoding ascii
+$uploaderDir = Join-Path $data "uploader"
+New-Item -ItemType Directory -Force $uploaderDir | Out-Null
+# An uploader that ran yesterday and is idle: the cleanup may delete.
+Set-Content (Join-Path $uploaderDir "state.json") ('{{"lastRunAtMs":{0},"syncing":false,"retries":{{}}}}' -f [DateTimeOffset]::UtcNow.AddDays(-1).ToUnixTimeMilliseconds()) -Encoding ascii
+
 Step "launch"
 Start-Process -FilePath $exe | Out-Null
 WaitFor "a tray process" 30 { (Trays).Count -ge 1 }
@@ -194,6 +223,21 @@ WaitFor "the Start with Windows entry (HKCU Run)" 30 { (Get-ItemProperty $runKey
 $runValue = (Get-ItemProperty $runKey).$app
 if ($runValue -notlike "*$app.exe*") { Fail "the Run entry does not name $app.exe: $runValue" }
 Write-Host "Run entry: $runValue"
+
+Step "cleanup"
+# The tray's cleanup runs once at its start and logs one line to
+# uploader\prune.log (capture/prune_schedule.rs).
+$pruneLog = Join-Path $uploaderDir "prune.log"
+WaitFor "the cleanup's log line" 60 { (Test-Path $pruneLog) -and ((Get-Content $pruneLog -Raw) -match "deleted \d+ captures") }
+$pruneLine = @(Get-Content $pruneLog)[-1]
+Write-Host "prune.log: $pruneLine"
+if ($pruneLine -notmatch "deleted 1 captures") { Fail "the cleanup did not delete exactly the old capture: $pruneLine" }
+if (Test-Path $oldCap) { Fail "the old, verified capture is still there after the cleanup" }
+if (-not (Test-Path $newCap)) { Fail "the cleanup deleted the fresh capture" }
+if (-not (Test-Path $stray)) { Fail "the cleanup removed a file that is not a capture" }
+# main counted the status files and the stray file as captures that were "not stored yet".
+if ($pruneLine -match "not stored yet|skipped by the cleanup") { Fail "the cleanup reported a problem for a file that is not a capture: $pruneLine" }
+Write-Host "cleanup: the old capture went, the fresh one and the stray file stayed, no problem reported"
 
 Step "second launch"
 # The same exe reached three ways: the path, its 8.3 short name and the

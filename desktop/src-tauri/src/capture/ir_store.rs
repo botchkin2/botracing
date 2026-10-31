@@ -14,7 +14,7 @@
 // decides what is kept.
 
 use crate::capture::columns::{write_columns, Column};
-use crate::capture::store::{iso, slug, write_json, ChunkWriter};
+use crate::capture::store::{iso, slug, write_meta_json, ChunkWriter};
 use serde_json::{json, Map, Value};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -117,7 +117,7 @@ impl IrCapture {
     }
 
     fn write_meta(&self) -> Result<(), String> {
-        write_json(&self.dir.join("meta.json"), &Value::Object(self.meta.clone()))
+        write_meta_json(&self.dir.join("meta.json"), &Value::Object(self.meta.clone()))
     }
 
     /// Adds to a counter in meta.json (rewritten with the next chunk).
@@ -156,7 +156,7 @@ impl IrCapture {
                     write_columns(&path, &ordered)?;
                     written += std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
                 }
-                write_json(&dir.join("meta.json"), &Value::Object(meta))?;
+                write_meta_json(&dir.join("meta.json"), &Value::Object(meta))?;
                 Ok(written)
             }))?;
         }

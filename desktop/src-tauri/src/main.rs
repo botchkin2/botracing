@@ -9,11 +9,13 @@ mod browser;
 mod capture;
 #[cfg(test)]
 mod contract;
+mod durable;
 mod failure_report;
 mod install;
 mod launch_log;
 mod menu;
 mod paths;
+mod poison;
 mod profile;
 mod quit_request;
 mod sidecar;
@@ -22,6 +24,7 @@ mod update;
 mod viewer;
 
 use std::sync::atomic::{AtomicBool, Ordering};
+use poison::locked;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
@@ -109,14 +112,14 @@ fn seat_token_file(
 /// Signs a local test tray in as seat-test from `file`, on its own thread.
 /// Anything but a seat-test token is refused (auth::seat_test_uid).
 fn start_seat_sign_in(account: Shared<account::Account>, file: std::path::PathBuf) {
-    let Some(cfg) = account.lock().unwrap().begin_sign_in() else {
+    let Some(cfg) = locked(&account).begin_sign_in() else {
         return;
     };
     std::thread::spawn(move || {
         let result = std::fs::read_to_string(&file)
             .map_err(|e| format!("can't read {}: {e}", file.display()))
             .and_then(|text| auth::seat_test_sign_in(&cfg, text.trim()));
-        let mut acct = account.lock().unwrap();
+        let mut acct = locked(&account);
         acct.signing_in = false;
         match result {
             Ok(session) => acct.signed_in(session),
@@ -128,7 +131,7 @@ fn start_seat_sign_in(account: Shared<account::Account>, file: std::path::PathBu
 /// Sign in on a thread of its own: the browser step waits on a person. The
 /// lock order everywhere is account, then supervisor.
 fn start_sign_in(account: Shared<account::Account>) {
-    let Some(cfg) = account.lock().unwrap().begin_sign_in() else {
+    let Some(cfg) = locked(&account).begin_sign_in() else {
         return;
     };
     std::thread::spawn(move || {
@@ -139,7 +142,7 @@ fn start_sign_in(account: Shared<account::Account>) {
             },
             SIGN_IN_TIMEOUT,
         );
-        let mut acct = account.lock().unwrap();
+        let mut acct = locked(&account);
         acct.signing_in = false;
         match result {
             Ok(session) => acct.signed_in(session),
@@ -304,7 +307,7 @@ fn quit_tray_async(app: &tauri::AppHandle, on_quit: OnQuit) {
 pub fn restart_to_update(app: &tauri::AppHandle) -> Result<(), String> {
     let waiting = app
         .try_state::<update::Slot>()
-        .is_some_and(|slot| slot.lock().unwrap().is_some());
+        .is_some_and(|slot| locked(&slot).is_some());
     if !waiting {
         return Err("no update is waiting".into());
     }
@@ -317,13 +320,13 @@ const TRAY_ID: &str = "tray";
 
 fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit, log: QuitLog) {
     if let Some(sup) = app.try_state::<Shared<sidecar::Supervisor>>() {
-        sup.lock().unwrap().shutdown();
+        locked(&sup).shutdown();
     }
     log.note("watcher stopped");
     let mut joined = true;
     if let Some(rec) = app.try_state::<Recorders>() {
         for handle in [&rec.lmu, &rec.iracing] {
-            if let Some(r) = handle.lock().unwrap().as_mut() {
+            if let Some(r) = locked(&handle).as_mut() {
                 joined &= r.stop(Duration::from_secs(5));
             }
         }
@@ -340,7 +343,7 @@ fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit, log: QuitLog) {
     if on_quit == OnQuit::InstallWaitingUpdate {
         let pending = app
             .try_state::<update::Slot>()
-            .and_then(|slot| slot.lock().unwrap().take());
+            .and_then(|slot| locked(&slot).take());
         match pending {
             Some(pending) => {
                 log.note(&format!("update installing {}", pending.version));
@@ -348,7 +351,7 @@ fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit, log: QuitLog) {
                 if let Err(why) = pending.install() {
                     log.note(&format!("update failed: {why}"));
                     if let Some(account) = app.try_state::<Shared<account::Account>>() {
-                        account.lock().unwrap().message = Some(format!("Update failed: {why}"));
+                        locked(&account).message = Some(format!("Update failed: {why}"));
                     }
                 }
             }
@@ -396,6 +399,7 @@ fn main() {
     // Windows never started the tray; this line with no `second launch` after
     // it means the handoff never reached the running tray.
     launch_log::note_launch();
+    launch_log::install_panic_hook();
     let builder = tauri::Builder::default();
     // The single-instance hold is named after the app identifier; a profile
     // (BOTRACING_PROFILE) gets its own (profile::identifier), so it runs next
@@ -426,7 +430,7 @@ fn main() {
             // window or tab of its own: the sign-in page is the way in.
             let signing_in = app
                 .try_state::<Shared<account::Account>>()
-                .is_some_and(|a| a.lock().unwrap().signing_in);
+                .is_some_and(|a| locked(&a).signing_in);
             // launch.log: a taskbar click that "did nothing" is told apart from
             // one that never arrived, one the tray ignored, and one whose
             // window did not come forward.
@@ -506,7 +510,7 @@ fn main() {
                 profile::is_default(),
                 std::env::var_os("BOTRACING_SEAT_TOKEN_FILE"),
             ) {
-                if account.lock().unwrap().needs_sign_in() {
+                if locked(&account).needs_sign_in() {
                     start_seat_sign_in(account.clone(), file);
                 }
             }
@@ -583,7 +587,7 @@ fn main() {
             // walkthrough profile does neither.
             if profile::is_default() {
                 // Always on; the Run value follows the exe if it moved (an update).
-                let mut acct = account.lock().unwrap();
+                let mut acct = locked(&account);
                 if let Err(why) = paths::current_exe()
                     .map_err(|e| e.to_string())
                     .and_then(|exe| autostart::ensure_on(&autostart::Registry, &exe))
@@ -635,13 +639,13 @@ fn main() {
                     }
                     "pause" => {
                         let paused = pause_menu.is_checked().unwrap_or(false);
-                        let mut acct = account_menu.lock().unwrap();
+                        let mut acct = locked(&account_menu);
                         match acct.set_paused(paused) {
                             Ok(()) => acct.message = None,
                             // The checkbox is put back from settings next tick.
                             Err(why) => acct.message = Some(why),
                         }
-                        sup_menu.lock().unwrap().set_allowed(acct.should_run());
+                        locked(&sup_menu).set_allowed(acct.should_run());
                     }
                     // Quit and "Restart to update" both stop the watcher first;
                     // a waiting update installs here, never while uploading.
@@ -673,19 +677,19 @@ fn main() {
                     account::maintain(&account);
                     // Signed out on launch: open the browser sign-in by
                     // itself, once. Signed out never sits silently in the tray.
-                    let prompt = account.lock().unwrap().take_prompt();
+                    let prompt = locked(&account).take_prompt();
                     if prompt {
                         start_sign_in(account.clone());
                     }
                     {
-                        let acct = account.lock().unwrap();
-                        let mut sup = supervisor.lock().unwrap();
+                        let acct = locked(&account);
+                        let mut sup = locked(&supervisor);
                         sup.set_allowed(acct.should_run());
                         sup.tick(&paths);
                     }
                     if owes_window {
                         let (signed_in, signing_in, has_stored) = {
-                            let acct = account.lock().unwrap();
+                            let acct = locked(&account);
                             (acct.session.is_some(), acct.signing_in, acct.has_stored())
                         };
                         // The browser sign-in is the way in, no window beside it; a
@@ -726,8 +730,8 @@ fn main() {
                         &capture::prune::read_states(&cleanup_poll.state),
                     );
                     let state = {
-                        let acct = account.lock().unwrap();
-                        let sup = supervisor.lock().unwrap();
+                        let acct = locked(&account);
+                        let sup = locked(&supervisor);
                         menu_state(
                             &acct,
                             &sup,
@@ -782,7 +786,7 @@ fn open_window(app: &tauri::AppHandle) -> String {
             Ok(()) => format!("window failed ({why}); opened the browser"),
             Err(browser_why) => {
                 if let Some(account) = app.try_state::<Shared<account::Account>>() {
-                    account.lock().unwrap().message = Some(browser_why.clone());
+                    locked(&account).message = Some(browser_why.clone());
                 }
                 format!("window failed ({why}); browser failed ({browser_why})")
             }
