@@ -39,10 +39,12 @@ it('drops motorcycle-only corner names, venue names and layout names', () => {
       {name: 'Fuji Speedway', lat: 1, lon: 1},
       {name: 'Catalunya (Cutting Half)', lat: 1, lon: 1},
       {name: 'Autódromo Internacional do Algarve', lat: 1, lon: 1},
+      {name: 'Club Circuit', lat: 1, lon: 1},
       {name: 'Raidillon', lat: 1, lon: 1},
+      {name: 'Club', lat: 1, lon: 1},
     ],
   });
-  expect(t.osmNames.map(n => n.name)).toEqual(['Turn 12', 'Raidillon']);
+  expect(t.osmNames.map(n => n.name)).toEqual(['Turn 12', 'Raidillon', 'Club']);
 });
 
 describe('the bundled catalog', () => {

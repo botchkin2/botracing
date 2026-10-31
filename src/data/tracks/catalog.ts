@@ -74,7 +74,7 @@ function toSummary(raw: unknown): TrackSummary | null {
 // ("Road Atlanta Racetrack", "Grand Prix Circuit", "Short Course 1"). Matched by
 // position they would name a real corner after the whole place (ticket 83).
 const NOT_A_CAR_CORNER =
-  /motorcycle|motogp|moto|bike|kart|club|circuit|circuito|layout|racetrack|raceway|speedway|track|course|long lap|aut[oó]dromo|cutting/i;
+  /motorcycle|motogp|moto|bike|kart|circuit|circuito|layout|racetrack|raceway|speedway|track|course|long lap|aut[oó]dromo|cutting/i;
 
 function toNamedPoints(raw: unknown): NamedPoint[] {
   if (!Array.isArray(raw)) return [];
