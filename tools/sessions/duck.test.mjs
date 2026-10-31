@@ -112,11 +112,14 @@ test(
 // A 2 h LMU recording (720,000 rows at 100 Hz, 102 columns) is a CSV past the
 // longest string V8 can build, so the whole-text reader threw
 // ERR_STRING_TOO_LONG on it. It runs in a child process so the peak memory is
-// its own. The bound is the Cloud Run instance (2 GiB, analyzeApi.ts) less what
-// the analysis itself needs, not a measurement of the runner: the child prints
-// both numbers.
-const RSS_BOUND_MB = 1500;
+// its own. The memory bound is the CI runner's own measurement (853 MB, run
+// 41166135001) plus 25 %, so a regression of that size fails; the cloud
+// instance is 2 GiB (analyzeApi.ts). The read must also fit the function's 120 s
+// (32 s on the runner); the child's own limit is wider, as it first builds the
+// file (86 s in all).
+const RSS_BOUND_MB = 1070;
 const WALL_BOUND_MS = 120_000;
+const CHILD_LIMIT_MS = 300_000;
 
 test(
   'a 2 h recording is read within the memory and time of the cloud instance',
@@ -128,7 +131,7 @@ test(
       [join(here, 'longArchiveCheck.mjs')],
       {
         encoding: 'utf8',
-        timeout: WALL_BOUND_MS,
+        timeout: CHILD_LIMIT_MS,
       },
     );
     assert.equal(child.status, 0, child.stderr.slice(0, 600));
