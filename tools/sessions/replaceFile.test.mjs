@@ -105,11 +105,33 @@ test('with backup, a file that is not JSON never overwrites the last good .bak',
 test('a backup that cannot be made does not fail the write', () => {
   const path = join(dir(), 'state.json');
   replaceFile(path, '{"v":1}');
+  let first = true;
   replaceFile(path, '{"v":2}', {
     backup: true,
-    copy: () => {
-      throw new Error('EPERM');
+    // The first rename is the .bak's: it fails; the file's own goes through.
+    rename: (a, b) => {
+      if (first) {
+        first = false;
+        throw locked('ENOSPC');
+      }
+      renameSync(a, b);
     },
   });
   assert.equal(readFileSync(path, 'utf8'), '{"v":2}');
+});
+
+test('the .bak is flushed too: two flushes, the .bak\'s before the file\'s rename (ticket 86, bearing)', () => {
+  const path = join(dir(), 'state.json');
+  replaceFile(path, '{"v":1}');
+  const order = [];
+  replaceFile(path, '{"v":2}', {
+    backup: true,
+    fsync: () => order.push('fsync'),
+    rename: (a, b) => {
+      order.push(b.endsWith('.bak') ? 'rename .bak' : 'rename');
+      renameSync(a, b);
+    },
+  });
+  assert.deepEqual(order, ['fsync', 'fsync', 'rename .bak', 'rename']);
+  assert.equal(readFileSync(`${path}.bak`, 'utf8'), '{"v":1}');
 });

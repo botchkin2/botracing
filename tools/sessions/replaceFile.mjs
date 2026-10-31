@@ -12,7 +12,6 @@
 
 import {
   closeSync,
-  copyFileSync,
   existsSync,
   fsyncSync,
   openSync,
@@ -28,30 +27,40 @@ const WAIT_MS = 25;
 const pause = ms =>
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
-/** True when the file exists and holds JSON. */
-function parses(path) {
+/** The file's text when it exists and holds JSON, else null. */
+function wholeText(path) {
   try {
-    JSON.parse(readFileSync(path, 'utf8'));
-    return true;
+    const text = readFileSync(path, 'utf8');
+    JSON.parse(text);
+    return text;
   } catch {
-    return false;
+    return null;
+  }
+}
+
+/** `rename`, tried again for about a second while the OS holds the file. */
+export function renameWithRetry(from, to, {rename = renameSync, wait = pause} = {}) {
+  for (let i = 1; ; i++) {
+    try {
+      rename(from, to);
+      return;
+    } catch (err) {
+      if (!LOCKED.has(err?.code) || i >= TRIES) throw err;
+      wait(WAIT_MS);
+    }
   }
 }
 
 /**
- * Replaces `path` with `text`; `rename`, `wait`, `fsync` and `copy` are test
- * seams. A backup that cannot be made never fails the write.
+ * Replaces `path` with `text`; `rename`, `wait` and `fsync` are test seams. The
+ * `.bak` is written the same way (flushed, then renamed), so the cut it guards
+ * against cannot tear it either; a backup that cannot be made never fails the
+ * write.
  */
 export function replaceFile(
   path,
   text,
-  {
-    rename = renameSync,
-    wait = pause,
-    fsync = fsyncSync,
-    copy = copyFileSync,
-    backup = false,
-  } = {},
+  {rename = renameSync, wait = pause, fsync = fsyncSync, backup = false} = {},
 ) {
   const tmp = `${path}.tmp`;
   const fd = openSync(tmp, 'w');
@@ -61,20 +70,15 @@ export function replaceFile(
   } finally {
     closeSync(fd);
   }
-  if (backup && existsSync(path) && parses(path)) {
-    try {
-      copy(path, `${path}.bak`);
-    } catch {
-      // The file being replaced is still whole; the write goes on.
+  if (backup && existsSync(path)) {
+    const current = wholeText(path);
+    if (current !== null) {
+      try {
+        replaceFile(`${path}.bak`, current, {rename, wait, fsync});
+      } catch {
+        // The file being replaced is still whole; the write goes on.
+      }
     }
   }
-  for (let i = 1; ; i++) {
-    try {
-      rename(tmp, path);
-      return;
-    } catch (err) {
-      if (!LOCKED.has(err?.code) || i >= TRIES) throw err;
-      wait(WAIT_MS);
-    }
-  }
+  renameWithRetry(tmp, path, {rename, wait});
 }

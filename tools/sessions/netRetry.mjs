@@ -22,7 +22,7 @@ export function isTransient(error) {
   for (let e = error, depth = 0; e && depth < 4; e = e.cause, depth++) {
     if (TRANSIENT.has(e.code) || TRANSIENT.has(e.errno)) return true;
     if (
-      /\b(ECONNRESET|ETIMEDOUT|EPIPE|ENOTFOUND|ECONNREFUSED|ENETUNREACH|EHOSTUNREACH|EAI_AGAIN|socket hang up|fetch failed)\b/.test(
+      /\b(ECONNRESET|ETIMEDOUT|EPIPE|ENOTFOUND|ECONNREFUSED|ENETUNREACH|EHOSTUNREACH|EAI_AGAIN|socket hang up)\b/.test(
         e.message ?? '',
       )
     )

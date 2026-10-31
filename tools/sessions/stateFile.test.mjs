@@ -28,13 +28,21 @@ test('a whole file is read as it is', () => {
   });
 });
 
-test('no file is "missing", and a stray .bak does not turn it into a recovery', () => {
+test('no file and no readable .bak is "missing"', () => {
   const d = dir();
-  writeFileSync(join(d, 'state.json.bak'), '{"a":1}');
-  assert.equal(
-    readStateFile(join(d, 'state.json'), {now: NOW}).source,
-    'missing',
-  );
+  assert.equal(readStateFile(join(d, 'state.json'), {now: NOW}).source, 'missing');
+  writeFileSync(join(d, 'state.json.bak'), 'not json');
+  assert.equal(readStateFile(join(d, 'state.json'), {now: NOW}).source, 'missing');
+});
+
+test('no file but a whole .bak restores from it (a crash after the bad file was moved aside, ticket 86)', () => {
+  const d = dir();
+  const path = join(d, 'state.json');
+  writeFileSync(`${path}.bak`, '{"since":"2026-07-12"}');
+  const got = readStateFile(path, {now: NOW});
+  assert.deepEqual(got, {value: {since: '2026-07-12'}, source: 'backup', keptAs: null});
+  assert.equal(readFileSync(path, 'utf8'), '{"since":"2026-07-12"}');
+  assert.equal(readStateFile(path, {now: NOW}).source, 'file');
 });
 
 for (const [name, bad] of [

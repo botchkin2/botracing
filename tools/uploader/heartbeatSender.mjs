@@ -41,8 +41,13 @@ export function createHeartbeatSender({
   now = Date.now,
   setTimer = (fn, ms) => setTimeout(fn, ms).unref?.(),
   log = () => {},
-  // Called with the time the request was sent when the server accepts a status:
-  // the network is up (the watcher ends its network backoff, retries.mjs).
+  // Called with the time the request was sent when the server accepts a status
+  // after one that failed (it threw or was refused), and for the first status of
+  // the process: the network is back (the watcher ends its network backoff,
+  // retries.mjs). Not on every accepted status: while beats get through, a sync
+  // that keeps failing keeps its backoff (ticket 86, bearing on #811). The first
+  // status counts because the backoff was read from a state file written before
+  // the process started.
   onAccepted = () => {},
 }) {
   let lastKey = null;
@@ -51,6 +56,7 @@ export function createHeartbeatSender({
   let pending = null;
   let busy = false;
   let timerSet = false;
+  let lastSendFailed = true;
 
   const due = doc =>
     statusKey(doc) !== lastKey || now() - lastSentAt >= KEEP_ALIVE_MS;
@@ -73,15 +79,18 @@ export function createHeartbeatSender({
     try {
       const res = await send(bodyOf(doc));
       if (res.status >= 200 && res.status < 300) {
-        onAccepted(sentAt);
+        if (lastSendFailed) onAccepted(sentAt);
+        lastSendFailed = false;
         lastKey = statusKey(doc);
         lastSentAt = now();
         notBefore = lastSentAt + MIN_GAP_MS;
         if (pending === doc) pending = null;
       } else if (res.status === 429) {
+        lastSendFailed = true;
         notBefore = now() + Math.max(1, res.retryAfterSec ?? 30) * 1000;
         // `pending` stays: the latest state goes out after the wait.
       } else {
+        lastSendFailed = true;
         log(
           `status not accepted: HTTP ${res.status}${
             res.reason ? ` ${res.reason}` : ''
@@ -91,6 +100,7 @@ export function createHeartbeatSender({
         if (pending === doc) pending = null; // the same body would be refused again
       }
     } catch (error) {
+      lastSendFailed = true;
       log(`status not sent: ${String(error.message ?? error)}`);
       notBefore = now() + FAILURE_WAIT_MS;
     } finally {
