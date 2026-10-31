@@ -4,11 +4,13 @@ import {apiFetchAt} from '../http';
 
 import {
   analysing,
+  analysisFailed,
   analyzeDeps,
   analyzeOnce,
   POLL_FOR_MS,
   POLL_MS,
   resetAnalysisOnOpen,
+  retryAnalysis,
   type AnalyzeDeps,
 } from './analysisOnOpen';
 
@@ -156,4 +158,30 @@ it('a live lap that lands while an analysis runs is analysed once that one has f
   // Polls of the same lap count ask many times: once only.
   expect(await analyzeOnce('s1', d, 's1#4')).toBe(false);
   expect(calls.filter(c => c === 'post')).toHaveLength(2);
+});
+
+// Ticket 87: a run that did not finish is on screen, with a Retry.
+it('a run that answers badly or throws marks the session failed; a good run clears it', async () => {
+  const bad = deps({post: async () => ({status: 500})});
+  expect(await analyzeOnce('s1', bad.d)).toBe(false);
+  expect(analysisFailed.has('s1')).toBe(true);
+  const thrown = deps({
+    post: async () => {
+      throw new Error('no answer');
+    },
+  });
+  expect(await analyzeOnce('s2', thrown.d)).toBe(false);
+  expect(analysisFailed.has('s2')).toBe(true);
+  expect(analysisFailed.has('s3')).toBe(false);
+  const good = deps();
+  expect(await retryAnalysis('s1', good.d)).toBe(true);
+  expect(analysisFailed.has('s1')).toBe(false);
+  expect(good.calls).toEqual(['post', 'refetch']);
+});
+
+it('Retry runs again after a failure although this run already started it', async () => {
+  const bad = deps({post: async () => ({status: 502})});
+  await analyzeOnce('s1', bad.d);
+  expect(await analyzeOnce('s1', deps().d)).toBe(false);
+  expect(await retryAnalysis('s1', deps().d)).toBe(true);
 });

@@ -36,10 +36,13 @@ import {BottomBar, WorkingLine} from '@/src/ui';
 import {queryClient} from '@/src/utils/queryClient';
 import {DesktopChrome} from '@/src/workspace/DesktopChrome';
 import {UpdateBanner} from '@/src/workspace/UpdateBanner';
+import {AnalysisFailedLine} from '@/src/workspace/AnalysisFailedLine';
 import {usePlanCombo} from '@/src/workspace/usePlanCombo';
 import {useWorkspaceGo} from '@/src/workspace/useWorkspaceGo';
 
 holdSplashForUpdate();
+
+export {RootErrorBoundary as ErrorBoundary} from '@/src/workspace/errorBoundaries';
 
 export default function RootLayout() {
   // Fonts load in the background; text falls back until they arrive.
@@ -111,6 +114,7 @@ function Navigation() {
         ) : (
           <>
             <UpdateBanner restart={restart} />
+            <AnalysisFailedLine />
             {isDesktop && <DesktopChrome />}
             <View style={styles.root}>
               {isDesktop ? stack : <PhoneFrame>{stack}</PhoneFrame>}

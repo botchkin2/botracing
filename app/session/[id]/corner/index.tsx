@@ -24,3 +24,5 @@ export default function CornerIndex() {
     <Redirect href={cornerHref(id, first)} />
   );
 }
+
+export {SessionErrorBoundary as ErrorBoundary} from '@/src/workspace/errorBoundaries';

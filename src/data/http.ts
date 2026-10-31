@@ -50,15 +50,49 @@ export function apiFetch(path: string, init?: RequestInit): Promise<Response> {
 let answeredAt = 0;
 export const lastApiAnswerAt = (): number => answeredAt;
 
+/**
+ * How long the API may take to start answering. Only the wait for the response
+ * headers is timed: a slow body (a 2 h race's field is ~49 MB) is never cut.
+ * The analyze POST is a whole run on the server (its limit is 120 s, analyzeApi).
+ */
+export const ANSWER_TIMEOUT_MS = 20_000;
+export const ANALYZE_ANSWER_TIMEOUT_MS = 130_000;
+
+export class NoAnswerError extends Error {
+  constructor(readonly url: string, readonly afterMs: number) {
+    super(`no answer from ${url} in ${afterMs / 1000} s`);
+  }
+}
+
 /** apiFetch to a full URL beside the lap API (analyzeUrl). */
 export async function apiFetchAt(
   url: string,
   init?: RequestInit,
+  answerTimeoutMs: number = ANSWER_TIMEOUT_MS,
 ): Promise<Response> {
-  const response = await fetch(url, {
-    ...init,
-    headers: {...(await authHeaders()), ...init?.headers},
-  });
+  const headers = {...(await authHeaders()), ...init?.headers};
+  // Hermes has no AbortSignal.timeout or .any: one controller, fed by the
+  // caller's signal and by the timer.
+  const controller = new AbortController();
+  const caller = init?.signal;
+  const forward = () => controller.abort();
+  if (caller?.aborted) forward();
+  else caller?.addEventListener('abort', forward);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, answerTimeoutMs);
+  let response: Response;
+  try {
+    response = await fetch(url, {...init, headers, signal: controller.signal});
+  } catch (error) {
+    if (timedOut) throw new NoAnswerError(url, answerTimeoutMs);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    caller?.removeEventListener('abort', forward);
+  }
   answeredAt = Date.now();
   if (response.status === 401) reportUnauthorized();
   return response;

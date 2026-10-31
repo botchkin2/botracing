@@ -107,3 +107,5 @@ const styles = StyleSheet.create({
   row: {flex: 1, flexDirection: 'row'},
   flex: {flex: 1},
 });
+
+export {SessionErrorBoundary as ErrorBoundary} from '@/src/workspace/errorBoundaries';

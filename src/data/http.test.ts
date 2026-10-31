@@ -7,10 +7,12 @@ import {
 } from './tokenSource';
 
 import {
+  ANSWER_TIMEOUT_MS,
   apiBaseUrl,
   apiFetch,
   getJson,
   HttpError,
+  NoAnswerError,
   retryUnlessClientError,
 } from './http';
 
@@ -104,5 +106,57 @@ describe('getJson', () => {
     stubFetch(401);
     await expect(getJson('/sessions')).rejects.toBeInstanceOf(HttpError);
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Ticket 87: a connection that never answers must end in an error, and a slow
+// body must not be cut by the same timer.
+describe('apiFetch answer timeout', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('rejects when no response headers arrive in time', async () => {
+    jest.useFakeTimers();
+    globalThis.fetch = ((_url: string, init?: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () =>
+          reject(new Error('aborted')),
+        );
+      })) as typeof fetch;
+    const pending = apiFetch('/sessions');
+    const outcome = expect(pending).rejects.toBeInstanceOf(NoAnswerError);
+    await jest.advanceTimersByTimeAsync(ANSWER_TIMEOUT_MS);
+    await outcome;
+  });
+
+  it('does not abort a body that is still arriving after the timeout', async () => {
+    jest.useFakeTimers();
+    let aborted = false;
+    globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+      init?.signal?.addEventListener('abort', () => {
+        aborted = true;
+      });
+      return new Response('{}', {status: 200});
+    }) as typeof fetch;
+    const response = await apiFetch('/sessions');
+    await jest.advanceTimersByTimeAsync(ANSWER_TIMEOUT_MS * 3);
+    expect(aborted).toBe(false);
+    expect(response.status).toBe(200);
+  });
+
+  it('passes a caller abort through', async () => {
+    const caller = new AbortController();
+    globalThis.fetch = ((_url: string, init?: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        // As the real fetch: an already aborted signal rejects at once.
+        if (init?.signal?.aborted) reject(new Error('caller aborted'));
+        init?.signal?.addEventListener('abort', () =>
+          reject(new Error('caller aborted')),
+        );
+      })) as typeof fetch;
+    const pending = apiFetch('/sessions', {signal: caller.signal});
+    caller.abort();
+    await expect(pending).rejects.toThrow('caller aborted');
   });
 });

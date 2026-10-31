@@ -4,7 +4,7 @@
 // it; they read the stored values (decisions/lap/2026-10-12-analysis-on-open.md).
 import {type QueryClient} from '@tanstack/react-query';
 
-import {analyzeUrl, apiFetchAt} from '../http';
+import {ANALYZE_ANSWER_TIMEOUT_MS, analyzeUrl, apiFetchAt} from '../http';
 import {traceKeys} from '../traces/queries';
 
 import {fetchSession} from './client';
@@ -19,11 +19,22 @@ export const POLL_FOR_MS = 120_000;
 // per stored lap count instead (its `key`): each new lap is new data.
 const started = new Set<string>();
 const running = new Set<string>();
+// Sessions whose last run did not finish: the app says so and offers Retry.
+const failed = new Set<string>();
 const listeners = new Set<() => void>();
 
 function changed() {
   for (const l of listeners) l();
 }
+
+/** For useSyncExternalStore: has this session's last analysis failed. */
+export const analysisFailed = {
+  subscribe(listener: () => void) {
+    listeners.add(listener);
+    return () => void listeners.delete(listener);
+  },
+  has: (sessionId: string) => failed.has(sessionId),
+};
 
 /** For useSyncExternalStore: how many sessions are being analysed now. */
 export const analysing = {
@@ -55,6 +66,7 @@ export async function analyzeOnce(
   if (started.has(key) || running.has(sessionId)) return false;
   started.add(key);
   running.add(sessionId);
+  failed.delete(sessionId);
   changed();
   try {
     const {status} = await deps.post(sessionId);
@@ -66,12 +78,14 @@ export async function analyzeOnce(
       }
     } else if (status !== 200) {
       console.warn(`analysis on open: ${sessionId} answered ${status}`);
+      failed.add(sessionId);
       return false;
     }
     await deps.refetch(sessionId);
     return true;
   } catch (error) {
     console.warn(`analysis on open: ${sessionId} failed`, error);
+    failed.add(sessionId);
     return false;
   } finally {
     running.delete(sessionId);
@@ -79,11 +93,21 @@ export async function analyzeOnce(
   }
 }
 
+let retries = 0;
+/** Retry on the person's tap: a run of its own, whatever ran before. */
+export function retryAnalysis(sessionId: string, deps: AnalyzeDeps) {
+  return analyzeOnce(sessionId, deps, `${sessionId}#retry${++retries}`);
+}
+
 /** The app's bindings: the API, and every cached answer about the session. */
 export function analyzeDeps(client: QueryClient): AnalyzeDeps {
   return {
     post: async id => {
-      const res = await apiFetchAt(analyzeUrl(id), {method: 'POST'});
+      const res = await apiFetchAt(
+        analyzeUrl(id),
+        {method: 'POST'},
+        ANALYZE_ANSWER_TIMEOUT_MS,
+      );
       // Only the function's own answer counts: a host without the route
       // answers its web page with a 200 (seen before Hosting deployed it).
       const body: unknown = await res.json().catch(() => null);
@@ -110,4 +134,5 @@ export function analyzeDeps(client: QueryClient): AnalyzeDeps {
 export function resetAnalysisOnOpen() {
   started.clear();
   running.clear();
+  failed.clear();
 }
