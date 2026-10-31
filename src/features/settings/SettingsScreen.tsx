@@ -195,9 +195,9 @@ function WindowsApp() {
           {card.status}
         </Text>
         <UpdateRow ready={ready} restart={restart} />
-        {card.pcs.map(line => (
-          <Text key={line} variant='dataSmall' tone='textSecondary'>
-            {line}
+        {card.pcs.map(pc => (
+          <Text key={pc.key} variant='dataSmall' tone='textSecondary'>
+            {pc.text}
           </Text>
         ))}
         {card.canDownload ? (
@@ -356,8 +356,9 @@ function Card({card}: {card: UploaderCard}) {
         </Text>
       </View>
       <Text variant='data'>{card.status}</Text>
-      {card.lines.map(l => (
-        <Text key={l} variant='dataSmall' tone='textSecondary'>
+      {/* Fixed order per card, and two lines can read the same: keyed by position. */}
+      {card.lines.map((l, i) => (
+        <Text key={i} variant='dataSmall' tone='textSecondary'>
           {l}
         </Text>
       ))}
