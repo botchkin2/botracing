@@ -367,7 +367,18 @@ async function heartbeat(
 
 // -- the handler ------------------------------------------------------------
 
+// Never cached: Hosting's CDN keeps a 404 for ten minutes when the function
+// says nothing, so a session read before it was written answered "no such
+// document" to its own read-back (ticket 80).
 export async function handleUpload(
+  deps: UploadDeps,
+  req: UploadRequest,
+): Promise<UploadResponse> {
+  const out = await respond(deps, req);
+  return {...out, headers: {...out.headers, 'Cache-Control': 'no-store'}};
+}
+
+async function respond(
   deps: UploadDeps,
   req: UploadRequest,
 ): Promise<UploadResponse> {
