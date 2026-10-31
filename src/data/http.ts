@@ -90,8 +90,9 @@ export async function apiFetchAt(
     if (timedOut) throw new NoAnswerError(url, answerTimeoutMs);
     throw error;
   } finally {
+    // Only the timer ends here: the caller's abort still reaches the body
+    // read after the headers, so leaving a screen stops a big download.
     clearTimeout(timer);
-    caller?.removeEventListener('abort', forward);
   }
   answeredAt = Date.now();
   if (response.status === 401) reportUnauthorized();

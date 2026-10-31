@@ -145,6 +145,24 @@ describe('apiFetch answer timeout', () => {
     expect(response.status).toBe(200);
   });
 
+  it('a caller abort after the headers still stops the body read', async () => {
+    const caller = new AbortController();
+    globalThis.fetch = (async (_url: string, init?: RequestInit) => ({
+      ok: true,
+      status: 200,
+      json: () =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(new Error('body aborted')),
+          );
+        }),
+    })) as unknown as typeof fetch;
+    const response = await apiFetch('/sessions', {signal: caller.signal});
+    const body = response.json();
+    caller.abort();
+    await expect(body).rejects.toThrow('body aborted');
+  });
+
   it('passes a caller abort through', async () => {
     const caller = new AbortController();
     globalThis.fetch = ((_url: string, init?: RequestInit) =>
