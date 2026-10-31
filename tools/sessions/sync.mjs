@@ -208,8 +208,10 @@ function readState() {
   if (read.source === 'file') return read.value;
   if (read.source === 'backup') {
     log(
-      `state.json was unreadable; restored from state.json.bak${
-        read.keptAs ? ` (the bad file is kept as ${read.keptAs})` : ' (the file was missing)'
+      `state.json ${
+        read.keptAs ? 'was unreadable' : 'was missing'
+      }; restored from state.json.bak${
+        read.keptAs ? ` (the bad file is kept as ${read.keptAs})` : ''
       }`,
     );
     return read.value;

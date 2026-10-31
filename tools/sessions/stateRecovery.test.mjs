@@ -62,7 +62,7 @@ test('a missing state.json with a whole .bak is restored from it and says the fi
   const good = JSON.stringify({files: {}, sessions: {}, owners: {}, since: '2026-07-12'});
   const {work, run, out} = listWith({backup: good});
   assert.equal(run.status, 0, out);
-  assert.match(out, /restored from state\.json\.bak \(the file was missing\)/);
+  assert.match(out, /state\.json was missing; restored from state\.json\.bak/);
   assert.doesNotMatch(out, /kept as null/);
   assert.equal(kept(work).length, 0);
   assert.equal(readFileSync(join(work, 'state.json'), 'utf8'), good);
