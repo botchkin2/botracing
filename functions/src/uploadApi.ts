@@ -179,6 +179,8 @@ export const uploadApi = onRequest(
     serviceAccount: RUNTIME_ACCOUNT,
   },
   async (req, res) => {
+    // Also the 413 and 500 below: handleUpload sets it on everything it answers.
+    res.set('Cache-Control', 'no-store');
     // Bodies are JSON docs (at most 400 ops); file bytes go to Storage by
     // signed URL, so a big request is a mistake or an attack.
     // A chunked request has no content-length, so the received bytes count too.

@@ -648,3 +648,19 @@ test("tray 0.1.10's own client still uploads to this server", async () => {
     rmSync(path);
   }
 });
+
+// Ticket 80: Hosting's CDN keeps a 404 for ten minutes unless the function
+// says otherwise, so a session read before it was written answered "no such
+// document" to its own read-back.
+test('every answer is no-store, the 404 of a read included', async () => {
+  const w = world();
+  const miss = await call(w, 'tok-a', 'GET', '/doc/sessions/s1');
+  assert.equal(miss.status, 404);
+  assert.equal(miss.headers['Cache-Control'], 'no-store');
+  const noToken = await call(w, null, 'GET', '/me');
+  assert.equal(noToken.status, 401);
+  assert.equal(noToken.headers['Cache-Control'], 'no-store');
+  const me = await call(w, 'tok-a', 'GET', '/me');
+  assert.equal(me.status, 200);
+  assert.equal(me.headers['Cache-Control'], 'no-store');
+});
