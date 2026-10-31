@@ -129,10 +129,21 @@ test("reads of another owner's documents are 404, not 403", async () => {
   assert.equal((await call(w, 'tok-b', 'GET', '/doc/sessions/s1')).status, 404);
   // A live lap reads its recording docs (store.mjs uploadLive): the owner's only.
   await write(w, 'tok-a', [
-    {op: 'set', coll: 'recordings', id: 'r1', data: {ownerId: 'uidA', archive: {parts: []}}},
+    {
+      op: 'set',
+      coll: 'recordings',
+      id: 'r1',
+      data: {ownerId: 'uidA', archive: {parts: []}},
+    },
   ]);
-  assert.equal((await call(w, 'tok-a', 'GET', '/doc/recordings/r1')).status, 200);
-  assert.equal((await call(w, 'tok-b', 'GET', '/doc/recordings/r1')).status, 404);
+  assert.equal(
+    (await call(w, 'tok-a', 'GET', '/doc/recordings/r1')).status,
+    200,
+  );
+  assert.equal(
+    (await call(w, 'tok-b', 'GET', '/doc/recordings/r1')).status,
+    404,
+  );
   assert.equal(
     (await call(w, 'tok-b', 'GET', '/doc/sessions/none')).status,
     404,
@@ -663,4 +674,51 @@ test('every answer is no-store, the 404 of a read included', async () => {
   const me = await call(w, 'tok-a', 'GET', '/me');
   assert.equal(me.status, 200);
   assert.equal(me.headers['Cache-Control'], 'no-store');
+});
+
+// Ticket 89: a session may list only recordings that are its owner's, or none yet.
+test("a session naming another owner's recording is refused; an own or a not-yet-written one is accepted", async () => {
+  const w = world();
+  await write(w, 'tok-b', [
+    {op: 'set', coll: 'recordings', id: 'rB', data: {ownerId: 'uidB'}},
+  ]);
+  const session = (id, recordingIds, merge) => ({
+    op: 'set',
+    coll: 'sessions',
+    id,
+    data: {ownerId: 'uidA', recordingIds},
+    ...(merge ? {merge: true} : {}),
+  });
+  const before = JSON.stringify([...w.docs]);
+  for (const op of [session('s1', ['rB']), session('s1', ['rA', 'rB'], true)]) {
+    const res = await write(w, 'tok-a', [op]);
+    assert.equal(res.status, 403, JSON.stringify(op));
+    assert.match(res.json.error, /another owner/);
+  }
+  assert.equal(JSON.stringify([...w.docs]), before);
+  // Own recording, then an id with no document yet (written later in the push).
+  await write(w, 'tok-a', [
+    {op: 'set', coll: 'recordings', id: 'rA', data: {ownerId: 'uidA'}},
+  ]);
+  assert.equal((await write(w, 'tok-a', [session('s2', ['rA'])])).status, 204);
+  assert.equal(
+    (await write(w, 'tok-a', [session('s3', ['rLater'])])).status,
+    204,
+  );
+  // The same push may carry the recording and the session that lists it.
+  assert.equal(
+    (
+      await write(w, 'tok-a', [
+        {op: 'set', coll: 'recordings', id: 'rNew', data: {ownerId: 'uidA'}},
+        session('s4', ['rNew']),
+      ])
+    ).status,
+    204,
+  );
+  // A malformed id is a bad request, not a read.
+  assert.equal(
+    (await write(w, 'tok-a', [session('s5', ['../rB'])])).status,
+    400,
+  );
+  assert.equal((await write(w, 'tok-a', [session('s5', [7])])).status, 400);
 });

@@ -56,7 +56,7 @@ async function repairOne(s, {store, writeArchive, dir, sim, ownerId}) {
       // Nothing the old guessed types rounded: the stored file is right.
       if (rounded.length === 0) continue;
       // The path every upload writes (sync.mjs build); analysis on open
-      // reads it first (analyzeStored.mjs archiveCandidates).
+      // reads it under the owner's folder (analyzeStored.mjs archivePath).
       const dest = `archive/${sim}/${s.id}/${f.id}/samples.parquet`;
       // Sent only when the stored bytes differ, but stale either way: a run
       // that put the file and then failed before marking it leaves the same

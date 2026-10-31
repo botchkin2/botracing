@@ -4,21 +4,35 @@ import {mkdtempSync, readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {test} from 'node:test';
-import {analyzeStored, archiveCandidates} from './analyzeStored.mjs';
+import {analyzeStored, archivePath} from './analyzeStored.mjs';
 import {analysisStamp} from './versionKey.mjs';
 
-test('an archive is looked for under its own path, then under the owner key', () => {
-  assert.deepEqual(
-    archiveCandidates('archive/lmu/s/r/samples.parquet', 'botkin'),
-    [
-      'archive/lmu/s/r/samples.parquet',
-      'archive/botkin/lmu/s/r/samples.parquet',
-    ],
+test("an archive is only ever read under the owner's folder", () => {
+  // The client's spelling and the already-scoped one name the same file.
+  assert.equal(
+    archivePath('archive/lmu/s/r/samples.parquet', 'botkin'),
+    'archive/botkin/lmu/s/r/samples.parquet',
   );
-  assert.deepEqual(
-    archiveCandidates('archive/botkin/lmu/s/r/samples.parquet', 'botkin'),
-    ['archive/botkin/lmu/s/r/samples.parquet'],
+  assert.equal(
+    archivePath('archive/botkin/lmu/s/r/samples.parquet', 'botkin'),
+    'archive/botkin/lmu/s/r/samples.parquet',
   );
+  // Another owner's folder is not followed: it resolves under the owner's, where nothing is.
+  assert.equal(
+    archivePath('archive/other/lmu/s/r/samples.parquet', 'botkin'),
+    'archive/botkin/other/lmu/s/r/samples.parquet',
+  );
+  for (const unsafe of [
+    'archive/lmu/../other/lmu/s/r/samples.parquet',
+    'archive/lmu/.hidden/r/samples.parquet',
+    String.raw`archive/lmu\s\r/samples.parquet`,
+    'archive//lmu/s/r/samples.parquet',
+    'traces/botkin/lmu/s/r/samples.parquet',
+    'archive/lmu',
+    undefined,
+    42,
+  ])
+    assert.equal(archivePath(unsafe, 'botkin'), null, String(unsafe));
 });
 
 function storeOf({session, recordings, files}) {
@@ -59,6 +73,7 @@ const session = {
 };
 const recording = {
   id: 'r1',
+  ownerId: 'botkin',
   sim: 'lmu',
   sessionType: 'Race',
   // An old doc: the old path, the file under the owner's key.
@@ -428,5 +443,114 @@ test('a healed live drive (game-file recording, the live counter still on the se
       `run ${run}: no live count left over`,
     );
     // the next run reads what this one stored, as the cloud does
+  }
+});
+
+// Ticket 89: a session doc can name any recording id and a recording doc any
+// archive path; the cloud reads neither another owner's recording nor a path
+// outside the owner's folder.
+function readsOf(backend) {
+  const reads = [];
+  const getFile = backend.getFile;
+  backend.getFile = async dest => (reads.push(dest), getFile(dest));
+  return reads;
+}
+
+test("a recording of another owner named by this owner's session reads as absent, and none of its bytes are read", async () => {
+  const victim = {
+    ...recording,
+    id: 'victim',
+    ownerId: 'someone-else',
+    archive: {
+      samples: 'archive/someone-else/lmu/sv/victim/samples.parquet',
+      events: 'archive/someone-else/lmu/sv/victim/events.parquet',
+    },
+  };
+  const files = new Map([
+    ['archive/someone-else/lmu/sv/victim/samples.parquet', Buffer.from('X')],
+    ['archive/someone-else/lmu/sv/victim/events.parquet', Buffer.from('X')],
+  ]);
+  const backend = storeOf({
+    session: {...session, recordingIds: ['victim']},
+    recordings: [victim],
+    files,
+  });
+  const reads = readsOf(backend);
+  await assert.rejects(
+    analyzeStored({
+      backend,
+      sessionId: 's1',
+      owner: 'botkin',
+      workDir: mkdtempSync(join(tmpdir(), 'aS-')),
+      analyze: engineOut,
+    }),
+    e => e.status === 409 && /has no archive/.test(e.message),
+  );
+  assert.deepEqual(reads, []);
+  assert.equal(backend.written.length, 0);
+});
+
+test("an own recording whose archive path names another owner's folder is never read from there", async () => {
+  const crafted = {
+    ...recording,
+    archive: {
+      samples: 'archive/someone-else/lmu/sv/victim/samples.parquet',
+      events: 'archive/someone-else/lmu/sv/victim/events.parquet',
+    },
+  };
+  const files = new Map([
+    ['archive/someone-else/lmu/sv/victim/samples.parquet', Buffer.from('X')],
+    ['archive/someone-else/lmu/sv/victim/events.parquet', Buffer.from('X')],
+    // The legacy unscoped copy is not followed either.
+    ['archive/lmu/s1/r1/samples.parquet', Buffer.from('L')],
+    ['archive/lmu/s1/r1/events.parquet', Buffer.from('L')],
+  ]);
+  const backend = storeOf({session, recordings: [crafted], files});
+  const reads = readsOf(backend);
+  await assert.rejects(
+    analyzeStored({
+      backend,
+      sessionId: 's1',
+      owner: 'botkin',
+      workDir: mkdtempSync(join(tmpdir(), 'aS-')),
+      analyze: engineOut,
+    }),
+    e => e.status === 409 && /archive missing/.test(e.message),
+  );
+  assert.ok(
+    reads.every(dest => dest.startsWith('archive/botkin/')),
+    String(reads),
+  );
+});
+
+test('a normal recording (client spelling, owner-scoped spelling, live parts) still reads and analyses', async () => {
+  for (const archive of [
+    {
+      samples: 'archive/lmu/s1/r1/samples.parquet',
+      events: 'archive/lmu/s1/r1/events.parquet',
+    },
+    {
+      samples: 'archive/botkin/lmu/s1/r1/samples.parquet',
+      events: 'archive/botkin/lmu/s1/r1/events.parquet',
+    },
+  ]) {
+    const files = new Map([
+      ['archive/botkin/lmu/s1/r1/samples.parquet', Buffer.from('S')],
+      ['archive/botkin/lmu/s1/r1/events.parquet', Buffer.from('E')],
+    ]);
+    const backend = storeOf({
+      session,
+      recordings: [{...recording, archive}],
+      files,
+    });
+    let input;
+    await analyzeStored({
+      backend,
+      sessionId: 's1',
+      owner: 'botkin',
+      workDir: mkdtempSync(join(tmpdir(), 'aS-')),
+      analyze: i => ((input = i), engineOut()),
+    });
+    assert.equal(readFileSync(input.recordings[0].samplesPath, 'utf8'), 'S');
   }
 });

@@ -37,6 +37,17 @@ export function memoryStore(seed = {}, {ownerKey}) {
   const docs = new Map(Object.entries(seed));
   const files = new Map();
   const key = (coll, id) => `${coll}/${id}`;
+  // As the upload API stores a client's archive/{sim}/... name
+  // (uploadCore.ts filePath, clientName): under the owner's folder. Analysis
+  // reads an archive only there (analyzeStored.mjs archivePath).
+  const stored = dest =>
+    /^archive\/(lmu|iracing)\//.test(dest)
+      ? `archive/${ownerKey}/${dest.slice('archive/'.length)}`
+      : dest;
+  const clientName = name =>
+    name.startsWith(`archive/${ownerKey}/`)
+      ? `archive/${name.slice(`archive/${ownerKey}/`.length)}`
+      : name;
   return {
     docs,
     files,
@@ -80,23 +91,28 @@ export function memoryStore(seed = {}, {ownerKey}) {
         .map(([k]) => k.slice(5));
     },
     async fileMd5(dest) {
-      const b = files.get(dest);
+      const b = files.get(stored(dest));
       return b ? createHash('md5').update(b).digest('base64') : null;
     },
     async putFile(dest, source, {gzip} = {}) {
       const bytes = source.localPath
         ? readFileSync(source.localPath)
         : Buffer.from(source.body);
-      files.set(dest, gzip && !source.localPath ? gzipSync(bytes) : bytes);
+      files.set(
+        stored(dest),
+        gzip && !source.localPath ? gzipSync(bytes) : bytes,
+      );
     },
     async getFile(dest) {
-      return files.get(dest) ?? null;
+      return files.get(stored(dest)) ?? null;
     },
     async deleteFile(dest) {
-      files.delete(dest);
+      files.delete(stored(dest));
     },
     async listFiles(prefix) {
-      return [...files.keys()].filter(k => k.startsWith(prefix));
+      return [...files.keys()]
+        .filter(k => k.startsWith(stored(prefix)))
+        .map(clientName);
     },
   };
 }
