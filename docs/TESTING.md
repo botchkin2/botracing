@@ -58,6 +58,8 @@ node tools/sessions/sync.mjs --remote --only "<session name>"
 
 Ids derive from the uid, so they never clash with Botkin's. A re-seed is the same command.
 
+A seat-test sync runs on a **copy** of the captures in a temp folder, with its own `--work` and `--capture`, never on `%LOCALAPPDATA%lap-capture` or the tray's work dir: the sync writes `uploaded.json` markers into its capture root, and seat-test ids in his markers (ticket 62) sat there until his own verified sessions covered the drive. `--log-folder` does not scope the game files (those still come from the real `Telemetry` folder): limit a run with `--only "<name>"`, and dry-run with `--local` first to see what it would send.
+
 ## Reading Botkin's stored data
 
 Seats may read production data read-only (pit-wall `JOIN.md`). `tools/sessions/readStored.mjs` is the one reader for it: firebase-admin on `botracing-61` with your own `gcloud` login, `get` and `getAll` only, and `readStored.test.mjs` fails if the file gains a write call, an import beyond node built-ins and firebase-admin, or a second allow line in `.claude/settings.json`. A query needs `--owner` (an `ownerId` prefix), `--where field=value` or `--id`; `--fields` names what to print and the server sends only those.
