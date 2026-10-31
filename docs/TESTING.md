@@ -48,7 +48,7 @@ A 3D before/after pair needs both builds on the same race time. On the `embed=3d
 
 ## Test data
 
-`seat-test` has no sessions until some are uploaded through the real pipeline (LMU only; no iRacing until the sessions game filter exists): one race, one practice, one with several files.
+`seat-test` holds a copy of his LMU sessions since 2026-08-01 (a sync on 2026-10-31 uploaded 99 of them under its own ids; no iRacing until the sessions game filter exists), so "seat-test has no X" is not safe to assume: name the session id in a proof.
 
 ```powershell
 node functions/scripts/mintTestToken.mjs --id-token-file $env:TEMP\seat-test.token   # writes an hour-long ID token
@@ -57,6 +57,8 @@ node tools/sessions/sync.mjs --remote --only "<session name>"
 ```
 
 Ids derive from the uid, so they never clash with Botkin's. A re-seed is the same command.
+
+A seat-test sync runs on a **copy** of the captures in a temp folder, with its own `--work` and `--capture`, never on `%LOCALAPPDATA%\lap-capture` or the tray's `%LOCALAPPDATA%\BotRacing\sessions`: the sync writes `uploaded.json` markers into its capture root, and seat-test ids in his markers (ticket 62) sat there until his own verified sessions covered the drive. `--log-folder` does not scope the game files (those still come from the real `Telemetry` folder): limit a run with `--only "<name>"`, and dry-run with `--local` first to see what it would send.
 
 ## Reading Botkin's stored data
 
