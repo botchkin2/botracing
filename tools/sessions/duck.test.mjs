@@ -109,9 +109,11 @@ test(
   },
 );
 
-// A 2 h LMU recording (720,000 rows at 100 Hz, 102 columns) is a CSV past the
-// longest string V8 can build, so the whole-text reader threw
-// ERR_STRING_TOO_LONG on it. It runs in a child process so the peak memory is
+// A synthetic stress file shaped like a 2 h LMU recording (720,000 rows at
+// 100 Hz, 102 columns) whose long decimals make a CSV past the longest string
+// V8 can build, so the whole-text reader threw ERR_STRING_TOO_LONG on it. A
+// real 2 h recording is about 150 MB of text, well under that cap: this is a
+// guard beyond it, not a description of a real race. It runs in a child process so the peak memory is
 // its own. The memory bound is the CI runner's own measurement (853 MB, run
 // 41166135001) plus 25 %, so a regression of that size fails; the cloud
 // instance is 2 GiB (analyzeApi.ts). The read must also fit the function's 120 s
