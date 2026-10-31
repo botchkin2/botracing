@@ -10,8 +10,8 @@ export type TrayCard = {
   status: string;
   /** The version a download offers; null when there is none. */
   version: string | null;
-  /** One line per PC: its tray version against the latest, or not reporting. */
-  pcs: string[];
+  /** One row per PC: its tray version against the latest, or not reporting. `key` is the uploader's id, so two PCs reading the same line stay two rows. */
+  pcs: {key: string; text: string}[];
   /** The Download button shows: a release exists and this user has no tray running (not seen in 10 minutes) and is not inside one. */
   canDownload: boolean;
 };
@@ -74,12 +74,13 @@ export function trayCard(q: {
   const nowMs = q.nowMs ?? Date.now();
   const pcs = q.pcs
     ? q.pcs.length === 0
-      ? ['No PC reporting']
+      ? [{key: 'none', text: 'No PC reporting'}]
       : [...q.pcs]
           .sort((a, b) => (b.lastSeenAt ?? 0) - (a.lastSeenAt ?? 0))
-          .map(u =>
-            pcLine(u, latest, nowMs, q.pcs!.length > 1, q.inTray === true),
-          )
+          .map(u => ({
+            key: u.hostId,
+            text: pcLine(u, latest, nowMs, q.pcs!.length > 1, q.inTray === true),
+          }))
     : [];
   const hasTray =
     q.inTray === true ||
