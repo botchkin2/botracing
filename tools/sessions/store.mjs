@@ -144,9 +144,22 @@ const TRANSIENT = new Set([4, 8, 10, 13, 14]);
 const stampSession = (coll, data) =>
   coll === 'sessions' ? {...data, changedAt: new Date().toISOString()} : data;
 
-// `bucket` is only needed for the file primitives.
-export function adminBackend({db, bucket}) {
+// `bucket` is only needed for the file primitives. `ownerKey`: the owner the
+// files are for. An `archive/{lmu|iracing}/...` name is stored under
+// `archive/{ownerKey}/`, as the upload API stores it (uploadCore.ts filePath),
+// because analysis reads an archive only there (analyzeStored.mjs archivePath).
+// Without an owner (reads of docs, the cloud's backend, which is handed names
+// already under the owner's folder) names are used as given.
+export function adminBackend({db, bucket, ownerKey = null}) {
   const ref = (coll, id) => db.collection(coll).doc(id);
+  const stored = dest =>
+    ownerKey && /^archive\/(lmu|iracing)\//.test(dest)
+      ? `archive/${ownerKey}/${dest.slice('archive/'.length)}`
+      : dest;
+  const clientName = name =>
+    ownerKey && name.startsWith(`archive/${ownerKey}/`)
+      ? `archive/${name.slice(`archive/${ownerKey}/`.length)}`
+      : name;
   return {
     async getDoc(coll, id) {
       const doc = await ref(coll, id).get();
@@ -215,7 +228,7 @@ export function adminBackend({db, bucket}) {
     async fileMd5(dest) {
       try {
         const [meta] = await withNetRetry(() =>
-          bucket.file(dest).getMetadata(),
+          bucket.file(stored(dest)).getMetadata(),
         );
         return meta.md5Hash;
       } catch (error) {
@@ -224,10 +237,12 @@ export function adminBackend({db, bucket}) {
       }
     },
     putFile: (dest, source, options) =>
-      putAdminFile(bucket, dest, source, options),
+      putAdminFile(bucket, stored(dest), source, options),
     async getFile(dest) {
       try {
-        const [gz] = await bucket.file(dest).download({decompress: false});
+        const [gz] = await bucket
+          .file(stored(dest))
+          .download({decompress: false});
         return gz;
       } catch (error) {
         if (error?.code === 404) return null;
@@ -235,11 +250,11 @@ export function adminBackend({db, bucket}) {
       }
     },
     async deleteFile(dest) {
-      await bucket.file(dest).delete({ignoreNotFound: true});
+      await bucket.file(stored(dest)).delete({ignoreNotFound: true});
     },
     async listFiles(prefix) {
-      const [files] = await bucket.getFiles({prefix});
-      return files.map(f => f.name);
+      const [files] = await bucket.getFiles({prefix: stored(prefix)});
+      return files.map(f => clientName(f.name));
     },
   };
 }
@@ -1109,19 +1124,23 @@ export function createStore(backend) {
   };
 }
 
-// The PC uploader's store: Admin credentials, connected on first use.
-const admin = () => createStore(adminBackend(connect()));
+// The PC uploader's store: Admin credentials, connected on first use. `ownerId`
+// is the owner of the session the call is about (see adminBackend).
+const admin = ownerId =>
+  createStore(adminBackend({...connect(), ownerKey: ownerId ?? null}));
 
 export const getTrack = trackId => admin().getTrack(trackId);
 export const updateEvents = items => admin().updateEvents(items);
-export const upload = (out, options) => admin().upload(out, options);
-export const verify = (out, options) => admin().verify(out, options);
+export const upload = (out, options) =>
+  admin(out.session.ownerId).upload(out, options);
+export const verify = (out, options) =>
+  admin(out?.session.ownerId).verify(out, options);
 export const putCaptureExtract = (ownerId, sessionId, extract) =>
-  admin().putCaptureExtract(ownerId, sessionId, extract);
+  admin(ownerId).putCaptureExtract(ownerId, sessionId, extract);
 export const putResultsInput = (ownerId, sessionId, input) =>
-  admin().putResultsInput(ownerId, sessionId, input);
+  admin(ownerId).putResultsInput(ownerId, sessionId, input);
 export const markStale = (sessionId, ownerId) =>
-  admin().markStale(sessionId, ownerId);
+  admin(ownerId).markStale(sessionId, ownerId);
 export const getBoundaries = (trackId, db) =>
   createStore(adminBackend({db: db ?? connect().db})).getBoundaries(trackId);
 export const putBoundaries = (boundaries, db) =>

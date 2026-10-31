@@ -56,29 +56,33 @@ export class AnalyzeError extends Error {
   }
 }
 
+// Same segment rule as the upload endpoint (uploadCore.ts SAFE_SEGMENT).
+const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,199}$/;
+
 /**
- * Where a recording's archive file may be. The doc names the path it was
- * written under; a tray upload sits under the owner's key as well
- * (uploadCore.ts), and 50 docs written before that name the old path while
- * the file is under the owner's (pit-wall thread 1 #4550).
+ * Where a recording's archive file is: always `archive/{owner}/{rest}`, the
+ * folder every upload writes under (uploadCore.ts), whatever the doc says. A
+ * doc's path is the client's text and is never followed as written: one that
+ * names another owner's folder, or the legacy unscoped `archive/lmu/`, resolves
+ * to a file under the owner's folder or to nothing (pit-wall ticket 89; all
+ * 1,444 client-spelled archive paths of his recordings have their file under
+ * his folder). Null for a path that is not under `archive/` or has an unsafe
+ * segment.
  */
-export function archiveCandidates(path, ownerKey) {
-  const out = [path];
-  const rest = path.replace(/^archive\//, '');
-  if (rest !== path && !rest.startsWith(`${ownerKey}/`))
-    out.push(`archive/${ownerKey}/${rest}`);
-  return out;
+export function archivePath(path, owner) {
+  if (typeof path !== 'string' || !path.startsWith('archive/')) return null;
+  let segments = path.slice('archive/'.length).split('/');
+  if (segments[0] === owner) segments = segments.slice(1);
+  if (segments.length < 2 || !segments.every(part => SAFE_SEGMENT.test(part)))
+    return null;
+  return `archive/${owner}/${segments.join('/')}`;
 }
 
-async function download(backend, path, ownerKey, to) {
-  for (const candidate of archiveCandidates(path, ownerKey)) {
-    const bytes = await backend.getFile(candidate);
-    if (bytes) {
-      writeFileSync(to, bytes);
-      return;
-    }
-  }
-  throw new AnalyzeError(409, `archive missing: ${path}`);
+async function download(backend, path, owner, to) {
+  const dest = archivePath(path, owner);
+  const bytes = dest ? await backend.getFile(dest) : null;
+  if (!bytes) throw new AnalyzeError(409, `archive missing: ${path}`);
+  writeFileSync(to, bytes);
 }
 
 /**
@@ -110,7 +114,9 @@ export async function analyzeStored({
   const recordings = [];
   for (const id of ids) {
     const doc = await backend.getDoc('recordings', id);
-    if (!doc?.archive)
+    // Another owner's recording reads as absent, like another owner's session:
+    // a session doc can name any id, so the recording's own owner decides.
+    if (!doc?.archive || doc.ownerId !== owner)
       throw new AnalyzeError(409, `recording ${id} has no archive`);
     // A live recording is stored in parts, one per lap, half-open at the
     // line (pit-wall thread 66): read back as one file through a glob, which

@@ -246,6 +246,26 @@ function mustBeMine(
     refuse(403, 'document belongs to another owner');
 }
 
+// A session may list only recordings that are its owner's: one that exists and
+// belongs to another owner is refused, so the cloud's analysis never reads
+// someone else's archive through a session of yours. An id with no document
+// yet is allowed: the recording is written later in the same push.
+async function mustNotNameForeignRecordings(
+  coll: string,
+  data: Record<string, unknown>,
+  ownerKey: string,
+  deps: UploadDeps,
+): Promise<void> {
+  if (coll !== 'sessions' || !Array.isArray(data.recordingIds)) return;
+  for (const id of data.recordingIds) {
+    if (typeof id !== 'string' || !SAFE_SEGMENT.test(id))
+      return refuse(400, 'bad recording id');
+    const recording = await deps.docs.get(docPath('recordings', id));
+    if (isTheirs(recording, ownerKey, 'recordings'))
+      return refuse(403, 'recording belongs to another owner');
+  }
+}
+
 async function writeDocs(
   uid: string,
   ownerKey: string,
@@ -280,6 +300,7 @@ async function writeDocs(
     if (!namesOwner(coll, data, ownerKey))
       return refuse(403, 'document ownerId is not yours');
     if (!OWNED.includes(coll)) delete data.ownerId;
+    await mustNotNameForeignRecordings(coll, data, ownerKey, deps);
     writes.push({op: 'set', path, data, merge: op.merge === true});
     // A merge keeps fields it does not name, so the sent size under-counts it.
     seen.set(path, {before, after: sizeOf(data)});
