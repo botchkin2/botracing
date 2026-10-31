@@ -143,3 +143,41 @@ test('a session named without its build (an old marker) needs a lap and its fiel
   const noField = await verifyStored(stored(null), null, {sessionId: 's1'});
   assert.equal(noField.ok, false);
 });
+
+// Ticket 80: a session with no field is not a failed read-back when the build
+// made none and the stored doc says why.
+const noField = (fieldMissing = 'Other cars: not recorded') =>
+  backend({
+    sessions: {s1: {id: 's1', field: null, fieldMissing}},
+    laps: {s1: ['s1-1', 's1-2']},
+  });
+
+test('no field built, none stored, and the doc says why: verified, with the reason', async () => {
+  const r = await verifyStored(noField(), built(null));
+  assert.deepEqual(r, {
+    ok: true,
+    sessionId: 's1',
+    laps: 2,
+    fieldHash: null,
+    fieldMissing: 'Other cars: not recorded',
+  });
+});
+
+test('no field stored and no reason on the doc stays a failure', async () => {
+  const r = await verifyStored(noField(null), built(null));
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /has no field/);
+});
+
+test('a field the build made that was not stored stays a failure, reason or not', async () => {
+  const r = await verifyStored(noField(), built(FIELD));
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /has no field/);
+});
+
+test('a marked capture (no build) with no field and a reason is verified from the stored doc', async () => {
+  const r = await verifyStored(noField(), null, {sessionId: 's1'});
+  assert.equal(r.ok, true);
+  assert.equal(r.laps, 2);
+  assert.equal(r.fieldMissing, 'Other cars: not recorded');
+});

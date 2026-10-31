@@ -2,7 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type RaceClock} from '@/src/analysis/raceClock';
 
-import {raceTimeFor, selectionFor} from './selectionClock';
+import {openAtOf, raceTimeFor, selectionFor} from './selectionClock';
 
 const laps = [
   {id: 'a-001', lapNumber: 1},
@@ -78,5 +78,31 @@ describe('selectionFor', () => {
     expect(
       selectionFor({lapNumber: 1, distanceM: 10}, sel({laps: ['a-002']}), laps),
     ).toEqual({hl: null, cursorM: 10});
+  });
+});
+
+describe('openAtOf (?at=, the race clock a page with no lap to anchor opens on)', () => {
+  // the race starts 146.6 s into the field, which is 275 s long
+  it('is seconds on the clock the screen shows: at=0 is the start, at=186.2 reads 3:06.2', () => {
+    expect(openAtOf('0', 146.6, 275)).toBe(146.6);
+    expect(openAtOf('120', 146.6, 275)).toBeCloseTo(266.6, 6);
+    expect(openAtOf('0', 0, 275)).toBe(0);
+  });
+
+  it('negative seconds seek into the formation, held at the field start', () => {
+    expect(openAtOf('-60', 146.6, 275)).toBeCloseTo(86.6, 6);
+    expect(openAtOf('-9999', 146.6, 275)).toBe(0);
+  });
+
+  it('is held at the end of the race', () => {
+    expect(openAtOf('9999', 146.6, 275)).toBe(275);
+  });
+
+  it('is null for nothing, blank or not a number, so the page opens as before', () => {
+    expect(openAtOf(undefined, 146.6, 275)).toBeNull();
+    expect(openAtOf('', 146.6, 275)).toBeNull();
+    expect(openAtOf('  ', 146.6, 275)).toBeNull();
+    expect(openAtOf('soon', 146.6, 275)).toBeNull();
+    expect(openAtOf('Infinity', 146.6, 275)).toBeNull();
   });
 });

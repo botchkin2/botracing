@@ -61,6 +61,7 @@ import {
   roadSummaryText,
 } from './model';
 import {
+  openAtOf,
   raceTimeFor,
   type RaceSelection,
   selectionFor,
@@ -108,12 +109,15 @@ export function RaceScreen({
   selection,
   onSelectionChange,
   embed3d = false,
+  atParam,
 }: {
   sessionId: string;
   selection: RaceSelection;
   onSelectionChange: (patch: SelectionPatch) => void;
   /** The page is the Android app's WebView (`embed=3d`): it opens on the 3D, full screen. */
   embed3d?: boolean;
+  /** `?at=`: open on this moment of the field's clock when the cursor does not say (selectionClock.openAtOf). */
+  atParam?: string;
 }) {
   const data = useRaceData(sessionId);
   return (
@@ -123,6 +127,7 @@ export function RaceScreen({
       selection={selection}
       onSelectionChange={onSelectionChange}
       embed3d={embed3d}
+      atParam={atParam}
     />
   );
 }
@@ -133,12 +138,14 @@ function RaceShell({
   selection,
   onSelectionChange,
   embed3d,
+  atParam,
 }: {
   sessionId: string;
   data: RaceData;
   selection: RaceSelection;
   onSelectionChange: (patch: SelectionPatch) => void;
   embed3d: boolean;
+  atParam?: string;
 }) {
   const {color} = useTheme();
   const insets = useSafeAreaInsets();
@@ -150,7 +157,7 @@ function RaceShell({
     return (
       <View style={[styles.screen, {backgroundColor: color.bg}]}>
         {data.kind === 'ready' ? (
-          <RaceView data={data} selection={selection} onSelectionChange={onSelectionChange} embed3d />
+          <RaceView data={data} selection={selection} onSelectionChange={onSelectionChange} embed3d atParam={atParam} />
         ) : null}
       </View>
     );
@@ -186,6 +193,7 @@ function RaceShell({
           selection={selection}
           onSelectionChange={onSelectionChange}
           embed3d={embed3d}
+          atParam={atParam}
         />
       ) : (
         <Notice data={data} />
@@ -290,11 +298,13 @@ function RaceView({
   selection,
   onSelectionChange,
   embed3d,
+  atParam,
 }: {
   data: Extract<RaceData, {kind: 'ready'}>;
   selection: RaceSelection;
   onSelectionChange: (patch: SelectionPatch) => void;
   embed3d: boolean;
+  atParam?: string;
 }) {
   const {color} = useTheme();
   const {mode} = data;
@@ -302,11 +312,15 @@ function RaceView({
   const {prep, placer, line, outlineUse} = data;
   const times = prep.field.timeS;
   const endS = times.length > 0 ? times[times.length - 1] : 0;
+  // The race clock counts from the start, not from the first update.
+  const startS = prep.startU < times.length ? times[prep.startU] : 0;
   // Opens on Compare's cursor when the URL has one; a race with a result opens at his finish, the list
   // showing the place the Session head says (analysis/raceResult.ts finishUpdateOf); else at the start.
   const [open] = useState(() => {
     const cursorS = raceTimeFor(selection, data.laps, data.clock);
     if (cursorS != null) return {timeS: cursorS, atFinish: false};
+    const atS = openAtOf(atParam, startS, endS);
+    if (atS != null) return {timeS: atS, atFinish: false};
     const u = mode === 'race' ? finishUpdateOf(prep.field) : null;
     return u == null
       ? {timeS: 0, atFinish: false}
@@ -373,8 +387,6 @@ function RaceView({
   const snap = !clock.playing;
   const shownS = snap ? snapClock(clock.timeS, prep.field.hz) : clock.timeS;
   const u = updateAt(times, shownS);
-  // The race clock counts from the start, not from the first update.
-  const startS = prep.startU < times.length ? times[prep.startU] : 0;
   const cars = useMemo(
     () => markPitLane(carsAt(prep, shownS, snap), placer),
     [prep, shownS, snap, placer],

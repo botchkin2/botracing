@@ -14,6 +14,10 @@
  * data lives on there. With no `out` (a capture marked before the read-back
  * existed: `sessionId` names it), the build's laps are not known, so the
  * session must hold at least one lap and its field.
+ * A session with no field passes only when the build made none and the stored
+ * doc says why (`fieldMissing`, ticket 80): an iRacing qualifying has no field
+ * file to read back. A field the build made that is not stored still fails.
+ * The reason comes back as `fieldMissing`.
  */
 export async function verifyStored(
   backend,
@@ -43,7 +47,18 @@ export async function verifyStored(
   }
 
   const field = stored.field ?? null;
-  if (!field?.path) return {ok: false, reason: `session ${id} has no field`};
+  if (!field?.path) {
+    const why = stored.fieldMissing;
+    if (!replaced && !out?.session.field && typeof why === 'string' && why)
+      return {
+        ok: true,
+        sessionId: id,
+        laps: out ? out.laps.length : storedLaps.size,
+        fieldHash: null,
+        fieldMissing: why,
+      };
+    return {ok: false, reason: `session ${id} has no field`};
+  }
   if ((await backend.fileMd5(field.path)) === null)
     return {ok: false, reason: `field file ${field.path} is not in the bucket`};
   // The build's field, when it made one and the upload kept it, must be the

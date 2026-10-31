@@ -900,7 +900,11 @@ async function processSession(
     });
     lines.push(
       readBack.ok
-        ? `  read back: ${readBack.laps} laps, field ${readBack.fieldHash}`
+        ? `  read back: ${readBack.laps} laps, ${
+            readBack.fieldHash
+              ? `field ${readBack.fieldHash}`
+              : `no field (${readBack.fieldMissing})`
+          }`
         : `  read back failed, captures kept: ${readBack.reason}`,
     );
     markUploaded(captureRoot, out.capturesUsed, s.id, {check: readBack});

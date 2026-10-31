@@ -1,6 +1,6 @@
 import {buildElevation, type ElevationModel} from './elevationProfile';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
-import {matchCornerNames} from '@/src/analysis/cornerNames';
+import {matchPartNames, stretchIndices} from '@/src/analysis/cornerNames';
 import {applyGeoref, canDrawOnRealMap} from '@/src/analysis/geo';
 import {type GridTrace} from '@/src/analysis/resample';
 import {buildTrackMarks, type MapAnchor, type MapMarks} from '@/src/charts';
@@ -117,15 +117,19 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
   if (map && refTrace && mapModel) {
     if (info && map.georef && canDrawOnRealMap(map.quality, map.georef)) {
       const georef = map.georef;
-      const apexes = corners.map(c => {
-        const i = gridIndex(refTrace, c.apexM);
-        const [p] = applyGeoref(
-          [{lat: refTrace.lat[i], lon: refTrace.lon[i]}],
-          georef,
-        );
-        return {n: c.n, ...p};
-      });
-      for (const [n, name] of matchCornerNames(apexes, info.osmNames)) {
+      // Part numbers and section numbers differ, so a section is keyed by its place in the list.
+      const spans = map.sections.map((s, k) => ({
+        n: k,
+        points: applyGeoref(stretchOf(refTrace, s.entryM, s.exitM), georef),
+      }));
+      const parts = map.sections.flatMap((s, k) =>
+        (s.parts.length ? s.parts : [s]).map(p => {
+          const i = gridIndex(refTrace, p.apexM);
+          const [at] = applyGeoref([{lat: refTrace.lat[i], lon: refTrace.lon[i]}], georef);
+          return {n: p.n, section: k, ...at};
+        }),
+      );
+      for (const [n, name] of matchPartNames(parts, spans, info.osmNames)) {
         names.set(n, name);
       }
     }
@@ -215,6 +219,11 @@ function buildFacts(
   if (info?.place)
     facts.push({label: 'Location', value: info.place, sub: null});
   return facts;
+}
+
+/** The lap's positions every grid step from `fromM` to `toM`, wrapping at the start/finish line. */
+function stretchOf(t: GridTrace, fromM: number, toM: number) {
+  return stretchIndices(fromM, toM, t.stepM, t.lat.length).map(i => ({lat: t.lat[i], lon: t.lon[i]}));
 }
 
 function gridIndex(t: GridTrace, m: number): number {
