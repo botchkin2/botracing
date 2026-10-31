@@ -58,7 +58,7 @@ node tools/sessions/sync.mjs --remote --only "<session name>"
 
 Ids derive from the uid, so they never clash with Botkin's. A re-seed is the same command.
 
-A seat-test sync runs on a **copy** of the captures in a temp folder, with its own `--work` and `--capture`, never on `%LOCALAPPDATA%lap-capture` or the tray's `%LOCALAPPDATA%BotRacingsessions`: the sync writes `uploaded.json` markers into its capture root, and seat-test ids in his markers (ticket 62) sat there until his own verified sessions covered the drive. `--log-folder` does not scope the game files (those still come from the real `Telemetry` folder): limit a run with `--only "<name>"`, and dry-run with `--local` first to see what it would send.
+A seat-test sync runs on a **copy** of the captures in a temp folder, with its own `--work` and `--capture`, never on `%LOCALAPPDATA%\lap-capture` or the tray's `%LOCALAPPDATA%\BotRacing\sessions`: the sync writes `uploaded.json` markers into its capture root, and seat-test ids in his markers (ticket 62) sat there until his own verified sessions covered the drive. `--log-folder` does not scope the game files (those still come from the real `Telemetry` folder): limit a run with `--only "<name>"`, and dry-run with `--local` first to see what it would send.
 
 ## Reading Botkin's stored data
 
