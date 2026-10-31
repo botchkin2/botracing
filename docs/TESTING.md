@@ -44,7 +44,7 @@ So set the size first and then **reload**, or, to keep the page, run `visualView
 
 ## Seeking a 3D proof to the same moment
 
-A 3D before/after pair needs both builds on the same race time. On the `embed=3d` page (one big canvas) open `/session/<id>/race?embed=3d&at=<seconds>`: `at` is seconds from the field's first sample (the screen's clock reads that minus the formation, e.g. `at=186` reads 0:39.4 where the race starts at 2:26.6), held inside the race, and `t` does nothing there (it is a distance on a lap, and the embed has no lap to hang it on). The same URL without `at` opens as it always did. On the full Race page the timeline can be clicked instead; it is deterministic, and the app then writes `t` back. The two pages' canvases differ in size, so compare a pair on one page only (ticket 85, thread 135).
+A 3D before/after pair needs both builds on the same race time. On the `embed=3d` page (one big canvas) open `/session/<id>/race?embed=3d&at=<seconds>`: `at` is the race clock as the screen shows it, in seconds (`at=186.2` reads 3:06.2, `at=-60` reads −1:00.0 in the formation), held inside the race, and `t` does nothing there (it is a distance on a lap, and the embed has no lap to hang it on). The same URL without `at` opens as it always did. On the full Race page the timeline can be clicked instead; it is deterministic, and the app then writes `t` back. The two pages' canvases differ in size, so compare a pair on one page only (ticket 85, thread 135).
 
 ## Test data
 

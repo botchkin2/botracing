@@ -312,12 +312,14 @@ function RaceView({
   const {prep, placer, line, outlineUse} = data;
   const times = prep.field.timeS;
   const endS = times.length > 0 ? times[times.length - 1] : 0;
+  // The race clock counts from the start, not from the first update.
+  const startS = prep.startU < times.length ? times[prep.startU] : 0;
   // Opens on Compare's cursor when the URL has one; a race with a result opens at his finish, the list
   // showing the place the Session head says (analysis/raceResult.ts finishUpdateOf); else at the start.
   const [open] = useState(() => {
     const cursorS = raceTimeFor(selection, data.laps, data.clock);
     if (cursorS != null) return {timeS: cursorS, atFinish: false};
-    const atS = openAtOf(atParam, endS);
+    const atS = openAtOf(atParam, startS, endS);
     if (atS != null) return {timeS: atS, atFinish: false};
     const u = mode === 'race' ? finishUpdateOf(prep.field) : null;
     return u == null
@@ -385,8 +387,6 @@ function RaceView({
   const snap = !clock.playing;
   const shownS = snap ? snapClock(clock.timeS, prep.field.hz) : clock.timeS;
   const u = updateAt(times, shownS);
-  // The race clock counts from the start, not from the first update.
-  const startS = prep.startU < times.length ? times[prep.startU] : 0;
   const cars = useMemo(
     () => markPitLane(carsAt(prep, shownS, snap), placer),
     [prep, shownS, snap, placer],

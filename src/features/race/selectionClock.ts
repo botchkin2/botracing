@@ -23,15 +23,21 @@ export type LapRef = {
 };
 
 /**
- * `?at=` on the Race page: a moment on the field's own clock, seconds from its first sample, for a page opened with no lap
- * to hang Compare's cursor on (the Android WebView's `embed=3d`, a 3D proof). Null for anything that is not a finite
- * number of seconds, else held inside the race. The cursor wins when it resolves.
+ * `?at=` on the Race page: a moment on the race clock the screen shows, in seconds from the start (negative in the
+ * formation: `at=-60` reads −1:00.0, `at=186.2` reads 3:06.2), for a page opened with no lap to hang Compare's cursor
+ * on (the Android WebView's `embed=3d`, a 3D proof). `startS` is the field's own clock at the start, `endS` its end.
+ * Null for anything that is not a finite number of seconds, else the field time held inside the race. The cursor wins
+ * when it resolves.
  */
-export function openAtOf(raw: string | undefined, endS: number): number | null {
+export function openAtOf(
+  raw: string | undefined,
+  startS: number,
+  endS: number,
+): number | null {
   if (raw == null || raw.trim() === '') return null;
   const s = Number(raw);
   if (!Number.isFinite(s)) return null;
-  return Math.min(Math.max(s, 0), endS);
+  return Math.min(Math.max(startS + s, 0), endS);
 }
 
 /** What Race writes back: the cursor, and the highlighted lap when it changed. */
