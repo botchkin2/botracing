@@ -46,6 +46,17 @@ pub fn problem_lines(plan: &prune::Plan) -> Vec<String> {
         let gb = plan.held_bytes as f64 / 1e9;
         out.push(format!("{gb:.1} GB kept over the cap: not stored yet"));
     }
+    // A capture the cleanup could not read or delete is kept and named, so one
+    // bad folder never stops the others and is never silent (ticket 86).
+    if let Some((path, why)) = plan.skipped.first() {
+        let name = path
+            .file_name()
+            .map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned());
+        out.push(match plan.skipped.len() {
+            1 => format!("Capture {name} skipped by the cleanup: {why}"),
+            n => format!("{n} captures skipped by the cleanup, first {name}: {why}"),
+        });
+    }
     out
 }
 
@@ -222,6 +233,22 @@ mod tests {
             state: uploader.join("state.json"),
             log: uploader.join("prune.log"),
         }
+    }
+
+    #[test]
+    fn a_skipped_capture_reaches_problems_with_its_name_and_why() {
+        let mut plan = prune::Plan::default();
+        assert!(problem_lines(&plan).is_empty());
+        plan.skipped.push((PathBuf::from("C:/cap/2026-10-13-daytona"), "access denied".into()));
+        assert_eq!(
+            problem_lines(&plan),
+            vec!["Capture 2026-10-13-daytona skipped by the cleanup: access denied".to_string()]
+        );
+        plan.skipped.push((PathBuf::from("C:/cap/other"), "could not delete: in use".into()));
+        assert_eq!(
+            problem_lines(&plan),
+            vec!["2 captures skipped by the cleanup, first 2026-10-13-daytona: access denied".to_string()]
+        );
     }
 
     #[test]

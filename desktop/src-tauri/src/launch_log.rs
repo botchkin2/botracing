@@ -57,14 +57,49 @@ fn newest_half(bytes: &[u8]) -> &[u8] {
     }
 }
 
+/// %LOCALAPPDATA%\BotRacing[-<profile>], by name: the sidecar's paths are not built yet.
+fn data_dir() -> std::path::PathBuf {
+    let local = std::env::var_os("LOCALAPPDATA")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
+    local.join(crate::profile::data_dir_name())
+}
+
+/// The `panic` line's facts: the thread, where, and the panic's own message.
+pub fn panic_facts(thread: &str, location: Option<(&str, u32)>, message: &str) -> String {
+    let at = location.map_or_else(|| "unknown".to_string(), |(file, line)| format!("{file}:{line}"));
+    format!("thread={thread} at={at} message={message:?}")
+}
+
+/// One `panic` line in `data`'s launch.log.
+pub fn record_panic(data: &Path, thread: &str, location: Option<(&str, u32)>, message: &str) {
+    note(data, "panic", &panic_facts(thread, location, message));
+}
+
+/// Every panic, in any thread, leaves a line in launch.log before the default
+/// hook runs, so a tray that went down says why (ticket 86; before, there was no
+/// hook and a panic in the watcher's supervisor left no record).
+pub fn install_panic_hook() {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let message = info
+            .payload()
+            .downcast_ref::<&str>()
+            .map(|m| (*m).to_string())
+            .or_else(|| info.payload().downcast_ref::<String>().cloned())
+            .unwrap_or_else(|| "(not text)".to_string());
+        let thread = std::thread::current().name().unwrap_or("unnamed").to_string();
+        let location = info.location().map(|l| (l.file(), l.line()));
+        record_panic(&data_dir(), &thread, location, &message);
+        previous(info);
+    }));
+}
+
 /// The `launch` line: every process start, before the single-instance hold
 /// forwards it. Written to the data folder by name (the sidecar's paths are not
 /// built yet): %LOCALAPPDATA%\BotRacing[-<profile>].
 pub fn note_launch() {
-    let local = std::env::var_os("LOCALAPPDATA")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir);
-    let data = local.join(crate::profile::data_dir_name());
+    let data = data_dir();
     let _ = std::fs::create_dir_all(&data);
     let args = std::env::args().collect::<Vec<_>>();
     note(
@@ -91,6 +126,26 @@ mod tests {
             line(at, "second launch", "args=[\"x\"]"),
             "2026-10-14T23:30:05Z second launch args=[\"x\"]\n"
         );
+    }
+
+    #[test]
+    fn a_panic_line_says_the_thread_the_place_and_the_message() {
+        assert_eq!(
+            panic_facts("watcher", Some(("src/main.rs", 120)), "called `Option::unwrap()` on a `None` value"),
+            r#"thread=watcher at=src/main.rs:120 message="called `Option::unwrap()` on a `None` value""#
+        );
+        assert_eq!(panic_facts("main", None, "x"), r#"thread=main at=unknown message="x""#);
+    }
+
+    #[test]
+    fn a_recorded_panic_lands_in_launch_log() {
+        let dir = std::env::temp_dir().join(format!("launch-panic-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        record_panic(&dir, "t", Some(("a.rs", 7)), "boom");
+        let text = std::fs::read_to_string(dir.join("launch.log")).unwrap();
+        assert!(text.contains(" panic thread=t at=a.rs:7 message=\"boom\""), "{text}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

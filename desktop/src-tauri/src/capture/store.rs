@@ -62,6 +62,14 @@ pub fn slug(value: &str) -> String {
     if out.is_empty() { "unknown".into() } else { out }
 }
 
+/// A capture's meta.json: written whole and flushed (`durable`), as it is written a few
+/// times a drive.
+pub fn write_meta_json(path: &Path, value: &Value) -> Result<(), String> {
+    let text = serde_json::to_string_pretty(value).map_err(|e| e.to_string())?;
+    crate::durable::write_whole(path, text.as_bytes()).map_err(|e| e.to_string())
+}
+
+/// The recorder's status files, rewritten every few seconds: temp file and rename, no flush.
 pub fn write_json(path: &Path, value: &Value) -> Result<(), String> {
     let tmp = PathBuf::from(format!("{}.tmp", path.display()));
     let text = serde_json::to_string_pretty(value).map_err(|e| e.to_string())?;
@@ -280,7 +288,7 @@ impl Capture {
     }
 
     fn write_meta(&self) -> Result<(), String> {
-        write_json(&self.dir.join("meta.json"), &Value::Object(self.meta.clone()))
+        write_meta_json(&self.dir.join("meta.json"), &Value::Object(self.meta.clone()))
     }
 
     /// A chunk could not be written (a full disk): its rows are gone, earlier chunks stay, and the capture
@@ -401,7 +409,7 @@ impl Capture {
         self.writer.send(Box::new(move || {
             let outcome = write_chunk(&dir, &layout, n, &rows).and_then(|bytes| {
                 // Rewritten per chunk, so a capture cut short still has its car models.
-                write_json(&dir.join("meta.json"), &Value::Object(meta))?;
+                write_meta_json(&dir.join("meta.json"), &Value::Object(meta))?;
                 Ok(bytes)
             });
             if outcome.is_err() {

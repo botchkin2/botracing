@@ -80,10 +80,7 @@ impl Settings {
             "paused": self.paused,
             "confirmedUid": self.confirmed_uid,
         });
-        let tmp = file.with_extension("json.tmp");
-        if std::fs::write(&tmp, value.to_string()).is_ok() {
-            let _ = std::fs::rename(&tmp, file);
-        }
+        let _ = crate::durable::write_whole(file, value.to_string().as_bytes());
     }
 }
 
@@ -274,10 +271,7 @@ impl Account {
 
     /// The ID token to the file the watcher reads, replaced whole.
     fn write_token(&self, session: &Session) {
-        let tmp = self.data.join("token.tmp");
-        if std::fs::write(&tmp, &session.id_token).is_ok() {
-            let _ = std::fs::rename(&tmp, self.token_file());
-        }
+        let _ = crate::durable::write_whole(&self.token_file(), session.id_token.as_bytes());
     }
 
     fn store_refresh(&self, session: &Session) {

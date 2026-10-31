@@ -119,6 +119,10 @@ pub struct Plan {
     /// Bytes of unverified captures while the folder stays over the cap (0
     /// when it ends under it).
     pub held_bytes: u64,
+    /// Captures this run could not read or could not delete, each with why: one
+    /// bad entry is listed here and the rest of the run goes on (ticket 86),
+    /// and the tray shows it in Problems.
+    pub skipped: Vec<(PathBuf, String)>,
 }
 
 /// What to delete, and what is held over the cap.
@@ -194,37 +198,65 @@ pub fn plan(
         doomed_unverified,
         waiting,
         held_bytes,
+        skipped: Vec::new(),
     }
 }
 
-/// The top-level captures of `root` with their sizes, sims and marker state.
-pub fn scan(root: &Path) -> io::Result<Vec<Entry>> {
-    let mut out = Vec::new();
+/// What a scan found: the captures, and the folders it could not read.
+#[derive(Debug, Default)]
+pub struct Scan {
+    pub entries: Vec<Entry>,
+    pub skipped: Vec<(PathBuf, String)>,
+}
+
+/// The top-level captures of `root` with their sizes, sims and marker state. A
+/// capture is a folder: the status files the recorders keep in the root
+/// (status.json, status-iracing.json) are not captures and are passed over. One
+/// folder that cannot be read is listed in `skipped` and the scan goes on, so a
+/// bad entry never stops the cleanup of the others (ticket 86; before, a `?`
+/// here ended every later run and the folder grew without bound).
+pub fn scan(root: &Path) -> io::Result<Scan> {
+    scan_using(root, &entry_of)
+}
+
+/// `scan` with the reading of one capture as a seam, for the tests.
+fn scan_using(root: &Path, read: &dyn Fn(&Path) -> io::Result<Entry>) -> io::Result<Scan> {
+    let mut out = Scan::default();
     for item in fs::read_dir(root)? {
         let path = item.map_err(io::Error::from)?.path();
-        let folder = fs::metadata(&path)?.modified().unwrap_or(UNIX_EPOCH);
-        let marked = path.is_dir() && path.join(UPLOADED_MARKER).is_file();
-        let verified = marked && read_marker(&path).as_ref().map_or(false, is_verified);
-        let modified = if marked {
-            fs::metadata(path.join(UPLOADED_MARKER))?
-                .modified()
-                .unwrap_or(UNIX_EPOCH)
-        } else {
-            folder
-        };
-        let (sim, ended, finished) = read_meta(&path, folder)?;
-        out.push(Entry {
-            bytes: size_of(&path)?,
-            modified,
-            ended,
-            finished,
-            sim,
-            marked,
-            verified,
-            path,
-        });
+        if !path.is_dir() {
+            continue;
+        }
+        match read(&path) {
+            Ok(entry) => out.entries.push(entry),
+            Err(e) => out.skipped.push((path, e.to_string())),
+        }
     }
     Ok(out)
+}
+
+fn entry_of(path: &Path) -> io::Result<Entry> {
+    let folder = fs::metadata(path)?.modified().unwrap_or(UNIX_EPOCH);
+    let marked = path.join(UPLOADED_MARKER).is_file();
+    let verified = marked && read_marker(path).as_ref().map_or(false, is_verified);
+    let modified = if marked {
+        fs::metadata(path.join(UPLOADED_MARKER))?
+            .modified()
+            .unwrap_or(UNIX_EPOCH)
+    } else {
+        folder
+    };
+    let (sim, ended, finished) = read_meta(path, folder)?;
+    Ok(Entry {
+        bytes: size_of(path)?,
+        modified,
+        ended,
+        finished,
+        sim,
+        marked,
+        verified,
+        path: path.to_path_buf(),
+    })
 }
 
 /// The sim, end time and finished flag from a capture's meta.json. Without an
@@ -320,9 +352,11 @@ pub fn dry_run(
     policy: &Policy,
     states: &HashMap<String, SimState>,
 ) -> io::Result<(Plan, u64)> {
-    let entries = scan(root)?;
-    let p = plan(&entries, now, policy, states);
-    let bytes = entries
+    let found = scan(root)?;
+    let mut p = plan(&found.entries, now, policy, states);
+    p.skipped = found.skipped;
+    let bytes = found
+        .entries
         .iter()
         .filter(|e| p.doomed.contains(&e.path))
         .map(|e| e.bytes)
@@ -337,10 +371,32 @@ pub fn prune(
     policy: &Policy,
     states: &HashMap<String, SimState>,
 ) -> io::Result<Plan> {
-    let p = plan(&scan(root)?, now, policy, states);
+    prune_using(root, now, policy, states, &entry_of, &|p| fs::remove_dir_all(p))
+}
+
+/// `prune` with reading and deleting one capture as seams, for the tests.
+fn prune_using(
+    root: &Path,
+    now: SystemTime,
+    policy: &Policy,
+    states: &HashMap<String, SimState>,
+    read: &dyn Fn(&Path) -> io::Result<Entry>,
+    remove: &dyn Fn(&Path) -> io::Result<()>,
+) -> io::Result<Plan> {
+    let found = scan_using(root, read)?;
+    let mut p = plan(&found.entries, now, policy, states);
+    p.skipped = found.skipped;
+    // A capture that cannot be deleted is listed and the next one is tried; the
+    // plan then names only what went (the log and Problems count from it).
+    let mut failed = Vec::new();
     for path in &p.doomed {
-        fs::remove_dir_all(path)?;
+        if let Err(e) = remove(path) {
+            failed.push((path.clone(), format!("could not delete: {e}")));
+        }
     }
+    p.doomed.retain(|d| !failed.iter().any(|(f, _)| f == d));
+    p.doomed_unverified.retain(|d| !failed.iter().any(|(f, _)| f == d));
+    p.skipped.extend(failed);
     Ok(p)
 }
 
@@ -730,6 +786,97 @@ mod tests {
         assert_eq!(bytes, (100 + meta_len + VERIFIED.len() as u64) + (100 + meta_len));
         assert!(root.join("old-a").exists());
         assert!(root.join("old-b").exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// A root as the tray has it: capture folders and the recorders' status files.
+    fn root_with(name: &str, captures: &[&str]) -> PathBuf {
+        let root = std::env::temp_dir().join(format!("botracing-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("status.json"), "{}").unwrap();
+        fs::write(root.join("status-iracing.json"), "{}").unwrap();
+        for c in captures {
+            let dir = root.join(c);
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(dir.join("chunk.bin"), vec![0u8; 10]).unwrap();
+            fs::write(dir.join(META), r#"{"sim":"lmu","endUtc":"2026-09-01T00:00:00Z"}"#).unwrap();
+            let marker = dir.join(UPLOADED_MARKER);
+            fs::write(&marker, VERIFIED).unwrap();
+            fs::File::options()
+                .write(true)
+                .open(&marker)
+                .unwrap()
+                .set_modified(SystemTime::now() - DAY * 30)
+                .unwrap();
+        }
+        root
+    }
+
+    fn lmu_policy() -> Policy {
+        Policy {
+            keep: DAY * 14,
+            cap_bytes: u64::MAX,
+            sims: vec!["lmu".into()],
+        }
+    }
+
+    fn lmu_idle(now: SystemTime) -> HashMap<String, SimState> {
+        HashMap::from([(
+            "lmu".to_string(),
+            SimState {
+                last_run: Some(now - DAY),
+                ..Default::default()
+            },
+        )])
+    }
+
+    #[test]
+    fn the_status_files_in_the_root_are_not_captures() {
+        let root = root_with("scan-status", &["cap-a"]);
+        let found = scan(&root).unwrap();
+        assert_eq!(found.entries.len(), 1);
+        assert!(found.skipped.is_empty(), "a status file is not a problem: {:?}", found.skipped);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_capture_that_cannot_be_read_is_skipped_and_the_others_still_go() {
+        let root = root_with("prune-skip", &["bad", "cap-a", "cap-b"]);
+        let now = SystemTime::now();
+        let read = |p: &Path| {
+            if p.ends_with("bad") {
+                Err(io::Error::new(io::ErrorKind::PermissionDenied, "access denied"))
+            } else {
+                entry_of(p)
+            }
+        };
+        let p = prune_using(&root, now, &lmu_policy(), &lmu_idle(now), &read, &|p| fs::remove_dir_all(p)).unwrap();
+        assert_eq!(p.doomed.len(), 2, "the two readable captures went");
+        assert!(root.join("bad").exists(), "the unreadable one is kept");
+        assert!(!root.join("cap-a").exists() && !root.join("cap-b").exists());
+        assert_eq!(p.skipped.len(), 1);
+        assert!(p.skipped[0].0.ends_with("bad"));
+        assert!(p.skipped[0].1.contains("access denied"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_capture_that_cannot_be_deleted_is_listed_and_the_next_is_still_deleted() {
+        let root = root_with("prune-nodelete", &["cap-a", "cap-b", "cap-c"]);
+        let now = SystemTime::now();
+        let remove = |p: &Path| {
+            if p.ends_with("cap-a") {
+                Err(io::Error::new(io::ErrorKind::PermissionDenied, "in use"))
+            } else {
+                fs::remove_dir_all(p)
+            }
+        };
+        let p = prune_using(&root, now, &lmu_policy(), &lmu_idle(now), &entry_of, &remove).unwrap();
+        assert!(root.join("cap-a").exists(), "the one that would not go stays");
+        assert!(!root.join("cap-b").exists() && !root.join("cap-c").exists(), "the others went");
+        assert_eq!(p.doomed.len(), 2, "the plan names what went");
+        assert!(p.skipped.iter().any(|(path, why)| path.ends_with("cap-a") && why.contains("could not delete")));
         let _ = fs::remove_dir_all(&root);
     }
 }
