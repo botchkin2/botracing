@@ -42,6 +42,10 @@ The pane's viewport presets and `resize_window` change the size but fire no `res
 
 So set the size first and then **reload**, or, to keep the page, run `visualViewport.dispatchEvent(new Event('resize'))` in the pane and wait a moment. Measure after that (0 elements with `getBoundingClientRect().right` past `innerWidth` is the check). A measurement taken straight after a resize is of the old width (pit-wall, Plan at 375, #4495 and #4498).
 
+## Seeking a 3D proof to the same moment
+
+A 3D before/after pair needs both builds on the same race time. On the `embed=3d` page (one big canvas) open `/session/<id>/race?embed=3d&at=<seconds>`: `at` is the race clock as the screen shows it, in seconds (`at=186.2` reads 3:06.2, `at=-60` reads −1:00.0 in the formation), held inside the race, and `t` does nothing there (it is a distance on a lap, and the embed has no lap to hang it on). The same URL without `at` opens as it always did. On the full Race page the timeline can be clicked instead; it is deterministic, and the app then writes `t` back. The two pages' canvases differ in size, so compare a pair on one page only (ticket 85, thread 135).
+
 ## Test data
 
 `seat-test` has no sessions until some are uploaded through the real pipeline (LMU only; no iRacing until the sessions game filter exists): one race, one practice, one with several files.
@@ -99,7 +103,7 @@ The `update` job, "Tray update rehearsal (N-1 to N)", builds 0.0.1 and 0.0.2 wit
 
 `functions/test/emulator/*.test.mjs` send real requests to the read API in the Firebase emulators (functions, Firestore, Auth, Storage; config `firebase.emulator.json`, a demo project, nothing reaches production). Run them with `npm run test:emulator` in `functions/`: it builds the functions, starts the emulators, seeds what each test needs and signs a user in through the Auth emulator. firebase-tools needs **Java 21+** (`JAVA_HOME`; on this PC Android Studio's `jbr` qualifies, the system JDK 17 does not). CI runs them in the `functions` job.
 
-## A 2 h full-grid race on the phone (tools/dev/longRace*)
+## A 2 h full-grid race on the phone (tools/dev/longRace\*)
 
 Ticket 39 (pit-wall thread 102). `longRaceField.mjs` tiles a real field in time and in cars to a synthetic one (2 h, 60 cars, JSON about 49 MB, laps never go down, places stay 1..60 and unique); `longRaceProxy.mjs` answers the API for a local app build (`EXPO_PUBLIC_API_BASE=http://localhost:8099/api`, cleartext allowed, never committed) and serves that field for one session; `longRaceEmulator.mjs` opens the race in the real app on an emulator through its link and prints the time to open (map and board on screen), the peak total PSS of the app and the WebView renderer (`dumpsys meminfo`) and any OOM or crash line in logcat. `--tab 3d` goes on to the 3D: with a local APK that sets `webviewDebuggingEnabled`, `longRaceWebView.mjs` drives the WebView page over its devtools socket, answers the page's own field request with the proxy's body (so V8 parses the same field) and prints the time to its first frame and the page's JS heap against `jsHeapSizeLimit`. `longRaceProbe.mjs` is the quick loop in a throttled headless Chrome. The runs and the verdict are in pit-wall thread 102.
 
