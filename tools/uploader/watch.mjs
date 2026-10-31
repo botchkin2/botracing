@@ -444,9 +444,11 @@ async function main() {
   const watch = read.value ?? {};
   if (read.source === 'backup' || read.source === 'unreadable')
     log(
-      `watcher state.json was unreadable; ${
+      `watcher state.json ${
+        read.keptAs ? 'was unreadable' : 'was missing'
+      }; ${
         read.source === 'backup' ? 'restored from its .bak' : 'started empty'
-      } (the bad file is kept as ${read.keptAs})`,
+      }${read.keptAs ? ` (the bad file is kept as ${read.keptAs})` : ''}`,
     );
   // State from before block versions kept only analysisVersion: no versionKey
   // reads as changed, so the first run with this code syncs everything once.

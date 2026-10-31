@@ -207,7 +207,11 @@ function readState() {
   const read = readStateFile(statePath);
   if (read.source === 'file') return read.value;
   if (read.source === 'backup') {
-    log(`state.json was unreadable; restored from state.json.bak (the bad file is kept as ${read.keptAs})`);
+    log(
+      `state.json was unreadable; restored from state.json.bak${
+        read.keptAs ? ` (the bad file is kept as ${read.keptAs})` : ' (the file was missing)'
+      }`,
+    );
     return read.value;
   }
   const state = freshState({windowDays: firstWindowDays, now: new Date()});
