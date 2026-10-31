@@ -309,9 +309,9 @@ test(
     );
     await run();
     server.close();
-    const after = readState();
-    assert.equal(after.retryAtMs, null);
-    assert.equal(after.failuresInRow, 0);
+    const ended = readState();
+    assert.equal(ended.retryAtMs, null);
+    assert.equal(ended.failuresInRow, 0);
   },
 );
 
