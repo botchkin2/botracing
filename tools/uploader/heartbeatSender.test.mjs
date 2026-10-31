@@ -174,3 +174,71 @@ test('the real send: bearer from the token file read per request, JSON body, 204
   );
   assert.equal(calls[0].init.body, '{"hostId":"h"}');
 });
+
+test('an accepted status tells the watcher when it was sent, a refused or failed one does not (ticket 86)', async () => {
+  let t = 5_000;
+  const accepted = [];
+  const answers = [new Error('getaddrinfo ENOTFOUND'), {status: 500}];
+  const failing = createHeartbeatSender({
+    send: async () => {
+      t += 250;
+      const r = answers.shift();
+      if (r instanceof Error) throw r;
+      return r;
+    },
+    now: () => t,
+    setTimer: () => {},
+    onAccepted: at => accepted.push(at),
+    log: () => {},
+  });
+  await failing.offer(doc());
+  assert.deepEqual(accepted, []);
+  const ok = createHeartbeatSender({
+    send: async () => {
+      t += 250;
+      return {status: 204};
+    },
+    now: () => t,
+    setTimer: () => {},
+    onAccepted: at => accepted.push(at),
+    log: () => {},
+  });
+  const before = t;
+  await ok.offer(doc());
+  assert.deepEqual(accepted, [before], 'the send time, not the time the answer came');
+});
+
+test('two accepted statuses in a row end the backoff once, a failed one then an accepted one ends it again (bearing on #811)', async () => {
+  let t = 5_000;
+  const accepted = [];
+  const answers = [];
+  const sender = createHeartbeatSender({
+    send: async () => {
+      const r = answers.shift() ?? {status: 204};
+      if (r instanceof Error) throw r;
+      return r;
+    },
+    now: () => t,
+    setTimer: () => {},
+    onAccepted: at => accepted.push(at),
+    log: () => {},
+  });
+  // Each status is a new state, offered after the server's gap and any wait.
+  const offer = async state => {
+    t += 61_000;
+    await sender.offer(doc({state}));
+  };
+  await offer('idle');
+  assert.equal(accepted.length, 1, 'the first status of a process counts');
+  await offer('syncing');
+  await offer('idle');
+  assert.equal(accepted.length, 1, 'beats that keep getting through clear nothing more');
+  answers.push(new Error('getaddrinfo ENOTFOUND'));
+  await offer('syncing');
+  await offer('error');
+  assert.equal(accepted.length, 2, 'the first accepted status after a failed one clears again');
+  answers.push({status: 503});
+  await offer('idle');
+  await offer('syncing');
+  assert.equal(accepted.length, 3, 'a refused status counts as a failed one');
+});

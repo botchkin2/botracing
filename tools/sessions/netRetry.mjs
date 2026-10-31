@@ -8,6 +8,12 @@ const TRANSIENT = new Set([
   'EPIPE',
   'ECONNABORTED',
   'EAI_AGAIN',
+  // The network is down or not yet up (a laptop waking, a cable out): the same
+  // blip as a reset, not a reason to give the session up (ticket 86).
+  'ENOTFOUND',
+  'ECONNREFUSED',
+  'ENETUNREACH',
+  'EHOSTUNREACH',
 ]);
 
 // The error, or its cause: node-fetch wraps the socket error in a FetchError
@@ -15,7 +21,11 @@ const TRANSIENT = new Set([
 export function isTransient(error) {
   for (let e = error, depth = 0; e && depth < 4; e = e.cause, depth++) {
     if (TRANSIENT.has(e.code) || TRANSIENT.has(e.errno)) return true;
-    if (/\b(ECONNRESET|ETIMEDOUT|EPIPE|socket hang up)\b/.test(e.message ?? ''))
+    if (
+      /\b(ECONNRESET|ETIMEDOUT|EPIPE|ENOTFOUND|ECONNREFUSED|ENETUNREACH|EHOSTUNREACH|EAI_AGAIN|socket hang up)\b/.test(
+        e.message ?? '',
+      )
+    )
       return true;
   }
   return false;

@@ -2,7 +2,18 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {isStale} from './versionKey.mjs';
 import {analysisVersion, blockVersions} from './analyze.mjs';
-import {LIVE_STAMP, liveCover, liveRecordingDoc, liveSessionDoc} from './liveSession.mjs';
+import {mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {
+  LIVE_STAMP,
+  liveCover,
+  liveIndexPath,
+  liveRecordingDoc,
+  liveSessionDoc,
+  readLiveIndex,
+  writeLiveIndex,
+} from './liveSession.mjs';
 
 const info = {
   sim: 'lmu',
@@ -122,4 +133,38 @@ test('the best lap is stored to 3 decimals, as an analysed session (the capture 
   const parts = [recording.parts[0], {...recording.parts[1], lapTimeS: 80.49142456054688}];
   const doc = liveSessionDoc({ownerId: 'o', sessionId: 's', recordings: [{...recording, parts}], nowIso: 'x'});
   assert.equal(doc.bestLapTime, 80.491);
+});
+
+// The index of what --live uploaded (ticket 86): a torn write used to read as
+// {}, dropping every cover.
+function liveWork() {
+  const work = mkdtempSync(join(tmpdir(), 'liveindex-'));
+  mkdirSync(join(work, 'live'));
+  return work;
+}
+const COVERS = {'lmu|r1': {sessionId: 's1', sim: 'lmu', layout: 'x', startMs: 1, endMs: 2}};
+
+test('the live index is written whole and read back', () => {
+  const work = liveWork();
+  writeLiveIndex(work, COVERS);
+  assert.deepEqual(readLiveIndex(work), COVERS);
+});
+
+test('a torn live index recovers its covers from the .bak and the bad file is kept', () => {
+  const work = liveWork();
+  writeLiveIndex(work, {});
+  writeLiveIndex(work, COVERS);
+  writeLiveIndex(work, {...COVERS, 'lmu|r2': {sessionId: 's2'}});
+  writeFileSync(liveIndexPath(work), '{"lmu|r1": {"sessionId": "s'); // torn
+  assert.deepEqual(readLiveIndex(work), COVERS);
+  assert.equal(readdirSync(join(work, 'live')).filter(f => f.includes('.corrupt-')).length, 1);
+  assert.deepEqual(JSON.parse(readFileSync(liveIndexPath(work), 'utf8')), COVERS);
+});
+
+test('no live index is an empty one, and an unreadable one with no .bak is empty but kept', () => {
+  const work = liveWork();
+  assert.deepEqual(readLiveIndex(work), {});
+  writeFileSync(liveIndexPath(work), '');
+  assert.deepEqual(readLiveIndex(work), {});
+  assert.equal(readdirSync(join(work, 'live')).filter(f => f.includes('.corrupt-')).length, 1);
 });

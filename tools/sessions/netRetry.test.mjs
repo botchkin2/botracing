@@ -70,3 +70,21 @@ test('finds the reset inside a wrapped FetchError', () => {
   );
   assert.equal(isTransient(new Error('nope')), false);
 });
+
+test('a network that is down (no DNS, refused, unreachable) is a blip too (ticket 86)', () => {
+  for (const code of ['ENOTFOUND', 'ECONNREFUSED', 'ENETUNREACH', 'EHOSTUNREACH']) {
+    assert.equal(isTransient(Object.assign(new Error(code), {code})), true, code);
+  }
+  assert.equal(isTransient(new Error('getaddrinfo ENOTFOUND botracing-61.web.app')), true);
+  // undici's wrapper for any fetch failure, TLS and certificate errors too: only its cause says which.
+  assert.equal(isTransient(new TypeError('fetch failed')), false);
+  assert.equal(
+    isTransient(Object.assign(new TypeError('fetch failed'), {cause: Object.assign(new Error('x'), {code: 'ENOTFOUND'})})),
+    true,
+  );
+  assert.equal(
+    isTransient(Object.assign(new TypeError('fetch failed'), {cause: Object.assign(new Error('x'), {code: 'CERT_HAS_EXPIRED'})})),
+    false,
+  );
+  assert.equal(isTransient(new Error('403 forbidden')), false);
+});

@@ -196,3 +196,10 @@ test('a heal line adds its replaced recordings to the sync result', () => {
   readSyncLine(r, '  heal: 1 recording(s) replaced (e -> f), 0 lap(s) hidden, 1 stretch(es) kept (g)');
   assert.equal(r.healed, 3);
 });
+
+test('the line that says the sync started its state afresh is kept for the heartbeat', () => {
+  const line =
+    'state.json unreadable: sessions since 2026-08-02 are checked again (the bad file is kept as state.json.corrupt-2026-10-31T01-30-00-000Z)';
+  assert.equal(run([line, 'done 3, failed 0']).stateNote, line);
+  assert.equal(run(['done 3, failed 0']).stateNote, null);
+});

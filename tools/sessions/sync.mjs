@@ -43,6 +43,7 @@ import {
   scanFolder,
 } from './sessionFiles.mjs';
 import {replaceFile} from './replaceFile.mjs';
+import {readStateFile} from './stateFile.mjs';
 import {versionKey} from './versionKey.mjs';
 import {slugId} from './analyzeFromArchive.mjs';
 import {analysisVersion, blockVersions, trackMapVersion} from './analyze.mjs';
@@ -198,10 +199,30 @@ const jobs = Math.max(
   ),
 );
 
+// An unreadable state.json (a power cut can leave it empty) recovers from its
+// .bak, else starts as a new install does: the same first-run window, never
+// wider. The bad file is kept (stateFile.mjs) and the lines below say so; the
+// watcher shows the second one as the uploader's error (syncOutput.mjs).
 function readState() {
-  if (!existsSync(statePath))
-    return freshState({windowDays: firstWindowDays, now: new Date()});
-  return JSON.parse(readFileSync(statePath, 'utf8'));
+  const read = readStateFile(statePath);
+  if (read.source === 'file') return read.value;
+  if (read.source === 'backup') {
+    log(
+      `state.json ${
+        read.keptAs ? 'was unreadable' : 'was missing'
+      }; restored from state.json.bak${
+        read.keptAs ? ` (the bad file is kept as ${read.keptAs})` : ''
+      }`,
+    );
+    return read.value;
+  }
+  const state = freshState({windowDays: firstWindowDays, now: new Date()});
+  if (read.source === 'unreadable') {
+    log(
+      `state.json unreadable: sessions since ${state.since ?? 'the start'} are checked again (the bad file is kept as ${read.keptAs})`,
+    );
+  }
+  return state;
 }
 
 // Written to a temp file and renamed over the old one, so a sync killed
@@ -209,7 +230,7 @@ function readState() {
 // state.json behind (pitlane #667).
 function saveState(state) {
   mkdirSync(work, {recursive: true});
-  replaceFile(statePath, JSON.stringify(state));
+  replaceFile(statePath, JSON.stringify(state), {backup: true});
 }
 
 function log(line) {
