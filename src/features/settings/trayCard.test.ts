@@ -109,7 +109,7 @@ describe('trayCard', () => {
       data: {version: '0.1.3', notes: ''},
       nowMs: NOW,
     };
-    expect(trayCard({...q, pcs: []}).pcs).toEqual(['No PC reporting']);
+    expect(trayCard({...q, pcs: []}).pcs.map(r => r.text)).toEqual(['No PC reporting']);
     expect(trayCard(q).pcs).toEqual([]);
     expect(
       trayCard({
@@ -118,8 +118,18 @@ describe('trayCard', () => {
           pc({host: 'Old PC', lastSeenAt: NOW - 3_600_000}),
           pc({host: 'Race PC', version: '0.1.3'}),
         ],
-      }).pcs,
+      }).pcs.map(r => r.text),
     ).toEqual(['Race PC · v0.1.3 · latest', 'Old PC · v0.1.2 · not reporting']);
+  });
+
+  it('keys each PC by its uploader id, so two PCs reading the same line are two rows (ticket 95)', () => {
+    const q = {isPending: false, isError: false, data: {version: '0.1.3', notes: ''}, nowMs: NOW};
+    const rows = trayCard({
+      ...q,
+      pcs: [pc({hostId: 'a', host: 'Race PC', version: '0.1.3'}), pc({hostId: 'b', host: 'Race PC', version: '0.1.3'})],
+    }).pcs;
+    expect(rows.map(r => r.text)[0]).toBe(rows.map(r => r.text)[1]);
+    expect(new Set(rows.map(r => r.key)).size).toBe(2);
   });
 });
 
