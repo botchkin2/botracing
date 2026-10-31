@@ -109,7 +109,7 @@ export function RaceScreen({
   selection,
   onSelectionChange,
   embed3d = false,
-  openAt,
+  atParam,
 }: {
   sessionId: string;
   selection: RaceSelection;
@@ -117,7 +117,7 @@ export function RaceScreen({
   /** The page is the Android app's WebView (`embed=3d`): it opens on the 3D, full screen. */
   embed3d?: boolean;
   /** `?at=`: open on this moment of the field's clock when the cursor does not say (selectionClock.openAtOf). */
-  openAt?: string;
+  atParam?: string;
 }) {
   const data = useRaceData(sessionId);
   return (
@@ -127,7 +127,7 @@ export function RaceScreen({
       selection={selection}
       onSelectionChange={onSelectionChange}
       embed3d={embed3d}
-      openAt={openAt}
+      atParam={atParam}
     />
   );
 }
@@ -138,14 +138,14 @@ function RaceShell({
   selection,
   onSelectionChange,
   embed3d,
-  openAt,
+  atParam,
 }: {
   sessionId: string;
   data: RaceData;
   selection: RaceSelection;
   onSelectionChange: (patch: SelectionPatch) => void;
   embed3d: boolean;
-  openAt?: string;
+  atParam?: string;
 }) {
   const {color} = useTheme();
   const insets = useSafeAreaInsets();
@@ -157,7 +157,7 @@ function RaceShell({
     return (
       <View style={[styles.screen, {backgroundColor: color.bg}]}>
         {data.kind === 'ready' ? (
-          <RaceView data={data} selection={selection} onSelectionChange={onSelectionChange} embed3d openAt={openAt} />
+          <RaceView data={data} selection={selection} onSelectionChange={onSelectionChange} embed3d atParam={atParam} />
         ) : null}
       </View>
     );
@@ -193,7 +193,7 @@ function RaceShell({
           selection={selection}
           onSelectionChange={onSelectionChange}
           embed3d={embed3d}
-          openAt={openAt}
+          atParam={atParam}
         />
       ) : (
         <Notice data={data} />
@@ -298,13 +298,13 @@ function RaceView({
   selection,
   onSelectionChange,
   embed3d,
-  openAt,
+  atParam,
 }: {
   data: Extract<RaceData, {kind: 'ready'}>;
   selection: RaceSelection;
   onSelectionChange: (patch: SelectionPatch) => void;
   embed3d: boolean;
-  openAt?: string;
+  atParam?: string;
 }) {
   const {color} = useTheme();
   const {mode} = data;
@@ -317,7 +317,7 @@ function RaceView({
   const [open] = useState(() => {
     const cursorS = raceTimeFor(selection, data.laps, data.clock);
     if (cursorS != null) return {timeS: cursorS, atFinish: false};
-    const atS = openAtOf(openAt, endS);
+    const atS = openAtOf(atParam, endS);
     if (atS != null) return {timeS: atS, atFinish: false};
     const u = mode === 'race' ? finishUpdateOf(prep.field) : null;
     return u == null
