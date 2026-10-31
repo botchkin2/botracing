@@ -106,7 +106,7 @@ export function matchPartNames(
   const own = matchCornerNames(parts, names, maxM);
   const out = new Map<number, string>();
   for (const part of parts) {
-    const section = ofSection.get(part.section);
+    const section = ofSection.get(sections[part.section].n);
     const mine = own.get(part.n);
     const point = mine === undefined ? undefined : names.find(p => p.name === mine);
     const onStretch =

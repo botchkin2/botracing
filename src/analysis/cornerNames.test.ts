@@ -158,4 +158,31 @@ describe('matchPartNames (thread 134 #8576)', () => {
     const names = [{name: 'Own', lat: north(50), lon: 6}];
     expect(matchPartNames(parts, sections, names).get(1)).toBe(matchCornerNames(parts, names).get(1));
   });
+  // The real table (pit-wall proof/2026-10-29-ticket-83-monza-corner-names): Silverstone ELMS T2-T5 is one section.
+  // The pure section rule gave all four parts "Maggotts"; the OSM points below are tracks.json's own.
+  it('Silverstone Maggotts, Becketts and Chapel Curve each keep their name, the fourth part takes the section name', () => {
+    const maggotts = {name: 'Maggotts', lat: 52.073665, lon: -1.009651};
+    const becketts = {name: 'Becketts', lat: 52.072065, lon: -1.010095};
+    const chapel = {name: 'Chapel Curve', lat: 52.070861, lon: -1.009306};
+    // The stretch runs along the road: Maggotts, Becketts, Chapel Curve.
+    const points = [];
+    for (const [a, b] of [[maggotts, becketts], [becketts, chapel]]) {
+      for (let k = 0; k < 15; k++) {
+        const f = k / 15;
+        points.push({lat: a.lat + (b.lat - a.lat) * f, lon: a.lon + (b.lon - a.lon) * f});
+      }
+    }
+    points.push({lat: chapel.lat, lon: chapel.lon});
+    const sections = [{n: 2, points}];
+    const parts = [
+      {n: 2, section: 0, lat: maggotts.lat, lon: maggotts.lon},
+      {n: 3, section: 0, lat: becketts.lat, lon: becketts.lon},
+      {n: 4, section: 0, lat: chapel.lat, lon: chapel.lon},
+      {n: 5, section: 0, lat: chapel.lat - 0.0012, lon: chapel.lon},
+    ];
+    const names = [maggotts, becketts, chapel];
+    expect(matchSectionNames(sections, names).get(2)).toBe('Maggotts');
+    const got = matchPartNames(parts, sections, names);
+    expect([2, 3, 4, 5].map(n => got.get(n))).toEqual(['Maggotts', 'Becketts', 'Chapel Curve', 'Maggotts']);
+  });
 });
